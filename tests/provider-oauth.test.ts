@@ -143,7 +143,7 @@ test("refreshed credentials that resolve to a different stable identity deactiva
   assert.equal(oauth.status()[0].status, "identity_drift");
 });
 
-test("LinkedIn without an issued refresh token surfaces reauthorisation instead of inventing refresh support", async () => {
+test("LinkedIn without an issued refresh token requests reauthorisation, wakes once at expiry and then deactivates", async () => {
   const h = configuredHarness();
   let network = 0;
   const oauth = new ProviderOAuthConnections(
@@ -175,6 +175,13 @@ test("LinkedIn without an issued refresh token surfaces reauthorisation instead 
   assert.equal(oauth.status()[0].status, "reauthorization_required");
   assert.equal(oauth.status()[0].needsReauthorization, true);
   assert.equal(h.store.get<Account>("account:linkedin")!.active, true);
+  assert.equal(oauth.nextWake(), expiresAt);
+  h.advance(7 * 86400000);
+  await oauth.refreshDue();
+  assert.equal(network, 0);
+  assert.equal(oauth.status()[0].status, "expired");
+  assert.equal(h.store.get<Account>("account:linkedin")!.active, false);
+  assert.equal(oauth.nextWake(), undefined);
 });
 
 test("disconnect scrubs locally stored OAuth credentials even when provider revocation is unavailable", async () => {
