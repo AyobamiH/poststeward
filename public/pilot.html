@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>First publication acceptance · PostSteward</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/pilot.css" />
+  <script type="module" src="/pilot.js"></script>
+</head>
+<body>
+<header><a class="wordmark" href="/">PostSteward</a><nav><a href="/app">Workspace</a><a href="/docs/agent-guide.md">Agent guide</a></nav></header>
+<main class="pilot">
+  <p class="eyebrow">RESTRICTED STAGING · OWNER ACCEPTANCE</p>
+  <h1>One approved post.<br />Evidence at every step.</h1>
+  <p class="lead">Verify your Google sign-in, choose one account, review the exact copy and approve one controlled publication. Nothing posts merely by opening this page.</p>
+  <p id="notice" role="status" aria-live="polite">Checking the owner session…</p>
+  <section aria-labelledby="owner-heading">
+    <h2 id="owner-heading">1. Verified owner sign-in</h2>
+    <p id="owner-status">No completed sign-in has been verified in this browser yet.</p>
+    <a class="button" id="signin" href="/auth/login?return=%2Fpilot">Sign in with Google</a>
+    <button id="signout" type="button" hidden>Sign out</button>
+    <p class="muted">Only your invited, verified Google identity is admitted. Approval requires a sign-in completed within fifteen minutes. Signing out or letting the session expire blocks this pilot before a provider write starts; it cannot undo a write already started.</p>
+  </section>
+  <div id="workbench" hidden>
+    <section aria-labelledby="account-heading">
+      <h2 id="account-heading">2. Choose your destination</h2>
+      <p>Choose explicitly. A familiar alias is not proof of account identity: the review also shows the provider's stable account ID.</p>
+      <button type="button" id="refresh">Refresh connections and receipt</button>
+      <details><summary>Connect an authorised X or Threads account</summary>
+        <p>This restricted pilot imports an existing user access token over this authenticated connection. It is not a completed self-service provider OAuth flow. Do not use an app-only token, paste credentials into chat, or reuse another product's credentials without authorisation.</p>
+        <form id="connection-form" autocomplete="off">
+          <label for="connection-alias">Account alias</label><input id="connection-alias" name="alias" required pattern="[a-zA-Z0-9_-]{1,100}" maxlength="100" />
+          <label for="connection-provider">Provider</label><select id="connection-provider" name="provider" required><option value="">Choose provider</option><option value="threads">Threads</option><option value="x">X</option></select>
+          <label for="connection-token">User access token</label><input id="connection-token" name="accessToken" type="password" autocomplete="off" minlength="10" maxlength="4096" required spellcheck="false" />
+          <label class="check"><input id="connection-funding" type="checkbox" />For X only: I own the funded developer application and authorise its API usage.</label>
+          <p class="muted">Threads needs threads_basic and threads_content_publish. X needs user-context read/write access. Identity readback is checked now; successful publishing permission is proved only by the actual provider response. The token field is cleared after every submission and is never written to browser storage.</p>
+          <button type="submit">Connect and verify identity only</button>
+        </form>
+      </details>
+    </section>
+    <section aria-labelledby="prepare-heading">
+      <h2 id="prepare-heading">3. Prepare an exact review</h2>
+      <form id="prepare-form">
+        <label for="account">Verified account</label><select id="account" name="alias" required><option value="">Choose a connected account</option></select>
+        <label for="copy">Exact publication text</label><textarea id="copy" name="text" rows="5" maxlength="3000" required>Checking owner approval, account routing and publication receipts in PostSteward staging. This is a controlled test, not a public launch.</textarea>
+        <p class="muted">Text only, one destination. Nothing is shortened or rewritten. X and Threads limits are enforced by the server. LinkedIn remains available in the main workspace but is not offered for this verified-readback milestone.</p>
+        <button type="submit" id="prepare">Verify account and prepare review</button>
+      </form>
+    </section>
+    <section id="review-panel" aria-labelledby="review-heading" hidden>
+      <h2 id="review-heading">4. Approve this exact publication</h2>
+      <p id="destination"></p><pre id="exact-copy"></pre><p id="review-meta" class="muted"></p>
+      <form id="confirm-form">
+        <label class="check"><input id="approve" type="checkbox" required />I approve this exact text for this exact account, using the account's normal audience. It may be publicly visible. Reserve only this one publication.</label>
+        <p>You have a thirty-second cancellation window after approval. After provider submission starts, cancellation is not guaranteed. Closing the page does not cancel a reserved job.</p>
+        <button id="confirm" type="submit" disabled>Approve one publication</button>
+      </form>
+    </section>
+    <section aria-labelledby="receipt-heading">
+      <h2 id="receipt-heading">5. Inspect the publication evidence</h2>
+      <p id="receipt-status" role="status" aria-live="polite">No publication has been reserved.</p>
+      <div class="pilot-actions"><button id="cancel" type="button" disabled>Cancel before dispatch</button><button id="recheck" type="button" disabled>Read back the existing post</button><button id="export-receipt" type="button" disabled>Export private receipt</button></div>
+      <p id="post-link"></p>
+      <details><summary>Private receipt and verification boundary</summary><pre id="receipt">No receipt yet.</pre></details>
+      <p class="muted">“Reserved” is not “published”. A provider creation ID is not exact readback proof. Verification reads that recorded post ID and checks the stable author ID and exact text. Unknown write outcomes are never retried here. The pilot slot stays consumed after reservation, including cancellation or failure; use the recorded receipt rather than starting a second pilot. Verification does not enable payments or approve a public launch.</p>
+    </section>
+  </div>
+  <noscript><p>JavaScript is required for the authenticated review and approval controls. No publication occurs without them.</p></noscript>
+</main>
+<footer>PostSteward · Exact approval, durable execution, inspectable evidence.</footer>
+</body>
+</html>

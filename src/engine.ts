@@ -1,4 +1,5 @@
 import { byName, plans } from "./operations/catalog.ts";
+import { guardControlledPublication } from "./controlled.ts";
 import {
   active,
   digest,
@@ -140,7 +141,7 @@ export class Engine {
           )
             return {
               cancelled: false,
-              delivery: d,
+              delivery: this.publicDelivery(d),
               reason: "already_executing",
             };
           if (["scheduled", "waiting_container"].includes(d.status)) {
@@ -148,11 +149,11 @@ export class Engine {
               status: "cancelled",
               reason: "Cancelled by authorised actor.",
             });
-            return { cancelled: true, delivery: d };
+            return { cancelled: true, delivery: this.publicDelivery(d) };
           }
           return {
             cancelled: d.status === "cancelled",
-            delivery: d,
+            delivery: this.publicDelivery(d),
             reason:
               d.status === "executing"
                 ? "already_executing"
@@ -434,6 +435,7 @@ export class Engine {
       402,
     );
     const data = parsed.data as any;
+    guardControlledPublication(this.store, name, data);
     if (!data.idempotencyKey) return this.handlers[name](data, actor);
     const hash = await digest({ name, data }),
       key =
@@ -558,7 +560,9 @@ export class Engine {
       const previous = id
         ? this.store.get<Delivery>("delivery:" + id)
         : undefined;
-      return previous && previous.status !== "cancelled" ? previous : d;
+      // A controlled fingerprint stays consumed even if its delivery was
+      // cancelled. Cloning the campaign or switching transports cannot reset it.
+      return previous && (previous.status !== "cancelled" || previous.reviewedRelease) ? previous : d;
     });
     const fresh = resolved.filter(
       (d, index) =>
@@ -605,6 +609,27 @@ export class Engine {
       ),
       reused: prepared.length - fresh.length,
     };
+  }
+  /** Internal owner-pilot reservation. No I/O inside the atomic commit. */
+  reserveReviewed(delivery: Delivery, commitApproval: () => void) {
+    return this.store.tx(() => {
+      requireValue(!this.paused(), "PUBLISHING_PAUSED", "Publishing is paused.", 409);
+      requireValue(delivery.actor.workspace === this.store.get("workspace") &&
+        delivery.actor.scopes.includes("admin") && !delivery.actor.grant && delivery.actor.ownerSession &&
+        !delivery.automatic && delivery.reviewedRelease === this.env.RELEASE_SHA && delivery.dueAt >= this.now(),
+        "REVIEW_INVALID", "A current session-bound owner review is required.", 409);
+      const account = this.connected(delivery.account);
+      requireValue(account.version === delivery.binding && account.provider === delivery.provider && account.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT", "The reviewed account binding changed.", 409);
+      validateText(delivery.provider, delivery.text);
+      requireValue(!this.store.get("fingerprint:" + delivery.fingerprint),
+        "EXISTING_PUBLICATION", "This exact account/content already has a delivery. Inspect it rather than creating a pilot duplicate.", 409);
+      const result = this.reservePrepared([delivery]);
+      requireValue(result.reused === 0 && result.deliveries.length === 1 && result.deliveries[0].id === delivery.id,
+        "RESERVATION_CONFLICT", "Controlled reservation did not allocate exactly its one delivery.", 409);
+      commitApproval();
+      return result;
+    });
   }
   async reserve(
     campaign: string,
@@ -867,15 +892,17 @@ export class Engine {
       });
       return;
     }
-    if (!(await this.options.authorized(d.actor))) {
+    const initiallyAuthorized = await this.options.authorized(d.actor);
+    // Authorization is external I/O: never write back the stale pre-read copy.
+    d = this.get<Delivery>("delivery:", id);
+    if (!["scheduled", "waiting_container"].includes(d.status)) return;
+    if (!initiallyAuthorized) {
       this.update(d, {
         status: "drift_blocked",
         reason: "Delegated publishing authority revoked or expired.",
       });
       return;
     }
-    d = this.get<Delivery>("delivery:", id);
-    if (!["scheduled", "waiting_container"].includes(d.status)) return;
     if (d.automatic) {
       const p = this.get<Profile>("profile:", d.policy!);
       try {
@@ -899,15 +926,22 @@ export class Engine {
     d = this.get<Delivery>("delivery:", id);
     if (!["scheduled", "waiting_container"].includes(d.status)) return;
     const previousPhase = d.phase;
+    const claimId = uid();
     // Synchronous durable claim, before the first provider request.
     this.store.tx(() =>
       this.update(d, {
         status: "executing",
         phase:
           previousPhase === "container_wait" ? "container_wait" : "identity",
+        claimId,
         claimUntil: this.now() + 60000,
       }),
     );
+    const demandClaim = () => {
+      const current = this.get<Delivery>("delivery:", id);
+      requireValue(current.claimId === claimId && current.status === "executing" && (current.claimUntil || 0) > this.now(),
+        "CLAIM_LOST", "The execution claim expired or was recovered. No further provider write is permitted.", 409);
+    };
     try {
       const a = this.connected(d.account);
       requireValue(
@@ -926,19 +960,23 @@ export class Engine {
       );
       const credential = await this.credential(a),
         identity = await this.providers.identity(d.provider, credential);
+      demandClaim();
       requireValue(
         identity.id === d.identity.id,
         "ACCOUNT_DRIFT",
         "Provider identity no longer matches the authorised account.",
         409,
       );
+      requireValue(!d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA,
+        "AUTHORITY_CHANGED", "The runtime changed after owner approval.", 409);
       if (d.provider === "threads") {
         if (!d.containerId) {
-          this.update(d, { phase: "container_create" });
+          this.update(d, { phase: "container_create", claimUntil: this.now() + 60000 });
           const containerId = await this.providers.createContainer(
             d,
             credential,
           );
+          demandClaim();
           this.update(d, {
             containerId,
             phase: "container_wait",
@@ -952,6 +990,7 @@ export class Engine {
           d.containerId,
           credential,
         );
+        demandClaim();
         d.containerChecks = (d.containerChecks || 0) + 1;
         if (
           ["IN_PROGRESS", "NOT_VISIBLE"].includes(status) &&
@@ -980,9 +1019,11 @@ export class Engine {
         );
       }
       const authorized = await this.options.authorized(d.actor);
+      demandClaim();
       const latest = this.connected(d.account);
       requireValue(
-        latest.version === d.binding && !this.paused() && authorized,
+        latest.version === d.binding && !this.paused() && authorized &&
+          (!d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA),
         "AUTHORITY_CHANGED",
         "Publication authority changed before provider write.",
         409,
@@ -997,9 +1038,13 @@ export class Engine {
           "Continuing authority is inactive.",
           409,
         );
-      this.update(d, { phase: "publish" });
+      this.update(d, { phase: "publish", claimUntil: this.now() + 60000 });
       const published = await this.providers.publish(d, credential);
-      // Commit the provider ID before any optional readback request.
+      // A late accepted write is still valuable evidence even after a watchdog
+      // recorded uncertainty for this same claim. Never lose its creation ID.
+      const current = this.get<Delivery>("delivery:", id);
+      if (current.claimId !== claimId) return;
+      d = current;
       this.update(d, {
         postId: published.id,
         url: published.url,
@@ -1024,6 +1069,8 @@ export class Engine {
       }
     } catch (e) {
       const code = e instanceof Fault ? e.code : "UNEXPECTED_FAILURE";
+      const latest = this.get<Delivery>("delivery:", id);
+      if (code === "CLAIM_LOST" || latest.claimId !== claimId || latest.status !== "executing") return;
       this.update(d, {
         status:
           code === "AMBIGUOUS_PROVIDER_WRITE" ||

@@ -1,65 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
-import {
-  Miniflare,
-  convertV4MiniflareOptions,
-  Response as RuntimeResponse,
-} from "miniflare";
-import { environment } from "./helpers.ts";
+import { Response as RuntimeResponse } from "miniflare";
 import { digest } from "../src/common.ts";
 import { expireIdentity } from "../src/security.ts";
 import type { Env } from "../src/types.ts";
-
-async function runtime(outboundService?: (request: Request) => Promise<any>) {
-  const mf = new Miniflare(
-    convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: "dist/worker.js",
-      compatibilityDate: "2026-09-09",
-      compatibilityFlags: ["nodejs_compat"],
-      bindings: {
-        ...Object.fromEntries(
-          Object.entries(environment).filter(([, v]) => typeof v === "string"),
-        ),
-        OIDC_ISSUER: "https://identity.example",
-        OIDC_CLIENT_ID: "poststeward-test",
-        OIDC_CLIENT_SECRET: "not-a-real-secret",
-        ALLOWED_OWNER_EMAILS: "owner@example.com",
-        SIGNUP_MODE: "restricted",
-      },
-      ratelimits: {
-        EDGE_LIMITER: {
-          namespace_id: "51001",
-          simple: { limit: 120, period: 60 },
-        },
-        LOGIN_LIMITER: {
-          namespace_id: "51002",
-          simple: { limit: 10, period: 60 },
-        },
-      },
-      d1Databases: { IDENTITY: "security-test" },
-      durableObjects: {
-        WORKSPACES: { className: "Workspace", useSQLite: true },
-      },
-      serviceBindings: { ASSETS: async () => new RuntimeResponse("asset") },
-      outboundService:
-        outboundService ||
-        (async () => {
-          throw new Error("Unexpected network access");
-        }),
-    }),
-  );
-  const db = await mf.getD1Database("IDENTITY");
-  for (const file of ["0001_identity.sql", "0002_security_indexes.sql"])
-    for (const statement of readFileSync("migrations/" + file, "utf8")
-      .split(";")
-      .map((x) => x.trim())
-      .filter(Boolean))
-      await db.prepare(statement).run();
-  return { mf, db };
-}
+import { runtime } from "./runtime-fixture.ts";
 
 test("Workers OIDC accepts a signed invited identity and rejects replay, forged signatures and unverified email", async () => {
   const trusted = await generateKeyPair("RS256"),
@@ -147,14 +93,14 @@ test("Workers OIDC accepts a signed invited identity and rejects replay, forged 
     verified = false;
     assert.equal((await (await begin())()).status, 403);
     assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM principals").first<any>())
-        ?.n,
+      (await db.prepare("SELECT count(*) AS n FROM principals").first<any>())?.n,
       1,
     );
     assert.equal(
       (await db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n,
       1,
     );
+    assert.equal((await db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 1);
   } finally {
     await mf.dispose();
   }
@@ -163,110 +109,54 @@ test("Workers OIDC accepts a signed invited identity and rejects replay, forged 
 test("Workers sessions enforce CSRF, reject Bearer fallback and cap active agent grants", async () => {
   const { mf, db } = await runtime();
   try {
-    await db
-      .prepare("INSERT INTO principals VALUES (?,?,?)")
-      .bind("owner", "workspace", Date.now())
-      .run();
-    await db
-      .prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
-      .bind(
-        await digest("owner-session"),
-        "workspace",
-        "owner",
-        Date.now() + 60000,
-        "csrf-secret",
-      )
-      .run();
+    await db.prepare("INSERT INTO principals VALUES (?,?,?)").bind("owner", "workspace", Date.now()).run();
+    await db.prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
+      .bind(await digest("owner-session"), "workspace", "owner", Date.now() + 60000, "csrf-secret").run();
     const headers = {
       Cookie: "__Host-session=owner-session",
       Origin: "https://publish.example",
       "Content-Type": "application/json",
       "x-csrf-token": "csrf-secret",
     };
-    const denied = await mf.dispatchFetch(
-      "https://publish.example/api/grants",
-      {
-        method: "POST",
-        headers: { ...headers, "x-csrf-token": "wrong" },
-        body: '{"scopes":["read"]}',
-      },
-    );
+    const denied = await mf.dispatchFetch("https://publish.example/api/grants", {
+      method: "POST", headers: { ...headers, "x-csrf-token": "wrong" }, body: '{"scopes":["read"]}',
+    });
     assert.equal(denied.status, 403);
-    const badBearer = await mf.dispatchFetch(
-      "https://publish.example/api/session",
-      { headers: { ...headers, Authorization: "Basic invalid" } },
-    );
+    const badBearer = await mf.dispatchFetch("https://publish.example/api/session", {
+      headers: { ...headers, Authorization: "Basic invalid" },
+    });
     assert.equal(badBearer.status, 401);
     for (let n = 0; n < 49; n++)
-      await db
-        .prepare("INSERT INTO grants VALUES (?,?,?,?,?,NULL)")
-        .bind(
-          `grant-${n}`,
-          "workspace",
-          "owner",
-          '["read"]',
-          Date.now() + 60000,
-        )
-        .run();
+      await db.prepare("INSERT INTO grants VALUES (?,?,?,?,?,NULL)")
+        .bind(`grant-${n}`, "workspace", "owner", '["read"]', Date.now() + 60000).run();
     const last = await mf.dispatchFetch("https://publish.example/api/grants", {
-      method: "POST",
-      headers,
-      body: '{"scopes":["read"]}',
+      method: "POST", headers, body: '{"scopes":["read"]}',
     });
     assert.equal(last.status, 201);
     assert.equal(last.headers.get("cache-control"), "no-store");
     const over = await mf.dispatchFetch("https://publish.example/api/grants", {
-      method: "POST",
-      headers,
-      body: '{"scopes":["read"]}',
+      method: "POST", headers, body: '{"scopes":["read"]}',
     });
     assert.equal(over.status, 409);
-    assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM grants").first<any>())?.n,
-      50,
-    );
-    const wrongHost = await mf.dispatchFetch(
-      "https://different.example/help.json",
-    );
+    assert.equal((await db.prepare("SELECT count(*) AS n FROM grants").first<any>())?.n, 50);
+    const wrongHost = await mf.dispatchFetch("https://different.example/help.json");
     assert.equal(wrongHost.status, 403);
     const health = await mf.dispatchFetch("https://publish.example/health");
-    assert.equal(
-      health.headers.get("strict-transport-security"),
-      "max-age=31536000",
-    );
-    assert.match(
-      health.headers.get("content-security-policy")!,
-      /object-src 'none'/,
-    );
-    await db
-      .prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
-      .bind("expired-session", "workspace", "owner", 1, "expired")
-      .run();
-    await db
-      .prepare("INSERT INTO login_states VALUES (?,?,?,?)")
-      .bind("expired-state", "verifier", "nonce", 1)
-      .run();
+    assert.equal(health.headers.get("strict-transport-security"), "max-age=31536000");
+    assert.match(health.headers.get("content-security-policy")!, /object-src 'none'/);
+    await db.prepare("INSERT INTO sessions VALUES (?,?,?,?,?)").bind("expired-session", "workspace", "owner", 1, "expired").run();
+    await db.prepare("INSERT INTO login_states (state_hash,verifier,nonce,expires_at) VALUES (?,?,?,?)")
+      .bind("expired-state", "verifier", "nonce", 1).run();
     await expireIdentity({ IDENTITY: db } as unknown as Env);
-    assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n,
-      1,
-    );
-    assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM login_states").first<any>())
-        ?.n,
-      0,
-    );
-    // Exercise the actual Workers rate binding with a separate ingress identity.
+    assert.equal((await db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 1);
+    assert.equal((await db.prepare("SELECT count(*) AS n FROM login_states").first<any>())?.n, 0);
     const statuses = [];
     for (let n = 0; n < 121; n++) {
       const r = await mf.dispatchFetch("https://publish.example/api/session", {
         headers: { "CF-Connecting-IP": "203.0.113.17" },
       });
       statuses.push(r.status);
-      if (r.status === 429) {
-        assert.equal(r.headers.get("retry-after"), "60");
-        break;
-      }
+      if (r.status === 429) { assert.equal(r.headers.get("retry-after"), "60"); break; }
     }
     assert.ok(statuses.includes(429));
   } finally {

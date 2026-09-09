@@ -12,8 +12,10 @@ import { Billing, stripeWebhook } from "./billing.ts";
 import { errorResponse, Fault, json, requireValue } from "./common.ts";
 import { help, openapi } from "./discovery.ts";
 import { Engine } from "./engine.ts";
-import { mcp } from "./mcp.ts";
 import { SocialProviders } from "./providers.ts";
+import { ownerAuthority } from "./owner-proof.ts";
+import { Pilot } from "./pilot.ts";
+import { mcp } from "./mcp.ts";
 import { SQLiteStore } from "./store.ts";
 import {
   boundedBody,
@@ -83,18 +85,21 @@ export class Workspace extends DurableObject<Env> {
     );
     if (!known) this.store.put("workspace", workspace);
     const billing = new Billing(this.store, this.env, workspace);
+    const providers = new SocialProviders(fetch, this.env.LINKEDIN_VERSION);
+    const authorized = (actor: Actor) => isAuthorized(actor, this.env);
     const engine = new Engine(
       this.store,
       this.env,
-      new SocialProviders(fetch, this.env.LINKEDIN_VERSION),
+      providers,
       {
         wake: (at) => this.wake(at),
-        authorized: (a) => isAuthorized(a, this.env),
+        authorized,
         source,
         billing,
       },
     );
-    return { billing, engine };
+    const pilot = new Pilot(this.store, this.env, engine, providers, authorized);
+    return { billing, engine, pilot };
   }
   async fetch(request: Request): Promise<Response> {
     try {
@@ -111,7 +116,7 @@ export class Workspace extends DurableObject<Env> {
         "Workspace is required.",
         400,
       );
-      const { engine, billing } = this.services(data.workspace),
+      const { engine, billing, pilot } = this.services(data.workspace),
         path = new URL(request.url).pathname;
       if (path === "/billing/reconcile") {
         await billing.reconcile();
@@ -126,7 +131,12 @@ export class Workspace extends DurableObject<Env> {
       );
       limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);
       let result: unknown;
-      if (path === "/connect") {
+      if (path.startsWith("/pilot/")) {
+        // This envelope is constructed by the authenticated Worker, never by
+        // a public JSON body. The Durable Object has no public internet route.
+        const envelope = data.input as { input: unknown; owner: Awaited<ReturnType<typeof ownerAuthority>> };
+        result = await pilot.run(path.slice("/pilot/".length), envelope.input, data.actor, envelope.owner);
+      } else if (path === "/connect") {
         const parsed = connectionSchema.safeParse(data.input);
         requireValue(
           parsed.success,
@@ -149,7 +159,13 @@ export class Workspace extends DurableObject<Env> {
           data.actor,
           data.name,
         );
-      } else result = await engine.run(data.name, data.input, data.actor);
+      } else {
+        result = await engine.run(data.name, data.input, data.actor);
+        if (data.name === "schedule_cancel") {
+          const cancellation = result as { delivery?: import("./types.ts").Delivery };
+          if (cancellation.delivery) result = { ...cancellation, delivery: engine.publicDelivery(cancellation.delivery) };
+        }
+      }
       await engine.scheduleNext();
       return json(result);
     } catch (e) {
@@ -278,6 +294,16 @@ async function route(
     path === "/auth/logout"
   ) {
     const auth = await authenticate(request, env);
+    if (path.startsWith("/api/pilot/")) {
+      const action = path.slice("/api/pilot/".length);
+      requireValue(["status", "prepare", "confirm", "cancel", "recheck"].includes(action), "NOT_FOUND", "Unknown acceptance operation.", 404);
+      requireValue(request.method === (action === "status" ? "GET" : "POST"), "METHOD_NOT_ALLOWED", "Use the documented acceptance method.", 405);
+      const owner = await ownerAuthority(request, env, auth);
+      const input = action === "status" ? {} : await request.json();
+      const response = await invoke(env, auth.actor, "", { input, owner }, "/pilot/" + action);
+      const result = await response.json() as Record<string, unknown>;
+      return json({ ...result, ...(response.ok ? { owner: owner.proof } : {}) }, response.status);
+    }
     if (path === "/api/session" && request.method === "GET")
       return json({
         workspace: auth.actor.workspace,
@@ -346,8 +372,8 @@ async function route(
       },
       405,
     );
-  // Assets already resolves /app to app.html. Rewriting to /app.html here
-  // would trigger its canonical 307 redirect back to /app indefinitely.
+  // Assets already resolves /app and /pilot to their HTML files. Rewriting to
+  // .html here would create a canonical redirect loop.
   return env.ASSETS.fetch(request);
 }
 export default {
