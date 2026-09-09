@@ -9,9 +9,17 @@ import {
   logout,
 } from "./auth.ts";
 import { Billing, stripeWebhook } from "./billing.ts";
-import { errorResponse, Fault, json, requireValue } from "./common.ts";
+import {
+  errorResponse,
+  explicitTime,
+  Fault,
+  json,
+  requireValue,
+} from "./common.ts";
 import { help, openapi } from "./discovery.ts";
+import { EffectLedgerProviders, setWorkspaceQuarantine, workspaceQuarantined } from "./effects.ts";
 import { Engine } from "./engine.ts";
+import { byName } from "./operations/catalog.ts";
 import { SocialProviders } from "./providers.ts";
 import {
   completeProviderOAuth,
@@ -20,8 +28,17 @@ import {
   providerOAuthSuccess,
   startProviderOAuth,
 } from "./provider-oauth.ts";
-import { ownerAuthority } from "./owner-proof.ts";
+import { demandFreshOwner, ownerAuthority } from "./owner-proof.ts";
 import { Pilot } from "./pilot.ts";
+import {
+  armRecoveryPlan,
+  assertRecoveryCanResume,
+  prepareRecoveryPlan,
+  rearmRecoveryPlanForUndo,
+  reconcileRecoveryPlan,
+  recoveryStatus,
+  requireRecoveryPlan,
+} from "./recovery.ts";
 import { mcp } from "./mcp.ts";
 import { SQLiteStore } from "./store.ts";
 import {
@@ -31,6 +48,7 @@ import {
   limitWorkspace,
 } from "./security.ts";
 import type { Actor, Env, Profile } from "./types.ts";
+
 const connectionSchema = z.strictObject({
   alias: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
   provider: z.enum(["x", "threads", "linkedin"]),
@@ -38,6 +56,53 @@ const connectionSchema = z.strictObject({
   expiresAt: z.number().optional(),
   funding: z.literal("customer_app").optional(),
 });
+const recoveryPrepareSchema = z.strictObject({
+  at: z.string().max(80),
+  reason: z.string().min(3).max(240),
+});
+const recoveryActionBase = {
+  id: z.uuid(),
+  digest: z.string().regex(/^[a-f0-9]{64}$/),
+};
+const recoveryExecuteSchema = z.strictObject({
+  ...recoveryActionBase,
+  execute: z.literal(true),
+});
+const recoveryReconcileSchema = z.strictObject({
+  ...recoveryActionBase,
+  reconcile: z.literal(true),
+});
+const recoveryResumeSchema = z.strictObject({
+  ...recoveryActionBase,
+  resume: z.literal(true),
+});
+const recoveryUndoSchema = z.strictObject({
+  ...recoveryActionBase,
+  undo: z.literal(true),
+});
+const recoveryCancelSchema = z.strictObject({
+  ...recoveryActionBase,
+  cancel: z.literal(true),
+});
+const riskReducingOperations = new Set([
+  "account_disconnect",
+  "schedule_cancel",
+  "publishing_pause",
+  "automation_pause",
+]);
+
+type PitrStorage = DurableObjectStorage & {
+  getCurrentBookmark?: () => Promise<string>;
+  getBookmarkForTime?: (timestamp: number | Date) => Promise<string>;
+  onNextSessionRestoreBookmark?: (bookmark: string) => Promise<string>;
+};
+
+function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const result = schema.safeParse(value);
+  requireValue(result.success, "INVALID_INPUT", "Inputs do not match the documented recovery form.");
+  return result.data;
+}
+
 async function source(profile: Profile) {
   // The hostname is fixed. Repository strings are validated by the canonical operation schema.
   const url = new URL(
@@ -72,6 +137,7 @@ async function source(profile: Profile) {
   );
   return { sha: data[0].sha as string };
 }
+
 export class Workspace extends DurableObject<Env> {
   private store: SQLiteStore;
   constructor(ctx: DurableObjectState, env: Env) {
@@ -81,6 +147,18 @@ export class Workspace extends DurableObject<Env> {
   private async wake(at: number) {
     const current = await this.ctx.storage.getAlarm();
     if (current === null || at < current) await this.ctx.storage.setAlarm(at);
+  }
+  private pitr(requireRestore = false) {
+    const storage = this.ctx.storage as PitrStorage;
+    requireValue(
+      typeof storage.getCurrentBookmark === "function" &&
+        typeof storage.getBookmarkForTime === "function" &&
+        (!requireRestore || typeof storage.onNextSessionRestoreBookmark === "function"),
+      "RECOVERY_PITR_UNAVAILABLE",
+      "Point-in-time recovery is unavailable in this Durable Object runtime.",
+      501,
+    );
+    return storage;
   }
   private services(workspace: string) {
     const known = this.store.get<string>("workspace");
@@ -92,7 +170,12 @@ export class Workspace extends DurableObject<Env> {
     );
     if (!known) this.store.put("workspace", workspace);
     const billing = new Billing(this.store, this.env, workspace);
-    const providers = new SocialProviders(fetch, this.env.LINKEDIN_VERSION);
+    const baseProviders = new SocialProviders(fetch, this.env.LINKEDIN_VERSION);
+    const providers = new EffectLedgerProviders(
+      baseProviders,
+      this.env.IDENTITY,
+      workspace,
+    );
     const authorized = (actor: Actor) => isAuthorized(actor, this.env);
     const engine = new Engine(
       this.store,
@@ -106,7 +189,11 @@ export class Workspace extends DurableObject<Env> {
       },
     );
     const pilot = new Pilot(this.store, this.env, engine, providers, authorized);
-    const oauth = new ProviderOAuthConnections(this.store, this.env, providers);
+    const oauth = new ProviderOAuthConnections(
+      this.store,
+      this.env,
+      baseProviders,
+    );
     return { billing, engine, pilot, oauth };
   }
   private async schedule(engine: Engine, oauth: ProviderOAuthConnections) {
@@ -114,6 +201,14 @@ export class Workspace extends DurableObject<Env> {
     const nextOAuth = oauth.nextWake();
     if (nextOAuth !== undefined)
       await this.wake(Math.max(Date.now() + 1000, nextOAuth));
+  }
+  private ownerOnly(actor: Actor) {
+    requireValue(
+      !actor.grant && actor.scopes.includes("admin"),
+      "OWNER_SESSION_REQUIRED",
+      "Workspace recovery is restricted to the signed-in owner.",
+      403,
+    );
   }
   async fetch(request: Request): Promise<Response> {
     try {
@@ -130,35 +225,173 @@ export class Workspace extends DurableObject<Env> {
         "Workspace is required.",
         400,
       );
-      const { engine, billing, pilot, oauth } = this.services(data.workspace),
-        path = new URL(request.url).pathname;
-      if (path === "/billing/reconcile") {
-        await billing.reconcile();
-        await this.schedule(engine, oauth);
-        return json({ reconciled: true });
-      }
       requireValue(
         data.actor?.workspace === data.workspace,
         "WORKSPACE_MISMATCH",
         "Authenticated workspace is required.",
         403,
       );
+      const path = new URL(request.url).pathname;
+      const known = this.store.get<string>("workspace");
       limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);
+
+      if (path === "/recovery/bookmarks") {
+        this.ownerOnly(data.actor);
+        requireValue(
+          known === data.workspace,
+          "RECOVERY_WORKSPACE_UNINITIALIZED",
+          "Recovery requires an existing initialized workspace.",
+          409,
+        );
+        const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+        requireValue(
+          control.quarantined,
+          "RECOVERY_NOT_QUARANTINED",
+          "Quarantine the workspace before reading recovery bookmarks.",
+          409,
+        );
+        const targetTime = (data.input as { targetTime?: unknown })?.targetTime;
+        requireValue(
+          typeof targetTime === "number" && Number.isFinite(targetTime),
+          "RECOVERY_TARGET_INVALID",
+          "Recovery target is invalid.",
+        );
+        const storage = this.pitr();
+        const [preRestoreBookmark, targetBookmark] = await Promise.all([
+          storage.getCurrentBookmark!(),
+          storage.getBookmarkForTime!(targetTime),
+        ]);
+        return json({ preRestoreBookmark, targetBookmark });
+      }
+      if (path === "/recovery/restore") {
+        this.ownerOnly(data.actor);
+        requireValue(
+          known === data.workspace,
+          "RECOVERY_WORKSPACE_UNINITIALIZED",
+          "Recovery requires an existing initialized workspace.",
+          409,
+        );
+        const input = data.input as { id?: string; digest?: string };
+        const plan = await requireRecoveryPlan(this.env.IDENTITY, {
+          id: input.id || "",
+          digest: input.digest || "",
+          workspace: data.workspace,
+          actor: data.actor.id,
+          states: ["prepared"],
+        });
+        const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+        requireValue(
+          control.quarantined,
+          "RECOVERY_NOT_QUARANTINED",
+          "Recovery quarantine changed before restore.",
+          409,
+        );
+        const storage = this.pitr(true);
+        const undoBookmark = await storage.onNextSessionRestoreBookmark!(
+          plan.target_bookmark,
+        );
+        await armRecoveryPlan(this.env.IDENTITY, plan, undoBookmark);
+        this.ctx.abort("Workspace point-in-time recovery armed", {
+          retryAlarm: false,
+        });
+      }
+      if (path === "/recovery/undo") {
+        this.ownerOnly(data.actor);
+        requireValue(
+          known === data.workspace,
+          "RECOVERY_WORKSPACE_UNINITIALIZED",
+          "Recovery undo requires an initialized workspace.",
+          409,
+        );
+        const input = data.input as { id?: string; digest?: string };
+        const plan = await requireRecoveryPlan(this.env.IDENTITY, {
+          id: input.id || "",
+          digest: input.digest || "",
+          workspace: data.workspace,
+          actor: data.actor.id,
+          states: ["reconciled"],
+        });
+        requireValue(
+          plan.undo_bookmark,
+          "RECOVERY_UNDO_UNAVAILABLE",
+          "This recovery plan has no undo bookmark.",
+          409,
+        );
+        const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+        requireValue(
+          control.quarantined,
+          "RECOVERY_NOT_QUARANTINED",
+          "Recovery undo requires quarantine.",
+          409,
+        );
+        const storage = this.pitr(true);
+        const redoBookmark = await storage.onNextSessionRestoreBookmark!(
+          plan.undo_bookmark,
+        );
+        await rearmRecoveryPlanForUndo(this.env.IDENTITY, plan, redoBookmark);
+        this.ctx.abort("Workspace point-in-time recovery undo armed", {
+          retryAlarm: false,
+        });
+      }
+      if (path === "/recovery/probe") {
+        this.ownerOnly(data.actor);
+        requireValue(
+          known === data.workspace,
+          "RECOVERY_RESTORE_NOT_READY",
+          "Recovered workspace marker is not present.",
+          409,
+        );
+        const storage = this.pitr();
+        return json({
+          workspacePresent: true,
+          currentBookmark: await storage.getCurrentBookmark!(),
+        });
+      }
+      if (path === "/recovery/resume") {
+        this.ownerOnly(data.actor);
+        requireValue(
+          known === data.workspace,
+          "RECOVERY_RESTORE_NOT_READY",
+          "Recovered workspace is not ready to resume.",
+          409,
+        );
+        const { engine, oauth } = this.services(data.workspace);
+        await this.schedule(engine, oauth);
+        return json({ resumed: true });
+      }
+
+      const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+      const { engine, billing, pilot, oauth } = this.services(data.workspace);
+      if (path === "/billing/reconcile") {
+        if (control.quarantined)
+          return json({ reconciled: false, recoveryQuarantined: true });
+        await billing.reconcile();
+        await this.schedule(engine, oauth);
+        return json({ reconciled: true });
+      }
       let result: unknown;
       if (path.startsWith("/pilot/")) {
+        const action = path.slice("/pilot/".length);
+        requireValue(
+          !control.quarantined || ["status", "cancel", "recheck"].includes(action),
+          "RECOVERY_QUARANTINED",
+          "Recovery quarantine blocks new owner publication authority.",
+          409,
+        );
         // This envelope is constructed by the authenticated Worker, never by
         // a public JSON body. The Durable Object has no public internet route.
         const envelope = data.input as {
           input: unknown;
           owner: Awaited<ReturnType<typeof ownerAuthority>>;
         };
-        result = await pilot.run(
-          path.slice("/pilot/".length),
-          envelope.input,
-          data.actor,
-          envelope.owner,
-        );
+        result = await pilot.run(action, envelope.input, data.actor, envelope.owner);
       } else if (path === "/connect") {
+        requireValue(
+          !control.quarantined,
+          "RECOVERY_QUARANTINED",
+          "Recovery quarantine blocks connection mutation.",
+          409,
+        );
         const parsed = connectionSchema.safeParse(data.input);
         requireValue(
           parsed.success,
@@ -167,6 +400,12 @@ export class Workspace extends DurableObject<Env> {
         );
         result = await engine.connect(data.actor, parsed.data);
       } else if (path === "/oauth/connect") {
+        requireValue(
+          !control.quarantined,
+          "RECOVERY_QUARANTINED",
+          "Recovery quarantine blocks connection mutation.",
+          409,
+        );
         const input = data.input as Parameters<ProviderOAuthConnections["connect"]>[1];
         result = await oauth.connect(data.actor, input);
       } else if (path === "/oauth/status") {
@@ -178,6 +417,12 @@ export class Workspace extends DurableObject<Env> {
         );
         result = oauth.status();
       } else if (path === "/payment") {
+        requireValue(
+          !control.quarantined,
+          "RECOVERY_QUARANTINED",
+          "Recovery quarantine blocks financial mutations until state is reconciled.",
+          409,
+        );
         requireValue(
           data.payment,
           "INVALID_PAYMENT",
@@ -193,6 +438,16 @@ export class Workspace extends DurableObject<Env> {
           data.name,
         );
       } else {
+        if (control.quarantined) {
+          const operation = byName.get(data.name);
+          const readOnly = operation?.effects.every((effect) => effect === "READ_ONLY");
+          requireValue(
+            readOnly || riskReducingOperations.has(data.name),
+            "RECOVERY_QUARANTINED",
+            "Recovery quarantine permits only inspection and risk-reducing operations.",
+            409,
+          );
+        }
         result = await engine.run(data.name, data.input, data.actor);
         if (data.name === "account_disconnect") {
           const alias = (data.input as { alias?: unknown })?.alias;
@@ -218,6 +473,17 @@ export class Workspace extends DurableObject<Env> {
   async alarm() {
     const workspace = this.store.get<string>("workspace");
     if (!workspace) return;
+    const control = await workspaceQuarantined(this.env.IDENTITY, workspace);
+    if (control.quarantined) {
+      await this.ctx.storage.deleteAlarm();
+      console.warn(
+        JSON.stringify({
+          event: "workspace_alarm_suppressed_for_recovery",
+          workspace,
+        }),
+      );
+      return;
+    }
     const { engine, billing, oauth } = this.services(workspace);
     // A watchdog survives interruption during provider I/O and reclaims only according to receipt phase.
     await this.ctx.storage.setAlarm(Date.now() + 60000);
@@ -247,6 +513,7 @@ export class Workspace extends DurableObject<Env> {
     }
   }
 }
+
 async function invoke(
   env: Env,
   actor: Actor,
@@ -270,6 +537,18 @@ async function invoke(
     },
   );
 }
+
+async function internalValue(response: Response) {
+  const value: any = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Fault(
+      value.error?.code || "RECOVERY_INTERNAL_FAILED",
+      value.error?.message || "Recovery coordination did not complete.",
+      response.status,
+    );
+  return value;
+}
+
 async function route(
   request: Request,
   env: Env,
@@ -383,6 +662,225 @@ async function route(
     path === "/auth/logout"
   ) {
     const auth = await authenticate(request, env);
+
+    if (path.startsWith("/api/recovery/")) {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Workspace recovery is available only in the signed-in owner browser.",
+        403,
+      );
+      const owner = await ownerAuthority(request, env, auth);
+      if (path === "/api/recovery/status" && request.method === "GET")
+        return json(await recoveryStatus(env.IDENTITY, auth.actor.workspace));
+      if (path === "/api/recovery/prepare" && request.method === "POST") {
+        demandFreshOwner(owner, Date.now());
+        const input = parse(recoveryPrepareSchema, await request.json());
+        const targetTime = explicitTime(input.at);
+        requireValue(
+          targetTime <= Date.now(),
+          "RECOVERY_TARGET_INVALID",
+          "Recovery target must be in the past.",
+          400,
+        );
+        await setWorkspaceQuarantine(
+          env.IDENTITY,
+          auth.actor.workspace,
+          true,
+          input.reason,
+        );
+        const bookmarks = await internalValue(
+          await invoke(
+            env,
+            auth.actor,
+            "",
+            { targetTime },
+            "/recovery/bookmarks",
+          ),
+        );
+        const plan = await prepareRecoveryPlan(env.IDENTITY, {
+          workspace: auth.actor.workspace,
+          actor: auth.actor.id,
+          targetTime,
+          targetBookmark: bookmarks.targetBookmark,
+          preRestoreBookmark: bookmarks.preRestoreBookmark,
+          reason: input.reason,
+        });
+        return json({ plan, status: await recoveryStatus(env.IDENTITY, auth.actor.workspace) });
+      }
+      if (path === "/api/recovery/execute" && request.method === "POST") {
+        demandFreshOwner(owner, Date.now());
+        const input = parse(recoveryExecuteSchema, await request.json());
+        await requireRecoveryPlan(env.IDENTITY, {
+          id: input.id,
+          digest: input.digest,
+          workspace: auth.actor.workspace,
+          actor: auth.actor.id,
+          states: ["prepared"],
+        });
+        let returned = false;
+        try {
+          const response = await invoke(
+            env,
+            auth.actor,
+            "",
+            { id: input.id, digest: input.digest },
+            "/recovery/restore",
+          );
+          returned = true;
+          await internalValue(response);
+        } catch {
+          // ctx.abort() deliberately terminates the Durable Object request.
+          // The D1 plan is the authority for whether restore was safely armed.
+        }
+        const status = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
+        requireValue(
+          status.plan?.id === input.id && status.plan.state === "armed",
+          "RECOVERY_EXECUTE_FAILED",
+          returned
+            ? "Recovery restore returned without entering the armed state."
+            : "Recovery restore did not persist an armed plan before restart.",
+          502,
+        );
+        return json({ accepted: true, restartInProgress: true, status }, 202);
+      }
+      if (path === "/api/recovery/reconcile" && request.method === "POST") {
+        demandFreshOwner(owner, Date.now());
+        const input = parse(recoveryReconcileSchema, await request.json());
+        const plan = await requireRecoveryPlan(env.IDENTITY, {
+          id: input.id,
+          digest: input.digest,
+          workspace: auth.actor.workspace,
+          actor: auth.actor.id,
+          states: ["armed"],
+        });
+        const probe = await internalValue(
+          await invoke(env, auth.actor, "", {}, "/recovery/probe"),
+        );
+        requireValue(
+          probe.workspacePresent === true && typeof probe.currentBookmark === "string",
+          "RECOVERY_RESTORE_NOT_READY",
+          "Recovered workspace is not yet ready for reconciliation.",
+          409,
+        );
+        const status = await reconcileRecoveryPlan(env.IDENTITY, plan);
+        return json({ reconciled: true, currentBookmarkCaptured: true, status });
+      }
+      if (path === "/api/recovery/resume" && request.method === "POST") {
+        demandFreshOwner(owner, Date.now());
+        const input = parse(recoveryResumeSchema, await request.json());
+        await requireRecoveryPlan(env.IDENTITY, {
+          id: input.id,
+          digest: input.digest,
+          workspace: auth.actor.workspace,
+          actor: auth.actor.id,
+          states: ["reconciled"],
+        });
+        await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
+        await setWorkspaceQuarantine(
+          env.IDENTITY,
+          auth.actor.workspace,
+          false,
+          "Recovery reconciled and owner resumed publication.",
+        );
+        try {
+          await internalValue(
+            await invoke(env, auth.actor, "", {}, "/recovery/resume"),
+          );
+        } catch (error) {
+          await setWorkspaceQuarantine(
+            env.IDENTITY,
+            auth.actor.workspace,
+            true,
+            "Recovery resume failed; publication remains quarantined.",
+          );
+          throw error;
+        }
+        return json({ resumed: true, status: await recoveryStatus(env.IDENTITY, auth.actor.workspace) });
+      }
+      if (path === "/api/recovery/undo" && request.method === "POST") {
+        demandFreshOwner(owner, Date.now());
+        const input = parse(recoveryUndoSchema, await request.json());
+        const plan = await requireRecoveryPlan(env.IDENTITY, {
+          id: input.id,
+          digest: input.digest,
+          workspace: auth.actor.workspace,
+          actor: auth.actor.id,
+          states: ["reconciled"],
+        });
+        requireValue(
+          plan.undo_bookmark,
+          "RECOVERY_UNDO_UNAVAILABLE",
+          "This recovery plan has no undo bookmark.",
+          409,
+        );
+        await setWorkspaceQuarantine(
+          env.IDENTITY,
+          auth.actor.workspace,
+          true,
+          "Owner requested exact recovery undo.",
+        );
+        try {
+          const response = await invoke(
+            env,
+            auth.actor,
+            "",
+            { id: input.id, digest: input.digest },
+            "/recovery/undo",
+          );
+          await internalValue(response);
+        } catch {
+          // Expected when the Durable Object aborts after persisting D1 state.
+        }
+        const status = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
+        requireValue(
+          status.plan?.id === input.id && status.plan.state === "armed",
+          "RECOVERY_UNDO_FAILED",
+          "Recovery undo did not persist its armed state before restart.",
+          502,
+        );
+        return json({ accepted: true, restartInProgress: true, status }, 202);
+      }
+      if (path === "/api/recovery/cancel" && request.method === "POST") {
+        demandFreshOwner(owner, Date.now());
+        const input = parse(recoveryCancelSchema, await request.json());
+        await requireRecoveryPlan(env.IDENTITY, {
+          id: input.id,
+          digest: input.digest,
+          workspace: auth.actor.workspace,
+          actor: auth.actor.id,
+          states: ["prepared"],
+        });
+        await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
+        const cancelled = await env.IDENTITY
+          .prepare(
+            "UPDATE workspace_recovery_plans SET state='cancelled',updated_at=? WHERE id=? AND workspace=? AND digest=? AND state='prepared'",
+          )
+          .bind(Date.now(), input.id, auth.actor.workspace, input.digest)
+          .run();
+        requireValue(
+          cancelled.meta.changes === 1,
+          "RECOVERY_PLAN_CHANGED",
+          "Recovery plan changed before cancellation completed.",
+          409,
+        );
+        await setWorkspaceQuarantine(
+          env.IDENTITY,
+          auth.actor.workspace,
+          false,
+          "Prepared recovery cancelled by owner before restore.",
+        );
+        await internalValue(
+          await invoke(env, auth.actor, "", {}, "/recovery/resume"),
+        );
+        return json({ cancelled: true, status: await recoveryStatus(env.IDENTITY, auth.actor.workspace) });
+      }
+      return json(
+        { error: { code: "NOT_FOUND", message: "Unknown recovery route or HTTP method." } },
+        404,
+      );
+    }
+
     const oauthStart = /^\/api\/connections\/oauth\/(x|threads|linkedin)\/start$/.exec(path);
     if (oauthStart) {
       requireValue(
@@ -517,6 +1015,7 @@ async function route(
   // .html here would create a canonical redirect loop.
   return env.ASSETS.fetch(request);
 }
+
 export default {
   async scheduled(_controller: ScheduledController, env: Env) {
     await expireIdentity(env);
