@@ -2,7 +2,7 @@
 
 PostSteward runs centrally on the service operator’s Cloudflare account. Customers connect to the hosted product. All repository work belongs in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward).
 
-The configuration and workflow are implemented and merged. Staging inspection confirmed that the three Cloudflare variables are present. The token now authenticates to the Workers subdomain API, while D1 inspection returned HTTP 401 and owner sign-in configuration is absent. Cloudflare resources and real deployment have not yet been verified. Do not paste secrets into chat, issues, source files or workflow inputs.
+The configuration and workflow are implemented and merged. [Staging inspection attempt 3](https://github.com/AyobamiH/poststeward/actions/runs/34381129219/attempts/3) verified Workers subdomain access and the dedicated D1 database on 9 September 2026 at 17:47 UTC. The earlier D1 access failure is resolved. Owner sign-in settings and application secrets remain absent; no Worker has been deployed. Do not paste secrets into chat, issues, source files or workflow inputs.
 
 ## 1. Create isolated resources
 
