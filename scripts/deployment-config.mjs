@@ -3,6 +3,11 @@ export const secretNames = [
   "OIDC_CLIENT_SECRET",
   "ALLOWED_OWNER_EMAILS",
 ];
+export const providerSecretPairs = [
+  ["X_OAUTH_CLIENT_ID", "X_OAUTH_CLIENT_SECRET"],
+  ["THREADS_OAUTH_CLIENT_ID", "THREADS_OAUTH_CLIENT_SECRET"],
+  ["LINKEDIN_OAUTH_CLIENT_ID", "LINKEDIN_OAUTH_CLIENT_SECRET"],
+];
 export function demand(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -65,6 +70,16 @@ export function httpsUrl(value, originOnly = false) {
   );
   return u;
 }
+function providerClientId(value, name) {
+  const result = value || "";
+  demand(
+    typeof result === "string" &&
+      result.length <= 512 &&
+      !/[\s\x00-\x1f]/.test(result),
+    `${name} must be a bounded non-secret client identifier without whitespace.`,
+  );
+  return result;
+}
 export function buildConfiguration(base, env) {
   demand(
     ["staging", "production"].includes(env.DEPLOY_ENV),
@@ -121,6 +136,17 @@ export function buildConfiguration(base, env) {
     SIGNUP_MODE: "restricted",
     ADVANCED_ENABLED: "false",
     MPP_ENABLED: "false",
+    X_OAUTH_CLIENT_ID: providerClientId(env.X_OAUTH_CLIENT_ID, "X_OAUTH_CLIENT_ID"),
+    THREADS_OAUTH_CLIENT_ID: providerClientId(
+      env.THREADS_OAUTH_CLIENT_ID,
+      "THREADS_OAUTH_CLIENT_ID",
+    ),
+    LINKEDIN_OAUTH_CLIENT_ID: providerClientId(
+      env.LINKEDIN_OAUTH_CLIENT_ID,
+      "LINKEDIN_OAUTH_CLIENT_ID",
+    ),
+    LINKEDIN_MEMBER_READBACK:
+      env.LINKEDIN_MEMBER_READBACK === "true" ? "true" : "false",
   });
   validateConfiguration(c);
   return c;
@@ -193,6 +219,17 @@ export function validateConfiguration(c) {
     c.vars.ADVANCED_ENABLED === "false" && c.vars.MPP_ENABLED === "false",
     "Purchases remain disabled pending product and payment acceptance.",
   );
+  for (const [clientId] of providerSecretPairs)
+    providerClientId(c.vars[clientId], clientId);
+  demand(
+    ["true", "false"].includes(c.vars.LINKEDIN_MEMBER_READBACK),
+    "LINKEDIN_MEMBER_READBACK must be explicitly true or false.",
+  );
+  demand(
+    c.vars.LINKEDIN_MEMBER_READBACK !== "true" ||
+      !!c.vars.LINKEDIN_OAUTH_CLIENT_ID,
+    "LinkedIn member readback cannot be enabled without a LinkedIn OAuth application.",
+  );
 }
 export function deploymentSecrets(env) {
   const values = Object.fromEntries(
@@ -217,6 +254,27 @@ export function deploymentSecrets(env) {
         /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(v.trim()),
       ),
     "Set ALLOWED_OWNER_EMAILS to verified, invited owner addresses.",
+  );
+  for (const [clientId, clientSecret] of providerSecretPairs) {
+    const id = env[clientId] || "";
+    const secret = env[clientSecret] || "";
+    demand(
+      (!id && !secret) || (id && secret),
+      `${clientId} and ${clientSecret} must be configured as a pair.`,
+    );
+    if (id) {
+      providerClientId(id, clientId);
+      demand(
+        typeof secret === "string" && secret.trim().length >= 8 && secret.length <= 4096,
+        `${clientSecret} is not a usable provider application secret.`,
+      );
+      values[clientSecret] = secret;
+    }
+  }
+  demand(
+    env.LINKEDIN_MEMBER_READBACK !== "true" ||
+      (env.LINKEDIN_OAUTH_CLIENT_ID && env.LINKEDIN_OAUTH_CLIENT_SECRET),
+    "LinkedIn member readback requires a configured LinkedIn OAuth application.",
   );
   return values;
 }
