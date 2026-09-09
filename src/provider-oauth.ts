@@ -613,7 +613,10 @@ export class ProviderOAuthConnections {
         } else {
           meta.status = "reauthorization_required";
           meta.lastError = "OAUTH_REAUTHORIZE_REQUIRED";
-          meta.nextRefreshAt = undefined;
+          // Re-arm exactly at access expiry so the durable alarm deactivates the
+          // credential if the owner never reauthorizes. Leaving this unset would
+          // make nextWake repeatedly schedule an already-expired instant.
+          meta.nextRefreshAt = meta.accessExpiresAt;
           this.store.put("oauth:" + meta.alias, meta);
         }
         continue;
