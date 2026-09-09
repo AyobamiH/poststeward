@@ -19,6 +19,8 @@ export interface RecoveryPlanRow {
   updated_at: number;
 }
 
+const externalEffectSettleMs = 120000;
+
 function publicPlan(plan?: RecoveryPlanRow | null) {
   if (!plan) return null;
   return {
@@ -281,15 +283,51 @@ export async function reconcileRecoveryPlan(
   return recoveryStatus(db, plan.workspace);
 }
 
-export async function assertRecoveryCanResume(db: D1Database, workspace: string) {
+async function settleStaleExternalIntents(
+  db: D1Database,
+  workspace: string,
+  now: number,
+) {
+  const cutoff = now - externalEffectSettleMs;
+  const [posts, containers] = await db.batch([
+    db
+      .prepare(
+        "UPDATE external_effects SET status='uncertain',reason=COALESCE(reason,'RECOVERY_STALE_INTENT'),updated_at=? WHERE workspace=? AND status='intent' AND updated_at<=?",
+      )
+      .bind(now, workspace, cutoff),
+    db
+      .prepare(
+        "UPDATE external_containers SET status='uncertain',reason=COALESCE(reason,'RECOVERY_STALE_INTENT'),updated_at=? WHERE workspace=? AND status='intent' AND updated_at<=?",
+      )
+      .bind(now, workspace, cutoff),
+  ]);
+  if (posts.meta.changes || containers.meta.changes)
+    console.warn(
+      JSON.stringify({
+        event: "recovery_stale_external_intent_fenced",
+        workspace,
+        publications: posts.meta.changes,
+        containers: containers.meta.changes,
+        at: now,
+      }),
+    );
+}
+
+export async function assertRecoveryCanResume(
+  db: D1Database,
+  workspace: string,
+  now = Date.now(),
+) {
+  // Fresh intents may still represent provider I/O that began just before
+  // quarantine. Give them two minutes to settle. After that the existing D1
+  // fingerprint fence remains authoritative, but the uncertainty no longer
+  // blocks unrelated work in the recovered workspace forever.
+  await settleStaleExternalIntents(db, workspace, now);
   const counts = await effectSummary(db, workspace);
   requireValue(
-    counts.intent === 0 &&
-      counts.uncertain === 0 &&
-      counts.containerIntent === 0 &&
-      counts.containerUncertain === 0,
-    "RECOVERY_EFFECTS_UNRESOLVED",
-    "Resolve uncertain provider-write or Threads-container evidence before resuming publication.",
+    counts.intent === 0 && counts.containerIntent === 0,
+    "RECOVERY_EFFECTS_IN_FLIGHT",
+    "A provider write began immediately before recovery quarantine. Retry after its bounded settlement window; do not republish it.",
     409,
   );
   return counts;
