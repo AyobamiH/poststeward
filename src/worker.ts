@@ -749,6 +749,9 @@ async function route(
           actor: auth.actor.id,
           states: ["prepared"],
         });
+        // A provider write may have crossed its D1 fence just before quarantine.
+        // Never arm PITR while that bounded write window can still be live.
+        await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
         let returned = false;
         try {
           const response = await invoke(

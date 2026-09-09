@@ -266,27 +266,40 @@ test("recovery plans are owner-bound, digest-bound, externally durable and suppo
   }
 });
 
-test("recovery resume refuses unresolved publication or container effects", async () => {
+test("fresh publication intents block recovery until their bounded write window settles", async () => {
   const { mf, db } = await runtime();
   try {
+    const now = Date.UTC(2026, 8, 9, 22, 0, 0);
+    await db
+      .prepare(
+        "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,created_at,updated_at) VALUES (?,?,?,?,?,'intent',?,?)",
+      )
+      .bind("workspace-a", "x".repeat(64), "delivery", "x", "d".repeat(64), now, now)
+      .run();
+    await assert.rejects(assertRecoveryCanResume(db, "workspace-a", now), {
+      code: "RECOVERY_EFFECTS_IN_FLIGHT",
+    });
+    const settled = await assertRecoveryCanResume(db, "workspace-a", now + 120001);
+    assert.equal(settled.intent, 0);
+    assert.equal(settled.uncertain, 1);
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("ambiguous publication evidence stays individually fenced without wedging unrelated recovery", async () => {
+  const { mf, db } = await runtime();
+  try {
+    const now = Date.UTC(2026, 8, 9, 22, 0, 0);
     await db
       .prepare(
         "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,created_at,updated_at) VALUES (?,?,?,?,?,'uncertain',?,?)",
       )
-      .bind("workspace-a", "x".repeat(64), "delivery", "x", "d".repeat(64), Date.now(), Date.now())
+      .bind("workspace-a", "u".repeat(64), "delivery", "x", "d".repeat(64), now, now)
       .run();
-    await assert.rejects(assertRecoveryCanResume(db, "workspace-a"), {
-      code: "RECOVERY_EFFECTS_UNRESOLVED",
-    });
-    await db.prepare("DELETE FROM external_effects WHERE workspace=?").bind("workspace-a").run();
-    await db
-      .prepare(
-        "INSERT INTO external_containers(workspace,fingerprint,delivery_id,status,created_at,updated_at) VALUES (?,?,?,'uncertain',?,?)",
-      )
-      .bind("workspace-a", "y".repeat(64), "delivery", Date.now(), Date.now())
-      .run();
-    const counts = await effectSummary(db, "workspace-a");
-    assert.equal(counts.containerUncertain, 1);
+    const counts = await assertRecoveryCanResume(db, "workspace-a", now);
+    assert.equal(counts.uncertain, 1);
+    assert.equal(counts.intent, 0);
   } finally {
     await mf.dispose();
   }

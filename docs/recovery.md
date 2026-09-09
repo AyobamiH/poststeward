@@ -20,7 +20,7 @@ Recovery endpoints require the signed-in owner browser, current owner proof, the
 2. Review the returned plan ID, target time and digest. Raw PITR bookmarks are not returned in public recovery status.
 3. `POST /api/recovery/execute` with the same plan ID/digest and `execute: true`. The Durable Object arms the exact target bookmark, stores the pre-restore undo bookmark in D1, then intentionally aborts the current object session with alarm retry disabled so the next session starts from the selected point.
 4. `POST /api/recovery/reconcile` after the object has restarted. The restored workspace is probed, resurrected authority is invalidated, and the D1 plan becomes `reconciled` only after that post-restore boundary succeeds.
-5. Inspect receipts, external-effect counts, accounts, automation and recovered business state. Unresolved publication or Threads-container write fences (`intent`/`uncertain`) block resume.
+5. Inspect receipts, external-effect counts, accounts, automation and recovered business state. A fresh `intent` fence blocks PITR execution/resume for two minutes because the provider call may still be live. After that bounded window it becomes `uncertain`: the exact fingerprint stays permanently fenced against replay, but unrelated recovered work is not wedged by an old ambiguous effect.
 6. `POST /api/recovery/resume` with the exact plan ID/digest and `resume: true` only after reconciliation. This removes global quarantine. Recovered provider connections and automation authority remain invalid and must be deliberately re-established; old captured schedules do not regain authority.
 
 Before execute, `POST /api/recovery/cancel` may cancel the prepared plan if no unresolved external write exists. After reconciliation, `POST /api/recovery/undo` uses the exact undo bookmark returned by Durable Object PITR. Undo re-enters quarantine and is reconciled through the same path before another resume.
@@ -31,7 +31,7 @@ Preparation never calls the destructive restore primitive until a plan can be pr
 
 Once a restore or undo is armed, any uncertain coordinator outcome is treated as a recovery incident. D1 plan state and quarantine are authoritative. The system does not infer success from a dropped connection or from the Durable Object restart itself.
 
-D1 unavailability fails closed before provider writes and recovery state changes. Provider-side network uncertainty is preserved as an `uncertain` external-effect fence and requires reconciliation rather than retry.
+D1 unavailability fails closed before provider writes and recovery state changes. Provider-side network uncertainty is preserved as an `uncertain` external-effect fence. That fingerprint can never be blindly retried, while unrelated work can resume after restored authority has been invalidated and no fresh external write remains in flight.
 
 ## Verification boundary
 
