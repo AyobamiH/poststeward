@@ -367,7 +367,11 @@ export class Workspace extends DurableObject<Env> {
           409,
         );
         const storage = this.pitr();
-        const invalidated = invalidateRestoredAuthority(this.store);
+        const invalidated = await invalidateRestoredAuthority(
+          this.store,
+          this.env,
+          data.workspace,
+        );
         return json({
           workspacePresent: true,
           currentBookmark: await storage.getCurrentBookmark!(),
