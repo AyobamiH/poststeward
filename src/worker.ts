@@ -226,13 +226,37 @@ export class Workspace extends DurableObject<Env> {
         "Workspace is required.",
         400,
       );
+      const path = new URL(request.url).pathname;
+      // Stripe reaches this only through the Worker's verified webhook route.
+      // It intentionally has no user Actor envelope, so preserve the original
+      // actorless internal reconciliation contract. A quarantined event stays
+      // incomplete in D1 and receives non-2xx so Stripe can retry it later.
+      if (path === "/billing/reconcile") {
+        const control = await workspaceQuarantined(
+          this.env.IDENTITY,
+          data.workspace,
+        );
+        const { engine, billing, oauth } = this.services(data.workspace);
+        if (control.quarantined)
+          return json(
+            {
+              error: {
+                code: "RECOVERY_QUARANTINED",
+                message: "Billing reconciliation waits until recovery quarantine clears.",
+              },
+            },
+            503,
+          );
+        await billing.reconcile();
+        await this.schedule(engine, oauth);
+        return json({ reconciled: true });
+      }
       requireValue(
         data.actor?.workspace === data.workspace,
         "WORKSPACE_MISMATCH",
         "Authenticated workspace is required.",
         403,
       );
-      const path = new URL(request.url).pathname;
       const known = this.store.get<string>("workspace");
       limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);
 
@@ -370,13 +394,6 @@ export class Workspace extends DurableObject<Env> {
 
       const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
       const { engine, billing, pilot, oauth } = this.services(data.workspace);
-      if (path === "/billing/reconcile") {
-        if (control.quarantined)
-          return json({ reconciled: false, recoveryQuarantined: true });
-        await billing.reconcile();
-        await this.schedule(engine, oauth);
-        return json({ reconciled: true });
-      }
       let result: unknown;
       if (path.startsWith("/pilot/")) {
         const action = path.slice("/pilot/".length);
