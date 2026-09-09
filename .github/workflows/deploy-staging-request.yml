@@ -3,7 +3,7 @@ run-name: Deploy staging revision ${{ github.sha }}
 # Deployment request: 2026-09-09-recovery-ledger-pitr-boundary
 # Updating this file on main is an explicit staging deployment request.
 # This deploy applies recovery/effect-ledger migrations and ordinary hosted smoke only.
-# It must not invoke a point-in-time restore, social publication, payment, or production deploy.
+# It must not invoke point-in-time restore, social publication, payment, or any live-environment release.
 on:
   push:
     branches: [main]
