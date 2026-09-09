@@ -13,6 +13,16 @@ on:
         description: Configured GitHub environment
         required: true
         type: string
+    # Optional repository-level fallbacks; the selected environment takes precedence.
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      ENCRYPTION_KEY:
+        required: false
+      OIDC_CLIENT_SECRET:
+        required: false
+      ALLOWED_OWNER_EMAILS:
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -31,6 +41,7 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run verify
   deploy:
     needs: verify

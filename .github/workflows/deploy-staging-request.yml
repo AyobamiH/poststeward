@@ -1,6 +1,6 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-09-initial-staging
+# Deployment request: 2026-09-09-staging-secret-forwarding
 # Updating this file on main is an explicit staging deployment request.
 # Ordinary source/doc changes do not request a deployment.
 on:
@@ -16,3 +16,9 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: staging
+    # Pass only the existing named fallbacks, never all repository secrets.
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+      ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}

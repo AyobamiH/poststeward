@@ -4,6 +4,7 @@ import test from "node:test";
 
 const request = readFileSync(".github/workflows/deploy-staging-request.yml", "utf8");
 const deploy = readFileSync(".github/workflows/deploy.yml", "utf8");
+const secretNames = ["CLOUDFLARE_API_TOKEN", "ENCRYPTION_KEY", "OIDC_CLIENT_SECRET", "ALLOWED_OWNER_EMAILS"];
 
 test("staging deployment requests are limited to their explicit main-only path", () => {
   assert.equal(
@@ -15,11 +16,15 @@ test("staging deployment requests are limited to their explicit main-only path",
   assert.ok(request.includes("github.ref == 'refs/heads/main'"));
 });
 
-test("staging request reuses the same-commit workflow without dispatch or inherited secrets", () => {
+test("staging request reuses the same commit with only the four named secret fallbacks", () => {
   assert.match(request, /uses: \.\/\.github\/workflows\/deploy\.yml\n/);
   assert.match(request, /with:\n      environment: staging\n/);
-  assert.doesNotMatch(request, /secrets:|write|workflow_dispatch|production|runs-on:/);
+  assert.doesNotMatch(request, /secrets: inherit|write|workflow_dispatch|production|runs-on:/);
   assert.match(request, /permissions:\n  contents: read\n/);
+  const forwarded = request.split("    secrets:\n")[1].trimEnd().split("\n");
+  assert.deepEqual(forwarded, secretNames.map((name) => `      ${name}: \${{ secrets.${name} }}`));
+  for (const name of secretNames)
+    assert.ok(deploy.includes(`      ${name}:\n        required: false`));
 });
 
 test("reusable deployment keeps production manual and both jobs main-only", () => {
@@ -37,6 +42,7 @@ test("reusable deployment keeps production manual and both jobs main-only", () =
 test("deployment still verifies before entering the protected environment", () => {
   const verification = deploy.split("  verify:\n")[1].split("  deploy:\n")[0];
   assert.ok(verification.includes("run: npm run verify"));
+  assert.ok(verification.includes("npm audit --omit=dev --audit-level=high"));
   assert.doesNotMatch(verification, /secrets\.|environment:/);
   assert.ok(deploy.includes("  deploy:\n    needs: verify\n"));
   assert.ok(deploy.includes("environment:\n      name: ${{ inputs.environment }}"));
