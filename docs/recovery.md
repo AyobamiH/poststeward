@@ -10,7 +10,7 @@ Before any X, Threads or LinkedIn publication request, PostSteward creates a D1 
 
 Recovery quarantine is also stored in D1. While quarantined, background alarms are suppressed, payments and connection mutations are blocked, new publication authority is blocked, and ordinary operations are limited to inspection plus risk-reducing cancellation/pause/disconnect actions.
 
-After the restored object starts, locally restored authority is invalidated before reconciliation completes: provider accounts are made inactive, OAuth refresh metadata is discarded, automation profiles are disabled, unclaimed schedules are drift-blocked, and restored entitlement/checkout/customer state is cleared. Content and historical receipts remain. This deliberately requires fresh authority after a restore instead of trusting credentials or billing facts from the past.
+After the restored object starts, locally restored authority is invalidated before reconciliation completes: provider accounts are made inactive, their restored encrypted access-token ciphertext is replaced with a non-usable tombstone, OAuth refresh metadata is discarded, automation profiles are disabled, unclaimed schedules are drift-blocked, and restored entitlement/checkout/customer state is cleared. Content and historical receipts remain. This deliberately requires fresh authority after a restore instead of trusting credentials or billing facts from the past.
 
 ## Owner-only recovery flow
 
@@ -38,3 +38,6 @@ D1 unavailability fails closed before provider writes and recovery state changes
 Unit and Miniflare tests verify the D1 fences, replay prevention, quarantine, recovery-plan state machine, restored-authority invalidation, runtime schema and current Workers type contracts. Cloudflare Durable Object PITR itself is not available as a local Miniflare simulation, so tests do not manufacture a successful restore.
 
 A staging deployment may verify migrations, compilation, current revision, access controls and non-destructive recovery surfaces. It must not call the restore primitive automatically. A real PITR restore remains an explicit owner operation because it intentionally changes stored customer state.
+
+
+Advanced billing remains deliberately fail-closed after a PITR restore until current Stripe provider-of-record evidence is reconciled again. Recovery never treats historical entitlement state as proof of current paid access.

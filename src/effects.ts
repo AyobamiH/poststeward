@@ -193,11 +193,25 @@ export class EffectLedgerProviders implements ProviderAPI {
     const now = this.now();
     const inserted = await this.db
       .prepare(
-        "INSERT INTO external_containers(workspace,fingerprint,delivery_id,status,created_at,updated_at) VALUES (?,?,?,'intent',?,?) ON CONFLICT(workspace,fingerprint) DO NOTHING",
+        "INSERT INTO external_containers(workspace,fingerprint,delivery_id,status,created_at,updated_at) SELECT ?,?,?,'intent',?,? WHERE COALESCE((SELECT publishing_quarantined FROM workspace_controls WHERE workspace=?),0)=0 ON CONFLICT(workspace,fingerprint) DO NOTHING",
       )
-      .bind(this.workspace, delivery.fingerprint, delivery.id, now, now)
+      .bind(
+        this.workspace,
+        delivery.fingerprint,
+        delivery.id,
+        now,
+        now,
+        this.workspace,
+      )
       .run();
     if (inserted.meta.changes !== 1) {
+      const control = await workspaceQuarantined(this.db, this.workspace);
+      requireValue(
+        !control.quarantined,
+        "RECOVERY_QUARANTINED",
+        "Workspace entered recovery quarantine before the Threads container intent was acquired.",
+        409,
+      );
       const prior = await this.existingContainer(delivery);
       requireValue(
         prior,
@@ -252,7 +266,7 @@ export class EffectLedgerProviders implements ProviderAPI {
     const now = this.now();
     const inserted = await this.db
       .prepare(
-        "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,claim_id,created_at,updated_at) VALUES (?,?,?,?,?,'intent',?,?,?) ON CONFLICT(workspace,fingerprint) DO NOTHING",
+        "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,claim_id,created_at,updated_at) SELECT ?,?,?,?,?,'intent',?,?,? WHERE COALESCE((SELECT publishing_quarantined FROM workspace_controls WHERE workspace=?),0)=0 ON CONFLICT(workspace,fingerprint) DO NOTHING",
       )
       .bind(
         this.workspace,
@@ -263,9 +277,17 @@ export class EffectLedgerProviders implements ProviderAPI {
         delivery.claimId || null,
         now,
         now,
+        this.workspace,
       )
       .run();
     if (inserted.meta.changes !== 1) {
+      const control = await workspaceQuarantined(this.db, this.workspace);
+      requireValue(
+        !control.quarantined,
+        "RECOVERY_QUARANTINED",
+        "Workspace entered recovery quarantine before the publication intent was acquired.",
+        409,
+      );
       const prior = await this.existing(delivery);
       requireValue(
         prior &&

@@ -905,6 +905,7 @@ async function route(
           workspace: auth.actor.workspace,
           actor: auth.actor.id,
           states: ["prepared"],
+          allowExpiredPrepared: true,
         });
         await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
         const cancelled = await env.IDENTITY

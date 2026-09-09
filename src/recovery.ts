@@ -162,6 +162,7 @@ export async function requireRecoveryPlan(
     workspace: string;
     actor: string;
     states: RecoveryState[];
+    allowExpiredPrepared?: boolean;
   },
   now = Date.now(),
 ) {
@@ -178,7 +179,7 @@ export async function requireRecoveryPlan(
     "Recovery plan is missing, changed, belongs to another actor, or is in the wrong state.",
     409,
   );
-  if (plan.state === "prepared")
+  if (plan.state === "prepared" && !input.allowExpiredPrepared)
     requireValue(
       plan.expires_at > now,
       "RECOVERY_PLAN_EXPIRED",

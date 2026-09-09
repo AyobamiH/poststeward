@@ -304,3 +304,80 @@ test("ambiguous publication evidence stays individually fenced without wedging u
     await mf.dispose();
   }
 });
+
+
+test("an expired prepared recovery cannot execute but remains explicitly cancellable", async () => {
+  const { mf, db } = await runtime();
+  try {
+    const now = Date.UTC(2026, 8, 9, 22, 0, 0);
+    const prepared: any = await prepareRecoveryPlan(
+      db,
+      {
+        workspace: "workspace-expired",
+        actor: "owner",
+        targetTime: now - 60000,
+        targetBookmark: "0000007b-target-bookmark-expired",
+        preRestoreBookmark: "0000007c-current-bookmark-expired",
+        reason: "test expired cancellation",
+      },
+      now,
+    );
+    await assert.rejects(
+      requireRecoveryPlan(
+        db,
+        {
+          id: prepared.id,
+          digest: prepared.digest,
+          workspace: "workspace-expired",
+          actor: "owner",
+          states: ["prepared"],
+        },
+        now + 600001,
+      ),
+      { code: "RECOVERY_PLAN_EXPIRED" },
+    );
+    const cancellable = await requireRecoveryPlan(
+      db,
+      {
+        id: prepared.id,
+        digest: prepared.digest,
+        workspace: "workspace-expired",
+        actor: "owner",
+        states: ["prepared"],
+        allowExpiredPrepared: true,
+      },
+      now + 600001,
+    );
+    assert.equal(cancellable.id, prepared.id);
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("quarantine and external-effect intent acquisition are atomic in D1", async () => {
+  const { mf, db } = await runtime();
+  try {
+    let publications = 0;
+    let containers = 0;
+    const wrapped = new EffectLedgerProviders(
+      provider({
+        publish: async () => { publications++; return { id: "forbidden" }; },
+        createContainer: async () => { containers++; return "forbidden-container"; },
+      }),
+      db,
+      "workspace-atomic",
+    );
+    await setWorkspaceQuarantine(db, "workspace-atomic", true, "atomic acquisition test");
+    await assert.rejects(wrapped.publish(delivery("pub-atomic", "q".repeat(64)), credential), { code: "RECOVERY_QUARANTINED" });
+    const threads = { ...delivery("container-atomic", "r".repeat(64)), provider: "threads" as const };
+    await assert.rejects(wrapped.createContainer(threads, credential), { code: "RECOVERY_QUARANTINED" });
+    assert.equal(publications, 0);
+    assert.equal(containers, 0);
+    const postRows = await db.prepare("SELECT count(*) AS n FROM external_effects WHERE workspace=?").bind("workspace-atomic").first<{ n: number }>();
+    const containerRows = await db.prepare("SELECT count(*) AS n FROM external_containers WHERE workspace=?").bind("workspace-atomic").first<{ n: number }>();
+    assert.equal(Number(postRows?.n || 0), 0);
+    assert.equal(Number(containerRows?.n || 0), 0);
+  } finally {
+    await mf.dispose();
+  }
+});
