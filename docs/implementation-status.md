@@ -1,71 +1,75 @@
 # PostSteward implementation status: 9 September 2026
 
-PostSteward is deployed to restricted staging in its independent repository, [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward). The deployment and all 17 hosted checks passed on 9 September 2026. Public customer acceptance and public charging remain outstanding. This is not a production-launch claim.
+PostSteward is deployed to restricted staging in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward). The owner sign-in and controlled-publication acceptance workflow is implemented and hosted verification passed. **Real owner Google consent and the first real controlled publication have not been recorded.** Public customer acceptance and public charging remain outstanding.
 
-## Verified staging deployment
+## Current engineering evidence
 
 | Evidence | Recorded result |
 | --- | --- |
-| Origin | `https://poststeward-staging.woeinvests.workers.dev` |
-| Deployed runtime revision | `d4fe795cea5e7216692f4d433ce807782dc31292` |
-| Successful deployment run | [34391992401](https://github.com/AyobamiH/poststeward/actions/runs/34391992401) |
-| Cloudflare version | `49a1c0bf-21fd-4a36-9146-53247df65c24` |
-| Live checks observed | `2026-09-09T18:57:13.505Z` |
-| Automated verification | 71 passed, zero failed, skipped or cancelled; TypeScript, generated documentation and bundling passed |
-| Hosted verification | 17 passed; exact revision, landing/workspace HTML, discovery/assets, access rejection and Google login initiation |
-| Signup and billing | Verified invited owners only; Advanced and MPP disabled |
+| Owner acceptance page | `https://poststeward-staging.woeinvests.workers.dev/pilot` |
+| Active runtime revision | `00544af2ae1333357c4f6b427541007cbd2206ba` |
+| Cloudflare version | `5afe3331-bfe8-4c7b-9215-684dc0bf98ba` |
+| Upload and additive migration run | [34399141159](https://github.com/AyobamiH/poststeward/actions/runs/34399141159): migration/upload succeeded; initial stylesheet readiness check failed |
+| Accepted existing-runtime verification | [34399839232](https://github.com/AyobamiH/poststeward/actions/runs/34399839232), job 102628706573: success |
+| Automated verification | [34399698258](https://github.com/AyobamiH/poststeward/actions/runs/34399698258), job 102628237086: 99 tests passed, zero failed/skipped/cancelled; type checking, generated docs and bundling passed |
+| Hosted verification | 17 existing HTTP checks plus 12 owner acceptance checks: all passed |
+| Browser verification | Two fresh unauthenticated Chromium contexts, requested wide/narrow window sizes: JavaScript settled and owner controls stayed blocked |
+| Last hosted observation | `2026-09-09T20:14:58.731Z` |
+| Production dependency audit | Zero known vulnerabilities in the production-only audit |
+| Full-install audit | Three high-severity advisories with development/tooling dependencies included; still open |
 
-The [deployment receipt](staging-deployment-2026-09-09.md) links the verification and deployment jobs, records the failure/fix sequence, and distinguishes real hosted checks from simulated-provider tests. Documentation-only commits may follow the deployed revision without redeploying it. The receipt's runtime SHA, not an assumed latest main SHA, identifies the tested service.
-
-D1 database `poststeward-identity-staging` (`d68d73f6-a7b3-4530-82e7-28c2028c050a`) is bound to the Worker. Both identity migrations were applied during the first successful upload; the final deployment found no pending migrations. The required Google and encryption settings were validated during deployment. No D1 permission change, resource recreation or key regeneration remains necessary for this staging deployment.
+Read the [current engineering receipt](owner-acceptance-deployment-2026-09-09.md) for exact run identities and boundaries. The [earlier infrastructure receipt](staging-deployment-2026-09-09.md) is historical. Main contains later verification/documentation changes and need not equal the deployed runtime SHA. No redeployment was needed to resolve the initial static-asset 404: the same runtime subsequently served the stylesheet with HTTP 200.
 
 ## Implemented
 
 | Area | Current implementation |
 | --- | --- |
 | Hosted foundation | TypeScript Worker, D1 identity, SQLite Durable Objects, alarms, deployment configuration and CI |
-| Customer authority | OIDC owner sign-in, browser sessions and CSRF protection, scoped revocable agent tokens, workspace isolation |
-| Free publishing | Verified account aliases, explicit project routing, immutable approved copy, real X/Threads/LinkedIn API adapters |
-| Free schedules and evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics, duplicate/uncertain-effect protections |
-| Agent surfaces | 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI; public agent guide and discovery files |
-| Advanced foundation | Public repository source-path monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, profile/project/family spacing and scheduled metrics |
+| Customer authority | OIDC owner sign-in, browser sessions, CSRF protection, scoped revocable agent tokens and workspace isolation |
+| Owner completion proof | Minimal proof committed atomically with a validated session; expiry/logout cascade; fixed post-login return paths; legacy sessions cannot approve the pilot without signing in again |
+| Controlled acceptance | Owner-only `/pilot` UI/API, fresh stable provider identity, immutable expiring review, explicit approval, one durable delivery and private receipt/export |
+| Controlled execution | Thirty-second cancellation window, captured session/account/runtime checks, stale-claim fencing, late creation-ID preservation and no one-shot reset through other publishing transports |
+| Controlled readback | At most eight separate reads of the known post ID, thirty seconds apart; exact ID/author/text matching; no publication retry to repair missing evidence |
+| Free publishing | Verified account aliases, explicit project routing, immutable approved copy and X/Threads/LinkedIn API adapters |
+| Free schedules and evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics and duplicate/uncertain-effect protections |
+| Agent surfaces | 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files |
+| Advanced foundation | Public source-path monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, spacing and scheduled metrics |
 | Stripe | USD 5 monthly Checkout, Portal, signed webhooks, entitlement reconciliation and SDK-backed MPP for a non-renewing calendar-month pass |
 
-Free and Advanced retain the agreed boundary: direct publishing and explicit scheduling are free; continuing campaign management is paid. Advanced purchases and MPP are disabled in the staging deployment.
+Direct publishing and explicit scheduling remain Free; continuing campaign management is the proposed paid boundary. Advanced and MPP are disabled in the active deployment. Pilot acceptance supports X or Threads only because the current LinkedIn member adapter cannot independently read back a post; this does not remove general LinkedIn support.
 
-## Verification and its boundaries
+## Verification interpretation
 
-`npm run verify` passed in [deployment verification job 102602294236](https://github.com/AyobamiH/poststeward/actions/runs/34391992401/job/102602294236): TypeScript checking, generated-document drift checks, Wrangler deployment bundling and **71 automated tests**. CI separately passed on the deployed main revision in [run 34391992198](https://github.com/AyobamiH/poststeward/actions/runs/34391992198).
+The 99-test suite includes actual Workers/D1/SQLite/Assets execution, validated signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout and replay handling, malformed or wrong claims, CSRF/Bearer rejection, workspace isolation, parallel approval, lost response recovery, stale execution claims, immutable account routing, cancellation, cloned-fingerprint bypass prevention and bounded readback. The end-to-end runtime acceptance uses a real thirty-second alarm and exactly one simulated provider write followed by independent simulated readback. **Google and provider responses in CI are fixtures, not live acceptance.**
 
-The runtime integration uses Cloudflare's actual Workers runtime, D1 and SQLite Durable Objects. It verifies authenticated account connection, isolated workspaces, HTTP/MCP operation agreement, alarm-driven dispatch after reservation, duplicate prevention and a native SDK MPP challenge. Provider responses are simulated; these checks did not publish to real accounts.
+The provider client bounds both response bytes and time through the response body. A successful write status followed by incomplete/unreadable evidence remains ambiguous. Threads readback uses `owner.id`, not a username that can change or be reused. Permalinks are restricted to exact provider hosts. These changes have automated coverage; they do not establish a real provider publication until the owner completes the hosted acceptance.
 
-The added Workers Assets regression uses the real asset implementation and repository HTML, not an asset-response stub. It verifies `/app`, query strings and canonical redirects. It covers the live redirect loop fixed in [PR #6](https://github.com/AyobamiH/poststeward/pull/6). Workflow-contract and hosted-check tests cover the explicit staging request, named secret forwarding, readiness bounds and safe diagnostic output.
+The hosted HTTP suites check exact runtime identity, original public assets/discovery, invitation/authentication boundaries, pilot HTML/JavaScript/styles, unauthenticated pilot action rejection, cross-origin rejection, fixed return-path rejection and Google login initiation. The browser check uses fresh unauthenticated Chromium profiles at two requested window sizes, without deployment credentials; it verifies settled JavaScript and blocked owner controls. It is not a full accessibility audit, mobile-device certification, authenticated user journey or native WebMCP test.
 
-OIDC runtime tests use locally signed test tokens and check state replay, forged signatures, verified-email restrictions, session CSRF and grant caps. The hosted check additionally reached real Google issuer discovery, stored login state in deployed D1 and produced the expected Google authorization redirect with PKCE, nonce and a secure cookie. It did not complete Google consent, exchange a real authorization code or establish an owner session. Correct initiation alone does not prove the client secret and registered redirect work end to end.
+Payment tests still use simulated Stripe/SDK challenge responses. No merchant settlement, real charge, refund/dispute lifecycle or eligible wallet has been verified. Native browser WebMCP remains unverified.
 
-Payment tests exercise SDK challenge verification, altered credentials/challenges, exact USD 5 input, one-month entitlement, replay prevention and simulated refund revocation. Stripe responses are simulated. No merchant sandbox settlement, real charge or wallet eligibility was verified.
+## Deployment and operation
 
-Browser WebMCP contract tests verify scoped registration, consequential annotations and forwarding to the shared handlers. Native supported-browser execution on the deployed origin remains unverified.
+PR #8 introduced the application and additive `0003_owner_proofs.sql` expansion. The migration leaves the old login-state table shape intact, adding dependent return-path and owner-proof tables. Existing login-state SQL can run during deployment or schema-compatible rollback; a regression proves that database contract, not arbitrary safe application downgrade with active jobs.
 
-The checked-in deployment configuration remains deliberately unsuitable for direct deployment. Preflight rejects placeholder origins/databases, missing OIDC configuration and missing release revisions. The protected deployment workflow generates and validates real environment configuration before any migration.
+PR #9 added bounded static GET/404 readiness and a credential-free existing-runtime verification workflow. Persistent 404s, redirects, authentication failures and failed content assertions still fail. Verification does not repeat a deployment or publish a post. Login probes create expiring state records but not authenticated owner sessions.
 
-## Cloudflare configuration and security implementation
+Existing keys, D1 and Durable Object resources were retained. Main-only staging requests, named secret forwarding, separate verification jobs, exact database/release checks, invite-only signup and disabled billing remain in place. The deployment workflow never writes an owner session directly to bypass Google consent.
 
-Separate staging/production configuration, full-SHA-pinned CI actions, main-only environment deployments, remote D1 identity verification, secret validation and temporary secret-file cleanup are implemented. The explicit staging request forwards only four named repository-level secret fallbacks; selected environment secrets take precedence. Secrets are mapped into process environment variables only for the configuration/deployment steps, not dependency installation, audit, tests or hosted checks. The Cloudflare token is not uploaded to the Worker.
+Before considering an application downgrade, pause publication and inspect all active/uncertain pilot deliveries. Do not run pre-pilot code with pending session-bound work: older code does not enforce the new review/session fields. Additive database compatibility alone is not a safe rollback rehearsal. Resolve or safely terminalise pending work and preserve any provider creation evidence before a reviewed rollback.
 
-The workflow leaves billing disabled and signup restricted to verified invited owners. Runtime protections include strict host/origin checks, OIDC signature verification, CSRF, malformed-auth rejection, edge and durable workspace request limits, streamed-body deadlines, bounded active grants/login state and expiry cleanup. The hosted checks verified unauthenticated and forged-token rejection, cross-origin rejection, invalid callback-state rejection, no-store session responses and security headers. Live two-owner isolation and grant-revocation acceptance remain separate work.
+## Next live milestone
 
-The production-dependency audit (`npm audit --omit=dev --audit-level=high`) reported zero known vulnerabilities in the accepted deployment verification. The full dependency install still reported **three high-severity advisories** when development/tooling dependencies were included. Those findings were not remediated or characterised here and require triage; the narrower audit result is not a claim that the entire dependency graph is clean or that any dependency is vulnerability-free.
+The implemented owner journey is `/pilot`: complete Google sign-in, explicitly choose or connect an authorised X/Threads account, prepare the exact text, review the stable provider ID and approve one publication. The page recovers its existing receipt after reload and offers bounded post-ID readback and private export. Once the reservation is acknowledged, closing the browser does not cancel it; the Durable Object alarm owns execution. The thirty-second cancellation window precedes dispatch. No cancellation guarantee is made after a provider write starts.
 
-No real owner consent, hosted WAF policy, operational alert delivery or restore rehearsal has been verified. See [setup](deployment.md) and [security boundaries](security.md).
+A successful live milestone requires the owner proof, captured approval, durable creation ID and separate exact provider readback in the receipt. A prepared review, scheduled job, HTTP 2xx write, screenshot, CI fixture or login redirect alone does not satisfy it. The pilot slot remains consumed after reservation, including cancellation or uncertainty; there is no reset/republication escape in this API.
 
-## What remains before launch
+## Remaining public-release work
 
-1. Complete hosted owner sign-in and session acceptance against Google, then verify invited/uninvited identities, two-owner isolation and grant revocation on staging. Infrastructure setup is complete; do not repeat the previous credential-entry work.
-2. Complete provider OAuth onboarding and token refresh/rotation. The current pilot accepts authorised user tokens and verifies account identity. Fresh-customer and controlled live-provider acceptance are still required.
-3. Validate native WebMCP in a supported browser and authenticated HTTP/MCP clients against the same live workspace. Remote MCP currently uses scoped Bearer headers; OAuth-compatible MCP authorization discovery remains separate work.
-4. Complete richer Advanced profile/category management, private GitHub installation and customer review UI before enabling purchases.
-5. Configure Stripe sandbox and merchant MPP eligibility; complete recurring invoice, payment recovery, refund/dispute and eligible-wallet acceptance. Billing remains disabled; no live purchase is authorised by this deployment receipt.
-6. Finish production traffic/retention limits, erasure tooling, alerts, restore validation and development/tooling advisory triage. Initial limits are 20 reservations per UTC day, 100 active schedules and 10 source profiles per workspace; these are pilot limits, not proven unit economics. Configure production resources separately after acceptance.
+1. Complete and record real Google consent, authenticated browser interaction, invited/uninvited-owner isolation/revocation and the first controlled provider publication/readback. These are still pending, not claimed completed by deployment.
+2. Complete self-service provider OAuth onboarding and token refresh/rotation. The restricted pilot currently imports an authorised user token over its authenticated application. Do not borrow another product's credentials or call token import a completed OAuth onboarding product.
+3. Complete richer Advanced profile/category-management, private GitHub installation and customer review UI before purchases.
+4. Configure Stripe sandbox and merchant MPP eligibility; finish recurring invoice, recovery, refund/dispute and eligible-wallet acceptance before any live charge.
+5. Finish production traffic/retention limits, account erasure, rotation, operational alerts, restore rehearsal and development/tooling advisory triage. Choose and verify the production domain and its separate resources.
 
-PostSteward runs centrally on the service operator's Cloudflare account. Customers connect accounts and agents to the hosted service. The staging setup inspector can discover existing resource IDs and report credential presence without exposing their values or modifying resources; it is distinct from the completed deployment and hosted acceptance checks above.
+Pilot delivery limits remain 20 reservations per UTC day, 100 active schedules and 10 source profiles per workspace. They are initial limits, not proven unit economics. PostSteward is hosted centrally on the service operator's Cloudflare account; customers connect to the product rather than provision their own Cloudflare stack.
