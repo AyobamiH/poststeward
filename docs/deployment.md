@@ -95,3 +95,7 @@ No live payment test has been performed. A live test needs an exact authorised p
 Use separate production bindings, secrets, webhook signing key and Price. Set a real release SHA. Check actual provider permissions with a fresh user, native WebMCP in a supported browser and both HTTP/MCP clients. Record provider receipt URLs and payment receipts separately. Use the runbook to rehearse pause and restore. Publish calibrated limits and retention/deletion policy before opening public signup.
 
 The current initial-deployment preflight intentionally rejects enabling Advanced/MPP. Enabling billing requires a reviewed release that extends the secret manifest and deployment workflow, after the acceptance above. This repository does not automatically deploy on every merge.
+
+## Inspect an existing staging setup
+
+`Inspect staging setup` runs on main when its own workflow/script changes, or on manual dispatch. It uses the saved staging token for read-only Cloudflare API requests. Its summary contains presence checks for secrets and validated account/database/subdomain metadata, never secret values. It resolves a missing account ID only if the token returns exactly one account and finds only the exact `poststeward-identity-staging` database. The inspection neither deploys nor changes Cloudflare resources. This avoids asking an owner to copy configuration that the deployment token can already discover.
