@@ -13,6 +13,13 @@ import { errorResponse, Fault, json, requireValue } from "./common.ts";
 import { help, openapi } from "./discovery.ts";
 import { Engine } from "./engine.ts";
 import { SocialProviders } from "./providers.ts";
+import {
+  completeProviderOAuth,
+  oauthConfiguration,
+  ProviderOAuthConnections,
+  providerOAuthSuccess,
+  startProviderOAuth,
+} from "./provider-oauth.ts";
 import { ownerAuthority } from "./owner-proof.ts";
 import { Pilot } from "./pilot.ts";
 import { mcp } from "./mcp.ts";
@@ -99,7 +106,14 @@ export class Workspace extends DurableObject<Env> {
       },
     );
     const pilot = new Pilot(this.store, this.env, engine, providers, authorized);
-    return { billing, engine, pilot };
+    const oauth = new ProviderOAuthConnections(this.store, this.env, providers);
+    return { billing, engine, pilot, oauth };
+  }
+  private async schedule(engine: Engine, oauth: ProviderOAuthConnections) {
+    await engine.scheduleNext();
+    const nextOAuth = oauth.nextWake();
+    if (nextOAuth !== undefined)
+      await this.wake(Math.max(Date.now() + 1000, nextOAuth));
   }
   async fetch(request: Request): Promise<Response> {
     try {
@@ -116,11 +130,11 @@ export class Workspace extends DurableObject<Env> {
         "Workspace is required.",
         400,
       );
-      const { engine, billing, pilot } = this.services(data.workspace),
+      const { engine, billing, pilot, oauth } = this.services(data.workspace),
         path = new URL(request.url).pathname;
       if (path === "/billing/reconcile") {
         await billing.reconcile();
-        await engine.scheduleNext();
+        await this.schedule(engine, oauth);
         return json({ reconciled: true });
       }
       requireValue(
@@ -130,6 +144,9 @@ export class Workspace extends DurableObject<Env> {
         403,
       );
       limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);
+      // Refresh only credentials whose durable metadata says they are due.
+      // Each refresh is identity-checked before the stored token is replaced.
+      await oauth.refreshDue();
       let result: unknown;
       if (path.startsWith("/pilot/")) {
         // This envelope is constructed by the authenticated Worker, never by
@@ -144,6 +161,11 @@ export class Workspace extends DurableObject<Env> {
           "Invalid connection inputs.",
         );
         result = await engine.connect(data.actor, parsed.data);
+      } else if (path === "/oauth/connect") {
+        const input = data.input as Parameters<ProviderOAuthConnections["connect"]>[1];
+        result = await oauth.connect(data.actor, input);
+      } else if (path === "/oauth/status") {
+        result = oauth.status();
       } else if (path === "/payment") {
         requireValue(
           data.payment,
@@ -161,12 +183,16 @@ export class Workspace extends DurableObject<Env> {
         );
       } else {
         result = await engine.run(data.name, data.input, data.actor);
+        if (data.name === "account_disconnect") {
+          const alias = (data.input as { alias?: unknown })?.alias;
+          if (typeof alias === "string") await oauth.afterDisconnect(alias);
+        }
         if (data.name === "schedule_cancel") {
           const cancellation = result as { delivery?: import("./types.ts").Delivery };
           if (cancellation.delivery) result = { ...cancellation, delivery: engine.publicDelivery(cancellation.delivery) };
         }
       }
-      await engine.scheduleNext();
+      await this.schedule(engine, oauth);
       return json(result);
     } catch (e) {
       return errorResponse(e);
@@ -175,10 +201,11 @@ export class Workspace extends DurableObject<Env> {
   async alarm() {
     const workspace = this.store.get<string>("workspace");
     if (!workspace) return;
-    const { engine, billing } = this.services(workspace);
+    const { engine, billing, oauth } = this.services(workspace);
     // A watchdog survives interruption during provider I/O and reclaims only according to receipt phase.
     await this.ctx.storage.setAlarm(Date.now() + 60000);
     try {
+      await oauth.refreshDue();
       const next = this.store.get<number>("billing:next") || 0;
       if (next <= Date.now()) {
         try {
@@ -192,7 +219,7 @@ export class Workspace extends DurableObject<Env> {
       await engine.tick();
     } finally {
       await this.ctx.storage.deleteAlarm();
-      await engine.scheduleNext();
+      await this.schedule(engine, oauth);
       if (this.store.get("billing:attempt"))
         await this.wake(
           this.store.get<number>("billing:next") || Date.now() + 60000,
@@ -267,6 +294,12 @@ async function route(
       status: "ok",
       release: env.RELEASE_SHA,
       advancedEnabled: env.ADVANCED_ENABLED === "true",
+      providerOAuth: Object.fromEntries(
+        Object.entries(oauthConfiguration(env)).map(([provider, value]) => [
+          provider,
+          (value as { available: boolean }).available,
+        ]),
+      ),
     });
   if (path === "/help.json" && request.method === "GET")
     return json(help(env, url.searchParams.get("scope") || undefined), 200, {
@@ -287,6 +320,34 @@ async function route(
     return callback(request, env);
   if (path === "/webhooks/stripe" && request.method === "POST")
     return stripeWebhook(request, env);
+  const providerCallback = /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.exec(path);
+  if (providerCallback && request.method === "GET") {
+    const provider = providerCallback[1] as "x" | "threads" | "linkedin";
+    const auth = await authenticate(request, env);
+    const completed = await completeProviderOAuth(request, env, auth, provider);
+    if (completed.response) return completed.response;
+    const response = await invoke(
+      env,
+      auth.actor,
+      "",
+      { alias: completed.alias, token: completed.token },
+      "/oauth/connect",
+    );
+    if (!response.ok) {
+      const value: any = await response.json();
+      return json(
+        {
+          error: {
+            code: value.error?.code || "OAUTH_CONNECTION_FAILED",
+            message: value.error?.message || "Provider connection could not be completed.",
+          },
+        },
+        response.status,
+        { "Set-Cookie": "__Host-provider-oauth=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0" },
+      );
+    }
+    return providerOAuthSuccess(provider);
+  }
   if (
     path.startsWith("/api/") ||
     path === "/mcp" ||
@@ -294,6 +355,27 @@ async function route(
     path === "/auth/logout"
   ) {
     const auth = await authenticate(request, env);
+    const oauthStart = /^\/api\/connections\/oauth\/(x|threads|linkedin)\/start$/.exec(path);
+    if (oauthStart) {
+      requireValue(request.method === "POST", "METHOD_NOT_ALLOWED", "Start provider OAuth with POST.", 405);
+      return startProviderOAuth(
+        request,
+        env,
+        auth,
+        oauthStart[1] as "x" | "threads" | "linkedin",
+      );
+    }
+    if (path === "/api/connections/oauth/status" && request.method === "GET") {
+      const response = await invoke(env, auth.actor, "", {}, "/oauth/status");
+      const connections = await response.json();
+      return json(
+        {
+          providers: oauthConfiguration(env),
+          connections: response.ok ? connections : [],
+        },
+        response.ok ? 200 : response.status,
+      );
+    }
     if (path.startsWith("/api/pilot/")) {
       const action = path.slice("/api/pilot/".length);
       requireValue(["status", "prepare", "confirm", "cancel", "recheck"].includes(action), "NOT_FOUND", "Unknown acceptance operation.", 404);
