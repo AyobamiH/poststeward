@@ -126,20 +126,24 @@ export async function prepareRecoveryPlan(
       at: now,
     }),
   );
-  return { ...publicPlan({
-    id,
-    workspace: input.workspace,
-    actor: input.actor,
-    target_time: input.targetTime,
-    target_bookmark: input.targetBookmark,
-    pre_restore_bookmark: input.preRestoreBookmark,
-    reason: immutable.reason,
-    digest: planDigest,
-    state: "prepared",
-    created_at: now,
-    expires_at: immutable.expiresAt,
-    updated_at: now,
-  }), targetBookmarkCaptured: true, preRestoreBookmarkCaptured: true };
+  return {
+    ...publicPlan({
+      id,
+      workspace: input.workspace,
+      actor: input.actor,
+      target_time: input.targetTime,
+      target_bookmark: input.targetBookmark,
+      pre_restore_bookmark: input.preRestoreBookmark,
+      reason: immutable.reason,
+      digest: planDigest,
+      state: "prepared",
+      created_at: now,
+      expires_at: immutable.expiresAt,
+      updated_at: now,
+    }),
+    targetBookmarkCaptured: true,
+    preRestoreBookmarkCaptured: true,
+  };
 }
 
 export async function requireRecoveryPlan(
@@ -176,18 +180,22 @@ export async function requireRecoveryPlan(
   return plan;
 }
 
+function requireBookmark(value: string) {
+  requireValue(
+    typeof value === "string" && value.length >= 16 && value.length <= 256,
+    "RECOVERY_BOOKMARK_INVALID",
+    "Durable storage did not return an undo bookmark.",
+    502,
+  );
+}
+
 export async function armRecoveryPlan(
   db: D1Database,
   plan: RecoveryPlanRow,
   undoBookmark: string,
   now = Date.now(),
 ) {
-  requireValue(
-    typeof undoBookmark === "string" && undoBookmark.length >= 16 && undoBookmark.length <= 256,
-    "RECOVERY_BOOKMARK_INVALID",
-    "Durable storage did not return an undo bookmark.",
-    502,
-  );
+  requireBookmark(undoBookmark);
   const result = await db
     .prepare(
       "UPDATE workspace_recovery_plans SET state='armed',undo_bookmark=?,updated_at=? WHERE id=? AND workspace=? AND digest=? AND state='prepared'",
@@ -203,6 +211,35 @@ export async function armRecoveryPlan(
   console.warn(
     JSON.stringify({
       event: "workspace_recovery_armed",
+      workspace: plan.workspace,
+      plan: plan.id,
+      at: now,
+    }),
+  );
+}
+
+export async function rearmRecoveryPlanForUndo(
+  db: D1Database,
+  plan: RecoveryPlanRow,
+  redoBookmark: string,
+  now = Date.now(),
+) {
+  requireBookmark(redoBookmark);
+  const result = await db
+    .prepare(
+      "UPDATE workspace_recovery_plans SET state='armed',undo_bookmark=?,updated_at=? WHERE id=? AND workspace=? AND digest=? AND state='reconciled'",
+    )
+    .bind(redoBookmark, now, plan.id, plan.workspace, plan.digest)
+    .run();
+  requireValue(
+    result.meta.changes === 1,
+    "RECOVERY_PLAN_CHANGED",
+    "Recovery plan changed before undo was armed.",
+    409,
+  );
+  console.warn(
+    JSON.stringify({
+      event: "workspace_recovery_undo_armed",
       workspace: plan.workspace,
       plan: plan.id,
       at: now,
