@@ -1,28 +1,53 @@
-name: Dependency lock remediation preview
+name: Finalise dependency audit remediation
 on:
   push:
     branches: [chore/dependency-audit-closure]
     paths:
       - .github/workflows/dependency-lock-preview.yml
 permissions:
-  contents: read
+  contents: write
 jobs:
-  generate:
+  finalise:
+    if: github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH' && github.ref == 'refs/heads/chore/dependency-audit-closure'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          persist-credentials: false
+          persist-credentials: true
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Prove whether npm ci can apply a package-only sharp override against the existing lockfile
+      - name: Build the exact final dependency state
         run: |
+          set -euo pipefail
           npm pkg set overrides.sharp=0.35.4
-          cp package-lock.json package-lock.before.json
+          npm install --package-lock-only --ignore-scripts
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/ci.yml')
+          p.write_text('''name: Verify\non: [push, pull_request, workflow_dispatch]\npermissions:\n  contents: read\njobs:\n  verify:\n    runs-on: ubuntu-latest\n    timeout-minutes: 15\n    steps:\n      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n        with:\n          persist-credentials: false\n      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6\n        with:\n          node-version: 24\n          cache: npm\n      - run: npm ci\n      - name: Production dependency audit\n        run: npm audit --omit=dev --audit-level=high\n      - name: Full dependency audit\n        run: npm audit --audit-level=high\n      - run: npm run verify\n''')
+          PY
+          rm -f scripts/audit-summary.mjs
+          rm -f .github/workflows/dependency-lock-preview.yml
+          expected=$(printf '%s\n' '.github/workflows/ci.yml' '.github/workflows/dependency-lock-preview.yml' 'package-lock.json' 'package.json' 'scripts/audit-summary.mjs' | sort)
+          actual=$(git diff --name-only | sort)
+          test "$actual" = "$expected"
+          git diff --check
+      - name: Prove the exact final tree before committing it
+        run: |
+          set -euo pipefail
           npm ci --ignore-scripts
-          cmp package-lock.json package-lock.before.json
+          npm audit --omit=dev --audit-level=high
           npm audit --audit-level=high
           npm run verify
+          echo "POSTSTEWARD_FINAL_DEPENDENCY_DIFF_SHA256=$(git diff --binary | sha256sum | cut -d' ' -f1)"
+      - name: Commit only the already-tested final tree as AyobamiH
+        run: |
+          set -euo pipefail
+          git config user.name 'AyobamiH'
+          git config user.email '47716486+AyobamiH@users.noreply.github.com'
+          git add -A
+          git commit -m 'Close full dependency audit findings with patched sharp override'
+          git push origin HEAD:chore/dependency-audit-closure
