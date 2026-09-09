@@ -1,0 +1,17 @@
+# PostSteward — Social publishing for AI agents
+
+Hosted execution of approved social content. Free immediate publication and explicit scheduling, account routing, receipts, export and on-demand metrics. Advanced continuing campaign management costs USD 5 per workspace per month.
+
+- [Live help and capability catalogue](/help.json): operation schemas, effects, scopes, current availability and payment methods.
+- [Agent guide](/docs/agent-guide.md): authentication, exact-content workflow and recovery.
+- [Operation reference](/docs/operations.md): generated from the same catalogue used by execution.
+- [OpenAPI](/openapi.json): HTTP operations.
+- [Plans](/plans.json): free/paid boundary.
+
+Remote MCP: /mcp (Streamable HTTP, scoped Bearer token).
+Browser WebMCP: /app (document.modelContext, signed-in owner session).
+HTTP: POST /api/operations/{operation_name}.
+
+Start with inspection. Reservation IDs are not publication proof. Read receipts and never blindly repeat ambiguous effects. No copying, truncation or account inference occurs after content is approved.
+
+Public documentation is crawlable. Workspace data, credentials and receipts require authentication. Discovery paths aid indexing; they do not guarantee automatic discovery by every agent.

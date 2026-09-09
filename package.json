@@ -1,0 +1,38 @@
+{
+  "name": "poststeward",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --experimental-transform-types --test tests/*.test.*",
+    "docs": "node --experimental-transform-types scripts/generate-docs.ts",
+    "docs:check": "node --experimental-transform-types scripts/generate-docs.ts --check",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "verify": "npm run check && npm run docs:check && npm run build && npm test",
+    "deploy": "npm run deploy:check && node scripts/deploy-environment.mjs",
+    "deploy:check": "node scripts/deploy-check.mjs",
+    "format": "prettier --write src scripts tests public/*.js public/*.html public/*.css package.json tsconfig.json wrangler.jsonc .github"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "jose": "6.2.12",
+    "mppx": "0.9.2",
+    "oauth4webapi": "3.8.8",
+    "stripe": "22.6.1",
+    "twitter-text": "3.1.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260908.1",
+    "@types/node": "26.5.0",
+    "@types/twitter-text": "3.1.10",
+    "miniflare": "5.20260908.0-alpha",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2",
+    "wrangler": "4.130.0"
+  }
+}

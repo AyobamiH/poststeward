@@ -1,0 +1,85 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "poststeward",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WORKSPACES",
+        "class_name": "Workspace"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Workspace"]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "IDENTITY",
+      "database_name": "poststeward-identity",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://configure-before-deployment.invalid",
+    "RELEASE_SHA": "development",
+    "ADVANCED_ENABLED": "false",
+    "MPP_ENABLED": "false",
+    "PUBLISHING_PAUSED": "false",
+    "DAILY_DELIVERY_LIMIT": "20",
+    "ACTIVE_SCHEDULE_LIMIT": "100",
+    "LINKEDIN_VERSION": "202608",
+    "SIGNUP_MODE": "restricted",
+    "WORKSPACE_REQUEST_LIMIT": "120"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false
+    }
+  },
+  "preview_urls": false,
+  "limits": {
+    "cpu_ms": 10000
+  },
+  "secrets": {
+    "required": ["ENCRYPTION_KEY", "OIDC_CLIENT_SECRET", "ALLOWED_OWNER_EMAILS"]
+  },
+  "ratelimits": [
+    {
+      "name": "EDGE_LIMITER",
+      "namespace_id": "51001",
+      "simple": {
+        "limit": 120,
+        "period": 60
+      }
+    },
+    {
+      "name": "LOGIN_LIMITER",
+      "namespace_id": "51002",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "triggers": {
+    "crons": ["17 * * * *"]
+  }
+}
