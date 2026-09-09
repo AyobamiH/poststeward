@@ -20,6 +20,11 @@ export interface Identity {
   id: string;
   username: string;
 }
+export interface AccountCapabilities {
+  oauth: boolean;
+  refresh: boolean;
+  readback: boolean;
+}
 export interface Account {
   alias: string;
   provider: Provider;
@@ -28,6 +33,7 @@ export interface Account {
   secret: string;
   active: boolean;
   verifiedAt: number;
+  capabilities?: AccountCapabilities;
 }
 export interface Project {
   id: string;
@@ -134,6 +140,13 @@ export interface Env {
   OIDC_ISSUER: string;
   OIDC_CLIENT_ID: string;
   OIDC_CLIENT_SECRET: string;
+  X_OAUTH_CLIENT_ID?: string;
+  X_OAUTH_CLIENT_SECRET?: string;
+  THREADS_OAUTH_CLIENT_ID?: string;
+  THREADS_OAUTH_CLIENT_SECRET?: string;
+  LINKEDIN_OAUTH_CLIENT_ID?: string;
+  LINKEDIN_OAUTH_CLIENT_SECRET?: string;
+  LINKEDIN_MEMBER_READBACK?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
