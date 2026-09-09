@@ -1,4 +1,5 @@
 import { byName, plans } from "./operations/catalog.ts";
+import { guardControlledPublication } from "./controlled.ts";
 import {
   active,
   digest,
@@ -140,7 +141,7 @@ export class Engine {
           )
             return {
               cancelled: false,
-              delivery: d,
+              delivery: this.publicDelivery(d),
               reason: "already_executing",
             };
           if (["scheduled", "waiting_container"].includes(d.status)) {
@@ -148,11 +149,11 @@ export class Engine {
               status: "cancelled",
               reason: "Cancelled by authorised actor.",
             });
-            return { cancelled: true, delivery: d };
+            return { cancelled: true, delivery: this.publicDelivery(d) };
           }
           return {
             cancelled: d.status === "cancelled",
-            delivery: d,
+            delivery: this.publicDelivery(d),
             reason:
               d.status === "executing"
                 ? "already_executing"
@@ -434,6 +435,7 @@ export class Engine {
       402,
     );
     const data = parsed.data as any;
+    guardControlledPublication(this.store, name, data);
     if (!data.idempotencyKey) return this.handlers[name](data, actor);
     const hash = await digest({ name, data }),
       key =
@@ -558,7 +560,9 @@ export class Engine {
       const previous = id
         ? this.store.get<Delivery>("delivery:" + id)
         : undefined;
-      return previous && previous.status !== "cancelled" ? previous : d;
+      // A controlled fingerprint stays consumed even if its delivery was
+      // cancelled. Cloning the campaign or switching transports cannot reset it.
+      return previous && (previous.status !== "cancelled" || previous.reviewedRelease) ? previous : d;
     });
     const fresh = resolved.filter(
       (d, index) =>
@@ -888,15 +892,17 @@ export class Engine {
       });
       return;
     }
-    if (!(await this.options.authorized(d.actor))) {
+    const initiallyAuthorized = await this.options.authorized(d.actor);
+    // Authorization is external I/O: never write back the stale pre-read copy.
+    d = this.get<Delivery>("delivery:", id);
+    if (!["scheduled", "waiting_container"].includes(d.status)) return;
+    if (!initiallyAuthorized) {
       this.update(d, {
         status: "drift_blocked",
         reason: "Delegated publishing authority revoked or expired.",
       });
       return;
     }
-    d = this.get<Delivery>("delivery:", id);
-    if (!["scheduled", "waiting_container"].includes(d.status)) return;
     if (d.automatic) {
       const p = this.get<Profile>("profile:", d.policy!);
       try {

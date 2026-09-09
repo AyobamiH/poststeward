@@ -1,6 +1,6 @@
 import { confirmation, mayApprove, mayReadback, receiptLabel, safePostLink, createClient } from "./pilot-client.js";
 const $ = (id) => document.getElementById(id);
-let session, snapshot, busy = false, timer, polls = 0;
+let session, snapshot, busy = false, dirty = false, timer, polls = 0;
 const api = createClient((...args) => fetch(...args), () => session?.csrf);
 const operation = (name, input = {}) => api("/api/operations/" + name, input);
 function notice(text, error = false) {
@@ -10,8 +10,8 @@ function notice(text, error = false) {
 function controls() {
   for (const form of [$("connection-form"), $("prepare-form")])
     for (const element of form.elements) element.disabled = busy || !session || Boolean(snapshot?.record?.deliveryId);
-  $("confirm").disabled = busy || !session || !mayApprove(snapshot, $("approve").checked);
-  $("approve").disabled = busy || Boolean(snapshot?.record?.deliveryId);
+  $("confirm").disabled = busy || !session || dirty || !mayApprove(snapshot, $("approve").checked);
+  $("approve").disabled = busy || dirty || Boolean(snapshot?.record?.deliveryId);
   $("cancel").disabled = busy || !["scheduled", "waiting_container"].includes(snapshot?.delivery?.status);
   $("recheck").disabled = busy || !mayReadback(snapshot);
   $("refresh").disabled = busy;
@@ -47,7 +47,7 @@ function render() {
 async function loadReceipt() {
   const previous = snapshot?.record?.id;
   snapshot = await api("/api/pilot/status");
-  if (previous !== snapshot.record?.id) $("approve").checked = false;
+  if (previous !== snapshot.record?.id) { $("approve").checked = false; dirty = false; }
   render();
 }
 async function loadAccounts() {
@@ -95,11 +95,12 @@ function poll() {
 $("connection-form").onsubmit = (event) => {
   event.preventDefault();
   act(async () => {
-    const provider = $("connection-provider").value;
-    if (provider === "x" && !$("connection-funding").checked) throw new Error("Confirm ownership and API usage of your funded X application first.");
     try {
+      const provider = $("connection-provider").value;
+      if (provider === "x" && !$("connection-funding").checked) throw new Error("Confirm ownership and API usage of your funded X application first.");
       await api("/api/connections/import", { alias: $("connection-alias").value, provider,
         accessToken: $("connection-token").value, ...(provider === "x" ? { funding: "customer_app" } : {}) });
+      dirty = true; $("approve").checked = false;
       await loadAccounts(); await loadReceipt(); notice("Account identity verified. Choose it explicitly and prepare the exact review; nothing has posted.");
     } finally { $("connection-token").value = ""; }
   });
@@ -108,14 +109,14 @@ $("prepare-form").onsubmit = (event) => {
   event.preventDefault();
   act(async () => {
     snapshot = await api("/api/pilot/prepare", { alias: $("account").value, text: $("copy").value });
-    $("approve").checked = false; render();
+    dirty = false; $("approve").checked = false; render();
     notice("Review prepared without a provider write. Check the stable account ID and every word, then explicitly approve.");
     $("review-heading").scrollIntoView({ block: "center", behavior: "smooth" });
   });
 };
 $("confirm-form").onsubmit = (event) => {
   event.preventDefault();
-  if (!mayApprove(snapshot, $("approve").checked)) return;
+  if (!(!dirty && mayApprove(snapshot, $("approve").checked))) return;
   const input = confirmation(snapshot.record);
   act(async () => {
     snapshot = await api("/api/pilot/confirm", input); $("approve").checked = false; render();
@@ -125,7 +126,7 @@ $("confirm-form").onsubmit = (event) => {
 };
 $("approve").onchange = controls;
 for (const id of ["account", "copy"]) $(id).oninput = () => {
-  $("approve").checked = false; controls();
+  dirty = true; $("approve").checked = false; controls();
   if (snapshot?.record && !snapshot.record.deliveryId) notice("Inputs changed. Prepare a new review; the displayed exact review has not changed.");
 };
 $("refresh").onclick = () => act(async () => { await loadAccounts(); await loadReceipt(); polls = 0; poll(); });
