@@ -8,7 +8,7 @@ CREATE TABLE workspace_recovery_plans (
   undo_bookmark TEXT,
   reason TEXT NOT NULL,
   digest TEXT NOT NULL,
-  state TEXT NOT NULL CHECK (state IN ('prepared','armed','cancelled')),
+  state TEXT NOT NULL CHECK (state IN ('prepared','armed','reconciled','cancelled')),
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
