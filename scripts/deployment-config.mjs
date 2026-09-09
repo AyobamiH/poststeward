@@ -6,6 +6,38 @@ export const secretNames = [
 export function demand(condition, message) {
   if (!condition) throw new Error(message);
 }
+export async function resolveCloudflareConfiguration(env, send = fetch) {
+  demand(
+    /^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID || "") &&
+      env.CLOUDFLARE_API_TOKEN,
+    "Cloudflare account and deployment token are required for configuration discovery.",
+  );
+  const response = await send(
+    `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/subdomain`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
+    },
+  ).catch(() => {
+    throw new Error("Cloudflare subdomain discovery request failed.");
+  });
+  demand(
+    response.ok,
+    `Cloudflare subdomain discovery failed (HTTP ${response.status}).`,
+  );
+  const data = await response.json().catch(() => {
+    throw new Error("Cloudflare subdomain discovery response was invalid.");
+  });
+  const subdomain = data.result?.subdomain;
+  demand(
+    data.success &&
+      /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain || ""),
+    "Cloudflare did not return a valid Workers subdomain.",
+  );
+  return { ...env, WORKERS_SUBDOMAIN: subdomain };
+}
 export function httpsUrl(value, originOnly = false) {
   let u;
   try {

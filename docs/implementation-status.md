@@ -18,7 +18,7 @@ Free and Advanced retain the agreed boundary: direct publishing and explicit sch
 
 ## Verification
 
-`npm run verify` passed: TypeScript checking, generated-document drift checks, Wrangler deployment bundling and **57 automated tests**.
+`npm run verify` passed: TypeScript checking, generated-document drift checks, Wrangler deployment bundling and **61 automated tests**.
 
 The runtime integration uses Cloudflare's actual Workers runtime, D1 and SQLite Durable Objects. It verifies authenticated account connection, isolated workspaces, HTTP/MCP operation agreement, alarm-driven dispatch after reservation, duplicate prevention and a native SDK MPP challenge. Provider responses are simulated; these checks did not publish to real accounts.
 
@@ -32,12 +32,12 @@ The deploy preflight correctly rejects the current placeholder origin/database, 
 
 Separate staging/production configuration, full-SHA-pinned CI actions, main-only environment deployments, isolated deployment secrets, remote D1 identity verification, secret validation and temporary secret-file cleanup are implemented. The workflow leaves billing disabled and signup restricted to verified invited owners. Runtime protections include strict host/origin checks, OIDC signature verification, CSRF, malformed-auth rejection, edge and durable workspace request limits, streamed-body deadlines, bounded active grants/login state and expiry cleanup.
 
-The 57 tests include actual Workers OIDC processing using locally signed test tokens, state replay and forged-signature rejection, verified-email restrictions, session CSRF, grant caps and Cloudflare rate bindings. The production-dependency audit reported zero known advisories on 9 September 2026; this does not establish that dependencies are vulnerability-free. A clean dependency install with lifecycle scripts disabled also produced the Worker bundle. No real identity provider consent, Cloudflare account operation, hosted WAF policy or alert delivery has been verified. See [setup](deployment.md) and [security boundaries](security.md).
+The 61 tests include actual Workers OIDC processing using locally signed test tokens, state replay and forged-signature rejection, verified-email restrictions, session CSRF, grant caps and Cloudflare rate bindings. The production-dependency audit reported zero known advisories on 9 September 2026; this does not establish that dependencies are vulnerability-free. A clean dependency install with lifecycle scripts disabled also produced the Worker bundle. No real identity provider consent, Cloudflare resource mutation, hosted WAF policy or alert delivery has been verified. See [setup](deployment.md) and [security boundaries](security.md).
 
 ## What remains before launch
 
-1. Choose the hosted domain and validate the implementation through GitHub CI and review.
-2. Cloudflare resources, OIDC configuration and staging secrets. This session has no Cloudflare account/token configured.
+1. Validate the hosted deployment. PR #1 is merged and GitHub CI passed on main revision `96a72c9c80c7d279d1d2da7c33de576760f82dc0`.
+2. Complete staging credentials and verify Cloudflare resources. [Staging inspection 34379857107](https://github.com/AyobamiH/poststeward/actions/runs/34379857107) confirmed that account ID, D1 ID and Workers subdomain variables are present. After the token was saved, the second attempt authenticated successfully to the Workers subdomain API and discovered `woeinvests`. D1 inspection returned HTTP 401. OIDC issuer/client ID and all three application secrets are still absent. The user reports that D1 was created, but database identity has not been verified. No Worker was deployed by this run.
 3. Provider OAuth onboarding and token refresh/rotation. The current pilot accepts authorised user tokens and verifies account identity. Fresh-customer and live provider acceptance are still required.
 4. Complete the richer Advanced profile/category-management work, private GitHub installation and customer review UI before enabling purchases.
 5. Configure Stripe sandbox and merchant MPP eligibility; complete recurring invoice, payment recovery, refund/dispute and eligible-wallet acceptance. This session has no Stripe key configured.

@@ -2,11 +2,11 @@
 
 PostSteward runs centrally on the service operator’s Cloudflare account. Customers connect to the hosted product. All repository work belongs in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward).
 
-The configuration and workflow are implemented. Cloudflare resources, credentials and real deployment have not yet been verified. Do not paste secrets into chat, issues, source files or workflow inputs.
+The configuration and workflow are implemented and merged. Staging inspection confirmed that the three Cloudflare variables are present. The token now authenticates to the Workers subdomain API, while D1 inspection returned HTTP 401 and owner sign-in configuration is absent. Cloudflare resources and real deployment have not yet been verified. Do not paste secrets into chat, issues, source files or workflow inputs.
 
 ## 1. Create isolated resources
 
-Open [Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) and record the account ID and your account's workers.dev subdomain. The subdomain variable is the bare account label, without `.workers.dev`.
+Open [Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) and record the account ID and your account's workers.dev subdomain. The subdomain variable is the bare account label, without `.workers.dev`. Deployment reads the account’s actual subdomain from Cloudflare and uses that verified value, so a stale saved subdomain cannot misroute the Worker or OAuth callback.
 
 Open [Cloudflare D1](https://dash.cloudflare.com/?to=/:account/workers/d1). Create `poststeward-identity-staging` first; record its database UUID. Create `poststeward-identity-production` separately when preparing production. Keep read replication disabled for identity data. The deployment checks each database's actual name and UUID through Cloudflare before migrating it.
 
@@ -71,7 +71,7 @@ No Stripe key or social provider token is needed for the initial infrastructure 
 
 1. Merge the reviewed implementation/configuration into main. The manual workflow must be present on the default branch before it can be dispatched.
 2. Open [Deploy reviewed configuration](https://github.com/AyobamiH/poststeward/actions/workflows/deploy.yml). Choose main and the **staging** environment, then run it.
-3. Verification runs in a separate job with no deployment credentials. The deploy job installs the lockfile with lifecycle scripts disabled and no shared build cache. It validates configuration and secrets, checks the database identity, applies additive migrations, and deploys the exact workflow SHA. Credentials are scoped to that single deployment step; the Cloudflare token is never uploaded to the Worker.
+3. Verification runs in a separate job with no deployment credentials. The deploy job installs the lockfile with lifecycle scripts disabled and no shared build cache. It validates configuration and secrets, checks the database identity, applies additive migrations, and deploys the exact workflow SHA. Application secrets are scoped to that single deployment step. The Cloudflare token is also supplied to the preceding read-only subdomain discovery step; it is never uploaded to the Worker.
 4. The smoke check verifies the deployed revision, help catalogue, disabled payments, HSTS and unauthenticated/cross-origin rejection. Read the workflow summary for the actual origin and revision. It does not prove customer sign-in or a successful publication.
 5. Sign in as an invited owner. Verify an uninvited identity is rejected, two owner workspaces are isolated, grant revocation works and a controlled approved publication returns its provider receipt. Exercise supported-browser WebMCP and an HTTP/MCP client against the same hosted origin.
 6. Configure platform error/usage alerts, validate restore and key handling, complete remaining release work in `implementation-status.md`, then deploy the accepted main revision separately to production. Public signup and purchases require a reviewed configuration release; they remain disabled in this initial deployment workflow.
@@ -99,3 +99,7 @@ The current initial-deployment preflight intentionally rejects enabling Advanced
 ## Inspect an existing staging setup
 
 `Inspect staging setup` runs on main when its own workflow/script changes, or on manual dispatch. It uses the saved staging token for read-only Cloudflare API requests. Its summary contains presence checks for secrets and validated account/database/subdomain metadata, never secret values. It resolves a missing account ID only if the token returns exactly one account and finds only the exact `poststeward-identity-staging` database. The inspection neither deploys nor changes Cloudflare resources. This avoids asking an owner to copy configuration that the deployment token can already discover.
+
+If the deployment token is unavailable, inspection still validates the syntax of saved nonsecret values, derives the proposed origin and OAuth callback, and reports missing application settings. It checks only presence booleans for a misplaced `CLOUDFLARE_API_TOKEN` variable or `CF_API_TOKEN` secret; it never reads their values or substitutes them into deployment. A proposed origin is not evidence that a Worker is live.
+
+D1 diagnostics distinguish the saved database lookup from the account database list. If both return HTTP 401/403, inspect the token’s D1 permission and account restriction rather than recreating the database. Error reports include numeric API codes only, never arbitrary upstream message bodies.

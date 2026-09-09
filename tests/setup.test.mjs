@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { inspectStaging } from "../scripts/inspect-staging.mjs";
+import { resolveCloudflareConfiguration } from "../scripts/deployment-config.mjs";
 const account = "a".repeat(32),
   database = "11111111-1111-4111-8111-111111111111";
 test("staging inspection discovers existing resources with GET only and never reports token values", async () => {
@@ -43,11 +44,113 @@ test("inspection rejects ambiguous accounts and redacts unexpected upstream erro
   );
   assert.match(multiple.issues[0], /exactly one account/);
   const failed = await inspectStaging(env, async () => {
-    throw new Error("sensitive-test-token");
+    throw new Error("Cloudflare sensitive-test-token");
   });
   assert.ok(!JSON.stringify(failed).includes("sensitive-test-token"));
   const missing = await inspectStaging({}, async () => {
     throw new Error("Must not call without credentials");
   });
   assert.equal(missing.configured.CLOUDFLARE_API_TOKEN, false);
+});
+test("inspection distinguishes D1 details and list denial without exposing upstream messages", async () => {
+  const result = await inspectStaging(
+    {
+      CLOUDFLARE_API_TOKEN: "secret",
+      CLOUDFLARE_ACCOUNT_ID: account,
+      D1_ID: database,
+      WORKERS_SUBDOMAIN: "wrong-subdomain",
+    },
+    async (url) => {
+      if (url.endsWith("/workers/subdomain"))
+        return Response.json({
+          success: true,
+          result: { subdomain: "actual-subdomain" },
+        });
+      return Response.json(
+        { success: false, errors: [{ code: 10000, message: "do-not-report" }] },
+        { status: 401 },
+      );
+    },
+  );
+  assert.deepEqual(
+    result.apiChecks.slice(1).map((x) => x.operation),
+    ["D1 database details", "D1 database list"],
+  );
+  assert.equal(result.apiChecks[1].status, 401);
+  assert.deepEqual(result.apiChecks[2].errorCodes, [10000]);
+  assert.equal(
+    result.oidcRedirectUri,
+    "https://poststeward-staging.actual-subdomain.workers.dev/auth/callback",
+  );
+  assert.ok(!JSON.stringify(result).includes("do-not-report"));
+});
+test("deployment resolves the actual subdomain and fails closed on discovery denial", async () => {
+  const env = {
+    CLOUDFLARE_ACCOUNT_ID: account,
+    CLOUDFLARE_API_TOKEN: "secret",
+    WORKERS_SUBDOMAIN: "wrong-value",
+  };
+  const result = await resolveCloudflareConfiguration(
+    env,
+    async (url, options) => {
+      assert.equal(
+        url,
+        `https://api.cloudflare.com/client/v4/accounts/${account}/workers/subdomain`,
+      );
+      assert.equal(options.method, "GET");
+      assert.equal(options.redirect, "error");
+      return Response.json({
+        success: true,
+        result: { subdomain: "actual-value" },
+      });
+    },
+  );
+  assert.equal(result.WORKERS_SUBDOMAIN, "actual-value");
+  await assert.rejects(
+    resolveCloudflareConfiguration(
+      env,
+      async () => new Response(null, { status: 401 }),
+    ),
+    /HTTP 401/,
+  );
+});
+test("missing token still reports callback, all missing credentials and misplaced-token presence", async () => {
+  const result = await inspectStaging(
+    {
+      CLOUDFLARE_ACCOUNT_ID: account,
+      D1_ID: database,
+      WORKERS_SUBDOMAIN: "test-account",
+      HAS_TOKEN_VARIABLE: "true",
+      HAS_TOKEN_ALIAS_SECRET: "true",
+    },
+    async () => {
+      assert.fail("No requests without token");
+    },
+  );
+  assert.equal(
+    result.oidcRedirectUri,
+    "https://poststeward-staging.test-account.workers.dev/auth/callback",
+  );
+  assert.equal(result.validSyntax.D1_ID, true);
+  assert.equal(result.deployed, false);
+  assert.deepEqual(result.discovered, {});
+  assert.ok(result.issues.some((x) => x.includes("saved as a variable")));
+  for (const name of [
+    "ENCRYPTION_KEY",
+    "OIDC_CLIENT_SECRET",
+    "ALLOWED_OWNER_EMAILS",
+  ])
+    assert.ok(result.issues.some((x) => x.includes(name)));
+});
+test("invalid configuration never becomes a reported callback URL", async () => {
+  const result = await inspectStaging({
+    CLOUDFLARE_ACCOUNT_ID: "placeholder",
+    D1_ID: "00000000-0000-0000-0000-000000000000",
+    WORKERS_SUBDOMAIN: "example.workers.dev",
+    APP_ORIGIN: "https://user:do-not-report@example.com",
+  });
+  assert.equal(result.validSyntax.D1_ID, false);
+  assert.equal(result.validSyntax.WORKERS_SUBDOMAIN, false);
+  assert.equal(result.oidcRedirectUri, undefined);
+  assert.ok(!JSON.stringify(result).includes("do-not-report"));
 });
