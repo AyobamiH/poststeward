@@ -1,6 +1,6 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-09-hosted-readiness-and-login-checks
+# Deployment request: 2026-09-09-workspace-asset-routing
 # Updating this file on main is an explicit staging deployment request.
 # Ordinary source/doc changes do not request a deployment.
 on:
