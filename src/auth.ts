@@ -154,13 +154,19 @@ export async function login(request: Request, env: Env): Promise<Response> {
     verifier = oauth.generateRandomCodeVerifier(),
     nonce = oauth.generateRandomNonce();
   requireValue(as.authorization_endpoint, "LOGIN_UNCONFIGURED", "Issuer has no authorization endpoint.", 503);
-  const pendingLogin = await env.IDENTITY.prepare(
-    "INSERT INTO login_states (state_hash,verifier,nonce,expires_at,return_path) SELECT ?,?,?,?,? WHERE (SELECT count(*) FROM login_states) < 10000",
-  )
-    .bind(await digest(state), verifier, nonce, Date.now() + 600000, returnPath)
-    .run();
+  const stateHash = await digest(state);
+  // Keep the old four-column table contract intact during deploy/rollback.
+  // The optional return path commits with its login state in a separate table.
+  const pending = await env.IDENTITY.batch([
+    env.IDENTITY.prepare(
+      "INSERT INTO login_states (state_hash,verifier,nonce,expires_at) SELECT ?,?,?,? WHERE (SELECT count(*) FROM login_states) < 10000",
+    ).bind(stateHash, verifier, nonce, Date.now() + 600000),
+    env.IDENTITY.prepare(
+      "INSERT INTO login_return_paths (state_hash,return_path) SELECT state_hash,? FROM login_states WHERE state_hash=?",
+    ).bind(returnPath, stateHash),
+  ]);
   requireValue(
-    pendingLogin.meta.changes === 1,
+    pending[0].meta.changes === 1,
     "LOGIN_CAPACITY",
     "Sign-in is temporarily at capacity. Try again later.",
     503,
@@ -194,10 +200,15 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     "Sign-in state is invalid or belongs to another browser.",
     400,
   );
+  const stateHash = await digest(state);
+  const destination = await env.IDENTITY.prepare("SELECT return_path FROM login_return_paths WHERE state_hash=?")
+    .bind(stateHash).first<{ return_path: string }>();
+  // The consuming DELETE is the one-use gate. Concurrent callbacks may read
+  // the fixed return path, but only the winner may exchange the authorization code.
   const record = await env.IDENTITY.prepare(
     "DELETE FROM login_states WHERE state_hash=? AND expires_at>? RETURNING *",
   )
-    .bind(await digest(state), Date.now())
+    .bind(stateHash, Date.now())
     .first<any>();
   requireValue(record, "LOGIN_STATE_EXPIRED", "Restart sign-in.", 400);
   const { as, client } = await oidc(env),
@@ -258,7 +269,7 @@ export async function callback(request: Request, env: Env): Promise<Response> {
   // No usable new session is returned unless its completion proof also commits.
   await env.IDENTITY.batch(statements);
   const headers = new Headers({
-    Location: record.return_path === "/pilot" ? "/pilot" : "/app",
+    Location: destination?.return_path === "/pilot" ? "/pilot" : "/app",
     "Cache-Control": "no-store",
   });
   headers.append("Set-Cookie", sessionCookie(session, 86400));

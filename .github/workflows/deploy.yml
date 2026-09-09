@@ -85,3 +85,5 @@ jobs:
           ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
       - name: Verify deployed revision and access boundary
         run: node scripts/smoke.mjs
+      - name: Verify owner acceptance surfaces without signing in or publishing
+        run: node scripts/pilot-smoke.mjs
