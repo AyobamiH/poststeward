@@ -1,0 +1,18 @@
+name: Deploy requested staging revision
+run-name: Deploy staging revision ${{ github.sha }}
+# Deployment request: 2026-09-09-initial-staging
+# Updating this file on main is an explicit staging deployment request.
+# Ordinary source/doc changes do not request a deployment.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-staging-request.yml
+permissions:
+  contents: read
+jobs:
+  staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
