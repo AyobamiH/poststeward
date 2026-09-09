@@ -1,7 +1,13 @@
 import { catalog, describe, plans } from "./operations/catalog.ts";
 import type { Env } from "./types.ts";
 export function help(
-  env: Pick<Env, "ADVANCED_ENABLED" | "MPP_ENABLED" | "RELEASE_SHA">,
+  env: Pick<
+    Env,
+    | "ADVANCED_ENABLED"
+    | "MPP_ENABLED"
+    | "RELEASE_SHA"
+    | "WORKSPACE_REQUEST_LIMIT"
+  >,
   scope?: string,
 ) {
   return {
@@ -40,6 +46,11 @@ export function help(
       enabled: env.MPP_ENABLED === "true",
     },
     limitsEndpoint: "/api/operations/workspace_status",
+    requestLimits: {
+      workspacePerMinute: Number(env.WORKSPACE_REQUEST_LIMIT),
+      retry:
+        "HTTP 429 includes Retry-After. Inspect prior consequential operations and retain the original idempotency key.",
+    },
     evidence:
       "A returned reservation is not publication proof. Read each receipt.",
   };
@@ -77,7 +88,16 @@ export function openapi() {
               },
               "400": { description: "Invalid input." },
               "401": { description: "Authentication required." },
-              "403": { description: "Scope required." },
+              "403": { description: "Scope or allowed origin required." },
+              "408": { description: "Request body deadline exceeded." },
+              "413": {
+                description: "Request body exceeds the endpoint limit.",
+              },
+              "415": { description: "JSON content type required." },
+              "429": {
+                description:
+                  "Request admission limited; wait for Retry-After before retrying.",
+              },
               "402": { description: "Advanced entitlement required." },
               "409": {
                 description: "Authority, quote or idempotency conflict.",

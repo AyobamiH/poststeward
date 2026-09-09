@@ -34,11 +34,11 @@ Documentation comes from `src/operations/catalog.ts`. Run `npm run docs` when ch
 
 ## Remaining release work
 
-1. Choose the hosted domain and provision staging Cloudflare bindings and owner OIDC.
+1. Choose the hosted domain and provision staging Cloudflare bindings and owner OIDC using the [Cloudflare setup guide](docs/deployment.md).
 2. Complete provider OAuth onboarding and token refresh/rotation. The initial usable pilot connection accepts authorised user tokens and verifies identities. Validate a fresh customer's account and provider permissions.
 3. Complete private repository installation, richer inventory category balancing, automation profile review UI and scheduled-metrics coverage. Advanced remains disabled meanwhile.
 4. Run Stripe sandbox lifecycle and eligible-wallet MPP settlement tests, including refund/dispute linkage and uncertain-payment reconciliation. No real Stripe merchant capability or charge was verified here.
 5. Validate browser WebMCP on a supported hosted browser, controlled real publications and the full fresh-customer flow. Remote MCP currently uses scoped Bearer headers; OAuth-compatible MCP authorization discovery is separate remaining work.
 6. Calibrate traffic/storage retention limits; implement account erasure, credential key rotation and operational alerts; rehearse state restore with external-effect reconciliation.
 
-Read [provenance](docs/provenance.md), the [agent guide](public/docs/agent-guide.md), the generated [operation reference](docs/operations.md) and the [operating runbook](docs/operations-runbook.md).
+Read [provenance](docs/provenance.md), the [agent guide](public/docs/agent-guide.md), the generated [operation reference](docs/operations.md) and the [operating runbook](docs/operations-runbook.md) and [security model](docs/security.md).

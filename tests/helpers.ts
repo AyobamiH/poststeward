@@ -37,6 +37,8 @@ export const environment = {
   ACTIVE_SCHEDULE_LIMIT: "100",
   LINKEDIN_VERSION: "202608",
   RELEASE_SHA: "test",
+  WORKSPACE_REQUEST_LIMIT: "120",
+  SIGNUP_MODE: "restricted",
 } as Env;
 export const owner: Actor = {
   workspace: "00000000-0000-4000-8000-000000000001",

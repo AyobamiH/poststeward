@@ -31,7 +31,13 @@ export async function authenticate(
   env: Env,
 ): Promise<{ actor: Actor; csrf?: string; browser: boolean }> {
   const authorization = request.headers.get("authorization");
-  if (authorization?.startsWith("Bearer ")) {
+  if (authorization !== null) {
+    requireValue(
+      /^Bearer [^\s]{1,512}$/.test(authorization),
+      "UNAUTHENTICATED",
+      "Supply a valid Bearer token.",
+      401,
+    );
     const hash = await digest(authorization.slice(7));
     const row = await env.IDENTITY.prepare(
       "SELECT * FROM grants WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?",
@@ -109,20 +115,49 @@ async function oidc(env: Env) {
     "OIDC issuer must use HTTPS.",
     503,
   );
-  const response = await oauth.discoveryRequest(issuer);
+  const response = await oauth.discoveryRequest(issuer, {
+    signal: AbortSignal.timeout(10000),
+  });
   return {
     as: await oauth.processDiscoveryResponse(issuer, response),
     client: { client_id: env.OIDC_CLIENT_ID },
   };
+}
+export function allowOwner(
+  claims: Record<string, unknown>,
+  env: Pick<Env, "SIGNUP_MODE" | "ALLOWED_OWNER_EMAILS">,
+) {
+  if (env.SIGNUP_MODE === "public") return;
+  const allowed = (env.ALLOWED_OWNER_EMAILS || "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  requireValue(
+    env.SIGNUP_MODE === "restricted" &&
+      claims.email_verified === true &&
+      typeof claims.email === "string" &&
+      allowed.includes(claims.email.toLowerCase()),
+    "SIGNUP_RESTRICTED",
+    "This deployment is limited to invited owners.",
+    403,
+  );
 }
 export async function login(request: Request, env: Env): Promise<Response> {
   const { as, client } = await oidc(env),
     state = oauth.generateRandomState(),
     verifier = oauth.generateRandomCodeVerifier(),
     nonce = oauth.generateRandomNonce();
-  await env.IDENTITY.prepare("INSERT INTO login_states VALUES (?,?,?,?)")
+  const pendingLogin = await env.IDENTITY.prepare(
+    "INSERT INTO login_states SELECT ?,?,?,? WHERE (SELECT count(*) FROM login_states) < 10000",
+  )
     .bind(await digest(state), verifier, nonce, Date.now() + 600000)
     .run();
+  requireValue(
+    pendingLogin.meta.changes === 1,
+    "LOGIN_CAPACITY",
+    "Sign-in is temporarily at capacity. Try again later.",
+    503,
+  );
   requireValue(
     as.authorization_endpoint,
     "LOGIN_UNCONFIGURED",
@@ -134,7 +169,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
     client_id: client.client_id,
     redirect_uri: env.PUBLIC_ORIGIN + "/auth/callback",
     response_type: "code",
-    scope: "openid profile",
+    scope: "openid profile email",
     state,
     nonce,
     code_challenge: await oauth.calculatePKCECodeChallenge(verifier),
@@ -173,6 +208,7 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     params,
     env.PUBLIC_ORIGIN + "/auth/callback",
     record.verifier,
+    { signal: AbortSignal.timeout(10000) },
   );
   const result = await oauth.processAuthorizationCodeResponse(
     as,
@@ -180,6 +216,9 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     response,
     { expectedNonce: record.nonce, requireIdToken: true },
   );
+  await oauth.validateApplicationLevelSignature(as, response, {
+    signal: AbortSignal.timeout(10000),
+  });
   const claims = oauth.getValidatedIdTokenClaims(result);
   requireValue(
     claims?.sub,
@@ -187,6 +226,7 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     "Identity provider returned no subject.",
     400,
   );
+  allowOwner(claims, env);
   const subject = await digest({ issuer: as.issuer, subject: claims.sub });
   await env.IDENTITY.prepare(
     "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
@@ -273,15 +313,25 @@ export async function grants(
     hash = await digest(secret),
     actor = uid(),
     expires = Date.now() + hours * 3600000;
-  await env.IDENTITY.prepare("INSERT INTO grants VALUES (?,?,?,?,?,NULL)")
+  const inserted = await env.IDENTITY.prepare(
+    "INSERT INTO grants SELECT ?,?,?,?,?,NULL WHERE (SELECT count(*) FROM grants WHERE workspace=? AND revoked_at IS NULL AND expires_at>?) < 50",
+  )
     .bind(
       hash,
       auth.actor.workspace,
       actor,
       JSON.stringify([...new Set(input.scopes)]),
       expires,
+      auth.actor.workspace,
+      Date.now(),
     )
     .run();
+  requireValue(
+    inserted.meta.changes === 1,
+    "GRANT_LIMIT",
+    "Revoke an existing grant before creating another. Maximum 50 active grants.",
+    409,
+  );
   return json(
     {
       id: hash,

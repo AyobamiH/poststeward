@@ -13,7 +13,7 @@
     "docs:check": "node --experimental-transform-types scripts/generate-docs.ts --check",
     "build": "wrangler deploy --dry-run --outdir dist",
     "verify": "npm run check && npm run docs:check && npm run build && npm test",
-    "deploy": "npm run deploy:check && wrangler deploy",
+    "deploy": "npm run deploy:check && node scripts/deploy-environment.mjs",
     "deploy:check": "node scripts/deploy-check.mjs",
     "format": "prettier --write src scripts tests public/*.js public/*.html public/*.css package.json tsconfig.json wrangler.jsonc .github"
   },

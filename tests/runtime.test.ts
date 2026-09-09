@@ -28,6 +28,16 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
         STRIPE_PROFILE_ID: "profile_test",
         MPP_SECRET: "test-mpp-key-".repeat(5),
       },
+      ratelimits: {
+        EDGE_LIMITER: {
+          namespace_id: "51001",
+          simple: { limit: 120, period: 60 },
+        },
+        LOGIN_LIMITER: {
+          namespace_id: "51002",
+          simple: { limit: 10, period: 60 },
+        },
+      },
       d1Databases: { IDENTITY: "identity-test" },
       durableObjects: {
         WORKSPACES: { className: "Workspace", useSQLite: true },
@@ -120,7 +130,11 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
     assert.equal(((await discovery.json()) as any).operations.length, 26);
     const unauth = await mf.dispatchFetch(
       "https://publish.example/api/operations/workspace_status",
-      { method: "POST", body: "{}" },
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      },
     );
     assert.equal(unauth.status, 401);
     const connected = await call("/api/connections/import", {
@@ -232,6 +246,7 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
         headers: {
           Authorization: "Bearer test-agent",
           Origin: "https://evil.example",
+          "Content-Type": "application/json",
         },
         body: "{}",
       },

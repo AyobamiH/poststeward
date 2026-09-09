@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Protected GitHub environment with configured Cloudflare variables
+        description: Configured GitHub environment
         type: choice
         options: [staging, production]
         default: staging
@@ -13,32 +13,56 @@ concurrency:
   group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
 jobs:
+  verify:
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run verify
   deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ inputs.environment }}
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.config.outputs.origin }}
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      WORKER_NAME: ${{ vars.WORKER_NAME }}
+      DEPLOY_ENV: ${{ inputs.environment }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.D1_ID }}
-      D1_NAME: ${{ vars.D1_NAME }}
+      WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
       APP_ORIGIN: ${{ vars.APP_ORIGIN }}
       OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
       OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+      WRANGLER_SEND_METRICS: "false"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run verify
-      - name: Configure environment
-        run: node scripts/configure-deploy.mjs
-      - run: npm run deploy:check
-      - name: Apply additive identity migration
-        run: npx wrangler d1 migrations apply "$D1_NAME" --remote
-      - run: npm run deploy
-      - name: Verify deployed revision
+      # No secret is available to dependency lifecycle scripts or tests.
+      - run: npm ci --ignore-scripts
+      - name: Configure isolated environment
+        id: config
+        run: |
+          node scripts/configure-deploy.mjs
+          node --input-type=module -e 'import fs from "node:fs"; const c=JSON.parse(fs.readFileSync("wrangler.jsonc","utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, "origin="+c.vars.PUBLIC_ORIGIN+"\n");'
+      - name: Validate secrets and database; migrate and deploy
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+          ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      - name: Verify deployed revision and access boundary
         run: node scripts/smoke.mjs

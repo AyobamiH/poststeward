@@ -115,6 +115,11 @@ export interface Store {
   tx<T>(fn: () => T): T;
 }
 export interface Env {
+  EDGE_LIMITER: RateLimit;
+  LOGIN_LIMITER: RateLimit;
+  SIGNUP_MODE: "restricted" | "public";
+  ALLOWED_OWNER_EMAILS: string;
+  WORKSPACE_REQUEST_LIMIT: string;
   WORKSPACES: DurableObjectNamespace;
   IDENTITY: D1Database;
   ASSETS: Fetcher;

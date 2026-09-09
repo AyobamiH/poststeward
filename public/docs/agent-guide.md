@@ -63,3 +63,7 @@ Initial configured pilot limits are 20 delivery reservations per UTC day and 100
 ## Recover safely
 
 Inspect the receipt and provider account for an ambiguous effect. Never delete the ledger to enable a second attempt. Stop new writes during restore or migration and reconcile external evidence before resuming. The operator runbook explains deployment and interruption recovery.
+
+## Request limits
+
+A 429 response means admission was rejected; wait for `Retry-After` before retrying an HTTP request. Protected routes have per-IP edge limits; each workspace also shares an atomic fixed-window request allowance across transports and grants. MCP tool failures report the operation error in the tool result. Keep the same idempotency key for an identical consequential request and inspect existing receipts after an ambiguous outcome. Initial hosted deployments restrict owner signup to invited verified identities. Public help and discovery remain accessible.

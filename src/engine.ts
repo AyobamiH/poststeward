@@ -55,6 +55,7 @@ export class Engine {
         entitlement: this.store.get("entitlement") || null,
         publishingPaused: this.paused(),
         limits: {
+          requestsPerMinute: Number(env.WORKSPACE_REQUEST_LIMIT),
           dailyDeliveryAttempts: Number(env.DAILY_DELIVERY_LIMIT),
           activeSchedules: Number(env.ACTIVE_SCHEDULE_LIMIT),
         },

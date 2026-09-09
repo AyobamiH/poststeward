@@ -15,6 +15,12 @@ import { Engine } from "./engine.ts";
 import { mcp } from "./mcp.ts";
 import { SocialProviders } from "./providers.ts";
 import { SQLiteStore } from "./store.ts";
+import {
+  boundedBody,
+  expireIdentity,
+  limitEdge,
+  limitWorkspace,
+} from "./security.ts";
 import type { Actor, Env, Profile } from "./types.ts";
 const connectionSchema = z.strictObject({
   alias: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
@@ -118,6 +124,7 @@ export class Workspace extends DurableObject<Env> {
         "Authenticated workspace is required.",
         403,
       );
+      limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);
       let result: unknown;
       if (path === "/connect") {
         const parsed = connectionSchema.safeParse(data.input);
@@ -215,45 +222,30 @@ async function route(
       403,
     );
   requireValue(
-    url.origin === env.PUBLIC_ORIGIN || env.PUBLIC_ORIGIN.includes(".invalid"),
+    url.origin === env.PUBLIC_ORIGIN && !env.PUBLIC_ORIGIN.includes(".invalid"),
     "HOST_REJECTED",
     "This hostname is not configured.",
     403,
   );
-  const bodyLimit = path === "/webhooks/stripe" ? 262144 : 32768;
-  if (Number(request.headers.get("content-length") || 0) > bodyLimit)
-    throw new Fault(
-      "BODY_TOO_LARGE",
-      "Request exceeds the endpoint size limit.",
-      413,
+  await limitEdge(request, env);
+  if (
+    request.body &&
+    (path.startsWith("/api/") ||
+      path === "/mcp" ||
+      path.startsWith("/payments/"))
+  )
+    requireValue(
+      /^application\/json(?:\s*;|$)/i.test(
+        request.headers.get("content-type") || "",
+      ),
+      "JSON_REQUIRED",
+      "Use application/json.",
+      415,
     );
-  if (request.body) {
-    // Enforce the same limit for streamed requests without Content-Length.
-    const reader = request.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > bodyLimit) {
-        await reader.cancel();
-        throw new Fault(
-          "BODY_TOO_LARGE",
-          "Request exceeds the endpoint size limit.",
-          413,
-        );
-      }
-      chunks.push(value);
-    }
-    const body = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      body.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    request = new Request(request, { body });
-  }
+  request = await boundedBody(
+    request,
+    path === "/webhooks/stripe" ? 262144 : 32768,
+  );
   if (path === "/health" && request.method === "GET")
     return json({
       status: "ok",
@@ -361,21 +353,38 @@ async function route(
   return env.ASSETS.fetch(request);
 }
 export default {
+  async scheduled(_controller: ScheduledController, env: Env) {
+    await expireIdentity(env);
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const requestId = crypto.randomUUID();
     let response: Response;
     try {
       response = await route(request, env, ctx);
     } catch (e) {
       response = errorResponse(e);
     }
+    if (response.status >= 500)
+      console.error(
+        JSON.stringify({
+          event: "request_failed",
+          requestId,
+          status: response.status,
+          release: env.RELEASE_SHA,
+        }),
+      );
     const headers = new Headers(response.headers);
+    headers.set("X-Request-ID", requestId);
     headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("Strict-Transport-Security", "max-age=31536000");
+    headers.set("X-Frame-Options", "DENY");
+    if (response.status === 429) headers.set("Retry-After", "60");
     headers.set("Referrer-Policy", "no-referrer");
     headers.set("Origin-Agent-Cluster", "?1");
     headers.set("Permissions-Policy", "tools=(self)");
     headers.set(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+      "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
     );
     if (response.status === 401)
       headers.set("WWW-Authenticate", 'Bearer realm="poststeward"');
