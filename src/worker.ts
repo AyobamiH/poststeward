@@ -144,15 +144,20 @@ export class Workspace extends DurableObject<Env> {
         403,
       );
       limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);
-      // Refresh only credentials whose durable metadata says they are due.
-      // Each refresh is identity-checked before the stored token is replaced.
-      await oauth.refreshDue();
       let result: unknown;
       if (path.startsWith("/pilot/")) {
         // This envelope is constructed by the authenticated Worker, never by
         // a public JSON body. The Durable Object has no public internet route.
-        const envelope = data.input as { input: unknown; owner: Awaited<ReturnType<typeof ownerAuthority>> };
-        result = await pilot.run(path.slice("/pilot/".length), envelope.input, data.actor, envelope.owner);
+        const envelope = data.input as {
+          input: unknown;
+          owner: Awaited<ReturnType<typeof ownerAuthority>>;
+        };
+        result = await pilot.run(
+          path.slice("/pilot/".length),
+          envelope.input,
+          data.actor,
+          envelope.owner,
+        );
       } else if (path === "/connect") {
         const parsed = connectionSchema.safeParse(data.input);
         requireValue(
@@ -165,6 +170,12 @@ export class Workspace extends DurableObject<Env> {
         const input = data.input as Parameters<ProviderOAuthConnections["connect"]>[1];
         result = await oauth.connect(data.actor, input);
       } else if (path === "/oauth/status") {
+        requireValue(
+          !data.actor.grant && data.actor.scopes.includes("admin"),
+          "OWNER_CONNECTION_REQUIRED",
+          "Provider connection status is restricted to the signed-in owner.",
+          403,
+        );
         result = oauth.status();
       } else if (path === "/payment") {
         requireValue(
@@ -188,8 +199,14 @@ export class Workspace extends DurableObject<Env> {
           if (typeof alias === "string") await oauth.afterDisconnect(alias);
         }
         if (data.name === "schedule_cancel") {
-          const cancellation = result as { delivery?: import("./types.ts").Delivery };
-          if (cancellation.delivery) result = { ...cancellation, delivery: engine.publicDelivery(cancellation.delivery) };
+          const cancellation = result as {
+            delivery?: import("./types.ts").Delivery;
+          };
+          if (cancellation.delivery)
+            result = {
+              ...cancellation,
+              delivery: engine.publicDelivery(cancellation.delivery),
+            };
         }
       }
       await this.schedule(engine, oauth);
@@ -205,6 +222,9 @@ export class Workspace extends DurableObject<Env> {
     // A watchdog survives interruption during provider I/O and reclaims only according to receipt phase.
     await this.ctx.storage.setAlarm(Date.now() + 60000);
     try {
+      // Provider token rotation happens in the durable background path, not on
+      // unrelated customer reads. Manual publications are reserved first and
+      // therefore reach this alarm before their provider write.
       await oauth.refreshDue();
       const next = this.store.get<number>("billing:next") || 0;
       if (next <= Date.now()) {
@@ -324,6 +344,9 @@ async function route(
   if (providerCallback && request.method === "GET") {
     const provider = providerCallback[1] as "x" | "threads" | "linkedin";
     const auth = await authenticate(request, env);
+    // The state was created by an owner-proof-bearing session. Recheck the
+    // proof/allowlist before accepting provider credentials.
+    await ownerAuthority(request, env, auth);
     const completed = await completeProviderOAuth(request, env, auth, provider);
     if (completed.response) return completed.response;
     const response = await invoke(
@@ -339,11 +362,16 @@ async function route(
         {
           error: {
             code: value.error?.code || "OAUTH_CONNECTION_FAILED",
-            message: value.error?.message || "Provider connection could not be completed.",
+            message:
+              value.error?.message ||
+              "Provider connection could not be completed.",
           },
         },
         response.status,
-        { "Set-Cookie": "__Host-provider-oauth=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0" },
+        {
+          "Set-Cookie":
+            "__Host-provider-oauth=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
+        },
       );
     }
     return providerOAuthSuccess(provider);
@@ -357,7 +385,13 @@ async function route(
     const auth = await authenticate(request, env);
     const oauthStart = /^\/api\/connections\/oauth\/(x|threads|linkedin)\/start$/.exec(path);
     if (oauthStart) {
-      requireValue(request.method === "POST", "METHOD_NOT_ALLOWED", "Start provider OAuth with POST.", 405);
+      requireValue(
+        request.method === "POST",
+        "METHOD_NOT_ALLOWED",
+        "Start provider OAuth with POST.",
+        405,
+      );
+      await ownerAuthority(request, env, auth);
       return startProviderOAuth(
         request,
         env,
@@ -366,6 +400,12 @@ async function route(
       );
     }
     if (path === "/api/connections/oauth/status" && request.method === "GET") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_CONNECTION_REQUIRED",
+        "Provider connection status is restricted to the signed-in owner.",
+        403,
+      );
       const response = await invoke(env, auth.actor, "", {}, "/oauth/status");
       const connections = await response.json();
       return json(
@@ -378,13 +418,32 @@ async function route(
     }
     if (path.startsWith("/api/pilot/")) {
       const action = path.slice("/api/pilot/".length);
-      requireValue(["status", "prepare", "confirm", "cancel", "recheck"].includes(action), "NOT_FOUND", "Unknown acceptance operation.", 404);
-      requireValue(request.method === (action === "status" ? "GET" : "POST"), "METHOD_NOT_ALLOWED", "Use the documented acceptance method.", 405);
+      requireValue(
+        ["status", "prepare", "confirm", "cancel", "recheck"].includes(action),
+        "NOT_FOUND",
+        "Unknown acceptance operation.",
+        404,
+      );
+      requireValue(
+        request.method === (action === "status" ? "GET" : "POST"),
+        "METHOD_NOT_ALLOWED",
+        "Use the documented acceptance method.",
+        405,
+      );
       const owner = await ownerAuthority(request, env, auth);
       const input = action === "status" ? {} : await request.json();
-      const response = await invoke(env, auth.actor, "", { input, owner }, "/pilot/" + action);
-      const result = await response.json() as Record<string, unknown>;
-      return json({ ...result, ...(response.ok ? { owner: owner.proof } : {}) }, response.status);
+      const response = await invoke(
+        env,
+        auth.actor,
+        "",
+        { input, owner },
+        "/pilot/" + action,
+      );
+      const result = (await response.json()) as Record<string, unknown>;
+      return json(
+        { ...result, ...(response.ok ? { owner: owner.proof } : {}) },
+        response.status,
+      );
     }
     if (path === "/api/session" && request.method === "GET")
       return json({
@@ -424,8 +483,8 @@ async function route(
         {
           url: request.url,
           headers: Object.fromEntries(
-            [...request.headers].filter(([k]) =>
-              ["payment-authorization", "accept", "content-type"].includes(k),
+            [...request.headers].filter(([key]) =>
+              ["payment-authorization", "accept", "content-type"].includes(key),
             ),
           ),
         },
