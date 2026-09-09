@@ -34,7 +34,12 @@ test("browser transport uses CSRF, same-origin credentials, no-store and never r
 });
 test("receipt URLs and browser secret handling remain constrained", () => {
   assert.equal(safePostLink("https://x.com/i/web/status/123"), "https://x.com/i/web/status/123");
+  assert.equal(
+    safePostLink("https://www.linkedin.com/feed/update/urn%3Ali%3Ashare%3A123/"),
+    "https://www.linkedin.com/feed/update/urn%3Ali%3Ashare%3A123/",
+  );
   assert.equal(safePostLink("https://x.com.evil.example/i/web/status/123"), undefined);
+  assert.equal(safePostLink("https://www.linkedin.com.evil.example/feed/update/urn%3Ali%3Ashare%3A123/"), undefined);
   assert.equal(safePostLink("javascript:alert(1)"), undefined);
   const browser = readFileSync("public/pilot.js", "utf8");
   assert.doesNotMatch(browser, /localStorage|sessionStorage|innerHTML|document\.cookie/);
@@ -44,4 +49,5 @@ test("receipt URLs and browser secret handling remain constrained", () => {
   const html = readFileSync("public/pilot.html", "utf8");
   assert.match(html, /type="password"/); assert.match(html, /id="approve" type="checkbox" required/);
   assert.match(html, /<option value="">Choose a connected account<\/option>/);
+  assert.match(html, /data-provider="linkedin"/);
 });
