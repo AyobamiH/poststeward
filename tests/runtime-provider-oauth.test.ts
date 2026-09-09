@@ -153,7 +153,7 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
       },
     );
     assert.equal(accounts.status, 200);
-    const accountList: any[] = await accounts.json();
+    const accountList = (await accounts.json()) as any[];
     assert.equal(accountList.length, 1);
     assert.equal(accountList[0].identity.id, "stable-x-user");
     assert.deepEqual(accountList[0].capabilities, {
