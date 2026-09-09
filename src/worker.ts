@@ -697,24 +697,47 @@ async function route(
           true,
           input.reason,
         );
-        const bookmarks = await internalValue(
-          await invoke(
-            env,
-            auth.actor,
-            "",
-            { targetTime },
-            "/recovery/bookmarks",
-          ),
-        );
-        const plan = await prepareRecoveryPlan(env.IDENTITY, {
-          workspace: auth.actor.workspace,
-          actor: auth.actor.id,
-          targetTime,
-          targetBookmark: bookmarks.targetBookmark,
-          preRestoreBookmark: bookmarks.preRestoreBookmark,
-          reason: input.reason,
-        });
-        return json({ plan, status: await recoveryStatus(env.IDENTITY, auth.actor.workspace) });
+        try {
+          const bookmarks = await internalValue(
+            await invoke(
+              env,
+              auth.actor,
+              "",
+              { targetTime },
+              "/recovery/bookmarks",
+            ),
+          );
+          const plan = await prepareRecoveryPlan(env.IDENTITY, {
+            workspace: auth.actor.workspace,
+            actor: auth.actor.id,
+            targetTime,
+            targetBookmark: bookmarks.targetBookmark,
+            preRestoreBookmark: bookmarks.preRestoreBookmark,
+            reason: input.reason,
+          });
+          return json({
+            plan,
+            status: await recoveryStatus(env.IDENTITY, auth.actor.workspace),
+          });
+        } catch (error) {
+          // Preparation has not called the destructive restore primitive yet.
+          // Release quarantine only if no concurrent/previous recovery is now
+          // prepared or armed and no provider-write fence is unresolved.
+          try {
+            await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
+            const status = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
+            if (!status.plan || !["prepared", "armed"].includes(status.plan.state))
+              await setWorkspaceQuarantine(
+                env.IDENTITY,
+                auth.actor.workspace,
+                false,
+                "Recovery preparation failed before restore was armed.",
+              );
+          } catch {
+            // Fail closed: keep quarantine if safety cannot be proven.
+          }
+          throw error;
+        }
       }
       if (path === "/api/recovery/execute" && request.method === "POST") {
         demandFreshOwner(owner, Date.now());
