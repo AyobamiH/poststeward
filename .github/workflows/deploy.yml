@@ -13,7 +13,7 @@ on:
         description: Configured GitHub environment
         required: true
         type: string
-    # Optional repository-level fallbacks; the selected environment takes precedence.
+    # Explicit repository-level fallbacks only; the selected environment takes precedence.
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: false
@@ -22,6 +22,12 @@ on:
       OIDC_CLIENT_SECRET:
         required: false
       ALLOWED_OWNER_EMAILS:
+        required: false
+      X_OAUTH_CLIENT_SECRET:
+        required: false
+      THREADS_OAUTH_CLIENT_SECRET:
+        required: false
+      LINKEDIN_OAUTH_CLIENT_SECRET:
         required: false
 permissions:
   contents: read
@@ -59,6 +65,10 @@ jobs:
       APP_ORIGIN: ${{ vars.APP_ORIGIN }}
       OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
       OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+      X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
+      THREADS_OAUTH_CLIENT_ID: ${{ vars.THREADS_OAUTH_CLIENT_ID }}
+      LINKEDIN_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
+      LINKEDIN_MEMBER_READBACK: ${{ vars.LINKEDIN_MEMBER_READBACK }}
       WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -83,6 +93,9 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
           ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+          X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
+          THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
+          LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
       - name: Verify deployed revision and access boundary
         run: node scripts/smoke.mjs
       - name: Verify owner acceptance surfaces without signing in or publishing

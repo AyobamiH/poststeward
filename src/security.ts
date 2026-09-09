@@ -66,6 +66,7 @@ export async function limitEdge(request: Request, env: Env) {
   if (!(
     path.startsWith("/api/") ||
     path.startsWith("/auth/") ||
+    path.startsWith("/connections/oauth/") ||
     path.startsWith("/payments/") ||
     path === "/mcp" ||
     path === "/webhooks/stripe"
@@ -85,7 +86,9 @@ export async function limitEdge(request: Request, env: Env) {
     ip: request.headers.get("CF-Connecting-IP") || "missing-ip",
   });
   const limiter =
-    path === "/auth/login" || path === "/auth/callback"
+    path === "/auth/login" ||
+    path === "/auth/callback" ||
+    path.startsWith("/connections/oauth/")
       ? env.LOGIN_LIMITER
       : env.EDGE_LIMITER;
   requireValue(
@@ -129,6 +132,7 @@ export async function expireIdentity(env: Env, now = Date.now()) {
   // lifetime so absence continues to reject authority after revocation.
   for (const [table, column, cutoff] of [
     ["login_states", "expires_at", now],
+    ["provider_oauth_states", "expires_at", now],
     ["sessions", "expires_at", now],
     ["grants", "expires_at", now - 30 * 86400000],
   ] as const) {

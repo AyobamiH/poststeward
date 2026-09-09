@@ -34,6 +34,10 @@ test("deployment environments have separate Worker names, D1 names, origins and 
   assert.equal(staging.preview_urls, false);
   assert.equal(staging.vars.ADVANCED_ENABLED, "false");
   assert.equal(staging.vars.SIGNUP_MODE, "restricted");
+  assert.equal(staging.vars.X_OAUTH_CLIENT_ID, "");
+  assert.equal(staging.vars.THREADS_OAUTH_CLIENT_ID, "");
+  assert.equal(staging.vars.LINKEDIN_OAUTH_CLIENT_ID, "");
+  assert.equal(staging.vars.LINKEDIN_MEMBER_READBACK, "false");
   assert.equal(base.name, "poststeward");
 });
 test("deployment rejects hostile and ambiguous configuration before touching Cloudflare", () => {
@@ -63,6 +67,20 @@ test("deployment rejects hostile and ambiguous configuration before touching Clo
   assert.throws(() =>
     buildConfiguration(base, { ...environment, GITHUB_SHA: "main" }),
   );
+  assert.throws(() =>
+    buildConfiguration(base, {
+      ...environment,
+      X_OAUTH_CLIENT_ID: "invalid client id",
+    }),
+    /X_OAUTH_CLIENT_ID/,
+  );
+  assert.throws(() =>
+    buildConfiguration(base, {
+      ...environment,
+      LINKEDIN_MEMBER_READBACK: "true",
+    }),
+    /LinkedIn member readback/,
+  );
   const unsafe = buildConfiguration(base, environment);
   unsafe.vars.MPP_ENABLED = "true";
   assert.throws(() => validateConfiguration(unsafe), /Purchases/);
@@ -77,7 +95,7 @@ test("custom domains disable workers.dev and only route the exact chosen hostnam
     { pattern: "publish.example.com", custom_domain: true },
   ]);
 });
-test("deployment validates secret material and never includes the Cloudflare token in Worker secrets", () => {
+test("deployment validates mandatory secret material and never includes the Cloudflare token", () => {
   const input = {
     ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
     OIDC_CLIENT_SECRET: "test-secret-not-real",
@@ -96,5 +114,42 @@ test("deployment validates secret material and never includes the Cloudflare tok
   assert.throws(
     () => deploymentSecrets({ ...input, ALLOWED_OWNER_EMAILS: "" }),
     /invited/,
+  );
+});
+test("provider application secrets are optional but fail closed unless paired with their client ID", () => {
+  const mandatory = {
+    ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    OIDC_CLIENT_SECRET: "test-secret-not-real",
+    ALLOWED_OWNER_EMAILS: "owner@example.com",
+  };
+  const configured = deploymentSecrets({
+    ...mandatory,
+    X_OAUTH_CLIENT_ID: "x-client",
+    X_OAUTH_CLIENT_SECRET: "x-client-secret",
+    THREADS_OAUTH_CLIENT_ID: "threads-client",
+    THREADS_OAUTH_CLIENT_SECRET: "threads-client-secret",
+    LINKEDIN_OAUTH_CLIENT_ID: "linkedin-client",
+    LINKEDIN_OAUTH_CLIENT_SECRET: "linkedin-client-secret",
+    LINKEDIN_MEMBER_READBACK: "true",
+  });
+  assert.deepEqual(Object.keys(configured).sort(), [
+    "ALLOWED_OWNER_EMAILS",
+    "ENCRYPTION_KEY",
+    "LINKEDIN_OAUTH_CLIENT_SECRET",
+    "OIDC_CLIENT_SECRET",
+    "THREADS_OAUTH_CLIENT_SECRET",
+    "X_OAUTH_CLIENT_SECRET",
+  ]);
+  assert.throws(
+    () => deploymentSecrets({ ...mandatory, X_OAUTH_CLIENT_ID: "x-client" }),
+    /configured as a pair/,
+  );
+  assert.throws(
+    () => deploymentSecrets({ ...mandatory, X_OAUTH_CLIENT_SECRET: "orphan-secret" }),
+    /configured as a pair/,
+  );
+  assert.throws(
+    () => deploymentSecrets({ ...mandatory, LINKEDIN_MEMBER_READBACK: "true" }),
+    /LinkedIn member readback/,
   );
 });

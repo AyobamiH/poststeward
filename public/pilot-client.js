@@ -35,7 +35,8 @@ export function safePostLink(value) {
     if (u.protocol !== "https:" || u.username || u.password || u.port) return;
     const threads = ["www.threads.com", "www.threads.net", "threads.com", "threads.net"].includes(u.hostname) && /^\/@[A-Za-z0-9._-]+\/post\/[A-Za-z0-9_-]+\/?$/.test(u.pathname);
     const x = u.hostname === "x.com" && /^\/i\/web\/status\/[A-Za-z0-9_-]+$/.test(u.pathname);
-    if (threads || x) { u.search = ""; u.hash = ""; return u.href; }
+    const linkedin = u.hostname === "www.linkedin.com" && /^\/feed\/update\/urn%3Ali%3A(?:share|ugcPost)%3A[A-Za-z0-9_-]+\/$/i.test(u.pathname);
+    if (threads || x || linkedin) { u.search = ""; u.hash = ""; return u.href; }
   } catch { /* Never turn untrusted receipt text into navigation authority. */ }
 }
 export function createClient(send, csrf) {

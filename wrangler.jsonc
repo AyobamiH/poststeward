@@ -42,7 +42,11 @@
     "ACTIVE_SCHEDULE_LIMIT": "100",
     "LINKEDIN_VERSION": "202608",
     "SIGNUP_MODE": "restricted",
-    "WORKSPACE_REQUEST_LIMIT": "120"
+    "WORKSPACE_REQUEST_LIMIT": "120",
+    "X_OAUTH_CLIENT_ID": "",
+    "THREADS_OAUTH_CLIENT_ID": "",
+    "LINKEDIN_OAUTH_CLIENT_ID": "",
+    "LINKEDIN_MEMBER_READBACK": "false"
   },
   "observability": {
     "enabled": true,

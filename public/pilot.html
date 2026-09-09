@@ -28,15 +28,29 @@
       <h2 id="account-heading">2. Choose your destination</h2>
       <p>Choose explicitly. A familiar alias is not proof of account identity: the review also shows the provider's stable account ID.</p>
       <button type="button" id="refresh">Refresh connections and receipt</button>
-      <details><summary>Connect an authorised X or Threads account</summary>
-        <p>This restricted pilot imports an existing user access token over this authenticated connection. It is not a completed self-service provider OAuth flow. Do not use an app-only token, paste credentials into chat, or reuse another product's credentials without authorisation.</p>
+
+      <form id="oauth-form" autocomplete="off">
+        <h3>Connect with the provider</h3>
+        <label for="oauth-alias">Account alias</label>
+        <input id="oauth-alias" name="alias" required pattern="[a-zA-Z0-9_-]{1,100}" maxlength="100" placeholder="my-account" />
+        <div class="pilot-actions" id="oauth-buttons">
+          <button type="button" data-provider="threads" disabled>Connect Threads</button>
+          <button type="button" data-provider="x" disabled>Connect X</button>
+          <button type="button" data-provider="linkedin" disabled>Connect LinkedIn</button>
+        </div>
+        <p id="oauth-status" class="muted">Checking provider application availability…</p>
+        <p class="muted">Provider authorization opens the provider's own consent page. PostSteward stores access and refresh material encrypted server-side and never writes it to browser storage. A provider button stays disabled until that provider application is configured in this deployment.</p>
+      </form>
+
+      <details><summary>Manual token import fallback</summary>
+        <p>Use this only for an already-authorised user token when a provider application is not yet configured. Do not use an app-only token, paste credentials into chat, or reuse another product's credentials without authorisation. Manual import does not claim automatic refresh.</p>
         <form id="connection-form" autocomplete="off">
           <label for="connection-alias">Account alias</label><input id="connection-alias" name="alias" required pattern="[a-zA-Z0-9_-]{1,100}" maxlength="100" />
-          <label for="connection-provider">Provider</label><select id="connection-provider" name="provider" required><option value="">Choose provider</option><option value="threads">Threads</option><option value="x">X</option></select>
+          <label for="connection-provider">Provider</label><select id="connection-provider" name="provider" required><option value="">Choose provider</option><option value="threads">Threads</option><option value="x">X</option><option value="linkedin">LinkedIn</option></select>
           <label for="connection-token">User access token</label><input id="connection-token" name="accessToken" type="password" autocomplete="off" minlength="10" maxlength="4096" required spellcheck="false" />
-          <label class="check"><input id="connection-funding" type="checkbox" />For X only: I own the funded developer application and authorise its API usage.</label>
-          <p class="muted">Threads needs threads_basic and threads_content_publish. X needs user-context read/write access. Identity readback is checked now; successful publishing permission is proved only by the actual provider response. The token field is cleared after every submission and is never written to browser storage.</p>
-          <button type="submit">Connect and verify identity only</button>
+          <label class="check"><input id="connection-funding" type="checkbox" />For X manual import only: I own the funded developer application and authorise its API usage.</label>
+          <p class="muted">Threads needs basic and content-publish authority. X needs user-context read/write authority. LinkedIn manual import can publish when permitted, but it is not treated as independently readable unless the connection came through an approved readback-capable provider application. The token field is cleared after every submission.</p>
+          <button type="submit">Import and verify identity only</button>
         </form>
       </details>
     </section>
@@ -45,7 +59,7 @@
       <form id="prepare-form">
         <label for="account">Verified account</label><select id="account" name="alias" required><option value="">Choose a connected account</option></select>
         <label for="copy">Exact publication text</label><textarea id="copy" name="text" rows="5" maxlength="3000" required>Checking owner approval, account routing and publication receipts in PostSteward staging. This is a controlled test, not a public launch.</textarea>
-        <p class="muted">Text only, one destination. Nothing is shortened or rewritten. X and Threads limits are enforced by the server. LinkedIn remains available in the main workspace but is not offered for this verified-readback milestone.</p>
+        <p class="muted">Text only, one destination. Nothing is shortened or rewritten. X, Threads and LinkedIn limits are enforced by the server. LinkedIn appears here only when its connection has approved member-post readback authority.</p>
         <button type="submit" id="prepare">Verify account and prepare review</button>
       </form>
     </section>

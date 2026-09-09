@@ -4,7 +4,7 @@ import type { Delivery, Identity, Provider } from "./types.ts";
 export interface Credential {
   accessToken: string;
   expiresAt?: number;
-  funding?: "customer_app";
+  funding?: "customer_app" | "service_app";
 }
 export interface Published {
   id: string;
@@ -59,6 +59,9 @@ export function safeThreadsUrl(value: unknown): string | undefined {
       u.search = ""; u.hash = ""; return u.href;
     }
   } catch { /* An untrusted permalink is not navigation authority. */ }
+}
+function safeLinkedInUrl(id: string) {
+  return `https://www.linkedin.com/feed/update/${encodeURIComponent(id)}/`;
 }
 const validId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 256;
 
@@ -145,16 +148,30 @@ export class SocialProviders implements ProviderAPI {
         lifecycleState: "PUBLISHED", isReshareDisabledByAuthor: false }),
     }, true);
     const id = response.headers.get("x-restli-id");
-    requireValue(id, "AMBIGUOUS_PROVIDER_WRITE", "LinkedIn returned no durable creation ID.", 502);
-    return { id, url: `https://www.linkedin.com/feed/update/${encodeURIComponent(id)}/` };
+    requireValue(id && id.length <= 256, "AMBIGUOUS_PROVIDER_WRITE", "LinkedIn returned no durable creation ID.", 502);
+    return { id, url: safeLinkedInUrl(id) };
   }
   async verify(d: Delivery, c: Credential) {
-    if (d.provider === "linkedin") return { verified: false, url: d.url };
     requireValue(validId(d.postId), "NO_READBACK_TARGET", "A durable provider ID is required.", 409);
     if (d.provider === "x") {
       const { data } = await this.request(`https://api.x.com/2/tweets/${encodeURIComponent(d.postId)}?tweet.fields=author_id`, c.accessToken);
       return { verified: data.data?.id === d.postId && data.data?.author_id === d.identity.id && data.data?.text === d.text,
         url: `https://x.com/i/web/status/${encodeURIComponent(d.postId)}` };
+    }
+    if (d.provider === "linkedin") {
+      const { data } = await this.request(
+        `https://api.linkedin.com/rest/posts/${encodeURIComponent(d.postId)}?viewContext=AUTHOR`,
+        c.accessToken,
+        { headers: { "LinkedIn-Version": this.linkedinVersion, "X-Restli-Protocol-Version": "2.0.0" } },
+      );
+      return {
+        verified:
+          data.id === d.postId &&
+          data.author === d.identity.id &&
+          data.commentary === d.text &&
+          data.lifecycleState === "PUBLISHED",
+        url: safeLinkedInUrl(d.postId),
+      };
     }
     const { data } = await this.request(`https://graph.threads.net/v1.0/${encodeURIComponent(d.postId)}?fields=id,text,owner,username,permalink`, c.accessToken);
     return { verified: data.id === d.postId && data.owner?.id === d.identity.id && data.text === d.text,
