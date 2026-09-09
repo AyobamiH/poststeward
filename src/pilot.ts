@@ -18,7 +18,7 @@ export interface PilotRecord {
   release: string;
   createdAt: number;
   expiresAt: number;
-  account: Pick<Account, "alias" | "provider" | "identity" | "version">;
+  account: Pick<Account, "alias" | "provider" | "identity" | "version" | "capabilities">;
   text: string;
   textDigest: string;
   campaignDigest: string;
@@ -69,7 +69,7 @@ export class Pilot {
       completed: !!record?.firstVerified,
       reviewExpired: !!record && record.state === "prepared" && record.expiresAt <= this.now(),
       limits: { oneControlledDelivery: true, reviewMinutes: 10, freshSigninMinutes: 15, cancellationWindowSeconds: 30, maxReadbackAttempts: 8 },
-      notVerified: ["public launch", "provider OAuth refresh", "native browser WebMCP", "payments", "disaster recovery"] };
+      notVerified: ["public launch", "live provider OAuth grant", "native browser WebMCP", "payments", "disaster recovery"] };
   }
   async run(action: string, input: unknown, actor: Actor, authority: OwnerAuthority) {
     this.checkOwner(actor, authority);
@@ -90,14 +90,27 @@ export class Pilot {
     requireValue(!this.store.get<PilotRecord>(slot)?.deliveryId, "PILOT_CONSUMED", "This workspace already reserved its controlled publication. Inspect the existing receipt; do not publish again.", 409);
     requireValue(!this.engine.paused(), "PUBLISHING_PAUSED", "Publishing is paused. No preview or publication was created.", 409);
     const account = this.account(input.alias);
-    requireValue(account.provider === "threads" || account.provider === "x", "READBACK_UNSUPPORTED", "Choose X or Threads for this verified-publication milestone. LinkedIn member readback is not implemented.", 409);
+    requireValue(
+      account.provider === "threads" ||
+        account.provider === "x" ||
+        (account.provider === "linkedin" && account.capabilities?.readback === true),
+      "READBACK_UNSUPPORTED",
+      "Choose X, Threads, or a LinkedIn connection with approved member readback. Independent readback is required for this milestone.",
+      409,
+    );
     validateText(account.provider, input.text);
     const liveIdentity = await this.providers.identity(account.provider, await this.credential(account));
     requireValue(liveIdentity.id === account.identity.id, "ACCOUNT_DRIFT", "The provider identity changed. Reconnect before preparing a review.", 409);
     const base = {
       id: uid(), state: "prepared" as const, owner: authority.proof, release: this.env.RELEASE_SHA,
       createdAt: this.now(), expiresAt: this.now() + 10 * 60000,
-      account: { alias: account.alias, provider: account.provider, identity: liveIdentity, version: account.version },
+      account: {
+        alias: account.alias,
+        provider: account.provider,
+        identity: liveIdentity,
+        version: account.version,
+        capabilities: account.capabilities,
+      },
       text: input.text, textDigest: await digest(input.text),
       campaignDigest: await digest({ [account.alias]: input.text }),
       fingerprint: await digest({ provider: account.provider, identity: liveIdentity.id, text: input.text }),
@@ -122,6 +135,10 @@ export class Pilot {
     requireValue(record.owner.id === authority.proof.id && record.expiresAt > this.now() && record.release === this.env.RELEASE_SHA,
       "REVIEW_EXPIRED", "The sign-in, runtime revision or review expired. Prepare a new review.", 409);
     requireValue(record.reviewDigest === await digest(reviewFields(record)), "REVIEW_INTEGRITY", "Stored review integrity failed.", 409);
+    const current = this.account(record.account.alias);
+    this.sameAccount(current, record.account);
+    if (record.account.provider === "linkedin")
+      requireValue(current.capabilities?.readback === true, "READBACK_AUTHORITY_CHANGED", "LinkedIn readback authority changed. Prepare a new review.", 409);
     const scopedActor: Actor = { ...actor, ownerSession: authority.sessionHash };
     requireValue(await this.authorized(scopedActor), "OWNER_SIGNIN_REQUIRED", "Owner session is no longer authorised.", 409);
     const at = this.now();
@@ -174,6 +191,8 @@ export class Pilot {
     try {
       const account = this.account(delivery.account);
       this.sameAccount(account, record.account);
+      if (delivery.provider === "linkedin")
+        requireValue(account.capabilities?.readback === true, "READBACK_AUTHORITY_CHANGED", "LinkedIn readback authority is unavailable.", 409);
       const evidence = await this.providers.verify(delivery, await this.credential(account));
       this.sameAccount(this.account(delivery.account), record.account);
       observation = { at: this.now(), verified: evidence.verified,
