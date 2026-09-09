@@ -346,10 +346,8 @@ async function route(
       },
       405,
     );
-  if (path === "/app")
-    return env.ASSETS.fetch(
-      new Request(new URL("/app.html", request.url), request),
-    );
+  // Assets already resolves /app to app.html. Rewriting to /app.html here
+  // would trigger its canonical 307 redirect back to /app indefinitely.
   return env.ASSETS.fetch(request);
 }
 export default {
