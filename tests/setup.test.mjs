@@ -51,3 +51,43 @@ test("inspection rejects ambiguous accounts and redacts unexpected upstream erro
   });
   assert.equal(missing.configured.CLOUDFLARE_API_TOKEN, false);
 });
+test("missing token still reports callback, all missing credentials and misplaced-token presence", async () => {
+  const result = await inspectStaging(
+    {
+      CLOUDFLARE_ACCOUNT_ID: account,
+      D1_ID: database,
+      WORKERS_SUBDOMAIN: "test-account",
+      HAS_TOKEN_VARIABLE: "true",
+      HAS_TOKEN_ALIAS_SECRET: "true",
+    },
+    async () => {
+      assert.fail("No requests without token");
+    },
+  );
+  assert.equal(
+    result.oidcRedirectUri,
+    "https://poststeward-staging.test-account.workers.dev/auth/callback",
+  );
+  assert.equal(result.validSyntax.D1_ID, true);
+  assert.equal(result.deployed, false);
+  assert.deepEqual(result.discovered, {});
+  assert.ok(result.issues.some((x) => x.includes("saved as a variable")));
+  for (const name of [
+    "ENCRYPTION_KEY",
+    "OIDC_CLIENT_SECRET",
+    "ALLOWED_OWNER_EMAILS",
+  ])
+    assert.ok(result.issues.some((x) => x.includes(name)));
+});
+test("invalid configuration never becomes a reported callback URL", async () => {
+  const result = await inspectStaging({
+    CLOUDFLARE_ACCOUNT_ID: "placeholder",
+    D1_ID: "00000000-0000-0000-0000-000000000000",
+    WORKERS_SUBDOMAIN: "example.workers.dev",
+    APP_ORIGIN: "https://user:do-not-report@example.com",
+  });
+  assert.equal(result.validSyntax.D1_ID, false);
+  assert.equal(result.validSyntax.WORKERS_SUBDOMAIN, false);
+  assert.equal(result.oidcRedirectUri, undefined);
+  assert.ok(!JSON.stringify(result).includes("do-not-report"));
+});

@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { httpsUrl } from "./deployment-config.mjs";
 
 const accountPattern = /^[a-f0-9]{32}$/;
 const databasePattern = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
@@ -8,6 +9,8 @@ export async function inspectStaging(env, send = fetch) {
   const report = {
     environment: "staging",
     configured: {},
+    validSyntax: {},
+    credentialLocations: {},
     discovered: {},
     issues: [],
     deployed: false,
@@ -28,11 +31,46 @@ export async function inspectStaging(env, send = fetch) {
   ])
     report.configured[name] = env[`HAS_${name}`] === "true";
   report.configured.CLOUDFLARE_API_TOKEN = Boolean(env.CLOUDFLARE_API_TOKEN);
+  report.credentialLocations.tokenVariable = env.HAS_TOKEN_VARIABLE === "true";
+  report.credentialLocations.cfApiTokenSecret =
+    env.HAS_TOKEN_ALIAS_SECRET === "true";
+  report.validSyntax.CLOUDFLARE_ACCOUNT_ID = accountPattern.test(
+    env.CLOUDFLARE_ACCOUNT_ID || "",
+  );
+  report.validSyntax.D1_ID =
+    databasePattern.test(env.D1_ID || "") && !env.D1_ID.startsWith("00000000");
+  report.validSyntax.WORKERS_SUBDOMAIN = subdomainPattern.test(
+    env.WORKERS_SUBDOMAIN || "",
+  );
+  for (const name of Object.keys(report.validSyntax))
+    if (report.configured[name] && !report.validSyntax[name])
+      report.issues.push(`${name} is present but its format is invalid.`);
+  try {
+    const origin =
+      env.APP_ORIGIN ||
+      (report.validSyntax.WORKERS_SUBDOMAIN
+        ? `https://poststeward-staging.${env.WORKERS_SUBDOMAIN}.workers.dev`
+        : "");
+    if (origin) {
+      httpsUrl(origin, true);
+      report.configuredOrigin = origin;
+      report.oidcRedirectUri = `${origin}/auth/callback`;
+    }
+  } catch {
+    report.issues.push("APP_ORIGIN is invalid.");
+  }
   if (!env.CLOUDFLARE_API_TOKEN) {
     report.issues.push(
       "CLOUDFLARE_API_TOKEN is not available to the staging environment.",
     );
-    return report;
+    if (report.credentialLocations.tokenVariable)
+      report.issues.push(
+        "The token was saved as a variable; move it to the staging CLOUDFLARE_API_TOKEN secret.",
+      );
+    if (report.credentialLocations.cfApiTokenSecret)
+      report.issues.push(
+        "A CF_API_TOKEN secret exists; the workflow expects CLOUDFLARE_API_TOKEN.",
+      );
   }
   async function api(path, missingAllowed = false) {
     const response = await send(`https://api.cloudflare.com/client/v4${path}`, {
@@ -51,85 +89,93 @@ export async function inspectStaging(env, send = fetch) {
       throw new Error("Cloudflare inspection did not succeed.");
     return data.result;
   }
-  try {
-    let account = env.CLOUDFLARE_ACCOUNT_ID;
-    if (!accountPattern.test(account || "")) {
-      const accounts = await api("/accounts?per_page=50");
+  if (env.CLOUDFLARE_API_TOKEN)
+    try {
+      let account = env.CLOUDFLARE_ACCOUNT_ID;
+      if (!accountPattern.test(account || "")) {
+        const accounts = await api("/accounts?per_page=50");
+        if (
+          !Array.isArray(accounts) ||
+          accounts.length !== 1 ||
+          !accountPattern.test(accounts[0].id)
+        )
+          throw new Error(
+            "Set CLOUDFLARE_ACCOUNT_ID: the token did not resolve exactly one account.",
+          );
+        account = accounts[0].id;
+      }
+      report.discovered.CLOUDFLARE_ACCOUNT_ID = account;
+      const subdomain = await api(`/accounts/${account}/workers/subdomain`);
+      if (!subdomainPattern.test(subdomain?.subdomain || ""))
+        throw new Error(
+          "Cloudflare has no usable Workers subdomain configured.",
+        );
+      report.discovered.WORKERS_SUBDOMAIN = subdomain.subdomain;
       if (
-        !Array.isArray(accounts) ||
-        accounts.length !== 1 ||
-        !accountPattern.test(accounts[0].id)
+        env.WORKERS_SUBDOMAIN &&
+        env.WORKERS_SUBDOMAIN !== subdomain.subdomain
+      )
+        report.issues.push(
+          "Saved WORKERS_SUBDOMAIN does not match Cloudflare.",
+        );
+      const expectedName = "poststeward-identity-staging";
+      let database;
+      if (databasePattern.test(env.D1_ID || "")) {
+        database = await api(`/accounts/${account}/d1/database/${env.D1_ID}`);
+      } else {
+        for (let page = 1; page <= 20; page++) {
+          const databases = await api(
+            `/accounts/${account}/d1/database?per_page=100&page=${page}`,
+          );
+          if (!Array.isArray(databases))
+            throw new Error("Cloudflare database listing was invalid.");
+          const matches = databases.filter((d) => d.name === expectedName);
+          if (matches.length > 1)
+            throw new Error("Staging database name is ambiguous.");
+          if (matches.length === 1) {
+            database = matches[0];
+            break;
+          }
+          if (databases.length < 100) break;
+        }
+      }
+      if (
+        !database ||
+        database.name !== expectedName ||
+        !databasePattern.test(database.uuid || "")
       )
         throw new Error(
-          "Set CLOUDFLARE_ACCOUNT_ID: the token did not resolve exactly one account.",
+          "The staging database was not found with its expected name and UUID.",
         );
-      account = accounts[0].id;
-    }
-    report.discovered.CLOUDFLARE_ACCOUNT_ID = account;
-    const subdomain = await api(`/accounts/${account}/workers/subdomain`);
-    if (!subdomainPattern.test(subdomain?.subdomain || ""))
-      throw new Error("Cloudflare has no usable Workers subdomain configured.");
-    report.discovered.WORKERS_SUBDOMAIN = subdomain.subdomain;
-    if (env.WORKERS_SUBDOMAIN && env.WORKERS_SUBDOMAIN !== subdomain.subdomain)
-      report.issues.push("Saved WORKERS_SUBDOMAIN does not match Cloudflare.");
-    const expectedName = "poststeward-identity-staging";
-    let database;
-    if (databasePattern.test(env.D1_ID || "")) {
-      database = await api(`/accounts/${account}/d1/database/${env.D1_ID}`);
-    } else {
-      for (let page = 1; page <= 20; page++) {
-        const databases = await api(
-          `/accounts/${account}/d1/database?per_page=100&page=${page}`,
-        );
-        if (!Array.isArray(databases))
-          throw new Error("Cloudflare database listing was invalid.");
-        const matches = databases.filter((d) => d.name === expectedName);
-        if (matches.length > 1)
-          throw new Error("Staging database name is ambiguous.");
-        if (matches.length === 1) {
-          database = matches[0];
-          break;
-        }
-        if (databases.length < 100) break;
-      }
-    }
-    if (
-      !database ||
-      database.name !== expectedName ||
-      !databasePattern.test(database.uuid || "")
-    )
-      throw new Error(
-        "The staging database was not found with its expected name and UUID.",
+      report.discovered.D1_ID = database.uuid;
+      report.discovered.D1_NAME = expectedName;
+      report.discovered.DEFAULT_ORIGIN = `https://poststeward-staging.${subdomain.subdomain}.workers.dev`;
+      const names = await api(
+        `/accounts/${account}/workers/scripts/poststeward-staging/secrets`,
+        true,
       );
-    report.discovered.D1_ID = database.uuid;
-    report.discovered.D1_NAME = expectedName;
-    report.discovered.DEFAULT_ORIGIN = `https://poststeward-staging.${subdomain.subdomain}.workers.dev`;
-    const names = await api(
-      `/accounts/${account}/workers/scripts/poststeward-staging/secrets`,
-      true,
-    );
-    report.discovered.workerExists = names !== null;
-    if (Array.isArray(names))
-      report.discovered.workerSecretNames = names
-        .map((x) => x.name)
-        .filter((n) =>
-          [
-            "ENCRYPTION_KEY",
-            "OIDC_CLIENT_SECRET",
-            "ALLOWED_OWNER_EMAILS",
-          ].includes(n),
-        );
-  } catch (error) {
-    // Never forward API bodies, request headers or arbitrary network exceptions.
-    report.issues.push(
-      error instanceof Error &&
-        /^(Cloudflare|Set CLOUDFLARE|Saved|The staging|Staging)/.test(
-          error.message,
-        )
-        ? error.message
-        : "Cloudflare inspection could not complete.",
-    );
-  }
+      report.discovered.workerExists = names !== null;
+      if (Array.isArray(names))
+        report.discovered.workerSecretNames = names
+          .map((x) => x.name)
+          .filter((n) =>
+            [
+              "ENCRYPTION_KEY",
+              "OIDC_CLIENT_SECRET",
+              "ALLOWED_OWNER_EMAILS",
+            ].includes(n),
+          );
+    } catch (error) {
+      // Never forward API bodies, request headers or arbitrary network exceptions.
+      report.issues.push(
+        error instanceof Error &&
+          /^(Cloudflare|Set CLOUDFLARE|Saved|The staging|Staging)/.test(
+            error.message,
+          )
+          ? error.message
+          : "Cloudflare inspection could not complete.",
+      );
+    }
   if (!env.OIDC_ISSUER || !env.OIDC_CLIENT_ID)
     report.issues.push("Owner OIDC issuer/client configuration is incomplete.");
   for (const name of [

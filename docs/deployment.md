@@ -2,7 +2,7 @@
 
 PostSteward runs centrally on the service operator’s Cloudflare account. Customers connect to the hosted product. All repository work belongs in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward).
 
-The configuration and workflow are implemented. Cloudflare resources, credentials and real deployment have not yet been verified. Do not paste secrets into chat, issues, source files or workflow inputs.
+The configuration and workflow are implemented and merged. Staging inspection confirmed that the three Cloudflare variables are present, but its job cannot access the deployment token or owner sign-in configuration. Cloudflare resources and real deployment have not yet been verified. Do not paste secrets into chat, issues, source files or workflow inputs.
 
 ## 1. Create isolated resources
 
@@ -99,3 +99,5 @@ The current initial-deployment preflight intentionally rejects enabling Advanced
 ## Inspect an existing staging setup
 
 `Inspect staging setup` runs on main when its own workflow/script changes, or on manual dispatch. It uses the saved staging token for read-only Cloudflare API requests. Its summary contains presence checks for secrets and validated account/database/subdomain metadata, never secret values. It resolves a missing account ID only if the token returns exactly one account and finds only the exact `poststeward-identity-staging` database. The inspection neither deploys nor changes Cloudflare resources. This avoids asking an owner to copy configuration that the deployment token can already discover.
+
+If the deployment token is unavailable, inspection still validates the syntax of saved nonsecret values, derives the proposed origin and OAuth callback, and reports missing application settings. It checks only presence booleans for a misplaced `CLOUDFLARE_API_TOKEN` variable or `CF_API_TOKEN` secret; it never reads their values or substitutes them into deployment. A proposed origin is not evidence that a Worker is live.

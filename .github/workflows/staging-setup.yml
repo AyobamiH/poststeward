@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/staging-setup.yml
       - scripts/inspect-staging.mjs
+      - scripts/deployment-config.mjs
 permissions:
   contents: read
 concurrency:
@@ -28,6 +29,8 @@ jobs:
         run: node scripts/inspect-staging.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          HAS_TOKEN_VARIABLE: ${{ vars.CLOUDFLARE_API_TOKEN != '' }}
+          HAS_TOKEN_ALIAS_SECRET: ${{ secrets.CF_API_TOKEN != '' }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           D1_ID: ${{ vars.D1_ID }}
           WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
