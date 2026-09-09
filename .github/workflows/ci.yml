@@ -15,5 +15,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm audit --omit=dev --audit-level=high
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Inventory full dependency advisories without weakening the production gate
+        run: |
+          npm audit --json > audit.json || true
+          node scripts/audit-summary.mjs audit.json
+          rm -f audit.json
       - run: npm run verify
