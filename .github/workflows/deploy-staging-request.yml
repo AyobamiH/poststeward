@@ -1,8 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-09-provider-oauth-readback
+# Deployment request: 2026-09-09-recovery-ledger-pitr-boundary
 # Updating this file on main is an explicit staging deployment request.
-# Ordinary source/doc changes do not request a deployment.
+# This deploy applies recovery/effect-ledger migrations and ordinary hosted smoke only.
+# It must not invoke a point-in-time restore, social publication, payment, or production deploy.
 on:
   push:
     branches: [main]
