@@ -62,14 +62,20 @@ export async function prepareRecoveryPlan(
   now = Date.now(),
 ) {
   requireValue(
-    Number.isFinite(input.targetTime) && input.targetTime <= now && input.targetTime >= now - 30 * 86400000,
+    Number.isFinite(input.targetTime) &&
+      input.targetTime <= now &&
+      input.targetTime >= now - 30 * 86400000,
     "RECOVERY_TARGET_INVALID",
     "Recovery target must be within the previous 30 days.",
     400,
   );
   requireValue(
-    typeof input.targetBookmark === "string" && input.targetBookmark.length >= 16 && input.targetBookmark.length <= 256 &&
-      typeof input.preRestoreBookmark === "string" && input.preRestoreBookmark.length >= 16 && input.preRestoreBookmark.length <= 256,
+    typeof input.targetBookmark === "string" &&
+      input.targetBookmark.length >= 16 &&
+      input.targetBookmark.length <= 256 &&
+      typeof input.preRestoreBookmark === "string" &&
+      input.preRestoreBookmark.length >= 16 &&
+      input.preRestoreBookmark.length <= 256,
     "RECOVERY_BOOKMARK_INVALID",
     "Durable storage did not return usable recovery bookmarks.",
     502,
@@ -278,9 +284,12 @@ export async function reconcileRecoveryPlan(
 export async function assertRecoveryCanResume(db: D1Database, workspace: string) {
   const counts = await effectSummary(db, workspace);
   requireValue(
-    counts.intent === 0 && counts.uncertain === 0,
+    counts.intent === 0 &&
+      counts.uncertain === 0 &&
+      counts.containerIntent === 0 &&
+      counts.containerUncertain === 0,
     "RECOVERY_EFFECTS_UNRESOLVED",
-    "Resolve uncertain provider-write evidence before resuming publication.",
+    "Resolve uncertain provider-write or Threads-container evidence before resuming publication.",
     409,
   );
   return counts;
