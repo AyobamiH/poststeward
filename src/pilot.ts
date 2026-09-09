@@ -109,7 +109,7 @@ export class Pilot {
         provider: account.provider,
         identity: liveIdentity,
         version: account.version,
-        capabilities: account.capabilities,
+        ...(account.capabilities ? { capabilities: account.capabilities } : {}),
       },
       text: input.text, textDigest: await digest(input.text),
       campaignDigest: await digest({ [account.alias]: input.text }),
