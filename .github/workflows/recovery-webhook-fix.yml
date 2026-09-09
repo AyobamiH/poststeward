@@ -1,0 +1,48 @@
+name: Fix recovery Stripe reconciliation boundary
+on:
+  push:
+    branches: [feat/recovery-ledger-ops-v2]
+    paths: [.github/workflows/recovery-webhook-fix.yml]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Restore the actorless signed-webhook path and preserve retry during quarantine
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/worker.ts')
+          s = p.read_text()
+          old = '''      requireValue(\n        data.actor?.workspace === data.workspace,\n        "WORKSPACE_MISMATCH",\n        "Authenticated workspace is required.",\n        403,\n      );\n      const path = new URL(request.url).pathname;\n      const known = this.store.get<string>("workspace");\n      limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);\n\n      if (path === "/recovery/bookmarks") {'''
+          new = '''      const path = new URL(request.url).pathname;\n      // Stripe reaches this only through the Worker's verified webhook route.\n      // It intentionally has no user Actor envelope, so preserve the original\n      // actorless internal reconciliation contract. A quarantined event stays\n      // incomplete in D1 and receives non-2xx so Stripe can retry it later.\n      if (path === "/billing/reconcile") {\n        const control = await workspaceQuarantined(\n          this.env.IDENTITY,\n          data.workspace,\n        );\n        const { engine, billing, oauth } = this.services(data.workspace);\n        if (control.quarantined)\n          return json(\n            {\n              error: {\n                code: "RECOVERY_QUARANTINED",\n                message: "Billing reconciliation waits until recovery quarantine clears.",\n              },\n            },\n            503,\n          );\n        await billing.reconcile();\n        await this.schedule(engine, oauth);\n        return json({ reconciled: true });\n      }\n      requireValue(\n        data.actor?.workspace === data.workspace,\n        "WORKSPACE_MISMATCH",\n        "Authenticated workspace is required.",\n        403,\n      );\n      const known = this.store.get<string>("workspace");\n      limitWorkspace(this.store, this.env.WORKSPACE_REQUEST_LIMIT);\n\n      if (path === "/recovery/bookmarks") {'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = '''      const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);\n      const { engine, billing, pilot, oauth } = this.services(data.workspace);\n      if (path === "/billing/reconcile") {\n        if (control.quarantined)\n          return json({ reconciled: false, recoveryQuarantined: true });\n        await billing.reconcile();\n        await this.schedule(engine, oauth);\n        return json({ reconciled: true });\n      }\n      let result: unknown;'''
+          new = '''      const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);\n      const { engine, billing, pilot, oauth } = this.services(data.workspace);\n      let result: unknown;'''
+          assert old in s
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+          test "$(git diff --name-only)" = "src/worker.ts"
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=high
+      - run: npm run verify
+      - name: Push only the tested source correction as AyobamiH
+        run: |
+          git config user.name 'AyobamiH'
+          git config user.email '47716486+AyobamiH@users.noreply.github.com'
+          git add src/worker.ts
+          git commit -m 'Preserve Stripe webhook retry semantics during recovery'
+          git push origin HEAD:feat/recovery-ledger-ops-v2
