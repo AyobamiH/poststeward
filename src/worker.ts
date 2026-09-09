@@ -30,6 +30,7 @@ import {
 } from "./provider-oauth.ts";
 import { demandFreshOwner, ownerAuthority } from "./owner-proof.ts";
 import { Pilot } from "./pilot.ts";
+import { invalidateRestoredAuthority } from "./recovery-local.ts";
 import {
   armRecoveryPlan,
   assertRecoveryCanResume,
@@ -342,9 +343,16 @@ export class Workspace extends DurableObject<Env> {
           409,
         );
         const storage = this.pitr();
+        const invalidated = invalidateRestoredAuthority(this.store);
         return json({
           workspacePresent: true,
           currentBookmark: await storage.getCurrentBookmark!(),
+          authorityInvalidated: {
+            accounts: invalidated.accounts.length,
+            profiles: invalidated.profiles.length,
+            deliveries: invalidated.deliveries.length,
+            billingReset: invalidated.billingReset,
+          },
         });
       }
       if (path === "/recovery/resume") {
