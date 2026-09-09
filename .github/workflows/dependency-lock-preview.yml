@@ -18,18 +18,11 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Override only the patched sharp version inside the current Miniflare stack
+      - name: Prove whether npm ci can apply a package-only sharp override against the existing lockfile
         run: |
           npm pkg set overrides.sharp=0.35.4
-          npm install --package-lock-only --ignore-scripts
+          cp package-lock.json package-lock.before.json
           npm ci --ignore-scripts
+          cmp package-lock.json package-lock.before.json
           npm audit --audit-level=high
           npm run verify
-      - name: Package generated manifest files
-        run: tar -czf dependency-lock-preview.tgz package.json package-lock.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: dependency-lock-preview
-          path: dependency-lock-preview.tgz
-          if-no-files-found: error
-          retention-days: 1
