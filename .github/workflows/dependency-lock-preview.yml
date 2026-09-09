@@ -1,0 +1,34 @@
+name: Dependency lock remediation preview
+on:
+  push:
+    branches: [chore/dependency-audit-closure]
+    paths:
+      - .github/workflows/dependency-lock-preview.yml
+permissions:
+  contents: read
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Refresh only the vulnerable sharp resolution
+        run: |
+          npm update sharp --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+          npm run verify
+      - name: Package generated manifest files
+        run: tar -czf dependency-lock-preview.tgz package.json package-lock.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-lock-preview
+          path: dependency-lock-preview.tgz
+          if-no-files-found: error
+          retention-days: 1
