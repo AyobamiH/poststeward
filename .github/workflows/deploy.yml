@@ -7,6 +7,12 @@ on:
         type: choice
         options: [staging, production]
         default: staging
+  workflow_call:
+    inputs:
+      environment:
+        description: Configured GitHub environment
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -14,7 +20,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward'
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && (inputs.environment == 'staging' || (inputs.environment == 'production' && github.event_name == 'workflow_dispatch'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,7 +34,7 @@ jobs:
       - run: npm run verify
   deploy:
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward'
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && (inputs.environment == 'staging' || (inputs.environment == 'production' && github.event_name == 'workflow_dispatch'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
