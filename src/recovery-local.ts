@@ -1,4 +1,5 @@
-import type { Account, Delivery, Profile, Store } from "./types.ts";
+import { seal } from "./crypto.ts";
+import type { Account, Delivery, Env, Profile, Store } from "./types.ts";
 
 export interface RecoveryLocalInvalidation {
   accounts: string[];
@@ -8,30 +9,64 @@ export interface RecoveryLocalInvalidation {
   billingReset: boolean;
 }
 
+const marker = "recovery:authority-invalidated";
+
 /**
  * A point-in-time restore can resurrect locally stored credentials, automation
  * authority and billing state that were revoked or changed after the target
  * time. Invalidate those capabilities inside the restored Durable Object before
  * the owner may clear global recovery quarantine. Content/history remain intact.
  *
- * This function is deliberately idempotent: repeated reconciliation probes do
- * not keep bumping versions or rewrite already-terminal receipts.
+ * The marker is part of the restored Durable Object state, so a restored snapshot
+ * gets exactly one invalidation pass. Repeated reconciliation probes in that same
+ * snapshot do not keep bumping versions or rewriting terminal receipts.
  */
-export function invalidateRestoredAuthority(
+export async function invalidateRestoredAuthority(
   store: Store,
+  env: Env,
+  workspace: string,
   now = Date.now(),
-): RecoveryLocalInvalidation {
+): Promise<RecoveryLocalInvalidation> {
+  if (store.get(marker))
+    return {
+      accounts: [],
+      profiles: [],
+      deliveries: [],
+      quotes: [],
+      billingReset: false,
+    };
+
+  const restoredAccounts = store.list<Account>("account:");
+  const tombstones = new Map(
+    await Promise.all(
+      restoredAccounts.map(async (account) => [
+        account.alias,
+        await seal(
+          { accessToken: "recovery-invalidated", expiresAt: 0 },
+          env.ENCRYPTION_KEY,
+          workspace + ":" + account.alias,
+          env.ENCRYPTION_KEY_VERSION,
+        ),
+      ] as const),
+    ),
+  );
   const accounts: string[] = [];
   const profiles: string[] = [];
   const deliveries: string[] = [];
   const quotes: string[] = [];
+  let performed = false;
 
   store.tx(() => {
-    for (const account of store.list<Account>("account:")) {
+    if (store.get(marker)) return;
+    performed = true;
+
+    for (const restored of restoredAccounts) {
+      const account = store.get<Account>("account:" + restored.alias);
+      if (!account) continue;
       store.delete("oauth:" + account.alias);
-      if (!account.active) continue;
+      if (account.active) account.version++;
       account.active = false;
-      account.version++;
+      account.secret = tombstones.get(account.alias)!;
       account.verifiedAt = now;
       store.put("account:" + account.alias, account);
       accounts.push(account.alias);
@@ -62,14 +97,16 @@ export function invalidateRestoredAuthority(
       quotes.push(quote.id);
     }
 
-    // External payment state is not rolled back with this Durable Object. Never
-    // trust a restored local entitlement, checkout attempt or customer binding.
+    // Stripe is the provider of record. Never trust entitlement, checkout or
+    // customer state resurrected from the Durable Object's historical snapshot.
+    // Advanced therefore stays fail-closed until current Stripe evidence is
+    // reconciled again; Free controls remain available.
     store.delete("entitlement");
     store.delete("billing:attempt");
     store.delete("billing:customer");
     store.delete("billing:renewing");
     store.delete("billing:next");
-    store.put("recovery:authority-invalidated", {
+    store.put(marker, {
       at: now,
       accounts: accounts.sort(),
       profiles: profiles.sort(),
@@ -82,6 +119,6 @@ export function invalidateRestoredAuthority(
     profiles: profiles.sort(),
     deliveries: deliveries.sort(),
     quotes: quotes.sort(),
-    billingReset: true,
+    billingReset: performed,
   };
 }
