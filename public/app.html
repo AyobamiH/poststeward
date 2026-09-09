@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PostSteward workspace</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="wordmark" href="/">PostSteward</a>
+      <nav>
+        <a href="/docs/agent-guide.md">Help</a
+        ><button id="refresh">Refresh</button
+        ><button id="signout">Sign out</button>
+      </nav>
+    </header>
+    <main class="workspace">
+      <div id="session-notice" role="status">Loading workspace…</div>
+      <section class="summary">
+        <div>
+          <p class="eyebrow">WORKSPACE</p>
+          <h1 id="plan">Free publishing</h1>
+          <p id="webmcp-status" class="muted"></p>
+        </div>
+        <button id="pause">Pause publishing</button>
+      </section>
+      <div class="workspace-grid">
+        <section class="panel">
+          <h2>1. Connect an account</h2>
+          <p class="muted">
+            Pilot connection: supply an authorised provider token. The service
+            verifies its identity before enabling publication.
+          </p>
+          <form id="connection">
+            <label
+              >Account alias<input
+                name="alias"
+                required
+                pattern="[a-zA-Z0-9_-]+"
+                placeholder="product_x" /></label
+            ><label
+              >Provider<select name="provider">
+                <option value="x">X</option>
+                <option value="threads">Threads</option>
+                <option value="linkedin">LinkedIn</option>
+              </select></label
+            ><label
+              >Provider access token<input
+                name="accessToken"
+                type="password"
+                autocomplete="off"
+                required /></label
+            ><label
+              >Token expires at<input
+                name="expiry"
+                type="datetime-local" /></label
+            ><label class="check"
+              ><input name="funding" type="checkbox" /> For X, these credentials
+              use my own funded developer app.</label
+            ><button class="primary">Verify and connect</button>
+          </form>
+          <div id="accounts" class="record-list"></div>
+        </section>
+        <section class="panel">
+          <h2>2. Bind a project</h2>
+          <form id="project">
+            <label
+              >Project ID<input
+                name="id"
+                required
+                placeholder="my_product"
+                pattern="[a-zA-Z0-9_-]+" /></label
+            ><label
+              >Name<input
+                name="name"
+                required
+                placeholder="My product" /></label
+            ><label
+              >Account aliases, separated by commas<input
+                name="accounts"
+                required
+                placeholder="product_x, product_threads" /></label
+            ><button>Create project</button>
+          </form>
+          <div id="projects" class="record-list"></div>
+          <h2>3. Submit exact copy</h2>
+          <form id="campaign">
+            <label
+              >Project<select
+                name="project"
+                id="project-select"
+                required
+              ></select></label
+            ><label
+              >Destination account<select
+                name="alias"
+                id="account-select"
+                required
+              ></select></label
+            ><label
+              >Approved text<textarea
+                name="text"
+                rows="5"
+                required
+              ></textarea></label
+            ><button>Create and validate campaign</button>
+          </form>
+          <div id="campaign-preview" class="preview" hidden></div>
+          <form id="delivery" hidden>
+            <label
+              >Schedule time with UTC offset (leave empty to publish now)<input
+                name="at"
+                type="text"
+                placeholder="2026-10-01T12:00:00Z" /></label
+            ><button class="primary">Submit delivery</button>
+          </form>
+        </section>
+        <section class="panel wide">
+          <div class="row">
+            <h2>Delivery receipts</h2>
+            <button id="export">Export workspace</button>
+          </div>
+          <p class="muted">
+            A reservation is not proof of publication. Verified, unverified and
+            uncertain outcomes appear separately.
+          </p>
+          <div id="receipts" class="record-list"></div>
+        </section>
+        <section class="panel">
+          <h2>Agent access</h2>
+          <p>
+            Grant only the actions your agent should perform. Tokens are shown
+            once.
+          </p>
+          <form id="grant">
+            <fieldset>
+              <legend>Allowed operations</legend>
+              <label class="check"
+                ><input type="checkbox" name="scope" value="read" checked />
+                Inspect</label
+              ><label class="check"
+                ><input type="checkbox" name="scope" value="campaign:write" />
+                Create campaigns and routes</label
+              ><label class="check"
+                ><input type="checkbox" name="scope" value="publish" /> Publish
+                now</label
+              ><label class="check"
+                ><input type="checkbox" name="scope" value="schedule" />
+                Schedule and cancel</label
+              ><label class="check"
+                ><input type="checkbox" name="scope" value="automation" />
+                Manage automation</label
+              ><label class="check"
+                ><input type="checkbox" name="scope" value="billing" /> Make
+                purchases</label
+              >
+            </fieldset>
+            <label
+              >Expires in hours<input
+                type="number"
+                name="hours"
+                min="1"
+                max="720"
+                value="168" /></label
+            ><button>Create agent token</button>
+          </form>
+          <pre id="token" hidden></pre>
+          <div id="grants" class="record-list"></div>
+        </section>
+        <section class="panel">
+          <h2>Advanced · $5 per month</h2>
+          <p>
+            Continuing source monitoring, inventory and schedule management.
+            Your existing Free publishing remains available.
+          </p>
+          <div id="billing-status"></div>
+          <div class="row">
+            <button id="subscribe">Get subscription quote</button
+            ><button id="portal">Manage billing</button>
+          </div>
+          <div id="quote" class="preview" hidden></div>
+          <h3>Automation profiles</h3>
+          <p>
+            Agents configure reviewed templates and selected public repository
+            sources using <code>automation_configure</code>. Profiles start
+            paused.
+          </p>
+          <div id="profiles" class="record-list"></div>
+        </section>
+      </div>
+      <pre id="result" role="status" aria-live="polite" hidden></pre>
+    </main>
+  </body>
+</html>

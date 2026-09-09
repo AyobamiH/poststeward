@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "poststeward",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-09-09",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "WORKSPACES", "class_name": "Workspace" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Workspace"] }],
+  "d1_databases": [
+    {
+      "binding": "IDENTITY",
+      "database_name": "poststeward-identity",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "PUBLIC_ORIGIN": "https://configure-before-deployment.invalid",
+    "RELEASE_SHA": "development",
+    "ADVANCED_ENABLED": "false",
+    "MPP_ENABLED": "false",
+    "PUBLISHING_PAUSED": "false",
+    "DAILY_DELIVERY_LIMIT": "20",
+    "ACTIVE_SCHEDULE_LIMIT": "100",
+    "LINKEDIN_VERSION": "202608"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "invocation_logs": false }
+  }
+}

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PostSteward — Social publishing for AI agents</title>
+    <meta
+      name="description"
+      content="PostSteward lets your agent publish approved content, schedule it to the right account, and return durable evidence. Free publishing; continuing campaign management is $5 per month."
+    />
+    <link rel="stylesheet" href="/style.css" />
+    <link
+      rel="alternate"
+      type="application/json"
+      href="/help.json"
+      title="Agent operation catalogue"
+    />
+  </head>
+  <body>
+    <header>
+      <a class="wordmark" href="/">PostSteward</a>
+      <nav>
+        <a href="/docs/agent-guide.md">Agent guide</a
+        ><a href="/help.json">Help catalogue</a
+        ><a class="button" href="/auth/login">Open workspace</a>
+      </nav>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow">APPROVED CONTENT → DURABLE EVIDENCE</p>
+        <h1>
+          The right account.<br />The right time.<br />A receipt for every
+          attempt.
+        </h1>
+        <p class="lead">
+          Give your agent a reliable place to execute social publishing. Submit
+          exact content, publish or schedule it, and inspect what actually
+          happened.
+        </p>
+        <a class="button primary" href="/auth/login">Start with Free</a>
+        <a class="textlink" href="/docs/agent-guide.md">Connect an agent →</a>
+      </section>
+      <section class="plans">
+        <article>
+          <p class="eyebrow">FREE · HOSTED</p>
+          <h2>Direct the work</h2>
+          <p>
+            Connect X, Threads and LinkedIn accounts. Route projects, publish
+            now, set explicit schedules, inspect receipts and capture available
+            metrics.
+          </p>
+          <p>
+            Identity checks, duplicate protection, history and export are
+            included.
+          </p>
+          <strong>$0 service subscription</strong>
+        </article>
+        <article>
+          <p class="eyebrow">ADVANCED · $5 / MONTH</p>
+          <h2>Keep the work moving</h2>
+          <p>
+            Monitor reviewed product sources, replenish campaign inventory,
+            allocate future posts with spacing controls and collect metrics on a
+            schedule.
+          </p>
+          <p id="advanced-state">
+            Availability is reported by the live capability catalogue. Purchases
+            open after validation.
+          </p>
+          <a href="/plans.json">Inspect plan contract →</a>
+        </article>
+      </section>
+      <section class="guide">
+        <h2>Built to be found and understood</h2>
+        <p>
+          Use remote MCP at <code>/mcp</code>, HTTP operations, or browser
+          WebMCP in a supported browser. Every interface uses the same operation
+          catalogue and execution rules.
+        </p>
+        <div class="links">
+          <a href="/openapi.json">OpenAPI</a
+          ><a href="/help.json">Machine-readable help</a
+          ><a href="/llms.txt">Agent discovery</a
+          ><a href="/docs/operations.md">Operation reference</a>
+        </div>
+        <p class="muted">
+          Provider API charges are separate. Initial account connection uses
+          customer-provided provider credentials; X requires your own funded
+          developer application. This deployment has not yet completed public
+          customer validation.
+        </p>
+      </section>
+    </main>
+    <footer>PostSteward · Reliable social publishing for AI agents.</footer>
+  </body>
+</html>

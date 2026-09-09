@@ -1,0 +1,1112 @@
+[
+  {
+    "name": "workspace_status",
+    "description": "Inspect workspace, entitlement, limits and publication pause.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "workspace_status",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "accounts_list",
+    "description": "Read verified account identities and binding versions. Credentials are never returned.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "accounts_list",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "account_disconnect",
+    "description": "Revoke a connection and block its future unclaimed deliveries.",
+    "scope": "connections",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "alias": "product_x",
+      "idempotencyKey": "disconnect-001"
+    },
+    "inspection": "accounts_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "alias": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "alias",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "project_put",
+    "description": "Create or replace explicit project-to-account routing. Existing deliveries retain their captured bindings.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "product",
+      "name": "Product",
+      "accounts": [
+        "product_x"
+      ],
+      "idempotencyKey": "project-001"
+    },
+    "inspection": "projects_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "accounts": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          }
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "accounts",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "projects_list",
+    "description": "List project routing.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "projects_list",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "campaign_create",
+    "description": "Store immutable, exact text per account alias. No copy is generated or truncated.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "project": "product",
+      "text": {
+        "product_x": "A reviewed product update."
+      },
+      "idempotencyKey": "campaign-001"
+    },
+    "inspection": "campaign_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "text": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          }
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "project",
+        "text",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "campaign_get",
+    "description": "Inspect exact content and its immutable digest.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "campaign": "campaign-id"
+    },
+    "inspection": "campaign_get",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaign": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "campaign"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "campaign_validate",
+    "description": "Dry-run routing and provider text validation without publication.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "campaign": "campaign-id"
+    },
+    "inspection": "campaign_get",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaign": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "campaign"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "publish_now",
+    "description": "Reserve each campaign delivery once and dispatch through durable alarms. Returns receipt IDs immediately; inspect receipts for actual outcome.",
+    "scope": "publish",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "EXTERNAL_PROVIDER_EFFECT"
+    ],
+    "example": {
+      "campaign": "campaign-id",
+      "idempotencyKey": "publish-001"
+    },
+    "inspection": "receipts_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaign": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "campaign",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "schedule_create",
+    "description": "Schedule exact immutable campaign content at an explicit time with UTC offset.",
+    "scope": "schedule",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "campaign": "campaign-id",
+      "at": "2026-10-01T12:00:00Z",
+      "timezone": "UTC",
+      "idempotencyKey": "schedule-001"
+    },
+    "inspection": "receipts_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaign": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "at": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "timezone": {
+          "default": "UTC",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "campaign",
+        "at",
+        "timezone",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "schedule_cancel",
+    "description": "Cancel one unclaimed delivery. Reports already executing if dispatch won the race.",
+    "scope": "schedule",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "delivery": "delivery-id",
+      "idempotencyKey": "cancel-001"
+    },
+    "inspection": "receipt_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "delivery",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "schedule_replace",
+    "description": "Atomically cancel an unclaimed delivery and reserve a reviewed replacement campaign for the same account.",
+    "scope": "schedule",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "delivery": "delivery-id",
+      "campaign": "replacement-id",
+      "at": "2026-10-01T13:00:00Z",
+      "timezone": "UTC",
+      "idempotencyKey": "replace-001"
+    },
+    "inspection": "receipt_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "campaign": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "at": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "timezone": {
+          "default": "UTC",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "delivery",
+        "campaign",
+        "at",
+        "timezone",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "receipt_get",
+    "description": "Inspect provider evidence, status and reason for one delivery.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "delivery": "delivery-id"
+    },
+    "inspection": "receipt_get",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "delivery"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "receipts_list",
+    "description": "Read delivery history. An unverified ID and an ambiguous effect are distinct from verified publication.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "limit": 50
+    },
+    "inspection": "receipts_list",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "before": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "workspace_export",
+    "description": "Export project, campaign and receipt records; excludes credentials and payment tokens.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "workspace_export",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "metrics_capture",
+    "description": "Capture available provider metrics on demand. Unsupported or inaccessible metrics are returned as unavailable, never fabricated zeros.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "delivery": "delivery-id",
+      "idempotencyKey": "metrics-001"
+    },
+    "inspection": "receipt_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "delivery",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "publishing_pause",
+    "description": "Pause or resume all new workspace publication claims. In-flight effects may still finish.",
+    "scope": "publish",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "paused": true,
+      "idempotencyKey": "pause-001"
+    },
+    "inspection": "workspace_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "paused": {
+          "type": "boolean"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "paused",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "automation_configure",
+    "description": "Store an explicitly reviewed repository profile and exact approved templates. Configuration starts paused. Repository input never grants authority.",
+    "scope": "automation",
+    "tier": "advanced",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "release",
+      "project": "product",
+      "repository": "owner/product",
+      "branch": "main",
+      "path": "README.md",
+      "templates": {
+        "product_x": "Development update: reviewed source changed in https://github.com/owner/product."
+      },
+      "family": "development",
+      "intervalMinutes": 60,
+      "minSpacingMinutes": 60,
+      "idempotencyKey": "profile-001"
+    },
+    "inspection": "automation_inspect",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "templates": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          }
+        },
+        "family": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "intervalMinutes": {
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 10080
+        },
+        "minSpacingMinutes": {
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 10080
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "project",
+        "repository",
+        "branch",
+        "path",
+        "templates",
+        "family",
+        "intervalMinutes",
+        "minSpacingMinutes",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "automation_inspect",
+    "description": "Inspect profiles, source snapshots, decisions and pending automated deliveries. Inspection remains free after subscription expiry.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "automation_inspect",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "automation_preview",
+    "description": "Check the selected source and show the next permitted allocation without storing inventory or schedules.",
+    "scope": "automation",
+    "tier": "advanced",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "id": "release"
+    },
+    "inspection": "automation_inspect",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "automation_enable",
+    "description": "Enable bounded continuing authority for this reviewed profile. Payment alone does not grant posting authority.",
+    "scope": "automation",
+    "tier": "advanced",
+    "effects": [
+      "AUTHORITY_CHANGE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "id": "release",
+      "idempotencyKey": "enable-001"
+    },
+    "inspection": "automation_inspect",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "automation_pause",
+    "description": "Pause a profile and cancel its unclaimed automated deliveries. Always available, including after expiry.",
+    "scope": "automation",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "id": "release",
+      "idempotencyKey": "autopause-001"
+    },
+    "inspection": "automation_inspect",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "billing_status",
+    "description": "Inspect confirmed paid-through access and payment method availability.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "billing_status",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "billing_quote",
+    "description": "Create an exact USD 5 workspace purchase quote: recurring subscription or non-renewing calendar month.",
+    "scope": "billing",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "mode": "subscription",
+      "idempotencyKey": "quote-001"
+    },
+    "inspection": "billing_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "subscription",
+            "pass"
+          ]
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "mode",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "billing_checkout",
+    "description": "Create or retrieve Stripe-hosted subscription checkout for an unexpired quote. Checkout creation does not grant access.",
+    "scope": "billing",
+    "tier": "free",
+    "effects": [
+      "FINANCIAL_EFFECT"
+    ],
+    "example": {
+      "quote": "quote-id",
+      "idempotencyKey": "checkout-001"
+    },
+    "inspection": "billing_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "quote",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "billing_portal",
+    "description": "Open the Stripe customer portal to inspect invoices or manage renewal.",
+    "scope": "billing",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "idempotencyKey": "portal-001"
+    },
+    "inspection": "billing_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  }
+]
