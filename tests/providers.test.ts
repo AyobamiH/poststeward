@@ -44,7 +44,7 @@ test("LinkedIn preserves the creation URN and independently reads back exact aut
     }
     reads++;
     assert.match(String(url), /\/rest\/posts\/urn%3Ali%3Ashare%3A123\?viewContext=AUTHOR$/);
-    assert.equal(init?.headers?.["LinkedIn-Version"], "202608");
+    assert.equal(new Headers(init?.headers).get("LinkedIn-Version"), "202608");
     return Response.json({
       id: "urn:li:share:123",
       author: "urn:li:person:42",
