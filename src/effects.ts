@@ -8,6 +8,7 @@ export type EffectStatus =
   | "created"
   | "verified"
   | "unverified";
+type ContainerEffectStatus = "intent" | "uncertain" | "created";
 
 interface EffectRow {
   workspace: string;
@@ -19,6 +20,16 @@ interface EffectRow {
   claim_id?: string;
   post_id?: string;
   url?: string;
+  reason?: string;
+  created_at: number;
+  updated_at: number;
+}
+interface ContainerEffectRow {
+  workspace: string;
+  fingerprint: string;
+  delivery_id: string;
+  status: ContainerEffectStatus;
+  container_id?: string;
   reason?: string;
   created_at: number;
   updated_at: number;
@@ -91,12 +102,20 @@ export async function setWorkspaceQuarantine(
 }
 
 export async function effectSummary(db: D1Database, workspace: string) {
-  const rows = await db
-    .prepare(
-      "SELECT status,count(*) AS count FROM external_effects WHERE workspace=? GROUP BY status",
-    )
-    .bind(workspace)
-    .all<{ status: EffectStatus; count: number }>();
+  const [rows, containers] = await Promise.all([
+    db
+      .prepare(
+        "SELECT status,count(*) AS count FROM external_effects WHERE workspace=? GROUP BY status",
+      )
+      .bind(workspace)
+      .all<{ status: EffectStatus; count: number }>(),
+    db
+      .prepare(
+        "SELECT status,count(*) AS count FROM external_containers WHERE workspace=? GROUP BY status",
+      )
+      .bind(workspace)
+      .all<{ status: ContainerEffectStatus; count: number }>(),
+  ]);
   const counts: Record<EffectStatus, number> = {
     intent: 0,
     uncertain: 0,
@@ -104,14 +123,26 @@ export async function effectSummary(db: D1Database, workspace: string) {
     verified: 0,
     unverified: 0,
   };
+  const containerCounts: Record<ContainerEffectStatus, number> = {
+    intent: 0,
+    uncertain: 0,
+    created: 0,
+  };
   for (const row of rows.results || []) counts[row.status] = Number(row.count || 0);
-  return counts;
+  for (const row of containers.results || [])
+    containerCounts[row.status] = Number(row.count || 0);
+  return {
+    ...counts,
+    containerIntent: containerCounts.intent,
+    containerUncertain: containerCounts.uncertain,
+    containerCreated: containerCounts.created,
+  };
 }
 
 /**
- * Publication fence stored in D1 rather than inside a workspace Durable Object.
- * Restoring workspace state therefore cannot erase knowledge of a provider write
- * and silently replay it.
+ * External-effect fences live in D1 rather than inside a workspace Durable
+ * Object. Restoring workspace state therefore cannot erase knowledge of a
+ * Threads container or a provider publication and silently replay either.
  */
 export class EffectLedgerProviders implements ProviderAPI {
   constructor(
@@ -123,9 +154,6 @@ export class EffectLedgerProviders implements ProviderAPI {
 
   identity(provider: Provider, credential: Credential): Promise<Identity> {
     return this.inner.identity(provider, credential);
-  }
-  createContainer(delivery: Delivery, credential: Credential): Promise<string> {
-    return this.inner.createContainer(delivery, credential);
   }
   containerStatus(id: string, credential: Credential): Promise<string> {
     return this.inner.containerStatus(id, credential);
@@ -142,8 +170,15 @@ export class EffectLedgerProviders implements ProviderAPI {
       .bind(this.workspace, delivery.fingerprint)
       .first<EffectRow>();
   }
-
-  async publish(delivery: Delivery, credential: Credential): Promise<Published> {
+  private existingContainer(delivery: Delivery) {
+    return this.db
+      .prepare(
+        "SELECT * FROM external_containers WHERE workspace=? AND fingerprint=?",
+      )
+      .bind(this.workspace, delivery.fingerprint)
+      .first<ContainerEffectRow>();
+  }
+  private async assertNotQuarantined() {
     const control = await workspaceQuarantined(this.db, this.workspace);
     requireValue(
       !control.quarantined,
@@ -151,6 +186,69 @@ export class EffectLedgerProviders implements ProviderAPI {
       "Workspace is in recovery quarantine; provider writes are disabled.",
       409,
     );
+  }
+
+  async createContainer(delivery: Delivery, credential: Credential): Promise<string> {
+    await this.assertNotQuarantined();
+    const now = this.now();
+    const inserted = await this.db
+      .prepare(
+        "INSERT INTO external_containers(workspace,fingerprint,delivery_id,status,created_at,updated_at) VALUES (?,?,?,'intent',?,?) ON CONFLICT(workspace,fingerprint) DO NOTHING",
+      )
+      .bind(this.workspace, delivery.fingerprint, delivery.id, now, now)
+      .run();
+    if (inserted.meta.changes !== 1) {
+      const prior = await this.existingContainer(delivery);
+      requireValue(
+        prior,
+        "AMBIGUOUS_PROVIDER_WRITE",
+        "Threads container fence exists but its evidence is unavailable. Do not recreate it.",
+        502,
+      );
+      if (prior.container_id) return prior.container_id;
+      throw new Fault(
+        "AMBIGUOUS_PROVIDER_WRITE",
+        "An earlier Threads container write is unresolved. Do not recreate it.",
+        502,
+      );
+    }
+    try {
+      const containerId = await this.inner.createContainer(delivery, credential);
+      await this.db
+        .prepare(
+          "UPDATE external_containers SET status='created',container_id=?,reason=NULL,updated_at=? WHERE workspace=? AND fingerprint=?",
+        )
+        .bind(containerId, this.now(), this.workspace, delivery.fingerprint)
+        .run();
+      return containerId;
+    } catch (error) {
+      if (knownNoEffect(error)) {
+        await this.db
+          .prepare(
+            "DELETE FROM external_containers WHERE workspace=? AND fingerprint=? AND status='intent' AND container_id IS NULL",
+          )
+          .bind(this.workspace, delivery.fingerprint)
+          .run();
+      } else {
+        const reason = safeReason(error);
+        await this.db
+          .prepare(
+            "UPDATE external_containers SET status='uncertain',reason=?,updated_at=? WHERE workspace=? AND fingerprint=?",
+          )
+          .bind(reason, this.now(), this.workspace, delivery.fingerprint)
+          .run();
+        event("external_container_uncertain", {
+          workspace: this.workspace,
+          delivery: delivery.id,
+          reason,
+        });
+      }
+      throw error;
+    }
+  }
+
+  async publish(delivery: Delivery, credential: Credential): Promise<Published> {
+    await this.assertNotQuarantined();
     const now = this.now();
     const inserted = await this.db
       .prepare(
