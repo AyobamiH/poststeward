@@ -54,6 +54,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Configure isolated environment
         id: config
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           node scripts/configure-deploy.mjs
           node --input-type=module -e 'import fs from "node:fs"; const c=JSON.parse(fs.readFileSync("wrangler.jsonc","utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, "origin="+c.vars.PUBLIC_ORIGIN+"\n");'

@@ -5,12 +5,14 @@ import { httpsUrl } from "./deployment-config.mjs";
 const accountPattern = /^[a-f0-9]{32}$/;
 const databasePattern = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
 const subdomainPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+class InspectionError extends Error {}
 export async function inspectStaging(env, send = fetch) {
   const report = {
     environment: "staging",
     configured: {},
     validSyntax: {},
     credentialLocations: {},
+    apiChecks: [],
     discovered: {},
     issues: [],
     deployed: false,
@@ -73,20 +75,38 @@ export async function inspectStaging(env, send = fetch) {
       );
   }
   async function api(path, missingAllowed = false) {
+    const operation = path.includes("/d1/database/")
+      ? "D1 database details"
+      : path.includes("/d1/database?")
+        ? "D1 database list"
+        : path.endsWith("/secrets")
+          ? "Worker secret names"
+          : path.endsWith("/workers/subdomain")
+            ? "Workers subdomain"
+            : "Account discovery";
     const response = await send(`https://api.cloudflare.com/client/v4${path}`, {
       method: "GET",
       headers: { Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` },
       redirect: "error",
       signal: AbortSignal.timeout(15000),
     });
+    const check = { operation, status: response.status };
+    report.apiChecks.push(check);
     if (missingAllowed && response.status === 404) return null;
-    if (!response.ok)
-      throw new Error(
-        `Cloudflare inspection returned HTTP ${response.status}.`,
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      check.errorCodes = Array.isArray(data.errors)
+        ? data.errors
+            .map((e) => e.code)
+            .filter(Number.isSafeInteger)
+            .slice(0, 5)
+        : [];
+      throw new InspectionError(
+        `Cloudflare ${operation} returned HTTP ${response.status}.`,
       );
-    const data = await response.json();
+    }
     if (!data.success)
-      throw new Error("Cloudflare inspection did not succeed.");
+      throw new InspectionError("Cloudflare inspection did not succeed.");
     return data.result;
   }
   if (env.CLOUDFLARE_API_TOKEN)
@@ -99,7 +119,7 @@ export async function inspectStaging(env, send = fetch) {
           accounts.length !== 1 ||
           !accountPattern.test(accounts[0].id)
         )
-          throw new Error(
+          throw new InspectionError(
             "Set CLOUDFLARE_ACCOUNT_ID: the token did not resolve exactly one account.",
           );
         account = accounts[0].id;
@@ -107,10 +127,13 @@ export async function inspectStaging(env, send = fetch) {
       report.discovered.CLOUDFLARE_ACCOUNT_ID = account;
       const subdomain = await api(`/accounts/${account}/workers/subdomain`);
       if (!subdomainPattern.test(subdomain?.subdomain || ""))
-        throw new Error(
+        throw new InspectionError(
           "Cloudflare has no usable Workers subdomain configured.",
         );
       report.discovered.WORKERS_SUBDOMAIN = subdomain.subdomain;
+      report.discovered.DEFAULT_ORIGIN = `https://poststeward-staging.${subdomain.subdomain}.workers.dev`;
+      if (!env.APP_ORIGIN)
+        report.oidcRedirectUri = `${report.discovered.DEFAULT_ORIGIN}/auth/callback`;
       if (
         env.WORKERS_SUBDOMAIN &&
         env.WORKERS_SUBDOMAIN !== subdomain.subdomain
@@ -121,17 +144,25 @@ export async function inspectStaging(env, send = fetch) {
       const expectedName = "poststeward-identity-staging";
       let database;
       if (databasePattern.test(env.D1_ID || "")) {
-        database = await api(`/accounts/${account}/d1/database/${env.D1_ID}`);
-      } else {
+        try {
+          database = await api(`/accounts/${account}/d1/database/${env.D1_ID}`);
+        } catch (error) {
+          if (!(error instanceof InspectionError)) throw error;
+          report.issues.push(error.message);
+        }
+      }
+      if (!database) {
         for (let page = 1; page <= 20; page++) {
           const databases = await api(
             `/accounts/${account}/d1/database?per_page=100&page=${page}`,
           );
           if (!Array.isArray(databases))
-            throw new Error("Cloudflare database listing was invalid.");
+            throw new InspectionError(
+              "Cloudflare database listing was invalid.",
+            );
           const matches = databases.filter((d) => d.name === expectedName);
           if (matches.length > 1)
-            throw new Error("Staging database name is ambiguous.");
+            throw new InspectionError("Staging database name is ambiguous.");
           if (matches.length === 1) {
             database = matches[0];
             break;
@@ -144,12 +175,11 @@ export async function inspectStaging(env, send = fetch) {
         database.name !== expectedName ||
         !databasePattern.test(database.uuid || "")
       )
-        throw new Error(
+        throw new InspectionError(
           "The staging database was not found with its expected name and UUID.",
         );
       report.discovered.D1_ID = database.uuid;
       report.discovered.D1_NAME = expectedName;
-      report.discovered.DEFAULT_ORIGIN = `https://poststeward-staging.${subdomain.subdomain}.workers.dev`;
       const names = await api(
         `/accounts/${account}/workers/scripts/poststeward-staging/secrets`,
         true,
@@ -168,10 +198,7 @@ export async function inspectStaging(env, send = fetch) {
     } catch (error) {
       // Never forward API bodies, request headers or arbitrary network exceptions.
       report.issues.push(
-        error instanceof Error &&
-          /^(Cloudflare|Set CLOUDFLARE|Saved|The staging|Staging)/.test(
-            error.message,
-          )
+        error instanceof InspectionError
           ? error.message
           : "Cloudflare inspection could not complete.",
       );

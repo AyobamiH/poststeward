@@ -1,8 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { buildConfiguration } from "./deployment-config.mjs";
+import {
+  buildConfiguration,
+  resolveCloudflareConfiguration,
+} from "./deployment-config.mjs";
 const c = buildConfiguration(
   JSON.parse(readFileSync("wrangler.jsonc", "utf8")),
-  process.env,
+  await resolveCloudflareConfiguration(process.env),
 );
 writeFileSync("wrangler.jsonc", JSON.stringify(c, null, 2) + "\n");
 console.log(
