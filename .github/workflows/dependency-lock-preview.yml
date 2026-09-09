@@ -18,9 +18,10 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - name: Refresh only the vulnerable sharp resolution
+      - name: Override only the patched sharp version inside the current Miniflare stack
         run: |
-          npm update sharp --package-lock-only --ignore-scripts
+          npm pkg set overrides.sharp=0.35.4
+          npm install --package-lock-only --ignore-scripts
           npm ci --ignore-scripts
           npm audit --audit-level=high
           npm run verify
