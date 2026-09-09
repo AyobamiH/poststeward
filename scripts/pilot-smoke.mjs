@@ -2,18 +2,29 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { demand, validateConfiguration } from "./deployment-config.mjs";
 
-export async function inspectPilot(origin, send = fetch) {
+export async function inspectPilot(origin, send = fetch, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
   const checks = [];
   async function check(name, path, expected, init = {}, inspect = async () => true) {
-    let status = 0, passed = false;
-    try {
-      const response = await send(new URL(path, origin), { ...init, redirect: "manual", signal: AbortSignal.timeout(15000) });
-      status = response.status;
-      passed = status === expected && response.headers.get("x-frame-options") === "DENY" &&
-        !!response.headers.get("strict-transport-security") && await inspect(response);
-      void response.body?.cancel().catch(() => {});
-    } catch { /* Do not record arbitrary network errors, response bodies or OAuth state. */ }
-    checks.push({ name, status, expected, passed });
+    let status = 0, passed = false, attempts = 0;
+    // Only static GET/200 expectations may wait through a fresh asset's 404.
+    // Never retry an authentication denial, redirect, POST, or failed content check.
+    const limit = expected === 200 && (!init.method || init.method === "GET") ? 5 : 1;
+    while (attempts < limit) {
+      attempts++;
+      try {
+        const response = await send(new URL(path, origin), {
+          ...init, headers: { "Cache-Control": "no-cache", ...init.headers },
+          redirect: "manual", signal: AbortSignal.timeout(15000),
+        });
+        status = response.status;
+        passed = status === expected && response.headers.get("x-frame-options") === "DENY" &&
+          !!response.headers.get("strict-transport-security") && await inspect(response);
+        void response.body?.cancel().catch(() => {});
+      } catch { status = 0; /* Never forward network exceptions or OAuth state. */ }
+      if (passed || status !== 404 || attempts === limit) break;
+      await wait(2000);
+    }
+    checks.push({ name, status, expected, attempts, passed });
   }
   await check("owner acceptance HTML and explicit approval form", "/pilot", 200, {}, async (r) => {
     const text = await r.text(); return r.headers.get("content-type")?.includes("text/html") && text.includes('id="approve"') && text.includes('id="confirm"') && text.includes('type="password"');

@@ -1,0 +1,53 @@
+name: Verify an existing staging pilot
+run-name: Verify existing pilot revision ${{ inputs.runtime_revision || '00544af2ae1333357c4f6b427541007cbd2206ba' }}
+# Explicit read-only acceptance request for the Worker already uploaded by PR #8.
+# This workflow never deploys, changes a database schema or publishes content.
+on:
+  workflow_dispatch:
+    inputs:
+      runtime_revision:
+        description: Exact already-deployed runtime SHA to verify
+        type: string
+        required: true
+        default: 00544af2ae1333357c4f6b427541007cbd2206ba
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/verify-hosted-pilot.yml
+permissions:
+  contents: read
+concurrency:
+  group: verify-hosted-pilot
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEPLOY_ENV: staging
+      RUNTIME_REVISION: ${{ inputs.runtime_revision || '00544af2ae1333357c4f6b427541007cbd2206ba' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
+      OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Construct nonsecret expectations for the recorded runtime
+        run: |
+          node --input-type=module -e 'import fs from "node:fs"; import {buildConfiguration} from "./scripts/deployment-config.mjs"; const c=buildConfiguration(JSON.parse(fs.readFileSync("wrangler.jsonc","utf8")), {...process.env, GITHUB_SHA: process.env.RUNTIME_REVISION}); fs.writeFileSync("wrangler.jsonc", JSON.stringify(c));'
+      - name: Verify exact runtime revision and existing boundaries
+        run: node scripts/smoke.mjs
+      - name: Verify pilot surfaces without signing in or publishing
+        run: node scripts/pilot-smoke.mjs
+      - name: Verify fresh unauthenticated browser rendering
+        run: node scripts/pilot-browser-smoke.mjs
