@@ -13,6 +13,8 @@ export interface Actor {
   id: string;
   scopes: Scope[];
   grant?: string;
+  /** Internal, only for a session-bound controlled publication. Never exported. */
+  ownerSession?: string;
 }
 export interface Identity {
   id: string;
@@ -73,6 +75,8 @@ export interface Delivery {
   phase?:
     "identity" | "container_create" | "container_wait" | "publish" | "readback";
   claimUntil?: number;
+  claimId?: string;
+  reviewedRelease?: string;
   containerId?: string;
   containerChecks?: number;
   nextCheck?: number;
@@ -102,9 +106,9 @@ export interface Profile {
   enabled: boolean;
   sha?: string;
   lastCheck?: number;
-  error?: string;
   nextRun: number;
   nextMetrics: number;
+  error?: string;
   authority: Actor;
 }
 export interface Store {

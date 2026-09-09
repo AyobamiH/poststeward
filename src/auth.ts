@@ -1,5 +1,6 @@
 import * as oauth from "oauth4webapi";
 import { digest, Fault, json, requireValue, uid } from "./common.ts";
+import { activeOwnerSession, ownerProofStatement } from "./owner-proof.ts";
 import type { Actor, Env, Scope } from "./types.ts";
 export const scopes: Scope[] = [
   "read",
@@ -88,6 +89,9 @@ export async function authenticate(
   };
 }
 export async function isAuthorized(actor: Actor, env: Env) {
+  // Only the controlled pilot binds continuing dispatch to a particular owner
+  // session. Ordinary approved schedules retain their existing authority model.
+  if (actor.ownerSession) return !!(await activeOwnerSession(actor, env));
   if (!actor.grant)
     return !!(await env.IDENTITY.prepare(
       "SELECT subject FROM principals WHERE subject=? AND workspace=?",
@@ -143,25 +147,22 @@ export function allowOwner(
   );
 }
 export async function login(request: Request, env: Env): Promise<Response> {
+  const returnPath = new URL(request.url).searchParams.get("return") || "/app";
+  requireValue(["/app", "/pilot"].includes(returnPath), "RETURN_NOT_ALLOWED", "Choose a documented sign-in destination.");
   const { as, client } = await oidc(env),
     state = oauth.generateRandomState(),
     verifier = oauth.generateRandomCodeVerifier(),
     nonce = oauth.generateRandomNonce();
+  requireValue(as.authorization_endpoint, "LOGIN_UNCONFIGURED", "Issuer has no authorization endpoint.", 503);
   const pendingLogin = await env.IDENTITY.prepare(
-    "INSERT INTO login_states SELECT ?,?,?,? WHERE (SELECT count(*) FROM login_states) < 10000",
+    "INSERT INTO login_states (state_hash,verifier,nonce,expires_at,return_path) SELECT ?,?,?,?,? WHERE (SELECT count(*) FROM login_states) < 10000",
   )
-    .bind(await digest(state), verifier, nonce, Date.now() + 600000)
+    .bind(await digest(state), verifier, nonce, Date.now() + 600000, returnPath)
     .run();
   requireValue(
     pendingLogin.meta.changes === 1,
     "LOGIN_CAPACITY",
     "Sign-in is temporarily at capacity. Try again later.",
-    503,
-  );
-  requireValue(
-    as.authorization_endpoint,
-    "LOGIN_UNCONFIGURED",
-    "Issuer has no authorization endpoint.",
     503,
   );
   const url = new URL(as.authorization_endpoint);
@@ -244,19 +245,20 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     "Unable to create workspace.",
     500,
   );
-  const session = token(),
-    csrf = token();
-  await env.IDENTITY.prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
-    .bind(
-      await digest(session),
-      principal.workspace,
-      subject,
-      Date.now() + 86400000,
-      csrf,
-    )
-    .run();
+  const session = token(), csrf = token(), at = Date.now();
+  const sessionHash = await digest(session);
+  const statements = [
+    env.IDENTITY.prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
+      .bind(sessionHash, principal.workspace, subject, at + 86400000, csrf),
+    await ownerProofStatement(env, sessionHash, as.issuer, claims, at),
+  ];
+  const previousSession = cookie(request, "__Host-session");
+  if (previousSession)
+    statements.push(env.IDENTITY.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(previousSession)));
+  // No usable new session is returned unless its completion proof also commits.
+  await env.IDENTITY.batch(statements);
   const headers = new Headers({
-    Location: "/app",
+    Location: record.return_path === "/pilot" ? "/pilot" : "/app",
     "Cache-Control": "no-store",
   });
   headers.append("Set-Cookie", sessionCookie(session, 86400));
