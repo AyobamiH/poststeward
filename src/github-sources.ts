@@ -837,7 +837,7 @@ export async function completeGitHubSourceLink(
   );
   const statements = [
     env.IDENTITY.prepare(
-      "INSERT INTO github_installations(workspace,installation_id,account_id,account_login,account_type,user_id,user_login,repository_selection,status,last_error,credential,credential_revision,token_expires_at,refresh_expires_at,linked_at,last_verified_at,updated_at) VALUES (?,?,?,?,?,?,?,'selected','linked',NULL,?,1,?,?,?,?,?) ON CONFLICT(workspace,installation_id) DO UPDATE SET account_id=excluded.account_id,account_login=excluded.account_login,account_type=excluded.account_type,user_id=excluded.user_id,user_login=excluded.user_login,repository_selection='selected',status='linked',last_error=NULL,credential=excluded.credential,credential_revision=github_installations.credential_revision+1,refresh_lease=NULL,refresh_lease_until=NULL,token_expires_at=excluded.token_expires_at,refresh_expires_at=excluded.refresh_expires_at,last_verified_at=excluded.last_verified_at,updated_at=excluded.updated_at",
+      "INSERT INTO github_installations(workspace,installation_id,account_id,account_login,account_type,user_id,user_login,repository_selection,status,last_error,credential,credential_revision,token_expires_at,refresh_expires_at,linked_at,last_verified_at,updated_at) SELECT ?,?,?,?,?,?,?,'selected','linked',NULL,?,1,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM sessions WHERE token_hash=? AND workspace=? AND actor=? AND expires_at>?) AND NOT EXISTS (SELECT 1 FROM workspace_deletions WHERE workspace=?) ON CONFLICT(workspace,installation_id) DO UPDATE SET account_id=excluded.account_id,account_login=excluded.account_login,account_type=excluded.account_type,user_id=excluded.user_id,user_login=excluded.user_login,repository_selection='selected',status='linked',last_error=NULL,credential=excluded.credential,credential_revision=github_installations.credential_revision+1,refresh_lease=NULL,refresh_lease_until=NULL,token_expires_at=excluded.token_expires_at,refresh_expires_at=excluded.refresh_expires_at,last_verified_at=excluded.last_verified_at,updated_at=excluded.updated_at",
     ).bind(
       owner.proof.workspace,
       pending.installation_id,
@@ -852,13 +852,18 @@ export async function completeGitHubSourceLink(
       now,
       now,
       now,
+      owner.sessionHash,
+      owner.proof.workspace,
+      owner.proof.subject,
+      Math.max(now, Date.now()),
+      owner.proof.workspace,
     ),
     env.IDENTITY.prepare(
-      "DELETE FROM github_repository_links WHERE workspace=? AND installation_id=?",
-    ).bind(owner.proof.workspace, pending.installation_id),
+      "DELETE FROM github_repository_links WHERE workspace=? AND installation_id=? AND EXISTS (SELECT 1 FROM github_installations WHERE workspace=? AND installation_id=? AND credential=?)",
+    ).bind(owner.proof.workspace, pending.installation_id, owner.proof.workspace, pending.installation_id, encrypted),
     ...repositories.map((repository: GitHubRepository) =>
       env.IDENTITY.prepare(
-        "INSERT INTO github_repository_links(workspace,repository_id,installation_id,full_name,private,linked_at,verified_at) VALUES (?,?,?,?,?,?,?)",
+        "INSERT INTO github_repository_links(workspace,repository_id,installation_id,full_name,private,linked_at,verified_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM github_installations WHERE workspace=? AND installation_id=? AND credential=?)",
       ).bind(
         owner.proof.workspace,
         repository.id,
@@ -867,10 +872,16 @@ export async function completeGitHubSourceLink(
         repository.private ? 1 : 0,
         now,
         now,
+        owner.proof.workspace,
+        pending.installation_id,
+        encrypted,
       ),
     ),
   ];
-  await env.IDENTITY.batch(statements);
+  const committed = await env.IDENTITY.batch(statements);
+  requireValue(committed[0]?.meta.changes === 1,
+    "GITHUB_LINK_AUTHORITY_CHANGED",
+    "The owner session or workspace changed during GitHub connection. Sign in again.", 409);
   return new Response(null, {
     status: 302,
     headers: {

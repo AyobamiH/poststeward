@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { beginWorkspaceDeletion, completeWorkspaceDeletion } from "../src/lifecycle.ts";
 import { seal, unseal } from "../src/crypto.ts";
 import { digest } from "../src/common.ts";
 import { readGitHubSource } from "../src/github-sources.ts";
@@ -600,5 +601,48 @@ test("removed and renamed private repositories remain fenced on subsequent reads
       assert.equal((await f.db.prepare("SELECT full_name FROM github_repository_links WHERE workspace=?")
         .bind(f.workspace).first<any>()).full_name, "acme/private-repo");
     } finally { await f.mf.dispose(); }
+  }
+});
+
+test("a delayed GitHub callback cannot retain authority after deletion or logout", { timeout: 30_000 }, async () => {
+  for (const boundary of ["pending", "completed", "logout"]) {
+    const entered = gate(), finish = gate();
+    const outbound = githubOutbound();
+    const { mf, db } = await runtime(async (request) => {
+      const response = await outbound(request);
+      if (new URL(request.url).pathname === "/user/installations/42/repositories") {
+        entered.release();
+        await finish.promise;
+      }
+      return response;
+    }, ownerRuntimeBindings, 100);
+    let pending: Promise<any> | undefined;
+    try {
+      const owner = await seedOwner(db, "-callback-" + boundary);
+      const state = await startAndSetup(mf, owner);
+      pending = mf.dispatchFetch(
+        `${origin}/sources/github/callback?state=${encodeURIComponent(state)}&code=github-code`,
+        { redirect: "manual", headers: {
+          Cookie: `__Host-session=${owner.session}; __Host-github-source=${state}`,
+        } },
+      );
+      void pending.then(() => entered.release(), () => entered.release());
+      await entered.promise;
+      if (boundary === "logout") {
+        await db.prepare("DELETE FROM sessions WHERE token_hash=?").bind(owner.sessionHash).run();
+      } else {
+        await beginWorkspaceDeletion(db, owner.workspace);
+        if (boundary === "completed") await completeWorkspaceDeletion(db, owner.workspace);
+      }
+      finish.release();
+      const response = await pending;
+      assert.equal(response.status, 409, await response.clone().text());
+      assert.equal((await response.json()).error.code, "GITHUB_LINK_AUTHORITY_CHANGED");
+      for (const table of ["github_installations", "github_repository_links"]) {
+        const result = await db.prepare(`SELECT count(*) AS n FROM ${table} WHERE workspace=?`)
+          .bind(owner.workspace).first<any>();
+        assert.equal(result.n, 0, boundary + " " + table);
+      }
+    } finally { finish.release(); await pending?.catch(() => undefined); await mf.dispose(); }
   }
 });
