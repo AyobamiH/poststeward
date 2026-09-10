@@ -23,6 +23,7 @@ CREATE TABLE github_installations (
   user_login TEXT NOT NULL,
   repository_selection TEXT NOT NULL CHECK (repository_selection IN ('all','selected')),
   status TEXT NOT NULL CHECK (status IN ('linked','stale')),
+  last_error TEXT,
   credential TEXT NOT NULL,
   credential_revision INTEGER NOT NULL DEFAULT 1 CHECK (credential_revision > 0),
   token_expires_at INTEGER NOT NULL,
