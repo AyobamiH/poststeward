@@ -163,7 +163,6 @@ async function lifecycleRoute(request: Request, env: Env) {
     "Workspace lifecycle controls are available only to the signed-in owner browser.",
     403,
   );
-  const authority = await ownerAuthority(request, env, auth);
   const path = url.pathname;
 
   if (path === "/api/lifecycle/status" && request.method === "GET") {
@@ -186,6 +185,7 @@ async function lifecycleRoute(request: Request, env: Env) {
     "Unknown lifecycle route or HTTP method.",
     404,
   );
+  const authority = await ownerAuthority(request, env, auth);
   demandFreshOwner(authority, Date.now());
   const parsed = deletionInput.safeParse(await request.json());
   requireValue(
