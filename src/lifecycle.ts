@@ -35,6 +35,13 @@ export async function assertWorkspaceNotDeleted(
   );
 }
 
+/**
+ * The tombstone and publication quarantine are one D1 batch. Effect-ledger
+ * writes already condition their intent acquisition on workspace_controls, so
+ * an alarm racing deletion cannot acquire new provider-write authority after
+ * this commit. A pending tombstone is deliberately irreversible: retries may
+ * continue erasure but ordinary product work cannot resume.
+ */
 export async function beginWorkspaceDeletion(
   db: D1Database,
   workspace: string,
@@ -48,14 +55,16 @@ export async function beginWorkspaceDeletion(
     410,
   );
   if (existing) return existing;
-  const result = await db
-    .prepare(
+  const results = await db.batch([
+    db.prepare(
       "INSERT INTO workspace_deletions(workspace,state,requested_at,completed_at,updated_at) VALUES (?,'pending',?,NULL,?) ON CONFLICT(workspace) DO NOTHING",
-    )
-    .bind(workspace, now, now)
-    .run();
+    ).bind(workspace, now, now),
+    db.prepare(
+      "INSERT INTO workspace_controls(workspace,publishing_quarantined,reason,quarantined_at,updated_at) VALUES (?,1,'Workspace deletion in progress.',?,?) ON CONFLICT(workspace) DO UPDATE SET publishing_quarantined=1,reason='Workspace deletion in progress.',quarantined_at=excluded.quarantined_at,updated_at=excluded.updated_at",
+    ).bind(workspace, now, now),
+  ]);
   requireValue(
-    result.meta.changes === 1,
+    results[0]?.meta.changes === 1,
     "WORKSPACE_DELETE_RACE",
     "Workspace deletion state changed. Inspect status before retrying.",
     409,
@@ -92,7 +101,9 @@ export async function completeWorkspaceDeletion(
     db.prepare("DELETE FROM workspace_controls WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM provider_oauth_states WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM grants WHERE workspace=?").bind(workspace),
-    // owner_proofs and remaining provider OAuth state cascade with sessions.
+    db.prepare(
+      "DELETE FROM owner_proofs WHERE session_hash IN (SELECT token_hash FROM sessions WHERE workspace=?)",
+    ).bind(workspace),
     db.prepare("DELETE FROM sessions WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM principals WHERE workspace=?").bind(workspace),
     db.prepare(
