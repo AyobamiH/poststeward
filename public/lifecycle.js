@@ -58,10 +58,16 @@ $("delete-form").onsubmit = async (event) => {
   } catch (error) {
     $("result").hidden = false;
     $("result").textContent = error.message || "Deletion did not complete.";
-    $("status").textContent =
-      error.code === "WORKSPACE_DELETE_RETRY_REQUIRED"
-        ? "Deletion is safely fenced but incomplete. Re-authenticate if needed and retry the same deletion; do not use the workspace for new work."
-        : "Deletion was not accepted. Existing workspace state has not been reported as deleted.";
+    let pending = false;
+    try {
+      const lifecycle = await api("/api/lifecycle/status");
+      pending = lifecycle.deletion?.state === "pending";
+    } catch {
+      // Keep the original error visible if status cannot be refreshed.
+    }
+    $("status").textContent = pending
+      ? "Deletion has started and this workspace is durably fenced. A provider write may still be settling or cleanup needs retry. Retry this same deletion; do not resume ordinary workspace activity."
+      : "Deletion was not accepted and no pending deletion was observed. Existing workspace state has not been reported as deleted.";
     renderControls();
   }
 };
@@ -70,7 +76,9 @@ try {
   session = await api("/api/session");
   const lifecycle = await api("/api/lifecycle/status");
   $("status").textContent = lifecycle.deletion
-    ? `Deletion state: ${lifecycle.deletion.state}.`
+    ? lifecycle.deletion.state === "pending"
+      ? "Deletion is pending and this workspace is durably fenced. Retry the same deletion to complete cleanup."
+      : `Deletion state: ${lifecycle.deletion.state}.`
     : `Workspace ${session.workspace} is active.`;
   renderControls();
 } catch (error) {
