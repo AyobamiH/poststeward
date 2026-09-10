@@ -1,9 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-09-recovery-ledger-pitr-boundary
-# Updating this file on main is an explicit staging deployment request.
-# This deploy applies recovery/effect-ledger migrations and ordinary hosted smoke only.
-# It must not invoke point-in-time restore, social publication, payment, or any live-environment release.
+# Deployment request: 2026-09-10-release-completion
+# Updating this file through a merged PR is an explicit staging deployment request.
+# The provenance job rejects a direct-push trigger even though repository-level
+# branch protection remains a separate GitHub administration control.
 on:
   push:
     branches: [main]
@@ -11,8 +11,25 @@ on:
       - .github/workflows/deploy-staging-request.yml
 permissions:
   contents: read
+  pull-requests: read
 jobs:
+  provenance:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Require exact merged-PR provenance
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-deploy-provenance.mjs
   staging:
+    needs: provenance
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
     uses: ./.github/workflows/deploy.yml
     with:
