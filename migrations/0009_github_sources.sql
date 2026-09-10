@@ -26,12 +26,23 @@ CREATE TABLE github_installations (
   last_error TEXT,
   credential TEXT NOT NULL,
   credential_revision INTEGER NOT NULL DEFAULT 1 CHECK (credential_revision > 0),
+  refresh_lease TEXT,
+  refresh_lease_until INTEGER,
   token_expires_at INTEGER NOT NULL,
   refresh_expires_at INTEGER NOT NULL,
   linked_at INTEGER NOT NULL,
   last_verified_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  PRIMARY KEY (workspace, installation_id)
+  PRIMARY KEY (workspace, installation_id),
+  CHECK (
+    (refresh_lease IS NULL AND refresh_lease_until IS NULL) OR
+    (
+      refresh_lease IS NOT NULL AND
+      length(refresh_lease) BETWEEN 16 AND 100 AND
+      refresh_lease_until IS NOT NULL AND
+      refresh_lease_until > 0
+    )
+  )
 );
 CREATE INDEX github_installations_workspace ON github_installations(workspace);
 CREATE INDEX github_installations_user ON github_installations(workspace, user_id);
