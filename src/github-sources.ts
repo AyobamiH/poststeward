@@ -186,7 +186,7 @@ async function apiGet(url: URL, token: string | undefined, send: Send) {
   const response = await send(url, {
     method: "GET",
     headers: githubHeaders(token),
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   }).catch(() => {
     throw new Fault(
@@ -264,7 +264,7 @@ async function exchangeCode(
       "User-Agent": "poststeward",
     },
     body,
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   }).catch(() => {
     throw new Fault(
@@ -310,7 +310,7 @@ async function refreshToken(
       "User-Agent": "poststeward",
     },
     body,
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   }).catch(() => {
     throw new Fault(
