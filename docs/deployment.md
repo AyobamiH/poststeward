@@ -2,7 +2,7 @@
 
 PostSteward runs centrally on the service operator's Cloudflare account. Customers connect to the hosted product. All repository work belongs in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward).
 
-**Restricted staging is deployed and its 17 hosted checks passed.** The [9 September deployment receipt](staging-deployment-2026-09-09.md) records the successful run, exact runtime revision, Cloudflare version and remaining acceptance boundaries. D1 access and required owner/encryption settings are configured. Do not recreate existing staging resources, regenerate its encryption key or repeat credential entry. The setup procedure below remains relevant for a new environment and eventual production. Do not paste secrets into chat, issues, source files or workflow inputs.
+**Restricted staging is deployed.** The [9 September deployment receipt](staging-deployment-2026-09-09.md) records the successful historical run, exact runtime revision, Cloudflare version and the 17 hosted checks that existed at that deployment. D1 access and required owner/encryption settings are configured. The current private-GitHub-source candidate expands the non-destructive hosted verifier to 25 surfaces but is not live evidence until its reviewed main revision is deployed. Do not recreate existing staging resources, regenerate its encryption key or repeat credential entry. The setup procedure below remains relevant for a new environment and eventual production. Do not paste secrets into chat, issues, source files or workflow inputs.
 
 ## 1. Create isolated resources
 
@@ -39,6 +39,28 @@ For Google, open [Google Auth Platform clients](https://console.cloud.google.com
 
 Store the client ID as a GitHub environment variable and the client secret as an environment secret. `ALLOWED_OWNER_EMAILS` is a comma-separated list of invited owners; their ID tokens must contain `email_verified: true`. Initial deployment rejects all other owners. This control does not paywall agent documentation or Free publishing.
 
+## 3A. Configure optional private GitHub sources
+
+Public GitHub source profiles require no GitHub App. To allow an owner to monitor a private repository, create a dedicated GitHub App for that PostSteward environment and keep its permissions minimal. The application must support GitHub App user OAuth with expiring/refreshable user credentials because private reads are bound to the owner's continuing GitHub access rather than to a broad long-lived installation token.
+
+Configure the app with:
+
+- **Repository access at installation:** selected repositories only. PostSteward rejects `all`-repository installations.
+- **Repository permissions:** Contents = Read-only. Metadata remains Read-only. Do not grant write access or other active repository permissions.
+- **Setup URL:** the exact PostSteward origin plus `/sources/github/setup`.
+- **User authorisation callback URL:** the exact PostSteward origin plus `/sources/github/callback`.
+
+For the current staging workers.dev origin those URLs are:
+
+- `https://poststeward-staging.woeinvests.workers.dev/sources/github/setup`
+- `https://poststeward-staging.woeinvests.workers.dev/sources/github/callback`
+
+If `APP_ORIGIN` later changes, change both GitHub App URLs before enabling private-source acceptance on the new origin. Do not use a wildcard callback, repository write permission or an installation covering every repository.
+
+Record the app's client ID and slug as environment variables and its client secret as an environment secret. PostSteward accepts these three values only as an all-or-nothing set. A partial/invalid GitHub App configuration fails deployment before Cloudflare mutation. The client secret is mapped only into the deploy step, never into CI verification.
+
+The owner connection remains a separate post-deployment action. Deployment and hosted smoke never install the GitHub App, create an owner GitHub credential or read a private repository. See [private GitHub source authority](private-github-sources.md).
+
 ## 4. Enter GitHub environment settings
 
 Open [repository environments](https://github.com/AyobamiH/poststeward/settings/environments). Create **staging** for a new setup. Restrict deployment branches to **main**. Repeat separately for **production**, with its own resources and credentials. Use required-reviewer protection where available on the repository's GitHub plan. Protect main through [repository rules](https://github.com/AyobamiH/poststeward/settings/rules), requiring the Verify check and reviewed changes to deployment code. Prefer environment-scoped deployment secrets over repository-wide secrets that unreviewed branch workflows could request.
@@ -53,6 +75,8 @@ Environment **variables**:
 | `OIDC_ISSUER` | Identity issuer URL; Google: `https://accounts.google.com` |
 | `OIDC_CLIENT_ID` | This environment's OAuth client ID |
 | `APP_ORIGIN` | Optional custom HTTPS origin; leave absent for the generated workers.dev origin |
+| `GITHUB_APP_CLIENT_ID` | Optional private-source GitHub App client ID; configure with slug + secret |
+| `GITHUB_APP_SLUG` | Optional private-source GitHub App slug; configure with client ID + secret |
 
 Environment **secrets**:
 
@@ -62,18 +86,19 @@ Environment **secrets**:
 | `ENCRYPTION_KEY` | Random 32-byte base64 key, generated once and backed up securely |
 | `OIDC_CLIENT_SECRET` | This environment's OAuth client secret |
 | `ALLOWED_OWNER_EMAILS` | Comma-separated invited owner email addresses |
+| `GITHUB_APP_CLIENT_SECRET` | Optional private-source GitHub App client secret; configure with client ID + slug |
 
-Generate each encryption key once in a trusted local terminal with `openssl rand -base64 32`, store it in your password manager and the correct environment, then clear its terminal display. Never regenerate it on each deployment: previously stored provider tokens would become unreadable. Key rotation requires versioned re-encryption and a restoration rehearsal. The deploy workflow deliberately has no auto-generate/overwrite key step.
+Generate each encryption key once in a trusted local terminal with `openssl rand -base64 32`, store it in your password manager and the correct environment, then clear its terminal display. Never regenerate it on each deployment: previously stored provider and private-source credentials would become unreadable. Key rotation requires versioned re-encryption and a restoration rehearsal. The deploy workflow deliberately has no auto-generate/overwrite key step.
 
-No Stripe key or social provider token is needed for the initial infrastructure deployment. Owners import provider credentials through their authenticated workspace after deployment; the credentials never go into GitHub variables.
+No Stripe key or social provider token is needed for the initial infrastructure deployment. Private GitHub App settings are also optional unless private-source acceptance is being enabled. Owners establish GitHub and provider user authority through their authenticated workspace after deployment; user access/refresh credentials never go into GitHub environment variables.
 
 ## 5. Deploy and verify
 
 1. Merge the reviewed implementation/configuration into main. The manual workflow must be present on the default branch before it can be dispatched.
 2. Deployment can be requested through [Deploy reviewed configuration](https://github.com/AyobamiH/poststeward/actions/workflows/deploy.yml), choosing main and the configured environment. Alternatively, an intentional change to `.github/workflows/deploy-staging-request.yml`, merged to main by `AyobamiH`, invokes the same-commit deployment with environment fixed to staging. See [explicit staging requests](staging-deployment-request.md). Ordinary source/documentation merges do not deploy, and production remains manual.
-3. Verification runs in a separate job with no deployment secrets mapped into its process environment. It runs the production-dependency audit and full verification suite. The deploy job installs the lockfile with lifecycle scripts disabled and no shared build cache. It validates configuration and secrets, checks the database identity, applies additive migrations, and deploys the exact workflow SHA. Application secrets are scoped to that single deployment step. The Cloudflare token is also supplied to the preceding read-only subdomain discovery step; it is never uploaded to the Worker. The reusable call forwards only the four explicitly named repository-level secret fallbacks; selected environment secrets take precedence. It does not inherit every repository secret or require Actions write permission.
-4. The smoke check waits a bounded number of read-only attempts for the exact deployed revision. It checks 17 hosted surfaces: health/catalogue, disabled payments, landing/workspace HTML without redirects, public assets/discovery, security headers, D1-backed forged-token denial, unauthenticated/cross-origin rejection, invalid callback state and Google login initiation with PKCE/nonce/secure cookie. It never follows redirects or repeats a deployment, social write or charge. The report records fixed check names and status/boolean results, not OAuth state, cookies or secret values. Read the workflow summary for the actual origin and revision. This does not prove completed customer sign-in or a successful publication.
-5. Complete sign-in as an invited owner. Verify an uninvited identity is rejected, two owner workspaces are isolated, grant revocation works and a controlled approved publication returns its provider receipt. Exercise supported-browser WebMCP and an HTTP/MCP client against the same hosted origin.
+3. Verification runs in a separate job with no deployment secrets mapped into its process environment. It runs the production-dependency audit and full verification suite. The deploy job installs the lockfile with lifecycle scripts disabled and no shared build cache. It validates configuration and secrets, checks the database identity, applies additive migrations, and deploys the exact workflow SHA. Application secrets are scoped to that single deployment step. The Cloudflare token is also supplied to the preceding read-only subdomain discovery step; it is never uploaded to the Worker. The reusable call forwards only explicitly named repository-level secret fallbacks; selected environment secrets take precedence. It does not inherit every repository secret or require Actions write permission.
+4. The current candidate smoke check waits a bounded number of read-only attempts for the exact deployed revision and checks 25 hosted surfaces: health/catalogue/readiness, disabled payments, landing/workspace HTML without redirects, public assets/discovery including the private-source browser module, security headers, D1-backed forged-token denial, unauthenticated/cross-origin rejection, all five GitHub source authority routes denied without a session, invalid OIDC callback state and Google login initiation with PKCE/nonce/secure cookie. It never follows redirects or repeats a deployment, GitHub installation, private-repository read, social write or charge. The report records fixed check names and status/boolean results, not OAuth state, cookies or secret values. The historical 9 September receipt records the 17-surface verifier that existed at that deployed revision.
+5. Complete sign-in as an invited owner. Verify an uninvited identity is rejected, two owner workspaces are isolated, grant revocation works and a controlled approved publication returns its provider receipt. Exercise supported-browser WebMCP and an HTTP/MCP client against the same hosted origin. If private GitHub sources are configured, explicitly install the app for a small selected repository set, confirm the workspace exposes only those repositories, prove a harmless private path source read and then exercise access removal/fail-closed behaviour.
 6. Configure platform error/usage alerts, validate restore and key handling, complete remaining release work in `implementation-status.md`, then deploy the accepted main revision separately to production. Public signup and purchases require a reviewed configuration release; they remain disabled in this initial deployment workflow.
 
 The checked-in config contains a placeholder origin/database for dry-run verification. `npm run deploy:check` rejects it. Real deployment must use `scripts/configure-deploy.mjs` and the protected GitHub workflow; running `wrangler deploy` directly bypasses the repository's preflight controls.
@@ -92,9 +117,9 @@ No live payment test has been performed. A live test needs an exact authorised p
 
 ## Release
 
-Use separate production bindings, secrets, webhook signing key and Price. Set a real release SHA. Check actual provider permissions with a fresh user, native WebMCP in a supported browser and both HTTP/MCP clients. Record provider receipt URLs and payment receipts separately. Use the runbook to rehearse pause and restore. Publish calibrated limits and retention/deletion policy before opening public signup. Triage the full-install development/tooling advisories recorded in the staging receipt; a passing production-only dependency audit does not clear the entire dependency graph.
+Use separate production bindings, secrets, webhook signing key, GitHub App and Price. Set a real release SHA. Check actual provider and private-repository permissions with a fresh user, native WebMCP in a supported browser and both HTTP/MCP clients. Record provider receipt URLs and payment receipts separately. Use the runbook to rehearse pause and restore. Publish calibrated limits and retention/deletion policy before opening public signup.
 
-The current initial-deployment preflight intentionally rejects enabling Advanced/MPP. Enabling billing requires a reviewed release that extends the secret manifest and deployment workflow, after the acceptance above. This repository does not automatically deploy on every merge.
+The current deployment preflight intentionally rejects enabling Advanced/MPP. Enabling billing requires a reviewed release that extends the secret manifest and deployment workflow, after the acceptance above. This repository does not automatically deploy on every merge.
 
 ## Inspect an existing staging setup
 
