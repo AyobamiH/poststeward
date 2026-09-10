@@ -138,6 +138,10 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.access?.publicSignup === false &&
         b.payments?.advancedEnabled === false &&
         b.payments?.mppEnabled === false &&
+        typeof b.sources?.github?.privateRepositories === "boolean" &&
+        b.sources?.github?.ownerOnly === true &&
+        b.sources?.github?.repositorySelection === "selected_only" &&
+        b.sources?.github?.maxRepositories === 50 &&
         b.recovery?.externalEffectLedger === true &&
         b.recovery?.ownerPitr === true
       );
@@ -159,6 +163,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     "/style.css",
     "/app.js",
     "/app-client.js",
+    "/github-sources-ui.js",
     "/webmcp.js",
     "/docs/agent-guide.md",
     "/llms.txt",
@@ -188,6 +193,52 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
   });
+  const unauthenticated = async (r) =>
+    r.headers.get("cache-control")?.includes("no-store") &&
+    (await r.json()).error?.code === "UNAUTHENTICATED";
+  await check(
+    "unauthenticated GitHub source status rejected",
+    "/api/sources/github/status",
+    401,
+    {},
+    unauthenticated,
+  );
+  await check(
+    "unauthenticated GitHub source start rejected",
+    "/api/sources/github/start",
+    401,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    },
+    unauthenticated,
+  );
+  await check(
+    "unauthenticated GitHub source unlink rejected",
+    "/api/sources/github/unlink",
+    401,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId: 1 }),
+    },
+    unauthenticated,
+  );
+  await check(
+    "GitHub setup cannot start without an owner session",
+    "/sources/github/setup?state=invalid&installation_id=1",
+    401,
+    {},
+    unauthenticated,
+  );
+  await check(
+    "GitHub callback cannot complete without an owner session",
+    "/sources/github/callback?state=invalid&code=invalid",
+    401,
+    {},
+    unauthenticated,
+  );
   await check(
     "callback without login state rejected",
     "/auth/callback",
@@ -232,6 +283,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     passed: checks.every((x) => x.passed),
     notVerified: [
       "completed owner sign-in",
+      "private GitHub source installation",
       "live social publication",
       "native browser WebMCP",
       "restore",
