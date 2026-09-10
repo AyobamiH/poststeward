@@ -49,10 +49,11 @@ test("readiness never follows redirects or retries access rejection", async () =
     assert.equal(calls, 1);
   }
 });
-test("hosted report checks 17 surfaces and does not disclose login state or cookies", async () => {
+test("hosted report checks 18 surfaces and does not disclose login state or cookies", async () => {
   const report = await verifyHosted(c, { send: service(), sleep });
   assert.equal(report.passed, true);
-  assert.equal(report.checks.length, 17);
+  assert.equal(report.checks.length, 18);
+  assert.ok(report.checks.some((item) => item.name === "public resource: /app-client.js"));
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE_|test-client/);
   assert.ok(report.notVerified.includes("completed owner sign-in"));
 });
