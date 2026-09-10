@@ -1,46 +1,46 @@
-# PostSteward implementation status: 9 September 2026
+# PostSteward implementation status: 10 September 2026
 
 PostSteward is deployed to restricted staging in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward). The owner sign-in and controlled-publication acceptance workflow is implemented and hosted verification passed. **Real owner Google consent and the first real controlled publication have not been recorded.** Public customer acceptance and public charging remain outstanding.
 
 ## Current engineering evidence
 
-| Evidence | Recorded result |
-| --- | --- |
-| Owner acceptance page | `https://poststeward-staging.woeinvests.workers.dev/pilot` |
-| Active runtime revision | `00544af2ae1333357c4f6b427541007cbd2206ba` |
-| Cloudflare version | `5afe3331-bfe8-4c7b-9215-684dc0bf98ba` |
-| Upload and additive migration run | [34399141159](https://github.com/AyobamiH/poststeward/actions/runs/34399141159): migration/upload succeeded; initial stylesheet readiness check failed |
-| Accepted existing-runtime verification | [34399839232](https://github.com/AyobamiH/poststeward/actions/runs/34399839232), job 102628706573: success |
-| Automated verification | [34399698258](https://github.com/AyobamiH/poststeward/actions/runs/34399698258), job 102628237086: 99 tests passed, zero failed/skipped/cancelled; type checking, generated docs and bundling passed |
-| Hosted verification | 17 existing HTTP checks plus 12 owner acceptance checks: all passed |
-| Browser verification | Two fresh unauthenticated Chromium contexts, requested wide/narrow window sizes: JavaScript settled and owner controls stayed blocked |
-| Last hosted observation | `2026-09-09T20:14:58.731Z` |
-| Production dependency audit | Zero known vulnerabilities in the production-only audit |
-| Full-install audit | Three high-severity advisories with development/tooling dependencies included; still open |
+| Evidence                      | Recorded result                                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Owner acceptance page         | `https://poststeward-staging.woeinvests.workers.dev/pilot`                                                            |
+| Active runtime revision       | `28579527895955651b2f4b7ea61227ce194113a6` (PR #13 merge)                                                             |
+| Cloudflare version            | `464a8dc4-f3ae-4965-94df-2259bc7c0339`                                                                                |
+| PR #13 merge deployment       | Run `34448815060`: migrations `0005` and `0006`, exact revision upload and all hosted checks succeeded                |
+| PR #13 candidate verification | Run `34413334443`: 130 tests passed, zero failed/skipped/cancelled; type checking, generated docs and bundling passed |
+| Hosted verification           | 17 base HTTP checks, 12 controlled-publication checks and two fresh unauthenticated Chromium contexts passed          |
+| Dependency audits             | Production and full high-severity audits both report zero known vulnerabilities                                       |
+| Provider app configuration    | X, Threads and LinkedIn OAuth client IDs are currently absent in staging; implementation remains fail-closed          |
+| Public release                | Restricted signup; Advanced and MPP disabled                                                                          |
 
-Read the [current engineering receipt](owner-acceptance-deployment-2026-09-09.md) for exact run identities and boundaries. The [earlier infrastructure receipt](staging-deployment-2026-09-09.md) is historical. Main contains later verification/documentation changes and need not equal the deployed runtime SHA. No redeployment was needed to resolve the initial static-asset 404: the same runtime subsequently served the stylesheet with HTTP 200.
+The active Worker is no longer the older owner-acceptance revision recorded in the 9 September receipt. PR #11 added provider OAuth/readback, PR #12 closed the dependency audit findings and PR #13 added restore-safe effect fencing/PITR. This document supersedes the stale 99-test/advisory status while preserving those historical receipts.
 
 ## Implemented
 
-| Area | Current implementation |
-| --- | --- |
-| Hosted foundation | TypeScript Worker, D1 identity, SQLite Durable Objects, alarms, deployment configuration and CI |
-| Customer authority | OIDC owner sign-in, browser sessions, CSRF protection, scoped revocable agent tokens and workspace isolation |
-| Owner completion proof | Minimal proof committed atomically with a validated session; expiry/logout cascade; fixed post-login return paths; legacy sessions cannot approve the pilot without signing in again |
-| Controlled acceptance | Owner-only `/pilot` UI/API, fresh stable provider identity, immutable expiring review, explicit approval, one durable delivery and private receipt/export |
-| Controlled execution | Thirty-second cancellation window, captured session/account/runtime checks, stale-claim fencing, late creation-ID preservation and no one-shot reset through other publishing transports |
-| Controlled readback | At most eight separate reads of the known post ID, thirty seconds apart; exact ID/author/text matching; no publication retry to repair missing evidence |
-| Free publishing | Verified account aliases, explicit project routing, immutable approved copy and X/Threads/LinkedIn API adapters |
-| Free schedules and evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics and duplicate/uncertain-effect protections |
-| Agent surfaces | 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files |
-| Advanced foundation | Public source-path monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, spacing and scheduled metrics |
-| Stripe | USD 5 monthly Checkout, Portal, signed webhooks, entitlement reconciliation and SDK-backed MPP for a non-renewing calendar-month pass |
+| Area                        | Current implementation                                                                                                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hosted foundation           | TypeScript Worker, D1 identity, SQLite Durable Objects, alarms, deployment configuration and CI                                                                                                                   |
+| Customer authority          | OIDC owner sign-in, browser sessions, CSRF protection, scoped revocable agent tokens and workspace isolation                                                                                                      |
+| Owner completion proof      | Minimal proof committed atomically with a validated session; expiry/logout cascade; fixed post-login return paths; legacy sessions cannot approve the pilot without signing in again                              |
+| Controlled acceptance       | Owner-only `/pilot` UI/API, fresh stable provider identity, immutable expiring review, explicit approval, one durable delivery and private receipt/export                                                         |
+| Controlled execution        | Thirty-second cancellation window, captured session/account/runtime checks, stale-claim fencing, late creation-ID preservation and no one-shot reset through other publishing transports                          |
+| Controlled readback         | At most eight separate reads of the known post ID, thirty seconds apart; exact ID/author/text matching; no publication retry to repair missing evidence; LinkedIn is capability-gated by approved member readback |
+| Free publishing             | Verified account aliases, explicit project routing, immutable approved copy and X/Threads/LinkedIn API adapters                                                                                                   |
+| Free schedules and evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics and duplicate/uncertain-effect protections                                                            |
+| Agent surfaces              | 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files                                                                                      |
+| Provider OAuth              | X PKCE OAuth, Threads long-lived tokens and LinkedIn OAuth with encrypted refresh handling, owner/session binding and identity-drift blocking                                                                     |
+| Recovery safety             | D1 external-effect/container fences, global quarantine, owner-only PITR plans, exact undo and restored-authority invalidation                                                                                     |
+| Advanced foundation         | Public source-path monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, spacing and scheduled metrics                                                                |
+| Stripe                      | USD 5 monthly Checkout, Portal, signed webhooks, entitlement reconciliation and SDK-backed MPP for a non-renewing calendar-month pass                                                                             |
 
-Direct publishing and explicit scheduling remain Free; continuing campaign management is the proposed paid boundary. Advanced and MPP are disabled in the active deployment. Pilot acceptance supports X or Threads only because the current LinkedIn member adapter cannot independently read back a post; this does not remove general LinkedIn support.
+Direct publishing and explicit scheduling remain Free; continuing campaign management is the proposed paid boundary. Advanced and MPP are disabled in the active deployment. LinkedIn controlled acceptance is implemented but remains available only when the deployment and connection prove approved member-post readback authority.
 
 ## Verification interpretation
 
-The 99-test suite includes actual Workers/D1/SQLite/Assets execution, validated signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout and replay handling, malformed or wrong claims, CSRF/Bearer rejection, workspace isolation, parallel approval, lost response recovery, stale execution claims, immutable account routing, cancellation, cloned-fingerprint bypass prevention and bounded readback. The end-to-end runtime acceptance uses a real thirty-second alarm and exactly one simulated provider write followed by independent simulated readback. **Google and provider responses in CI are fixtures, not live acceptance.**
+The current 130-test suite includes actual Workers/D1/SQLite/Assets execution, validated signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout and replay handling, malformed or wrong claims, CSRF/Bearer rejection, workspace isolation, parallel approval, lost response recovery, stale execution claims, immutable account routing, cancellation, cloned-fingerprint bypass prevention and bounded readback. The end-to-end runtime acceptance uses a real thirty-second alarm and exactly one simulated provider write followed by independent simulated readback. **Google and provider responses in CI are fixtures, not live acceptance.**
 
 The provider client bounds both response bytes and time through the response body. A successful write status followed by incomplete/unreadable evidence remains ambiguous. Threads readback uses `owner.id`, not a username that can change or be reused. Permalinks are restricted to exact provider hosts. These changes have automated coverage; they do not establish a real provider publication until the owner completes the hosted acceptance.
 
@@ -66,10 +66,11 @@ A successful live milestone requires the owner proof, captured approval, durable
 
 ## Remaining public-release work
 
-1. Complete and record real Google consent, authenticated browser interaction, invited/uninvited-owner isolation/revocation and the first controlled provider publication/readback. These are still pending, not claimed completed by deployment.
-2. Complete self-service provider OAuth onboarding and token refresh/rotation. The restricted pilot currently imports an authorised user token over its authenticated application. Do not borrow another product's credentials or call token import a completed OAuth onboarding product.
-3. Complete richer Advanced profile/category-management, private GitHub installation and customer review UI before purchases.
-4. Configure Stripe sandbox and merchant MPP eligibility; finish recurring invoice, recovery, refund/dispute and eligible-wallet acceptance before any live charge.
-5. Finish production traffic/retention limits, account erasure, rotation, operational alerts, restore rehearsal and development/tooling advisory triage. Choose and verify the production domain and its separate resources.
+1. Complete real Google owner consent and a real provider grant, then record exactly one controlled publication plus independent provider readback.
+2. Supply/approve provider application credentials. The OAuth, refresh and LinkedIn-readback code is implemented; staging currently exposes those providers as unavailable because no provider app IDs are configured.
+3. Finish private GitHub source installation plus richer Advanced category management. The owner review/configuration UI is being promoted into the main workspace before purchases are enabled.
+4. Run Stripe sandbox settlement, renewal, refund/dispute and eligible-wallet MPP acceptance before enabling Advanced or MPP.
+5. Perform an explicitly approved staging PITR rehearsal, native WebMCP acceptance in a supporting browser, capacity/retention calibration, account erasure, encryption-key rotation, operational alerts, cross-tenant hosted attack testing and production-domain/WAF acceptance.
+6. Enable an actual GitHub main ruleset with required Verify checks. The repository currently has no ruleset; the deployment path now adds its own merged-PR provenance gate but that is not a substitute for server-side branch protection.
 
 Pilot delivery limits remain 20 reservations per UTC day, 100 active schedules and 10 source profiles per workspace. They are initial limits, not proven unit economics. PostSteward is hosted centrally on the service operator's Cloudflare account; customers connect to the product rather than provision their own Cloudflare stack.

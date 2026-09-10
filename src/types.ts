@@ -125,6 +125,7 @@ export interface Store {
   tx<T>(fn: () => T): T;
 }
 export interface Env {
+  DEPLOY_ENV?: string;
   EDGE_LIMITER: RateLimit;
   LOGIN_LIMITER: RateLimit;
   SIGNUP_MODE: "restricted" | "public";

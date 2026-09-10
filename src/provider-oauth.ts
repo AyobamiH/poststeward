@@ -9,6 +9,7 @@ import type { Account, Actor, Env, Provider, Store } from "./types.ts";
 
 const providerNames = ["x", "threads", "linkedin"] as const;
 type OAuthProvider = (typeof providerNames)[number];
+type OAuthReturnPath = "/pilot" | "/app";
 const aliasPattern = /^[A-Za-z0-9_-]{1,100}$/;
 const tokenLimit = 8192;
 const stateCookieName = "__Host-provider-oauth";
@@ -47,6 +48,7 @@ interface OAuthStateRow {
   provider: OAuthProvider;
   alias: string;
   verifier?: string;
+  return_path: OAuthReturnPath;
   expires_at: number;
 }
 interface BrowserAuth {
@@ -75,6 +77,25 @@ function cookie(request: Request, name: string) {
 function stateCookie(value: string, maxAge: number) {
   return `${stateCookieName}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 }
+function returnPath(value: unknown): OAuthReturnPath {
+  requireValue(
+    value === undefined || value === "/pilot" || value === "/app",
+    "OAUTH_RETURN_NOT_ALLOWED",
+    "Provider authorization can return only to the workspace or controlled-publication page.",
+    400,
+  );
+  return value === "/app" ? "/app" : "/pilot";
+}
+function providerRedirect(path: OAuthReturnPath, query: string) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: `${path}?${query}`,
+      "Set-Cookie": stateCookie("", 0),
+      "Cache-Control": "no-store",
+    },
+  });
+}
 function base64url(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes))
     .replaceAll("+", "-")
@@ -101,12 +122,19 @@ function parseScopes(value: unknown): string[] {
       ? value.split(/[\s,]+/)
       : [];
   return [
-    ...new Set(parts.map(String).map((value) => value.trim()).filter(Boolean)),
+    ...new Set(
+      parts
+        .map(String)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
   ].sort();
 }
 function demandToken(value: unknown, name = "access token") {
   requireValue(
-    typeof value === "string" && value.length >= 10 && value.length <= tokenLimit,
+    typeof value === "string" &&
+      value.length >= 10 &&
+      value.length <= tokenLimit,
     "OAUTH_TOKEN_INVALID",
     `Provider returned no usable ${name}.`,
     502,
@@ -243,7 +271,12 @@ async function exchangeCode(
     503,
   );
   if (provider === "x") {
-    requireValue(verifier, "OAUTH_STATE_INVALID", "PKCE verifier is missing.", 400);
+    requireValue(
+      verifier,
+      "OAUTH_STATE_INVALID",
+      "PKCE verifier is missing.",
+      400,
+    );
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       code,
@@ -387,7 +420,11 @@ async function refreshToken(
   };
   if (meta.provider === "x")
     headers.Authorization = `Basic ${base64Utf8(`${c.clientId}:${c.clientSecret}`)}`;
-  const data = await providerJson(endpoint, { method: "POST", headers, body }, http);
+  const data = await providerJson(
+    endpoint,
+    { method: "POST", headers, body },
+    http,
+  );
   const actualScopes = parseScopes(data.scope || meta.scopes);
   requireScopes(actualScopes, c.scopes);
   return {
@@ -417,7 +454,11 @@ function nextRefresh(token: OAuthTokenSet) {
     return token.expiresAt - 7 * 86400000;
   return token.obtainedAt + Math.max(5 * 60000, Math.floor(ttl * 0.7));
 }
-function capabilities(provider: Provider, granted: string[], refreshable: boolean) {
+function capabilities(
+  provider: Provider,
+  granted: string[],
+  refreshable: boolean,
+) {
   return {
     oauth: true,
     refresh: refreshable,
@@ -459,7 +500,10 @@ export class ProviderOAuthConnections {
         )
       : {};
   }
-  private async metadata(alias: string, token: OAuthTokenSet): Promise<OAuthMeta> {
+  private async metadata(
+    alias: string,
+    token: OAuthTokenSet,
+  ): Promise<OAuthMeta> {
     const strategy =
       token.provider === "threads"
         ? "threads_long_lived"
@@ -472,7 +516,9 @@ export class ProviderOAuthConnections {
       scopes: token.scopes,
       strategy,
       accessExpiresAt: token.expiresAt,
-      ...(token.refreshExpiresAt ? { refreshExpiresAt: token.refreshExpiresAt } : {}),
+      ...(token.refreshExpiresAt
+        ? { refreshExpiresAt: token.refreshExpiresAt }
+        : {}),
       nextRefreshAt: nextRefresh(token),
       status: "healthy",
       ...(token.refreshToken
@@ -514,13 +560,17 @@ export class ProviderOAuthConnections {
     const identity = await this.api.identity(input.token.provider, {
       accessToken: input.token.accessToken,
       expiresAt: input.token.expiresAt,
-      ...(input.token.provider === "x" ? { funding: "service_app" as const } : {}),
+      ...(input.token.provider === "x"
+        ? { funding: "service_app" as const }
+        : {}),
     });
     const encrypted = await seal(
       {
         accessToken: input.token.accessToken,
         expiresAt: input.token.expiresAt,
-        ...(input.token.provider === "x" ? { funding: "service_app" as const } : {}),
+        ...(input.token.provider === "x"
+          ? { funding: "service_app" as const }
+          : {}),
       },
       this.env.ENCRYPTION_KEY,
       actor.workspace + ":" + input.alias,
@@ -609,7 +659,12 @@ export class ProviderOAuthConnections {
       const account = this.account(meta.alias)!;
       if (meta.strategy === "reauthorize") {
         if (meta.accessExpiresAt <= now + 30000) {
-          this.deactivate(account, meta, "expired", "OAUTH_REAUTHORIZE_REQUIRED");
+          this.deactivate(
+            account,
+            meta,
+            "expired",
+            "OAUTH_REAUTHORIZE_REQUIRED",
+          );
         } else {
           meta.status = "reauthorization_required";
           meta.lastError = "OAUTH_REAUTHORIZE_REQUIRED";
@@ -655,7 +710,9 @@ export class ProviderOAuthConnections {
           {
             accessToken: fresh.accessToken,
             expiresAt: fresh.expiresAt,
-            ...(meta.provider === "x" ? { funding: "service_app" as const } : {}),
+            ...(meta.provider === "x"
+              ? { funding: "service_app" as const }
+              : {}),
           },
           this.env.ENCRYPTION_KEY,
           this.workspace() + ":" + account.alias,
@@ -752,7 +809,11 @@ export async function startProviderOAuth(
     "This provider connection is not configured yet.",
     503,
   );
-  const input = (await request.json()) as { alias?: unknown };
+  const input = (await request.json()) as {
+    alias?: unknown;
+    returnPath?: unknown;
+  };
+  const destination = returnPath(input.returnPath);
   requireValue(
     typeof input.alias === "string" && aliasPattern.test(input.alias),
     "INVALID_CONNECTION",
@@ -770,7 +831,7 @@ export async function startProviderOAuth(
   const verifier = provider === "x" ? randomSecret(48) : undefined;
   const stateHash = await digest(state);
   const inserted = await env.IDENTITY.prepare(
-    "INSERT INTO provider_oauth_states(state_hash,session_hash,workspace,actor,provider,alias,verifier,expires_at,created_at) SELECT ?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM provider_oauth_states) < 10000",
+    "INSERT INTO provider_oauth_states(state_hash,session_hash,workspace,actor,provider,alias,verifier,return_path,expires_at,created_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM provider_oauth_states) < 10000",
   )
     .bind(
       stateHash,
@@ -780,6 +841,7 @@ export async function startProviderOAuth(
       provider,
       input.alias,
       verifier || null,
+      destination,
       Date.now() + 600000,
       Date.now(),
     )
@@ -810,6 +872,7 @@ export async function startProviderOAuth(
       authorizationUrl: url.href,
       callback: c.callback,
       scopes: c.scopes,
+      returnPath: destination,
     },
     200,
     { "Set-Cookie": stateCookie(state, 600) },
@@ -821,7 +884,12 @@ export async function completeProviderOAuth(
   env: Env,
   auth: BrowserAuth,
   provider: OAuthProvider,
-): Promise<{ alias: string; token?: OAuthTokenSet; response?: Response }> {
+): Promise<{
+  alias: string;
+  returnPath: OAuthReturnPath;
+  token?: OAuthTokenSet;
+  response?: Response;
+}> {
   requireValue(
     auth.browser && !auth.actor.grant,
     "OWNER_CONNECTION_REQUIRED",
@@ -864,17 +932,12 @@ export async function completeProviderOAuth(
     "Provider connection state no longer matches this owner session.",
     403,
   );
+  const destination = returnPath(row.return_path);
   if (url.searchParams.has("error"))
     return {
       alias: row.alias,
-      response: new Response(null, {
-        status: 302,
-        headers: {
-          Location: "/pilot?connection=denied",
-          "Set-Cookie": stateCookie("", 0),
-          "Cache-Control": "no-store",
-        },
-      }),
+      returnPath: destination,
+      response: providerRedirect(destination, "connection=denied"),
     };
   const code = url.searchParams.get("code");
   requireValue(
@@ -885,17 +948,14 @@ export async function completeProviderOAuth(
   );
   return {
     alias: row.alias,
+    returnPath: destination,
     token: await exchangeCode(env, provider, code, row.verifier),
   };
 }
 
-export function providerOAuthSuccess(provider: OAuthProvider) {
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: `/pilot?connected=${provider}`,
-      "Set-Cookie": stateCookie("", 0),
-      "Cache-Control": "no-store",
-    },
-  });
+export function providerOAuthSuccess(
+  provider: OAuthProvider,
+  destination: OAuthReturnPath = "/pilot",
+) {
+  return providerRedirect(returnPath(destination), `connected=${provider}`);
 }

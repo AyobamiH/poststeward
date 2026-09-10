@@ -31,6 +31,7 @@ on:
         required: false
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
   group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
@@ -46,6 +47,12 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
+      - name: Require merged-PR provenance for automatic staging deployment
+        if: inputs.environment == 'staging' && github.event_name == 'push'
+        env:
+          REQUIRE_MERGED_PR: "true"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/assert-merge-provenance.mjs
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run verify
