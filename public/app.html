@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
     <title>PostSteward workspace</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
@@ -11,7 +12,8 @@
     <header>
       <a class="wordmark" href="/">PostSteward</a>
       <nav>
-        <a href="/docs/agent-guide.md">Help</a
+        <a href="/pilot">Controlled acceptance</a
+        ><a href="/docs/agent-guide.md">Help</a
         ><button id="refresh">Refresh</button
         ><button id="signout">Sign out</button>
       </nav>
@@ -22,6 +24,7 @@
         <div>
           <p class="eyebrow">WORKSPACE</p>
           <h1 id="plan">Free publishing</h1>
+          <p id="readiness" class="muted"></p>
           <p id="webmcp-status" class="muted"></p>
         </div>
         <button id="pause">Pause publishing</button>
@@ -30,37 +33,65 @@
         <section class="panel">
           <h2>1. Connect an account</h2>
           <p class="muted">
-            Pilot connection: supply an authorised provider token. The service
-            verifies its identity before enabling publication.
+            Provider OAuth is the primary connection path. Buttons remain
+            unavailable until the matching provider application is configured
+            for this deployment.
           </p>
-          <form id="connection">
+          <form id="oauth" autocomplete="off">
             <label
               >Account alias<input
                 name="alias"
                 required
-                pattern="[a-zA-Z0-9_-]+"
-                placeholder="product_x" /></label
-            ><label
-              >Provider<select name="provider">
-                <option value="x">X</option>
-                <option value="threads">Threads</option>
-                <option value="linkedin">LinkedIn</option>
-              </select></label
-            ><label
-              >Provider access token<input
-                name="accessToken"
-                type="password"
-                autocomplete="off"
-                required /></label
-            ><label
-              >Token expires at<input
-                name="expiry"
-                type="datetime-local" /></label
-            ><label class="check"
-              ><input name="funding" type="checkbox" /> For X, these credentials
-              use my own funded developer app.</label
-            ><button class="primary">Verify and connect</button>
+                pattern="[A-Za-z0-9_-]{1,100}"
+                placeholder="product_x"
+            /></label>
+            <div class="row" id="oauth-buttons">
+              <button type="button" data-provider="x" disabled>Connect X</button
+              ><button type="button" data-provider="threads" disabled>
+                Connect Threads</button
+              ><button type="button" data-provider="linkedin" disabled>
+                Connect LinkedIn
+              </button>
+            </div>
+            <p id="oauth-status" class="muted">
+              Checking provider applications…
+            </p>
           </form>
+          <details>
+            <summary>Manual token import fallback</summary>
+            <p class="muted">
+              Use only an already-authorised user token. Manual import does not
+              claim refresh support. Tokens are cleared from the browser form
+              after each attempt.
+            </p>
+            <form id="connection" autocomplete="off">
+              <label
+                >Account alias<input
+                  name="alias"
+                  required
+                  pattern="[A-Za-z0-9_-]+" /></label
+              ><label
+                >Provider<select name="provider">
+                  <option value="x">X</option>
+                  <option value="threads">Threads</option>
+                  <option value="linkedin">LinkedIn</option>
+                </select></label
+              ><label
+                >Provider access token<input
+                  name="accessToken"
+                  type="password"
+                  autocomplete="off"
+                  required /></label
+              ><label
+                >Token expires at<input
+                  name="expiry"
+                  type="datetime-local" /></label
+              ><label class="check"
+                ><input name="funding" type="checkbox" /> For X manual import,
+                these credentials use my own funded developer app.</label
+              ><button>Verify and connect</button>
+            </form>
+          </details>
           <div id="accounts" class="record-list"></div>
         </section>
         <section class="panel">
@@ -70,18 +101,12 @@
               >Project ID<input
                 name="id"
                 required
-                placeholder="my_product"
-                pattern="[a-zA-Z0-9_-]+" /></label
+                pattern="[A-Za-z0-9_-]+" /></label
+            ><label>Name<input name="name" required /></label
             ><label
-              >Name<input
-                name="name"
-                required
-                placeholder="My product" /></label
-            ><label
-              >Account aliases, separated by commas<input
+              >Account aliases, comma separated<input
                 name="accounts"
-                required
-                placeholder="product_x, product_threads" /></label
+                required /></label
             ><button>Create project</button>
           </form>
           <div id="projects" class="record-list"></div>
@@ -110,7 +135,7 @@
           <div id="campaign-preview" class="preview" hidden></div>
           <form id="delivery" hidden>
             <label
-              >Schedule time with UTC offset (leave empty to publish now)<input
+              >Schedule time with UTC offset (empty means publish now)<input
                 name="at"
                 type="text"
                 placeholder="2026-10-01T12:00:00Z" /></label
@@ -124,16 +149,12 @@
           </div>
           <p class="muted">
             A reservation is not proof of publication. Verified, unverified and
-            uncertain outcomes appear separately.
+            uncertain outcomes remain distinct.
           </p>
           <div id="receipts" class="record-list"></div>
         </section>
         <section class="panel">
           <h2>Agent access</h2>
-          <p>
-            Grant only the actions your agent should perform. Tokens are shown
-            once.
-          </p>
           <form id="grant">
             <fieldset>
               <legend>Allowed operations</legend>
@@ -172,8 +193,9 @@
         <section class="panel">
           <h2>Advanced · $5 per month</h2>
           <p>
-            Continuing source monitoring, inventory and schedule management.
-            Your existing Free publishing remains available.
+            Continuing source monitoring and schedule management. Configuration
+            and preview are visible here; paid execution remains disabled until
+            settlement validation.
           </p>
           <div id="billing-status"></div>
           <div class="row">
@@ -181,13 +203,106 @@
             ><button id="portal">Manage billing</button>
           </div>
           <div id="quote" class="preview" hidden></div>
-          <h3>Automation profiles</h3>
-          <p>
-            Agents configure reviewed templates and selected public repository
-            sources using <code>automation_configure</code>. Profiles start
-            paused.
-          </p>
+          <h3>Automation profile</h3>
+          <form id="profile">
+            <label
+              >Profile ID<input
+                name="id"
+                required
+                pattern="[A-Za-z0-9_-]+" /></label
+            ><label
+              >Project<select
+                name="project"
+                id="profile-project"
+                required
+              ></select></label
+            ><label
+              >Repository<input
+                name="repository"
+                required
+                placeholder="owner/repository" /></label
+            ><label>Branch<input name="branch" required value="main" /></label
+            ><label>Path<input name="path" required value="README.md" /></label
+            ><label
+              >Family<input
+                name="family"
+                required
+                value="development"
+                pattern="[A-Za-z0-9_-]+" /></label
+            ><label
+              >Destination<select
+                name="alias"
+                id="profile-account"
+                required
+              ></select></label
+            ><label
+              >Exact reviewed template<textarea
+                name="template"
+                rows="4"
+                required
+              ></textarea></label
+            ><label
+              >Interval minutes<input
+                name="interval"
+                type="number"
+                min="15"
+                max="10080"
+                value="60" /></label
+            ><label
+              >Minimum spacing minutes<input
+                name="spacing"
+                type="number"
+                min="15"
+                max="10080"
+                value="60" /></label
+            ><button id="profile-configure">Store reviewed profile</button>
+          </form>
           <div id="profiles" class="record-list"></div>
+        </section>
+        <section class="panel wide">
+          <h2>Recovery and external-effect safety</h2>
+          <p class="muted">
+            Recovery is an owner-only authority transition. Preparing
+            quarantines the workspace. Restore and undo require an exact typed
+            workspace confirmation and never run automatically during
+            deployment.
+          </p>
+          <div id="recovery-status" class="preview"></div>
+          <form id="recovery-prepare">
+            <label
+              >Restore target, previous 30 days<input
+                name="at"
+                type="datetime-local"
+                required /></label
+            ><label
+              >Reason<input
+                name="reason"
+                required
+                minlength="3"
+                maxlength="240" /></label
+            ><button>Prepare recovery plan</button>
+          </form>
+          <div id="recovery-actions" hidden>
+            <p id="recovery-instruction" class="muted"></p>
+            <label
+              >Typed confirmation<input
+                id="recovery-confirmation"
+                autocomplete="off"
+            /></label>
+            <div class="row">
+              <button id="recovery-execute" type="button">
+                Execute restore</button
+              ><button id="recovery-reconcile" type="button">
+                Reconcile restarted workspace</button
+              ><button id="recovery-resume" type="button">
+                Resume after reconciliation</button
+              ><button id="recovery-undo" type="button">
+                Undo reconciled restore</button
+              ><button id="recovery-cancel" type="button">
+                Cancel prepared plan
+              </button>
+            </div>
+          </div>
         </section>
       </div>
       <pre id="result" role="status" aria-live="polite" hidden></pre>

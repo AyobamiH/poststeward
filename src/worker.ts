@@ -17,7 +17,11 @@ import {
   requireValue,
 } from "./common.ts";
 import { help, openapi } from "./discovery.ts";
-import { EffectLedgerProviders, setWorkspaceQuarantine, workspaceQuarantined } from "./effects.ts";
+import {
+  EffectLedgerProviders,
+  setWorkspaceQuarantine,
+  workspaceQuarantined,
+} from "./effects.ts";
 import { Engine } from "./engine.ts";
 import { byName } from "./operations/catalog.ts";
 import { SocialProviders } from "./providers.ts";
@@ -41,6 +45,8 @@ import {
   requireRecoveryPlan,
 } from "./recovery.ts";
 import { mcp } from "./mcp.ts";
+import { releaseReadiness } from "./readiness.ts";
+import { demandRecoveryConfirmation } from "./recovery-confirmation.ts";
 import { SQLiteStore } from "./store.ts";
 import {
   boundedBody,
@@ -68,6 +74,7 @@ const recoveryActionBase = {
 const recoveryExecuteSchema = z.strictObject({
   ...recoveryActionBase,
   execute: z.literal(true),
+  confirmation: z.string().max(200),
 });
 const recoveryReconcileSchema = z.strictObject({
   ...recoveryActionBase,
@@ -76,10 +83,12 @@ const recoveryReconcileSchema = z.strictObject({
 const recoveryResumeSchema = z.strictObject({
   ...recoveryActionBase,
   resume: z.literal(true),
+  confirmation: z.string().max(200),
 });
 const recoveryUndoSchema = z.strictObject({
   ...recoveryActionBase,
   undo: z.literal(true),
+  confirmation: z.string().max(200),
 });
 const recoveryCancelSchema = z.strictObject({
   ...recoveryActionBase,
@@ -100,7 +109,11 @@ type PitrStorage = DurableObjectStorage & {
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
-  requireValue(result.success, "INVALID_INPUT", "Inputs do not match the documented recovery form.");
+  requireValue(
+    result.success,
+    "INVALID_INPUT",
+    "Inputs do not match the documented recovery form.",
+  );
   return result.data;
 }
 
@@ -154,7 +167,8 @@ export class Workspace extends DurableObject<Env> {
     requireValue(
       typeof storage.getCurrentBookmark === "function" &&
         typeof storage.getBookmarkForTime === "function" &&
-        (!requireRestore || typeof storage.onNextSessionRestoreBookmark === "function"),
+        (!requireRestore ||
+          typeof storage.onNextSessionRestoreBookmark === "function"),
       "RECOVERY_PITR_UNAVAILABLE",
       "Point-in-time recovery is unavailable in this Durable Object runtime.",
       501,
@@ -178,18 +192,19 @@ export class Workspace extends DurableObject<Env> {
       workspace,
     );
     const authorized = (actor: Actor) => isAuthorized(actor, this.env);
-    const engine = new Engine(
+    const engine = new Engine(this.store, this.env, providers, {
+      wake: (at) => this.wake(at),
+      authorized,
+      source,
+      billing,
+    });
+    const pilot = new Pilot(
       this.store,
       this.env,
+      engine,
       providers,
-      {
-        wake: (at) => this.wake(at),
-        authorized,
-        source,
-        billing,
-      },
+      authorized,
     );
-    const pilot = new Pilot(this.store, this.env, engine, providers, authorized);
     const oauth = new ProviderOAuthConnections(
       this.store,
       this.env,
@@ -242,7 +257,8 @@ export class Workspace extends DurableObject<Env> {
             {
               error: {
                 code: "RECOVERY_QUARANTINED",
-                message: "Billing reconciliation waits until recovery quarantine clears.",
+                message:
+                  "Billing reconciliation waits until recovery quarantine clears.",
               },
             },
             503,
@@ -268,7 +284,10 @@ export class Workspace extends DurableObject<Env> {
           "Recovery requires an existing initialized workspace.",
           409,
         );
-        const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+        const control = await workspaceQuarantined(
+          this.env.IDENTITY,
+          data.workspace,
+        );
         requireValue(
           control.quarantined,
           "RECOVERY_NOT_QUARANTINED",
@@ -304,7 +323,10 @@ export class Workspace extends DurableObject<Env> {
           actor: data.actor.id,
           states: ["prepared"],
         });
-        const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+        const control = await workspaceQuarantined(
+          this.env.IDENTITY,
+          data.workspace,
+        );
         requireValue(
           control.quarantined,
           "RECOVERY_NOT_QUARANTINED",
@@ -342,7 +364,10 @@ export class Workspace extends DurableObject<Env> {
           "This recovery plan has no undo bookmark.",
           409,
         );
-        const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+        const control = await workspaceQuarantined(
+          this.env.IDENTITY,
+          data.workspace,
+        );
         requireValue(
           control.quarantined,
           "RECOVERY_NOT_QUARANTINED",
@@ -396,13 +421,17 @@ export class Workspace extends DurableObject<Env> {
         return json({ resumed: true });
       }
 
-      const control = await workspaceQuarantined(this.env.IDENTITY, data.workspace);
+      const control = await workspaceQuarantined(
+        this.env.IDENTITY,
+        data.workspace,
+      );
       const { engine, billing, pilot, oauth } = this.services(data.workspace);
       let result: unknown;
       if (path.startsWith("/pilot/")) {
         const action = path.slice("/pilot/".length);
         requireValue(
-          !control.quarantined || ["status", "cancel", "recheck"].includes(action),
+          !control.quarantined ||
+            ["status", "cancel", "recheck"].includes(action),
           "RECOVERY_QUARANTINED",
           "Recovery quarantine blocks new owner publication authority.",
           409,
@@ -413,7 +442,12 @@ export class Workspace extends DurableObject<Env> {
           input: unknown;
           owner: Awaited<ReturnType<typeof ownerAuthority>>;
         };
-        result = await pilot.run(action, envelope.input, data.actor, envelope.owner);
+        result = await pilot.run(
+          action,
+          envelope.input,
+          data.actor,
+          envelope.owner,
+        );
       } else if (path === "/connect") {
         requireValue(
           !control.quarantined,
@@ -435,7 +469,9 @@ export class Workspace extends DurableObject<Env> {
           "Recovery quarantine blocks connection mutation.",
           409,
         );
-        const input = data.input as Parameters<ProviderOAuthConnections["connect"]>[1];
+        const input = data.input as Parameters<
+          ProviderOAuthConnections["connect"]
+        >[1];
         result = await oauth.connect(data.actor, input);
       } else if (path === "/oauth/status") {
         requireValue(
@@ -469,7 +505,9 @@ export class Workspace extends DurableObject<Env> {
       } else {
         if (control.quarantined) {
           const operation = byName.get(data.name);
-          const readOnly = operation?.effects.every((effect) => effect === "READ_ONLY");
+          const readOnly = operation?.effects.every(
+            (effect) => effect === "READ_ONLY",
+          );
           requireValue(
             readOnly || riskReducingOperations.has(data.name),
             "RECOVERY_QUARANTINED",
@@ -629,6 +667,8 @@ async function route(
         ]),
       ),
     });
+  if (path === "/readiness.json" && request.method === "GET")
+    return json(releaseReadiness(env), 200, { "Cache-Control": "no-store" });
   if (path === "/help.json" && request.method === "GET")
     return json(help(env, url.searchParams.get("scope") || undefined), 200, {
       "Cache-Control": "public, max-age=60",
@@ -648,7 +688,8 @@ async function route(
     return callback(request, env);
   if (path === "/webhooks/stripe" && request.method === "POST")
     return stripeWebhook(request, env);
-  const providerCallback = /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.exec(path);
+  const providerCallback =
+    /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.exec(path);
   if (providerCallback && request.method === "GET") {
     const provider = providerCallback[1] as "x" | "threads" | "linkedin";
     const auth = await authenticate(request, env);
@@ -682,7 +723,7 @@ async function route(
         },
       );
     }
-    return providerOAuthSuccess(provider);
+    return providerOAuthSuccess(provider, completed.returnPath);
   }
   if (
     path.startsWith("/api/") ||
@@ -694,7 +735,9 @@ async function route(
 
     if (path.startsWith("/api/recovery/")) {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Workspace recovery is available only in the signed-in owner browser.",
         403,
@@ -746,8 +789,14 @@ async function route(
           // prepared or armed and no provider-write fence is unresolved.
           try {
             await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
-            const status = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
-            if (!status.plan || !["prepared", "armed"].includes(status.plan.state))
+            const status = await recoveryStatus(
+              env.IDENTITY,
+              auth.actor.workspace,
+            );
+            if (
+              !status.plan ||
+              !["prepared", "armed"].includes(status.plan.state)
+            )
               await setWorkspaceQuarantine(
                 env.IDENTITY,
                 auth.actor.workspace,
@@ -763,6 +812,11 @@ async function route(
       if (path === "/api/recovery/execute" && request.method === "POST") {
         demandFreshOwner(owner, Date.now());
         const input = parse(recoveryExecuteSchema, await request.json());
+        demandRecoveryConfirmation(
+          "RESTORE",
+          auth.actor.workspace,
+          input.confirmation,
+        );
         await requireRecoveryPlan(env.IDENTITY, {
           id: input.id,
           digest: input.digest,
@@ -813,17 +867,27 @@ async function route(
           await invoke(env, auth.actor, "", {}, "/recovery/probe"),
         );
         requireValue(
-          probe.workspacePresent === true && typeof probe.currentBookmark === "string",
+          probe.workspacePresent === true &&
+            typeof probe.currentBookmark === "string",
           "RECOVERY_RESTORE_NOT_READY",
           "Recovered workspace is not yet ready for reconciliation.",
           409,
         );
         const status = await reconcileRecoveryPlan(env.IDENTITY, plan);
-        return json({ reconciled: true, currentBookmarkCaptured: true, status });
+        return json({
+          reconciled: true,
+          currentBookmarkCaptured: true,
+          status,
+        });
       }
       if (path === "/api/recovery/resume" && request.method === "POST") {
         demandFreshOwner(owner, Date.now());
         const input = parse(recoveryResumeSchema, await request.json());
+        demandRecoveryConfirmation(
+          "RESUME",
+          auth.actor.workspace,
+          input.confirmation,
+        );
         await requireRecoveryPlan(env.IDENTITY, {
           id: input.id,
           digest: input.digest,
@@ -851,11 +915,19 @@ async function route(
           );
           throw error;
         }
-        return json({ resumed: true, status: await recoveryStatus(env.IDENTITY, auth.actor.workspace) });
+        return json({
+          resumed: true,
+          status: await recoveryStatus(env.IDENTITY, auth.actor.workspace),
+        });
       }
       if (path === "/api/recovery/undo" && request.method === "POST") {
         demandFreshOwner(owner, Date.now());
         const input = parse(recoveryUndoSchema, await request.json());
+        demandRecoveryConfirmation(
+          "UNDO",
+          auth.actor.workspace,
+          input.confirmation,
+        );
         const plan = await requireRecoveryPlan(env.IDENTITY, {
           id: input.id,
           digest: input.digest,
@@ -908,10 +980,9 @@ async function route(
           allowExpiredPrepared: true,
         });
         await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
-        const cancelled = await env.IDENTITY
-          .prepare(
-            "UPDATE workspace_recovery_plans SET state='cancelled',updated_at=? WHERE id=? AND workspace=? AND digest=? AND state='prepared'",
-          )
+        const cancelled = await env.IDENTITY.prepare(
+          "UPDATE workspace_recovery_plans SET state='cancelled',updated_at=? WHERE id=? AND workspace=? AND digest=? AND state='prepared'",
+        )
           .bind(Date.now(), input.id, auth.actor.workspace, input.digest)
           .run();
         requireValue(
@@ -929,15 +1000,24 @@ async function route(
         await internalValue(
           await invoke(env, auth.actor, "", {}, "/recovery/resume"),
         );
-        return json({ cancelled: true, status: await recoveryStatus(env.IDENTITY, auth.actor.workspace) });
+        return json({
+          cancelled: true,
+          status: await recoveryStatus(env.IDENTITY, auth.actor.workspace),
+        });
       }
       return json(
-        { error: { code: "NOT_FOUND", message: "Unknown recovery route or HTTP method." } },
+        {
+          error: {
+            code: "NOT_FOUND",
+            message: "Unknown recovery route or HTTP method.",
+          },
+        },
         404,
       );
     }
 
-    const oauthStart = /^\/api\/connections\/oauth\/(x|threads|linkedin)\/start$/.exec(path);
+    const oauthStart =
+      /^\/api\/connections\/oauth\/(x|threads|linkedin)\/start$/.exec(path);
     if (oauthStart) {
       requireValue(
         request.method === "POST",
@@ -955,7 +1035,9 @@ async function route(
     }
     if (path === "/api/connections/oauth/status" && request.method === "GET") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_CONNECTION_REQUIRED",
         "Provider connection status is restricted to the signed-in owner.",
         403,

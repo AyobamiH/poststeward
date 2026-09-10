@@ -11,11 +11,15 @@ async function seedOwner(db: D1Database, session = "owner-session") {
   const csrf = "owner-csrf";
   const sessionHash = await digest(session);
   await db
-    .prepare("INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)")
+    .prepare(
+      "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+    )
     .bind(subject, workspace, Date.now())
     .run();
   await db
-    .prepare("INSERT INTO sessions(token_hash,workspace,actor,expires_at,csrf) VALUES (?,?,?,?,?)")
+    .prepare(
+      "INSERT INTO sessions(token_hash,workspace,actor,expires_at,csrf) VALUES (?,?,?,?,?)",
+    )
     .bind(sessionHash, workspace, subject, Date.now() + 3600000, csrf)
     .run();
   await db
@@ -61,7 +65,10 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
         const body = new URLSearchParams(await request.text());
         assert.equal(body.get("grant_type"), "authorization_code");
         assert.equal(body.get("code"), "provider-code");
-        assert.equal(body.get("redirect_uri"), `${origin}/connections/oauth/x/callback`);
+        assert.equal(
+          body.get("redirect_uri"),
+          `${origin}/connections/oauth/x/callback`,
+        );
         assert.equal(body.get("client_id"), "x-client");
         const verifier = body.get("code_verifier")!;
         assert.equal(
@@ -114,15 +121,31 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
     const authorization = new URL(started.authorizationUrl);
     assert.equal(authorization.origin, "https://x.com");
     assert.equal(authorization.searchParams.get("response_type"), "code");
-    assert.equal(authorization.searchParams.get("code_challenge_method"), "S256");
-    assert.equal(authorization.searchParams.get("redirect_uri"), `${origin}/connections/oauth/x/callback`);
-    assert.equal(authorization.searchParams.get("scope"), "tweet.read tweet.write users.read offline.access");
+    assert.equal(
+      authorization.searchParams.get("code_challenge_method"),
+      "S256",
+    );
+    assert.equal(
+      authorization.searchParams.get("redirect_uri"),
+      `${origin}/connections/oauth/x/callback`,
+    );
+    assert.equal(
+      authorization.searchParams.get("scope"),
+      "tweet.read tweet.write users.read offline.access",
+    );
     expectedChallenge = authorization.searchParams.get("code_challenge")!;
     const state = authorization.searchParams.get("state")!;
     assert.ok(state);
-    assert.match(start.headers.get("set-cookie") || "", /__Host-provider-oauth=/);
+    assert.match(
+      start.headers.get("set-cookie") || "",
+      /__Host-provider-oauth=/,
+    );
     assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM provider_oauth_states").first<any>())?.n,
+      (
+        await db
+          .prepare("SELECT count(*) AS n FROM provider_oauth_states")
+          .first<any>()
+      )?.n,
       1,
     );
 
@@ -140,7 +163,11 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
     assert.equal(tokenExchanges, 1);
     assert.equal(identityReads, 1);
     assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM provider_oauth_states").first<any>())?.n,
+      (
+        await db
+          .prepare("SELECT count(*) AS n FROM provider_oauth_states")
+          .first<any>()
+      )?.n,
       0,
     );
 
@@ -198,9 +225,13 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
 });
 
 test("provider OAuth start requires a current owner completion proof and a configured provider app", async () => {
-  const { mf, db } = await runtime(undefined, {
-    OIDC_ISSUER: "https://accounts.google.com",
-  }, 100);
+  const { mf, db } = await runtime(
+    undefined,
+    {
+      OIDC_ISSUER: "https://accounts.google.com",
+    },
+    100,
+  );
   try {
     const owner = await seedOwner(db);
     const missingApp = await mf.dispatchFetch(
@@ -274,7 +305,11 @@ test("provider denial consumes the one-use state without exchanging or storing c
     assert.equal(denied.headers.get("location"), "/pilot?connection=denied");
     assert.equal(outbound, 0);
     assert.equal(
-      (await db.prepare("SELECT count(*) AS n FROM provider_oauth_states").first<any>())?.n,
+      (
+        await db
+          .prepare("SELECT count(*) AS n FROM provider_oauth_states")
+          .first<any>()
+      )?.n,
       0,
     );
     const accounts = await mf.dispatchFetch(
@@ -292,14 +327,20 @@ test("provider denial consumes the one-use state without exchanging or storing c
 });
 
 test("agent Bearer tokens cannot inspect or initiate provider OAuth", async () => {
-  const { mf, db } = await runtime(undefined, {
-    OIDC_ISSUER: "https://accounts.google.com",
-    X_OAUTH_CLIENT_ID: "x-client",
-    X_OAUTH_CLIENT_SECRET: "x-client-secret",
-  }, 100);
+  const { mf, db } = await runtime(
+    undefined,
+    {
+      OIDC_ISSUER: "https://accounts.google.com",
+      X_OAUTH_CLIENT_ID: "x-client",
+      X_OAUTH_CLIENT_SECRET: "x-client-secret",
+    },
+    100,
+  );
   try {
     await db
-      .prepare("INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)")
+      .prepare(
+        "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+      )
       .bind("owner-subject", "owner-workspace", Date.now())
       .run();
     const bearer = "agent-provider-oauth-token";
@@ -331,6 +372,70 @@ test("agent Bearer tokens cannot inspect or initiate provider OAuth", async () =
       },
     );
     assert.equal(start.status, 403);
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("provider OAuth return destination is state-bound, fixed and cannot become an open redirect", async () => {
+  const { mf, db } = await runtime(
+    undefined,
+    {
+      OIDC_ISSUER: "https://accounts.google.com",
+      X_OAUTH_CLIENT_ID: "x-client",
+      X_OAUTH_CLIENT_SECRET: "x-client-secret",
+    },
+    100,
+  );
+  try {
+    const owner = await seedOwner(db);
+    const bad = await mf.dispatchFetch(
+      `${origin}/api/connections/oauth/x/start`,
+      {
+        method: "POST",
+        headers: ownerHeaders(owner),
+        body: JSON.stringify({
+          alias: "primary",
+          returnPath: "https://evil.example",
+        }),
+      },
+    );
+    assert.equal(bad.status, 400);
+    assert.equal(
+      (
+        await db
+          .prepare("SELECT count(*) AS n FROM provider_oauth_states")
+          .first<any>()
+      )?.n,
+      0,
+    );
+    const start = await mf.dispatchFetch(
+      `${origin}/api/connections/oauth/x/start`,
+      {
+        method: "POST",
+        headers: ownerHeaders(owner),
+        body: JSON.stringify({ alias: "primary", returnPath: "/app" }),
+      },
+    );
+    assert.equal(start.status, 200);
+    const started: any = await start.json();
+    assert.equal(started.returnPath, "/app");
+    const state = new URL(started.authorizationUrl).searchParams.get("state")!;
+    const stored = await db
+      .prepare("SELECT return_path FROM provider_oauth_states")
+      .first<any>();
+    assert.equal(stored.return_path, "/app");
+    const denied = await mf.dispatchFetch(
+      `${origin}/connections/oauth/x/callback?state=${encodeURIComponent(state)}&error=access_denied`,
+      {
+        redirect: "manual",
+        headers: {
+          Cookie: `__Host-session=${owner.session}; __Host-provider-oauth=${state}`,
+        },
+      },
+    );
+    assert.equal(denied.status, 302);
+    assert.equal(denied.headers.get("location"), "/app?connection=denied");
   } finally {
     await mf.dispose();
   }
