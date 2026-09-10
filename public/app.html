@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
     <title>PostSteward workspace</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
@@ -11,7 +12,8 @@
     <header>
       <a class="wordmark" href="/">PostSteward</a>
       <nav>
-        <a href="/docs/agent-guide.md">Help</a
+        <a href="/pilot">Controlled acceptance</a
+        ><a href="/docs/agent-guide.md">Help</a
         ><button id="refresh">Refresh</button
         ><button id="signout">Sign out</button>
       </nav>
@@ -29,38 +31,67 @@
       <div class="workspace-grid">
         <section class="panel">
           <h2>1. Connect an account</h2>
-          <p class="muted">
-            Pilot connection: supply an authorised provider token. The service
-            verifies its identity before enabling publication.
+          <p>
+            Use provider OAuth when available. PostSteward binds the resulting
+            user credential to the verified provider identity and rotates
+            refreshable tokens in the durable background path.
           </p>
-          <form id="connection">
+          <form id="oauth-connection" autocomplete="off">
             <label
               >Account alias<input
                 name="alias"
                 required
-                pattern="[a-zA-Z0-9_-]+"
-                placeholder="product_x" /></label
-            ><label
-              >Provider<select name="provider">
-                <option value="x">X</option>
-                <option value="threads">Threads</option>
-                <option value="linkedin">LinkedIn</option>
-              </select></label
-            ><label
-              >Provider access token<input
-                name="accessToken"
-                type="password"
-                autocomplete="off"
-                required /></label
-            ><label
-              >Token expires at<input
-                name="expiry"
-                type="datetime-local" /></label
-            ><label class="check"
-              ><input name="funding" type="checkbox" /> For X, these credentials
-              use my own funded developer app.</label
-            ><button class="primary">Verify and connect</button>
+                pattern="[a-zA-Z0-9_-]{1,100}"
+                maxlength="100"
+                placeholder="product_threads" /></label>
+            <div class="row" id="oauth-buttons">
+              <button type="button" data-provider="threads" disabled>Connect Threads</button>
+              <button type="button" data-provider="x" disabled>Connect X</button>
+              <button type="button" data-provider="linkedin" disabled>Connect LinkedIn</button>
+            </div>
           </form>
+          <p id="oauth-status" class="muted" role="status">Checking provider application availability…</p>
+          <p class="muted">
+            A provider remains disabled until its own app client ID and secret are
+            configured for this deployment. LinkedIn controlled acceptance also
+            requires approved member-post readback capability.
+          </p>
+          <details>
+            <summary>Manual token import fallback</summary>
+            <p class="muted">
+              Restricted fallback for an already-authorised user token. It does
+              not claim self-service OAuth or automatic refresh. Never reuse
+              another product's credentials implicitly.
+            </p>
+            <form id="connection" autocomplete="off">
+              <label
+                >Account alias<input
+                  name="alias"
+                  required
+                  pattern="[a-zA-Z0-9_-]+"
+                  placeholder="product_x" /></label
+              ><label
+                >Provider<select name="provider">
+                  <option value="x">X</option>
+                  <option value="threads">Threads</option>
+                  <option value="linkedin">LinkedIn</option>
+                </select></label
+              ><label
+                >Provider access token<input
+                  name="accessToken"
+                  type="password"
+                  autocomplete="off"
+                  required /></label
+              ><label
+                >Token expires at<input
+                  name="expiry"
+                  type="datetime-local" /></label
+              ><label class="check"
+                ><input name="funding" type="checkbox" /> For X, these credentials
+                use my own funded developer app.</label
+              ><button>Import and verify identity</button>
+            </form>
+          </details>
           <div id="accounts" class="record-list"></div>
         </section>
         <section class="panel">
@@ -124,9 +155,51 @@
           </div>
           <p class="muted">
             A reservation is not proof of publication. Verified, unverified and
-            uncertain outcomes appear separately.
+            uncertain outcomes appear separately. Recovery does not erase the
+            D1 external-effect fence for a provider write.
           </p>
           <div id="receipts" class="record-list"></div>
+        </section>
+        <section class="panel wide" aria-labelledby="recovery-heading">
+          <div class="row">
+            <h2 id="recovery-heading">Workspace recovery</h2>
+            <button id="recovery-refresh" type="button">Refresh recovery status</button>
+          </div>
+          <p class="muted">
+            Recovery is owner-only and fail-closed. Preparing a plan quarantines
+            publication before bookmarks are read. Execute and undo intentionally
+            change Durable Object state; they are never run by deployment smoke.
+          </p>
+          <p id="recovery-status" role="status">Loading recovery state…</p>
+          <pre id="recovery-plan" class="preview">No recovery plan.</pre>
+          <form id="recovery-prepare">
+            <label
+              >Target time with UTC offset<input
+                name="at"
+                required
+                placeholder="2026-09-10T06:30:00Z" /></label
+            ><label
+              >Reason<input
+                name="reason"
+                required
+                minlength="3"
+                maxlength="240"
+                placeholder="Recover workspace after verified state corruption" /></label
+            ><button type="submit">Prepare recovery and quarantine writes</button>
+          </form>
+          <div class="row">
+            <button id="recovery-cancel" type="button" disabled>Cancel prepared recovery</button>
+            <button id="recovery-execute" type="button" disabled>Execute prepared restore</button>
+            <button id="recovery-reconcile" type="button" disabled>Reconcile restarted workspace</button>
+            <button id="recovery-resume" type="button" disabled>Resume after reconciliation</button>
+            <button id="recovery-undo" type="button" disabled>Undo reconciled restore</button>
+          </div>
+          <p class="muted">
+            The plan digest binds every consequential action. A real restore
+            requires a fresh owner proof and an explicit browser confirmation.
+            Restored provider credentials, automation and billing authority are
+            invalidated before publication can resume.
+          </p>
         </section>
         <section class="panel">
           <h2>Agent access</h2>
