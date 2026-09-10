@@ -4,6 +4,8 @@ PostSteward PR #22 is merged and deployed to restricted staging at `93215b046798
 
 **Engineering is deployed; all five live gates remain open.** Google sign-in was rejected by automatic approval review. Provider OAuth, private GitHub and Stripe sandbox are unconfigured. WebMCP API exposure was observed, but authenticated execution remains unverified. Stripe is connected and account discovery succeeded; explicit test-account selection remains pending.
 
+The owner has now approved this browser's Google sign-in and selected Stripe test mode. Stripe Product/Price provisioning and independent readback succeeded. The cloud-browser URL policy blocks /auth/callback (owner screenshot: ERR_BLOCKED_BY_CLIENT); /app remains unauthenticated. Secure Stripe key/webhook configuration is still unavailable through the working integrations. See [the updated receipt](live-acceptance-staging-2026-09-10.md) and [sandbox execution sequence](stripe-sandbox-acceptance.md). These approvals must not be requested again.
+
 ## Current engineering evidence
 
 | Evidence | Result |

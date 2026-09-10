@@ -47,18 +47,22 @@ The cloud browser rendered the deployed /app controls. Once requests settled, it
 
 The browser preflight reported that it exposes WebMCP. This establishes exposure of the registration API only. No owner-authenticated native registration, execution or separate browser-agent invocation took place.
 
-Earlier, /pilot loaded successfully. Automatic approval review denied the subsequent accounts.google.com navigation because account/session-specific sign-in authorisation was not recognised. That denied action was not retried or bypassed. No owner session was created.
+Earlier, /pilot loaded successfully, but automatic approval review initially denied Google navigation for missing account/session-specific authority. The owner subsequently granted that exact authority. Google then opened successfully. After the secure sign-in handoff, the cloud-browser URL policy blocked PostSteward /auth/callback; the owner's screenshot showed ERR_BLOCKED_BY_CLIENT. A separate read-only visit to /app still reported unauthenticated access. The initial approval blocker is resolved; the callback policy blocker remains. No callback URL or OAuth credential is included in this receipt.
 
-Stripe is connected and its tools became callable later in the run. Account discovery succeeded and returned one connected account with live and test modes. Stripe's account-selection instructions require confirmation before targeting an account. No account-specific payment/resource API was called and no resource or payment was created. The proposed scope is test mode only; account details are intentionally kept out of this public receipt.
+Stripe is connected and the owner explicitly selected the account in test mode. Read-only inventory showed no products or webhook endpoints. A dedicated PostSteward staging product and USD 5/month Price were created, then independently retrieved: both active and livemode=false; the Price uses USD 500 cents, one-month recurrence and inclusive tax behaviour. No customer, Checkout Session, subscription, payment or webhook endpoint has been created. Account-specific identifiers are kept out of this public receipt. Restricted API-key creation and protected GitHub environment-secret administration are not exposed by the working integrations.
 
 ## Remaining live gates
 
 | Workstream | Current state | Exact next action |
 | --- | --- | --- |
-| Owner + provider publication | No owner session; all provider applications unconfigured | Approve Google owner sign-in in this cloud-browser session; configure one provider, obtain grant, prepare exact destination/text review, approve one publication and verify separate readback |
+| Owner + provider publication | No owner session; all provider applications unconfigured | Resolve the cloud-browser callback policy using the recorded owner approval; configure one provider, obtain grant, prepare exact destination/text review, approve one publication and verify separate readback |
 | Private GitHub | Free owner probe deployed; no real private grant/read | Configure the dedicated staging App triple, complete owner selection/OAuth, probe one private path, revoke and recheck |
 | PITR | Non-destructive boundary passed; no restore | Owner chooses workspace/target, reviews the prepared plan/digest, then authorises execute, reconciliation and resume |
 | Native WebMCP | Registration API exposure observed; no live invocation | Sign in, run the native check, then independently invoke workspace_status through the browser-agent tool interface and verify logout denial |
-| Stripe sandbox | Connection and account discovery succeeded; hosted sandbox still disabled | Confirm the connected account's test mode, provision/reuse the USD 5 monthly test Price and webhook, configure protected staging values, deploy opt-in, then verify settlement/replay/refund/dispute and cleanup |
+| Stripe sandbox | Test account approved; dedicated Product/Price created and read back; hosted sandbox still disabled | Reuse the created test Price, establish secure credential storage, provision the signed webhook, configure protected staging values, deploy opt-in, then verify settlement/replay/refund/dispute and cleanup |
 
 Eligible-wallet MPP remains separately disabled. Fixtures are not live evidence. See [the complete execution plan](live-acceptance-plan.md) for dependency order, configuration, failure handling and recovery rules. This receipt does not establish production launch or real-money settlement.
+
+## Follow-up billing corrections
+
+The Stripe integration review identified that a dispute webhook can contain a charge ID without customer/workspace metadata. The follow-up change resolves that charge after signature/mode verification and maps its customer before reconciliation. Lookup failures remain retryable; quarantine and event deduplication remain enforced. It also persists Checkout integration identifiers with new quotes while preserving pre-upgrade retry payloads. These are engineering changes awaiting the follow-up CI/deployment receipt, not live settlement evidence. See [the exact sandbox setup and acceptance sequence](stripe-sandbox-acceptance.md).

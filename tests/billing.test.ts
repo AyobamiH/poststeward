@@ -336,3 +336,38 @@ test("subscription settlement reconciles once and later refund or dispute revoke
     assert.equal(h.calls.length, 1);
   }
 });
+
+test("interrupted Checkout retries preserve the integration identifier across worker reconstruction", async () => {
+  const h = setup();
+  const q = await h.billing.quote({ mode: "subscription" }, owner);
+  const attempts: any[] = [];
+  h.client.checkout.sessions.create = async (params: any, options: any) => {
+    attempts.push({ params, options });
+    if (attempts.length === 1) throw new Error("Simulated lost Stripe response");
+    return { id: "cs_test", url: "https://checkout.stripe.com/test", livemode: false };
+  };
+  await assert.rejects(h.billing.checkout({ quote: q.id }, owner), {
+    code: "CHECKOUT_PENDING_RECONCILIATION",
+  });
+  const restarted = new Billing(h.store, h.env, owner.workspace, h.client);
+  await restarted.checkout({ quote: q.id }, owner);
+  assert.equal(attempts.length, 2);
+  assert.match(attempts[0].params.integration_identifier, /^poststeward_checkout_[a-z]{8}$/);
+  assert.deepEqual(attempts[1], attempts[0]);
+  assert.equal(h.store.get("entitlement"), undefined);
+});
+
+test("pre-upgrade quotes keep their original Checkout parameters on retry", async () => {
+  const h = setup();
+  const q = await h.billing.quote({ mode: "subscription" }, owner);
+  const legacy: any = h.store.get("quote:" + q.id);
+  delete legacy.integrationIdentifier;
+  h.store.put("quote:" + q.id, legacy);
+  h.store.put("billing:attempt", {
+    quote: q.id, mode: "subscription", startedAt: Date.now(), status: "pending",
+  });
+  await h.billing.checkout({ quote: q.id }, owner);
+  assert.equal(h.calls.length, 1);
+  assert.equal(Object.hasOwn(h.calls[0].p, "integration_identifier"), false);
+  assert.equal(h.calls[0].o.idempotencyKey, "checkout:" + owner.workspace + ":" + q.id);
+});
