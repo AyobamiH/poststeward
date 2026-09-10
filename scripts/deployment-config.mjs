@@ -80,6 +80,26 @@ function providerClientId(value, name) {
   );
   return result;
 }
+function githubAppPublic(clientIdValue, slugValue) {
+  const clientId = clientIdValue || "";
+  const slug = slugValue || "";
+  demand(
+    (!clientId && !slug) || (clientId && slug),
+    "GITHUB_APP_CLIENT_ID and GITHUB_APP_SLUG must be configured together.",
+  );
+  demand(
+    typeof clientId === "string" &&
+      clientId.length <= 200 &&
+      !/[\s\x00-\x1f]/.test(clientId),
+    "GITHUB_APP_CLIENT_ID must be a bounded non-secret client identifier without whitespace.",
+  );
+  demand(
+    typeof slug === "string" &&
+      (!slug || /^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/.test(slug)),
+    "GITHUB_APP_SLUG must be the exact lowercase GitHub App slug.",
+  );
+  return { clientId, slug };
+}
 export function buildConfiguration(base, env) {
   demand(
     ["staging", "production"].includes(env.DEPLOY_ENV),
@@ -106,6 +126,10 @@ export function buildConfiguration(base, env) {
   demand(
     typeof env.OIDC_CLIENT_ID === "string" && env.OIDC_CLIENT_ID.length > 0,
     "Configure OIDC_CLIENT_ID.",
+  );
+  const github = githubAppPublic(
+    env.GITHUB_APP_CLIENT_ID,
+    env.GITHUB_APP_SLUG,
   );
   const c = structuredClone(base);
   c.name = env.DEPLOY_ENV === "staging" ? "poststeward-staging" : "poststeward";
@@ -136,6 +160,8 @@ export function buildConfiguration(base, env) {
     SIGNUP_MODE: "restricted",
     ADVANCED_ENABLED: "false",
     MPP_ENABLED: "false",
+    GITHUB_APP_CLIENT_ID: github.clientId,
+    GITHUB_APP_SLUG: github.slug,
     X_OAUTH_CLIENT_ID: providerClientId(env.X_OAUTH_CLIENT_ID, "X_OAUTH_CLIENT_ID"),
     THREADS_OAUTH_CLIENT_ID: providerClientId(
       env.THREADS_OAUTH_CLIENT_ID,
@@ -219,6 +245,7 @@ export function validateConfiguration(c) {
     c.vars.ADVANCED_ENABLED === "false" && c.vars.MPP_ENABLED === "false",
     "Purchases remain disabled pending product and payment acceptance.",
   );
+  githubAppPublic(c.vars.GITHUB_APP_CLIENT_ID, c.vars.GITHUB_APP_SLUG);
   for (const [clientId] of providerSecretPairs)
     providerClientId(c.vars[clientId], clientId);
   demand(
@@ -255,6 +282,21 @@ export function deploymentSecrets(env) {
       ),
     "Set ALLOWED_OWNER_EMAILS to verified, invited owner addresses.",
   );
+  const github = githubAppPublic(
+    env.GITHUB_APP_CLIENT_ID,
+    env.GITHUB_APP_SLUG,
+  );
+  const githubSecret = env.GITHUB_APP_CLIENT_SECRET || "";
+  demand(
+    (!github.clientId && !githubSecret) ||
+      (github.clientId &&
+        github.slug &&
+        typeof githubSecret === "string" &&
+        githubSecret.trim().length >= 8 &&
+        githubSecret.length <= 4096),
+    "GITHUB_APP_CLIENT_ID, GITHUB_APP_SLUG and GITHUB_APP_CLIENT_SECRET must be configured together.",
+  );
+  if (github.clientId) values.GITHUB_APP_CLIENT_SECRET = githubSecret;
   for (const [clientId, clientSecret] of providerSecretPairs) {
     const id = env[clientId] || "";
     const secret = env[clientSecret] || "";
