@@ -19,6 +19,7 @@ export async function waitForRevision(
       response = await send(new URL("/health", origin), {
         redirect: "manual",
         signal: AbortSignal.timeout(5000),
+        headers: { "Cache-Control": "no-cache" },
       });
       lastStatus = response.status;
     } catch {
@@ -56,22 +57,35 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     expected,
     options = {},
     predicate = () => true,
+    retrySafe = false,
   ) {
     let status = 0,
-      passed = false;
-    try {
-      const response = await send(new URL(path, origin), {
-        ...options,
-        redirect: "manual",
-        signal: AbortSignal.timeout(10000),
-      });
-      status = response.status;
-      passed = status === expected && Boolean(await predicate(response));
-      if (response.body && !response.bodyUsed) await response.body.cancel();
-    } catch {
-      // Store only fixed check names and status. No response bodies, cookies, state or exception data.
+      passed = false,
+      attempts = 0;
+    const limit = retrySafe ? 5 : 1;
+    while (attempts < limit) {
+      attempts++;
+      let response;
+      try {
+        response = await send(new URL(path, origin), {
+          ...options,
+          headers: retrySafe
+            ? { "Cache-Control": "no-cache", ...(options.headers || {}) }
+            : options.headers,
+          redirect: "manual",
+          signal: AbortSignal.timeout(10000),
+        });
+        status = response.status;
+        passed = status === expected && Boolean(await predicate(response));
+        if (response.body && !response.bodyUsed) await response.body.cancel();
+      } catch {
+        // Store only fixed check names/status. No response bodies, cookies, state or exception data.
+        status = 0;
+      }
+      if (passed || !retrySafe || ![200, 404].includes(status)) break;
+      if (attempts < limit) await sleep(2000);
     }
-    checks.push({ name, status, expected, passed });
+    checks.push({ name, status, expected, attempts, passed });
   }
   const secure = (r) =>
     r.headers.get("strict-transport-security")?.includes("max-age=") &&
@@ -91,6 +105,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.advancedEnabled === false
       );
     },
+    true,
   );
   await check(
     "exact catalogue revision; 26 operations; payments disabled",
@@ -106,6 +121,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.payment?.enabled === false
       );
     },
+    true,
   );
   await check(
     "release readiness is fail-closed and exact-revision",
@@ -126,6 +142,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.recovery?.ownerPitr === true
       );
     },
+    true,
   );
   for (const path of ["/", "/app"])
     await check(
