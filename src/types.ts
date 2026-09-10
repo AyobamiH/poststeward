@@ -114,6 +114,9 @@ export interface Profile {
   lastCheck?: number;
   nextRun: number;
   nextMetrics: number;
+  lastMetricsAttempt?: number;
+  lastMetricsSuccess?: number;
+  metricsError?: string;
   error?: string;
   authority: Actor;
 }

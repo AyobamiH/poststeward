@@ -1,10 +1,10 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-10-data-lifecycle-ops-v1
+# Deployment request: 2026-09-10-daily-metrics-scheduler-v1
 # Updating this file on main is an explicit staging deployment request.
-# This deploy applies additive workspace lifecycle migration 0008, the deletion fence and retained-state limits.
-# Hosted acceptance is non-destructive: it must not authenticate a deletion request, erase a real workspace,
-# invoke point-in-time restore, publish social content, settle payment, or perform any live release.
+# This deploy decouples scheduled metrics from the source-monitor clock and adds independent metrics health.
+# Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
+# invoke point-in-time restore, settle payment, or perform any live release.
 on:
   push:
     branches: [main]

@@ -295,10 +295,10 @@ export class Engine {
       },
       automation_pause: (i) =>
         this.pauseProfile(i.id, "Paused by authorised actor."),
-      billing_status: () => options.billing.status(),
-      billing_quote: (i, a) => options.billing.quote(i, a),
-      billing_checkout: (i, a) => options.billing.checkout(i, a),
-      billing_portal: (i, a) => options.billing.portal(i, a),
+      billing_status: () => this.options.billing.status(),
+      billing_quote: (i, a) => this.options.billing.quote(i, a),
+      billing_checkout: (i, a) => this.options.billing.checkout(i, a),
+      billing_portal: (i, a) => this.options.billing.portal(i, a),
     };
   }
   get<T>(prefix: string, id: string): T {
@@ -560,9 +560,10 @@ export class Engine {
       const previous = id
         ? this.store.get<Delivery>("delivery:" + id)
         : undefined;
-      // A controlled fingerprint stays consumed even if its delivery was
-      // cancelled. Cloning the campaign or switching transports cannot reset it.
-      return previous && (previous.status !== "cancelled" || previous.reviewedRelease) ? previous : d;
+      return previous &&
+        (previous.status !== "cancelled" || previous.reviewedRelease)
+        ? previous
+        : d;
     });
     const fresh = resolved.filter(
       (d, index) =>
@@ -613,20 +614,49 @@ export class Engine {
   /** Internal owner-pilot reservation. No I/O inside the atomic commit. */
   reserveReviewed(delivery: Delivery, commitApproval: () => void) {
     return this.store.tx(() => {
-      requireValue(!this.paused(), "PUBLISHING_PAUSED", "Publishing is paused.", 409);
-      requireValue(delivery.actor.workspace === this.store.get("workspace") &&
-        delivery.actor.scopes.includes("admin") && !delivery.actor.grant && delivery.actor.ownerSession &&
-        !delivery.automatic && delivery.reviewedRelease === this.env.RELEASE_SHA && delivery.dueAt >= this.now(),
-        "REVIEW_INVALID", "A current session-bound owner review is required.", 409);
+      requireValue(
+        !this.paused(),
+        "PUBLISHING_PAUSED",
+        "Publishing is paused.",
+        409,
+      );
+      requireValue(
+        delivery.actor.workspace === this.store.get("workspace") &&
+          delivery.actor.scopes.includes("admin") &&
+          !delivery.actor.grant &&
+          delivery.actor.ownerSession &&
+          !delivery.automatic &&
+          delivery.reviewedRelease === this.env.RELEASE_SHA &&
+          delivery.dueAt >= this.now(),
+        "REVIEW_INVALID",
+        "A current session-bound owner review is required.",
+        409,
+      );
       const account = this.connected(delivery.account);
-      requireValue(account.version === delivery.binding && account.provider === delivery.provider && account.identity.id === delivery.identity.id,
-        "ACCOUNT_DRIFT", "The reviewed account binding changed.", 409);
+      requireValue(
+        account.version === delivery.binding &&
+          account.provider === delivery.provider &&
+          account.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT",
+        "The reviewed account binding changed.",
+        409,
+      );
       validateText(delivery.provider, delivery.text);
-      requireValue(!this.store.get("fingerprint:" + delivery.fingerprint),
-        "EXISTING_PUBLICATION", "This exact account/content already has a delivery. Inspect it rather than creating a pilot duplicate.", 409);
+      requireValue(
+        !this.store.get("fingerprint:" + delivery.fingerprint),
+        "EXISTING_PUBLICATION",
+        "This exact account/content already has a delivery. Inspect it rather than creating a pilot duplicate.",
+        409,
+      );
       const result = this.reservePrepared([delivery]);
-      requireValue(result.reused === 0 && result.deliveries.length === 1 && result.deliveries[0].id === delivery.id,
-        "RESERVATION_CONFLICT", "Controlled reservation did not allocate exactly its one delivery.", 409);
+      requireValue(
+        result.reused === 0 &&
+          result.deliveries.length === 1 &&
+          result.deliveries[0].id === delivery.id,
+        "RESERVATION_CONFLICT",
+        "Controlled reservation did not allocate exactly its one delivery.",
+        409,
+      );
       commitApproval();
       return result;
     });
@@ -720,6 +750,55 @@ export class Engine {
         "Reviewed templates only; source change is evidence of a development update, not proof of deployed functionality.",
     };
   }
+  private async captureScheduledMetrics(p: Profile) {
+    const attemptAt = this.now();
+    let failures = 0;
+    for (const d of this.deliveries()
+      .filter((d) => d.policy === p.id && d.postId)
+      .sort((a, b) => b.dueAt - a.dueAt)
+      .slice(0, 10)) {
+      const current = this.get<Profile>("profile:", p.id);
+      if (
+        !current.enabled ||
+        current.revision !== p.revision ||
+        !this.paid()
+      )
+        return false;
+      try {
+        const a = this.connected(d.account);
+        requireValue(
+          a.identity.id === d.identity.id,
+          "ACCOUNT_DRIFT",
+          "Account changed since publication.",
+          409,
+        );
+        const metrics = await this.providers.metrics(
+          d,
+          await this.credential(a),
+        );
+        const latest = this.get<Profile>("profile:", p.id);
+        if (
+          !latest.enabled ||
+          latest.revision !== p.revision ||
+          !this.paid()
+        )
+          return false;
+        this.update(d, { metrics });
+      } catch {
+        failures++;
+      }
+    }
+    p.lastMetricsAttempt = attemptAt;
+    if (failures) {
+      p.metricsError = "METRICS_UNAVAILABLE";
+      p.nextMetrics = attemptAt + 15 * 60000;
+    } else {
+      p.metricsError = undefined;
+      p.lastMetricsSuccess = attemptAt;
+      p.nextMetrics = attemptAt + 86400000;
+    }
+    return true;
+  }
   private async automationTick() {
     for (const p of this.store
       .list<Profile>("profile:")
@@ -732,130 +811,132 @@ export class Engine {
         );
         continue;
       }
-      if (p.nextRun > this.now()) continue;
-      try {
-        const source = await this.options.source(p),
-          decision = this.automationDecision(p, source.sha);
-        // Check authority again after network I/O, since pause/expiry can race a source read.
-        const current = this.get<Profile>("profile:", p.id);
-        if (!current.enabled || current.revision !== p.revision || !this.paid())
-          continue;
-        if (p.sha && p.sha !== source.sha) {
-          for (const d of this.deliveries().filter(
-            (d) =>
-              d.policy === p.id &&
-              ["scheduled", "waiting_container"].includes(d.status),
-          ))
-            this.update(d, {
-              status: "cancelled",
-              reason: "Source snapshot changed.",
-            });
-          const text = Object.fromEntries(
-            Object.entries(p.templates).map(([alias, template]) => [
-              alias,
-              template
-                .replaceAll("{repository}", p.repository)
-                .replaceAll("{commit}", source.sha)
-                .replaceAll(
-                  "{source_url}",
-                  `https://github.com/${p.repository}/blob/${source.sha}/${p.path}`,
-                ),
-            ]),
-          );
-          const c: Campaign = {
-            id: await digest({ profile: p.id, sha: source.sha }),
-            project: p.project,
-            text,
-            digest: await digest(text),
-            createdAt: this.now(),
-            source: { profile: p.id, sha: source.sha, family: p.family },
-          };
-          this.validate(c);
-          this.store.put("campaign:" + c.id, c);
-          this.store.put("inventory:" + p.id, {
-            campaign: c.id,
-            sha: source.sha,
-          });
-        }
-        p.sha = source.sha;
-        p.error = undefined;
-        p.lastCheck = this.now();
-        const inventory = this.store.get<{ campaign: string; sha: string }>(
-          "inventory:" + p.id,
-        );
-        if (
-          inventory &&
-          inventory.sha === source.sha &&
-          decision.withinHorizon
-        ) {
-          const c = this.get<Campaign>("campaign:", inventory.campaign);
-          let slot = Date.parse(decision.firstSlot);
-          let remaining = false;
-          for (const alias of Object.keys(c.text)) {
-            const account = this.connected(alias);
-            const fingerprint = await digest({
-              provider: account.provider,
-              identity: account.identity.id,
-              text: c.text[alias],
-            });
-            const existingId = this.store.get<string>(
-              "fingerprint:" + fingerprint,
-            );
-            const existing = existingId
-              ? this.store.get<Delivery>("delivery:" + existingId)
-              : undefined;
-            if (existing && existing.status !== "cancelled") continue;
-            if (slot > this.now() + 75 * 60000) {
-              remaining = true;
-              continue;
-            }
-            const prepared = await this.prepare(
-              c,
-              slot,
-              "UTC",
-              p.authority,
-              true,
-              p.id,
-              [alias],
-            );
-            this.store.tx(() => {
-              const latest = this.get<Profile>("profile:", p.id);
-              requireValue(
-                latest.enabled && latest.revision === p.revision && this.paid(),
-                "AUTOMATION_CHANGED",
-                "Automation authority changed during allocation.",
-                409,
-              );
-              return this.reservePrepared(prepared);
-            });
-            slot += Math.max(p.minSpacingMinutes, p.intervalMinutes) * 60000;
-          }
-          if (!remaining) this.store.delete("inventory:" + p.id);
-        }
-        if (p.nextMetrics <= this.now()) {
-          for (const d of this.deliveries()
-            .filter((d) => d.policy === p.id && d.postId)
-            .sort((a, b) => b.dueAt - a.dueAt)
-            .slice(0, 10)) {
-            const a = this.connected(d.account);
-            if (a.identity.id === d.identity.id)
+      const sourceDue = p.nextRun <= this.now();
+      const metricsDue = p.nextMetrics <= this.now();
+      if (!sourceDue && !metricsDue) continue;
+
+      if (sourceDue) {
+        try {
+          const source = await this.options.source(p),
+            decision = this.automationDecision(p, source.sha);
+          const current = this.get<Profile>("profile:", p.id);
+          if (
+            !current.enabled ||
+            current.revision !== p.revision ||
+            !this.paid()
+          )
+            continue;
+          if (p.sha && p.sha !== source.sha) {
+            for (const d of this.deliveries().filter(
+              (d) =>
+                d.policy === p.id &&
+                ["scheduled", "waiting_container"].includes(d.status),
+            ))
               this.update(d, {
-                metrics: await this.providers.metrics(
-                  d,
-                  await this.credential(a),
-                ),
+                status: "cancelled",
+                reason: "Source snapshot changed.",
               });
+            const text = Object.fromEntries(
+              Object.entries(p.templates).map(([alias, template]) => [
+                alias,
+                template
+                  .replaceAll("{repository}", p.repository)
+                  .replaceAll("{commit}", source.sha)
+                  .replaceAll(
+                    "{source_url}",
+                    `https://github.com/${p.repository}/blob/${source.sha}/${p.path}`,
+                  ),
+              ]),
+            );
+            const c: Campaign = {
+              id: await digest({ profile: p.id, sha: source.sha }),
+              project: p.project,
+              text,
+              digest: await digest(text),
+              createdAt: this.now(),
+              source: { profile: p.id, sha: source.sha, family: p.family },
+            };
+            this.validate(c);
+            this.store.put("campaign:" + c.id, c);
+            this.store.put("inventory:" + p.id, {
+              campaign: c.id,
+              sha: source.sha,
+            });
           }
-          p.nextMetrics = this.now() + 86400000;
+          p.sha = source.sha;
+          p.error = undefined;
+          p.lastCheck = this.now();
+          const inventory = this.store.get<{ campaign: string; sha: string }>(
+            "inventory:" + p.id,
+          );
+          if (
+            inventory &&
+            inventory.sha === source.sha &&
+            decision.withinHorizon
+          ) {
+            const c = this.get<Campaign>("campaign:", inventory.campaign);
+            let slot = Date.parse(decision.firstSlot);
+            let remaining = false;
+            for (const alias of Object.keys(c.text)) {
+              const account = this.connected(alias);
+              const fingerprint = await digest({
+                provider: account.provider,
+                identity: account.identity.id,
+                text: c.text[alias],
+              });
+              const existingId = this.store.get<string>(
+                "fingerprint:" + fingerprint,
+              );
+              const existing = existingId
+                ? this.store.get<Delivery>("delivery:" + existingId)
+                : undefined;
+              if (existing && existing.status !== "cancelled") continue;
+              if (slot > this.now() + 75 * 60000) {
+                remaining = true;
+                continue;
+              }
+              const prepared = await this.prepare(
+                c,
+                slot,
+                "UTC",
+                p.authority,
+                true,
+                p.id,
+                [alias],
+              );
+              this.store.tx(() => {
+                const latest = this.get<Profile>("profile:", p.id);
+                requireValue(
+                  latest.enabled &&
+                    latest.revision === p.revision &&
+                    this.paid(),
+                  "AUTOMATION_CHANGED",
+                  "Automation authority changed during allocation.",
+                  409,
+                );
+                return this.reservePrepared(prepared);
+              });
+              slot +=
+                Math.max(p.minSpacingMinutes, p.intervalMinutes) * 60000;
+            }
+            if (!remaining) this.store.delete("inventory:" + p.id);
+          }
+        } catch (e) {
+          p.error = e instanceof Fault ? e.code : "SOURCE_UNAVAILABLE";
         }
-      } catch (e) {
-        p.error = e instanceof Fault ? e.code : "SOURCE_UNAVAILABLE";
+        p.nextRun = this.now() + 15 * 60000;
       }
-      // Do not undo an explicit pause that arrived while a provider/source request was in flight.
-      const latestProfile = this.get<Profile>("profile:", p.id);
-      if (latestProfile.revision !== p.revision) continue;
-      p.enabled = latestProfile.enabled;
-      p.nextRun = this.now() + 15 * 60000;
+
+      let latestProfile = this.get<Profile>("profile:", p.id);
+      if (latestProfile.revision !== p.revision || !latestProfile.enabled)
+        continue;
+
+      if (metricsDue && !(await this.captureScheduledMetrics(p))) continue;
+
+      latestProfile = this.get<Profile>("profile:", p.id);
+      if (latestProfile.revision !== p.revision || !latestProfile.enabled)
+        continue;
+      p.enabled = true;
       this.store.put("profile:" + p.id, p);
     }
   }
@@ -893,7 +974,6 @@ export class Engine {
       return;
     }
     const initiallyAuthorized = await this.options.authorized(d.actor);
-    // Authorization is external I/O: never write back the stale pre-read copy.
     d = this.get<Delivery>("delivery:", id);
     if (!["scheduled", "waiting_container"].includes(d.status)) return;
     if (!initiallyAuthorized) {
@@ -927,7 +1007,6 @@ export class Engine {
     if (!["scheduled", "waiting_container"].includes(d.status)) return;
     const previousPhase = d.phase;
     const claimId = uid();
-    // Synchronous durable claim, before the first provider request.
     this.store.tx(() =>
       this.update(d, {
         status: "executing",
@@ -939,8 +1018,14 @@ export class Engine {
     );
     const demandClaim = () => {
       const current = this.get<Delivery>("delivery:", id);
-      requireValue(current.claimId === claimId && current.status === "executing" && (current.claimUntil || 0) > this.now(),
-        "CLAIM_LOST", "The execution claim expired or was recovered. No further provider write is permitted.", 409);
+      requireValue(
+        current.claimId === claimId &&
+          current.status === "executing" &&
+          (current.claimUntil || 0) > this.now(),
+        "CLAIM_LOST",
+        "The execution claim expired or was recovered. No further provider write is permitted.",
+        409,
+      );
     };
     try {
       const a = this.connected(d.account);
@@ -967,15 +1052,19 @@ export class Engine {
         "Provider identity no longer matches the authorised account.",
         409,
       );
-      requireValue(!d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA,
-        "AUTHORITY_CHANGED", "The runtime changed after owner approval.", 409);
+      requireValue(
+        !d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA,
+        "AUTHORITY_CHANGED",
+        "The runtime changed after owner approval.",
+        409,
+      );
       if (d.provider === "threads") {
         if (!d.containerId) {
-          this.update(d, { phase: "container_create", claimUntil: this.now() + 60000 });
-          const containerId = await this.providers.createContainer(
-            d,
-            credential,
-          );
+          this.update(d, {
+            phase: "container_create",
+            claimUntil: this.now() + 60000,
+          });
+          const containerId = await this.providers.createContainer(d, credential);
           demandClaim();
           this.update(d, {
             containerId,
@@ -1022,7 +1111,9 @@ export class Engine {
       demandClaim();
       const latest = this.connected(d.account);
       requireValue(
-        latest.version === d.binding && !this.paused() && authorized &&
+        latest.version === d.binding &&
+          !this.paused() &&
+          authorized &&
           (!d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA),
         "AUTHORITY_CHANGED",
         "Publication authority changed before provider write.",
@@ -1040,8 +1131,6 @@ export class Engine {
         );
       this.update(d, { phase: "publish", claimUntil: this.now() + 60000 });
       const published = await this.providers.publish(d, credential);
-      // A late accepted write is still valuable evidence even after a watchdog
-      // recorded uncertainty for this same claim. Never lose its creation ID.
       const current = this.get<Delivery>("delivery:", id);
       if (current.claimId !== claimId) return;
       d = current;
@@ -1070,7 +1159,12 @@ export class Engine {
     } catch (e) {
       const code = e instanceof Fault ? e.code : "UNEXPECTED_FAILURE";
       const latest = this.get<Delivery>("delivery:", id);
-      if (code === "CLAIM_LOST" || latest.claimId !== claimId || latest.status !== "executing") return;
+      if (
+        code === "CLAIM_LOST" ||
+        latest.claimId !== claimId ||
+        latest.status !== "executing"
+      )
+        return;
       this.update(d, {
         status:
           code === "AMBIGUOUS_PROVIDER_WRITE" ||
@@ -1117,7 +1211,7 @@ export class Engine {
       ...this.store
         .list<Profile>("profile:")
         .filter((p) => p.enabled)
-        .map((p) => p.nextRun),
+        .flatMap((p) => [p.nextRun, p.nextMetrics]),
     );
     if (times.length)
       await this.options.wake(
