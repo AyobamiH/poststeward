@@ -23,6 +23,7 @@ import {
   workspaceQuarantined,
 } from "./effects.ts";
 import { Engine } from "./engine.ts";
+import { readGitHubSource } from "./github-sources.ts";
 import { byName } from "./operations/catalog.ts";
 import { SocialProviders } from "./providers.ts";
 import {
@@ -54,7 +55,7 @@ import {
   limitEdge,
   limitWorkspace,
 } from "./security.ts";
-import type { Actor, Env, Profile } from "./types.ts";
+import type { Actor, Env } from "./types.ts";
 
 const connectionSchema = z.strictObject({
   alias: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
@@ -117,41 +118,6 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   return result.data;
 }
 
-async function source(profile: Profile) {
-  // The hostname is fixed. Repository strings are validated by the canonical operation schema.
-  const url = new URL(
-    `https://api.github.com/repos/${profile.repository}/commits`,
-  );
-  url.search = new URLSearchParams({
-    sha: profile.branch,
-    path: profile.path,
-    per_page: "1",
-  }).toString();
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "poststeward",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    redirect: "manual",
-    signal: AbortSignal.timeout(10000),
-  });
-  requireValue(
-    response.ok,
-    "SOURCE_UNAVAILABLE",
-    `Repository source returned HTTP ${response.status}.`,
-    502,
-  );
-  const data: any = await response.json();
-  requireValue(
-    Array.isArray(data) && /^[a-f0-9]{40}$/.test(data[0]?.sha),
-    "SOURCE_INVALID",
-    "No valid source snapshot was returned.",
-    502,
-  );
-  return { sha: data[0].sha as string };
-}
-
 export class Workspace extends DurableObject<Env> {
   private store: SQLiteStore;
   constructor(ctx: DurableObjectState, env: Env) {
@@ -195,7 +161,7 @@ export class Workspace extends DurableObject<Env> {
     const engine = new Engine(this.store, this.env, providers, {
       wake: (at) => this.wake(at),
       authorized,
-      source,
+      source: (profile) => readGitHubSource(profile, this.env, workspace),
       billing,
     });
     const pilot = new Pilot(

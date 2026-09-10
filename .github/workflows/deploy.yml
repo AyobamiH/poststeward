@@ -23,6 +23,8 @@ on:
         required: false
       ALLOWED_OWNER_EMAILS:
         required: false
+      GITHUB_APP_CLIENT_SECRET:
+        required: false
       X_OAUTH_CLIENT_SECRET:
         required: false
       THREADS_OAUTH_CLIENT_SECRET:
@@ -72,6 +74,8 @@ jobs:
       APP_ORIGIN: ${{ vars.APP_ORIGIN }}
       OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
       OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+      GITHUB_APP_CLIENT_ID: ${{ vars.GITHUB_APP_CLIENT_ID }}
+      GITHUB_APP_SLUG: ${{ vars.GITHUB_APP_SLUG }}
       X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
       THREADS_OAUTH_CLIENT_ID: ${{ vars.THREADS_OAUTH_CLIENT_ID }}
       LINKEDIN_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
@@ -100,6 +104,7 @@ jobs:
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
           ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+          GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}
           X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
           THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
           LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}

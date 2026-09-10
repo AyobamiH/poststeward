@@ -9,6 +9,7 @@ import {
   workspaceDeletion,
 } from "./lifecycle.ts";
 import { workspaceQuarantined } from "./effects.ts";
+import { githubSourceRoute, isGitHubSourcePath } from "./github-source-routes.ts";
 import { ownerAuthority, demandFreshOwner } from "./owner-proof.ts";
 import { assertRecoveryCanResume, recoveryStatus } from "./recovery.ts";
 import { boundedBody, limitEdge } from "./security.ts";
@@ -270,6 +271,8 @@ function authenticatedProductPath(path: string) {
     path === "/mcp" ||
     path.startsWith("/payments/") ||
     path === "/auth/logout" ||
+    path === "/sources/github/setup" ||
+    path === "/sources/github/callback" ||
     /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path)
   );
 }
@@ -312,7 +315,16 @@ export default {
     const path = new URL(request.url).pathname;
     if (!path.startsWith("/api/lifecycle/")) {
       const fenced = await fenceDeletedWorkspaceRequest(request, env);
-      return fenced || base.fetch(request, env, ctx);
+      if (fenced) return fenced;
+      if (isGitHubSourcePath(path)) {
+        const requestId = crypto.randomUUID();
+        try {
+          return secure(await githubSourceRoute(request, env), requestId);
+        } catch (error) {
+          return secure(errorResponse(error), requestId);
+        }
+      }
+      return base.fetch(request, env, ctx);
     }
     const requestId = crypto.randomUUID();
     try {

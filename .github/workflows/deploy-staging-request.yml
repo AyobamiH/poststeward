@@ -1,8 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-10-daily-metrics-scheduler-v1
+# Deployment request: 2026-09-10-private-github-sources-v1
 # Updating this file on main is an explicit staging deployment request.
-# This deploy decouples scheduled metrics from the source-monitor clock and adds independent metrics health.
+# This deploy adds owner-controlled GitHub sources, refresh leases and migration 0009.
+# GitHub installation and private repository acceptance remain separate owner actions.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
 # invoke point-in-time restore, settle payment, or perform any live release.
 on:
@@ -25,6 +26,7 @@ jobs:
       ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
       OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
       ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}
       X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
       THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}

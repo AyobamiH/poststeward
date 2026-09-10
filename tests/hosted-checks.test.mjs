@@ -38,8 +38,18 @@ function service(appStatus = 200) {
       return Response.json(
         {
           release,
+          credential: "PRIVATE_NOT_FOR_REPORT",
+          providers: { x: { oauth: true, token: "PRIVATE_NOT_FOR_REPORT" }, threads: { oauth: false }, linkedin: { oauth: false } },
           access: { signupMode: "restricted", publicSignup: false },
           payments: { advancedEnabled: false, mppEnabled: false },
+          sources: {
+            github: {
+              privateRepositories: false,
+              ownerOnly: true,
+              repositorySelection: "selected_only",
+              maxRepositories: 50,
+            },
+          },
           recovery: { externalEffectLedger: true, ownerPitr: true },
         },
         { headers },
@@ -53,7 +63,12 @@ function service(appStatus = 200) {
       return new Response("<html>PostSteward</html>", {
         headers: { ...headers, "Content-Type": "text/html" },
       });
-    if (path === "/api/session")
+    if (
+      path === "/api/session" ||
+      path.startsWith("/api/sources/github/") ||
+      path === "/sources/github/setup" ||
+      path === "/sources/github/callback"
+    )
       return Response.json(
         { error: { code: "UNAUTHENTICATED" } },
         { status: options.headers?.Origin ? 403 : 401, headers },
@@ -142,15 +157,28 @@ test("readiness never follows redirects or retries access rejection", async () =
     assert.equal(calls, 1);
   }
 });
-test("hosted report checks 19 surfaces and does not disclose login state or cookies", async () => {
+test("hosted report checks 25 surfaces and does not disclose login state or cookies", async () => {
   const report = await verifyHosted(c, { send: service(), sleep });
   assert.equal(report.passed, true);
-  assert.equal(report.checks.length, 19);
+  assert.equal(report.checks.length, 25);
+  assert.deepEqual(report.configuredCapabilities, {
+    githubPrivateSources: false,
+    providerOAuth: { x: true, threads: false, linkedin: false },
+  });
   assert.ok(
     report.checks.some((item) => item.name === "public resource: /app-client.js"),
   );
+  assert.ok(
+    report.checks.some((item) => item.name === "public resource: /github-sources-ui.js"),
+  );
+  assert.ok(
+    report.checks.some(
+      (item) => item.name === "unauthenticated GitHub source start rejected",
+    ),
+  );
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE_|test-client/);
   assert.ok(report.notVerified.includes("completed owner sign-in"));
+  assert.ok(report.notVerified.includes("private GitHub source installation"));
 });
 test("version-bound read-only surfaces converge independently during edge propagation", async () => {
   const stable = service();

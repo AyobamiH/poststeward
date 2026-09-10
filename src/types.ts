@@ -144,6 +144,9 @@ export interface Env {
   OIDC_ISSUER: string;
   OIDC_CLIENT_ID: string;
   OIDC_CLIENT_SECRET: string;
+  GITHUB_APP_CLIENT_ID?: string;
+  GITHUB_APP_CLIENT_SECRET?: string;
+  GITHUB_APP_SLUG?: string;
   X_OAUTH_CLIENT_ID?: string;
   X_OAUTH_CLIENT_SECRET?: string;
   THREADS_OAUTH_CLIENT_ID?: string;
