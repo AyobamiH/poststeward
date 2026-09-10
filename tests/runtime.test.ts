@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   Miniflare,
   convertV4MiniflareOptions,
@@ -77,11 +77,14 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
   );
   try {
     const db = await mf.getD1Database("IDENTITY");
-    for (const statement of readFileSync("migrations/0001_identity.sql", "utf8")
-      .split(";")
-      .map((x) => x.trim())
-      .filter(Boolean))
-      await db.prepare(statement).run();
+    for (const file of readdirSync("migrations")
+      .filter((name) => /^\d+.*\.sql$/.test(name))
+      .sort())
+      for (const statement of readFileSync("migrations/" + file, "utf8")
+        .split(";")
+        .map((x) => x.trim())
+        .filter(Boolean))
+        await db.prepare(statement).run();
     await db
       .prepare("INSERT INTO principals VALUES (?,?,?)")
       .bind(owner.id, owner.workspace, Date.now())
