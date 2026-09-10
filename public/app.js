@@ -1,4 +1,10 @@
 import { registerWebMCP } from "./webmcp.js";
+import {
+  oauthHosts,
+  recoveryActionPayload,
+  recoveryControlState,
+  trustedExternal,
+} from "./app-client.js";
 const $ = (id) => document.getElementById(id);
 let session,
   selectedCampaign,
@@ -79,25 +85,10 @@ function button(row, label, fn) {
   control.onclick = () => action(fn);
   row.append(control);
 }
-function trustedExternal(value, hosts) {
-  try {
-    const url = new URL(value);
-    if (
-      url.protocol === "https:" &&
-      hosts.includes(url.hostname) &&
-      !url.username &&
-      !url.password &&
-      !url.port
-    ) {
-      return url.href;
-    }
-  } catch {
-    /* Untrusted response data is not navigation authority. */
-  }
-}
 function navigateExternal(value, hosts) {
   const target = trustedExternal(value, hosts);
-  if (!target) throw new Error("The external destination was not on the expected provider host.");
+  if (!target)
+    throw new Error("The external destination was not on the expected provider host.");
   location.assign(target);
 }
 
@@ -157,14 +148,12 @@ function renderRecovery() {
         2,
       )
     : JSON.stringify({ plan: null, externalEffects: effects }, null, 2);
-  const prepared = plan?.state === "prepared";
-  const armed = plan?.state === "armed";
-  const reconciled = plan?.state === "reconciled";
-  $("recovery-cancel").disabled = !prepared;
-  $("recovery-execute").disabled = !prepared || plan.expiresAt <= Date.now();
-  $("recovery-reconcile").disabled = !armed;
-  $("recovery-resume").disabled = !reconciled || !control.quarantined;
-  $("recovery-undo").disabled = !reconciled || !plan.undoAvailable;
+  const enabled = recoveryControlState(recovery);
+  $("recovery-cancel").disabled = !enabled.cancel;
+  $("recovery-execute").disabled = !enabled.execute;
+  $("recovery-reconcile").disabled = !enabled.reconcile;
+  $("recovery-resume").disabled = !enabled.resume;
+  $("recovery-undo").disabled = !enabled.undo;
 }
 async function refreshRecovery() {
   recovery = await api("/api/recovery/status");
@@ -193,11 +182,10 @@ function recoveryAction(name, flag) {
       )
         return;
     }
-    const result = await api(`/api/recovery/${name}`, {
-      id: plan.id,
-      digest: plan.digest,
-      [flag]: true,
-    });
+    const result = await api(
+      `/api/recovery/${name}`,
+      recoveryActionPayload(plan, flag),
+    );
     recovery = result.status || (await refreshRecovery());
     renderRecovery();
     show(result);
@@ -333,7 +321,8 @@ async function refresh() {
   });
   const auxiliary = await Promise.allSettled([refreshOAuth(), refreshRecovery()]);
   for (const state of auxiliary)
-    if (state.status === "rejected") show(state.reason?.message || "Owner status refresh failed.", true);
+    if (state.status === "rejected")
+      show(state.reason?.message || "Owner status refresh failed.", true);
 }
 
 for (const control of $("oauth-buttons").querySelectorAll("button[data-provider]")) {
@@ -342,15 +331,14 @@ for (const control of $("oauth-buttons").querySelectorAll("button[data-provider]
       const form = $("oauth-connection");
       const alias = new FormData(form).get("alias");
       if (!/^[A-Za-z0-9_-]{1,100}$/.test(String(alias || "")))
-        throw new Error("Choose an account alias before starting provider authorization.");
+        throw new Error(
+          "Choose an account alias before starting provider authorization.",
+        );
       const provider = control.dataset.provider;
-      const started = await api(`/api/connections/oauth/${provider}/start`, { alias });
-      const hosts = {
-        x: ["x.com"],
-        threads: ["threads.net", "www.threads.net"],
-        linkedin: ["www.linkedin.com"],
-      }[provider];
-      navigateExternal(started.authorizationUrl, hosts || []);
+      const started = await api(`/api/connections/oauth/${provider}/start`, {
+        alias,
+      });
+      navigateExternal(started.authorizationUrl, oauthHosts(provider));
     });
 }
 
@@ -456,7 +444,8 @@ $("recovery-prepare").onsubmit = (event) => {
 $("recovery-refresh").onclick = () => action(refreshRecovery);
 $("recovery-cancel").onclick = () => recoveryAction("cancel", "cancel");
 $("recovery-execute").onclick = () => recoveryAction("execute", "execute");
-$("recovery-reconcile").onclick = () => recoveryAction("reconcile", "reconcile");
+$("recovery-reconcile").onclick = () =>
+  recoveryAction("reconcile", "reconcile");
 $("recovery-resume").onclick = () => recoveryAction("resume", "resume");
 $("recovery-undo").onclick = () => recoveryAction("undo", "undo");
 
