@@ -2,7 +2,7 @@
 
 ## Scope and completion rule
 
-Continue the accepted restricted staging deployment. Do not recreate Cloudflare resources, rotate the stored encryption key, enable billing, open public signup, import another product's credentials, or publish to a guessed account. This milestone is one owner-approved, text-only publication to one verified X or Threads identity through PostSteward's existing durable engine. LinkedIn is excluded from this acceptance path because its current adapter cannot independently read back a member post. General product support is unchanged.
+Continue the accepted restricted staging deployment. Do not recreate Cloudflare resources, rotate the stored encryption key, enable billing, open public signup, import another product's credentials, or publish to a guessed account. This milestone is one owner-approved, text-only publication to one verified X or Threads identity through PostSteward's existing durable engine. LinkedIn may enter this path only when its actual application has r_member_social and LINKEDIN_MEMBER_READBACK is enabled; otherwise its member-post readback remains unavailable. Prefer a configured X or Threads identity for the first acceptance.
 
 Completion requires four separate records: a successful OIDC callback and usable owner session; a fresh provider identity read; the owner's exact destination/content approval; and a separate provider GET matching the creation ID, stable author ID and exact text. Deployment, mocked provider responses, a login redirect, an HTTP 2xx write, or a screenshot alone cannot substitute for these records.
 
@@ -20,13 +20,13 @@ Completion requires four separate records: a successful OIDC callback and usable
 
 Use the real Workers/D1/SQLite Durable Object runtime for signed-token callback, proof/session atomicity and expiry, replay/forgery, wrong issuer/audience/nonce, uninvited identities, CSRF/Bearer denial and a simulated provider end-to-end path. Use deterministic engine tests for simultaneous confirmation, frozen routing, expiry, pause, logout/authority loss, transaction rollback, restart, post-write response loss, stale execution and bounded readback. Provider tests must cover stable-author mismatch, wrong text/ID, body-read failure after acceptance and hostile permalink hosts. Simulated tests are never recorded as live acceptance.
 
-Run existing CI, the production dependency audit, new tests and hosted checks before accepting a staged revision. Preserve the separate, still-open full-development-dependency advisory finding rather than describing the entire dependency graph as clean.
+Run existing CI, the production dependency audit, new tests and hosted checks before accepting a staged revision. Run the full-development-dependency audit as well. The 2026-09-10 baseline cleared both audits; record the current run's result without carrying forward the obsolete advisory finding.
 
 ## Live run
 
 Open /pilot. Complete Google consent in the owner's browser. Connect an authorised provider credential only through the authenticated application, or explicitly choose an already connected account. Review the stable account ID and exact text, then approve one publication. No account or copy is silently selected. The browser can be closed after reservation; the durable alarm owns dispatch. Returning to /pilot recovers the same receipt. Cancellation before dispatch and post-ID readback are available there.
 
-Google consent and the choice/approval of a real destination are owner actions, not deployment credentials. Do not manufacture a session or grant through D1 to bypass consent. No credential has been provided for this publication merely because another connected product can post socially. Provider token import is the existing pilot mechanism, not a claim that self-service provider OAuth/refresh is complete.
+Google consent and the choice/approval of a real destination are owner actions, not deployment credentials. Do not manufacture a session or grant through D1 to bypass consent. No credential has been provided for this publication merely because another connected product can post socially. Provider OAuth is implemented for X, Threads and LinkedIn but requires each provider's actual application credentials and consent. Use the authenticated OAuth connection flow when configured; explicit manual token import remains a separate owner path. Mocked refresh tests do not establish real token lifecycle acceptance.
 
 ## Operational interpretation
 

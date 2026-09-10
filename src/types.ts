@@ -154,6 +154,7 @@ export interface Env {
   LINKEDIN_OAUTH_CLIENT_ID?: string;
   LINKEDIN_OAUTH_CLIENT_SECRET?: string;
   LINKEDIN_MEMBER_READBACK?: string;
+  STRIPE_SANDBOX_ENABLED?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;

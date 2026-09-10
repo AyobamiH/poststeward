@@ -14,6 +14,8 @@ PostSteward separates code-complete capability from externally proven capability
 - Blocking production and full dependency audits.
 - Automatic staging deployment additionally requires the exact main revision to be associated with a merged pull request. GitHub branch rules remain a separate repository-admin control.
 
+See [the five-workstream implementation and live acceptance plan](live-acceptance-plan.md) for execution order, the staging sandbox configuration and evidence requirements. Owner-only private source checks do not require an Advanced subscription; sandbox Checkout can be explicitly enabled without enabling paid automation.
+
 ## External evidence gates
 
 1. Real owner Google consent and authenticated-browser acceptance.

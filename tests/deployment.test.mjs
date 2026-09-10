@@ -5,6 +5,7 @@ import {
   buildConfiguration,
   deploymentSecrets,
   validateConfiguration,
+  verifySandboxPrice,
 } from "../scripts/deployment-config.mjs";
 const base = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 const environment = {
@@ -214,4 +215,44 @@ test("provider application secrets are optional but fail closed unless paired wi
     () => deploymentSecrets({ ...mandatory, LINKEDIN_MEMBER_READBACK: "true" }),
     /LinkedIn member readback/,
   );
+});
+
+test("sandbox deployment is explicit, staging-only, and keeps paid automation disabled", () => {
+  const sandbox = { ...environment, STRIPE_SANDBOX_ENABLED: "true", STRIPE_SANDBOX_PRICE_ID: "price_sandbox" };
+  const c = buildConfiguration(base, sandbox);
+  assert.equal(c.vars.STRIPE_SANDBOX_ENABLED, "true");
+  assert.equal(c.vars.STRIPE_PRICE_ID, "price_sandbox");
+  assert.equal(c.vars.ADVANCED_ENABLED, "false");
+  assert.equal(c.vars.MPP_ENABLED, "false");
+  assert.throws(() => buildConfiguration(base, { ...sandbox, DEPLOY_ENV: "production" }), /sandbox/);
+  assert.throws(() => buildConfiguration(base, { ...sandbox, STRIPE_SANDBOX_PRICE_ID: "" }), /sandbox/);
+});
+test("sandbox preflight rejects live keys before network and rejects live or wrong-price objects", async () => {
+  const env = { ...environment, STRIPE_SANDBOX_ENABLED: "true",
+    STRIPE_SANDBOX_PRICE_ID: "price_sandbox", STRIPE_SANDBOX_SECRET_KEY: "sk_test_placeholder",
+    STRIPE_SANDBOX_WEBHOOK_SECRET: "whsec_placeholder",
+    ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    OIDC_CLIENT_SECRET: "test-secret-not-real", ALLOWED_OWNER_EMAILS: "owner@example.com",
+  };
+  let calls = 0;
+  let price = { id: "price_sandbox", livemode: false, active: true, currency: "usd", unit_amount: 500,
+    recurring: { interval: "month", interval_count: 1 } };
+  const send = async (url, init) => {
+    calls++;
+    assert.equal(url, "https://api.stripe.com/v1/prices/price_sandbox");
+    assert.equal(init.redirect, "error");
+    assert.equal(init.headers.Authorization, "Bearer sk_test_placeholder");
+    return Response.json(price);
+  };
+  await assert.rejects(verifySandboxPrice({ ...env, STRIPE_SANDBOX_SECRET_KEY: "sk_live_placeholder" }, send), /test-only/);
+  assert.equal(calls, 0);
+  assert.deepEqual(await verifySandboxPrice(env, send), { enabled: true, priceVerified: true, livemode: false });
+  price = { ...price, livemode: true };
+  await assert.rejects(verifySandboxPrice(env, send), /test-mode/);
+  price = { ...price, livemode: false, unit_amount: 5000 };
+  await assert.rejects(verifySandboxPrice(env, send), /USD 5/);
+  const values = deploymentSecrets(env);
+  assert.equal(values.STRIPE_SECRET_KEY, env.STRIPE_SANDBOX_SECRET_KEY);
+  assert.equal(values.STRIPE_WEBHOOK_SECRET, env.STRIPE_SANDBOX_WEBHOOK_SECRET);
+  assert.equal(values.STRIPE_SANDBOX_SECRET_KEY, undefined);
 });

@@ -1034,10 +1034,13 @@ async function verifyLinkedRepositoryStillAccessible(
       "UPDATE github_installations SET last_verified_at=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease IS NULL AND status='linked'",
     ).bind(now, now, link.workspace, link.installation_id, link.credential_revision, link.credential),
   ]);
+  return current;
 }
 
+type SourceSelection = Pick<Profile, "repository" | "branch" | "path">;
+
 async function commitSnapshot(
-  profile: Profile,
+  profile: SourceSelection,
   token: string | undefined,
   send: Send,
 ) {
@@ -1063,13 +1066,17 @@ async function commitSnapshot(
 }
 
 export async function readGitHubSource(
-  profile: Profile,
+  profile: SourceSelection,
   env: Env,
   workspace: string,
   send: Send = fetch,
   now = Date.now(),
+  privateOnly = false,
 ) {
   const link = await linkedRepository(env, workspace, profile.repository);
+  if (privateOnly)
+    requireValue(link && link.private === 1, "GITHUB_PRIVATE_LINK_REQUIRED",
+      "Choose a private repository already linked to this workspace.", 409);
   if (!link) {
     const response = await commitSnapshot(profile, undefined, send);
     requireValue(
@@ -1089,7 +1096,10 @@ export async function readGitHubSource(
   }
 
   const credential = await activeCredential(env, link, send, now);
-  await verifyLinkedRepositoryStillAccessible(env, link, credential, send, now);
+  const repository = await verifyLinkedRepositoryStillAccessible(env, link, credential, send, now);
+  if (privateOnly)
+    requireValue(repository.private, "GITHUB_PRIVATE_LINK_REQUIRED",
+      "This repository is no longer private; private source acceptance requires a private repository.", 409);
   const response = await commitSnapshot(profile, credential.accessToken, send);
   if (response.status === 401) {
     await markInstallationStale(

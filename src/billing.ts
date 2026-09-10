@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { sandboxBillingEnabled, stripeCredentialAllowed } from "./billing-mode.ts";
 import { Mppx, stripe as machineStripe } from "mppx/server";
 import { addMonth, digest, Fault, json, requireValue, uid } from "./common.ts";
 import type { Actor, Entitlement, Env, Store } from "./types.ts";
@@ -44,7 +45,8 @@ export class Billing implements BillingPort {
   }
   private available() {
     return (
-      this.env.ADVANCED_ENABLED === "true" &&
+      (this.env.ADVANCED_ENABLED === "true" || sandboxBillingEnabled(this.env)) &&
+      stripeCredentialAllowed(this.env) &&
       !!this.stripe &&
       !!this.env.STRIPE_PRICE_ID
     );
@@ -71,6 +73,7 @@ export class Billing implements BillingPort {
       }
     }
     return {
+      sandbox: sandboxBillingEnabled(this.env),
       entitlement: this.store.get<Entitlement>("entitlement") || null,
       attempt: this.store.get<Attempt>("billing:attempt") || null,
       price: { amount: 500, currency: "usd", interval: "month" },
@@ -191,11 +194,11 @@ export class Billing implements BillingPort {
         session: existing.session,
         status: existing.status,
       };
-    const attempt = this.claim(q);
     // All callers, including interrupted retries, use the same Stripe key and parameters.
     const price = await stripe.prices.retrieve(this.env.STRIPE_PRICE_ID!);
     requireValue(
       price.active &&
+        price.livemode === !this.env.STRIPE_SECRET_KEY!.includes("_test_") &&
         price.currency === "usd" &&
         price.unit_amount === 500 &&
         price.recurring?.interval === "month" &&
@@ -204,6 +207,7 @@ export class Billing implements BillingPort {
       "Stripe Price must be active USD 5 per month.",
       503,
     );
+    const attempt = this.claim(q);
     const knownCustomer = this.store.get<string>("billing:customer");
     try {
       const session = await stripe.checkout.sessions.create(
@@ -222,6 +226,10 @@ export class Billing implements BillingPort {
           automatic_tax: { enabled: false },
         },
         { idempotencyKey: "checkout:" + this.workspace + ":" + q.id },
+      );
+      requireValue(
+        session.livemode === !this.env.STRIPE_SECRET_KEY!.includes("_test_"),
+        "BILLING_MODE_MISMATCH", "Stripe Checkout environment mismatch.", 409,
       );
       attempt.session = session.id;
       attempt.url = session.url || undefined;
@@ -254,6 +262,8 @@ export class Billing implements BillingPort {
   }
   async reconcile() {
     if (!this.stripe) return;
+    requireValue(stripeCredentialAllowed(this.env), "BILLING_MODE_MISMATCH",
+      "Stripe credentials do not match this deployment.", 409);
     const a = this.store.get<Attempt>("billing:attempt");
     if (!a) return;
     if (a.mode === "pass") {
@@ -530,7 +540,7 @@ export async function stripeWebhook(
   env: Env,
 ): Promise<Response> {
   requireValue(
-    env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET,
+    env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && stripeCredentialAllowed(env),
     "WEBHOOK_UNCONFIGURED",
     "Webhook is not configured.",
     503,

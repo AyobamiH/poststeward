@@ -5,12 +5,19 @@ import {
   completeGitHubSourceLink,
   continueGitHubSourceSetup,
   githubSourceStatus,
+  readGitHubSource,
   startGitHubSourceLink,
   unlinkGitHubSource,
 } from "./github-sources.ts";
 import { demandFreshOwner, ownerAuthority } from "./owner-proof.ts";
 import { boundedBody, limitEdge } from "./security.ts";
 import type { Env } from "./types.ts";
+
+const probeInput = z.strictObject({
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/).max(200),
+  branch: z.string().min(1).max(200),
+  path: z.string().min(1).max(300),
+});
 
 const unlinkInput = z.strictObject({
   installationId: z.number().int().positive().safe(),
@@ -66,6 +73,20 @@ export async function githubSourceRoute(request: Request, env: Env) {
 
   if (path === "/api/sources/github/status" && request.method === "GET")
     return json(await githubSourceStatus(env, auth.actor.workspace));
+
+  if (path === "/api/sources/github/probe" && request.method === "POST") {
+    demandFreshOwner(owner, Date.now());
+    const parsed = probeInput.safeParse(await request.json());
+    requireValue(parsed.success, "INVALID_INPUT",
+      "Choose a linked private repository, branch and path.", 400);
+    const snapshot = await readGitHubSource(
+      parsed.data, env, auth.actor.workspace, fetch, Date.now(), true,
+    );
+    return json({
+      ...parsed.data, sha: snapshot.sha, observedAt: Date.now(),
+      release: env.RELEASE_SHA, private: true,
+    });
+  }
 
   if (path === "/api/sources/github/start" && request.method === "POST") {
     demandFreshOwner(owner, Date.now());

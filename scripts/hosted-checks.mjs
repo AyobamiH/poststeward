@@ -132,6 +132,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     async (r) => {
       const b = await r.json();
       configuredCapabilities = {
+        stripeSandbox: typeof b.payments?.sandboxEnabled === "boolean" ? b.payments.sandboxEnabled : null,
         githubPrivateSources: typeof b.sources?.github?.privateRepositories === "boolean"
           ? b.sources.github.privateRepositories : null,
         providerOAuth: Object.fromEntries(["x", "threads", "linkedin"].map((name) => [
@@ -144,6 +145,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.release === release &&
         b.access?.signupMode === "restricted" &&
         b.access?.publicSignup === false &&
+        b.payments?.sandboxEnabled === (c.vars.STRIPE_SANDBOX_ENABLED === "true") &&
         b.payments?.advancedEnabled === false &&
         b.payments?.mppEnabled === false &&
         typeof b.sources?.github?.privateRepositories === "boolean" &&
@@ -219,6 +221,17 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
+    },
+    unauthenticated,
+  );
+  await check(
+    "unauthenticated private source probe rejected",
+    "/api/sources/github/probe",
+    401,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repository: "probe/denied", branch: "main", path: "README.md" }),
     },
     unauthenticated,
   );

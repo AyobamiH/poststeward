@@ -28,6 +28,8 @@
           <h1 id="plan">Free publishing</h1>
           <p id="readiness" class="muted"></p>
           <p id="webmcp-status" class="muted"></p>
+          <button id="webmcp-check" type="button" disabled>Check native WebMCP</button>
+          <pre id="webmcp-observation" class="preview" hidden></pre>
         </div>
         <button id="pause">Pause publishing</button>
       </section>
@@ -210,6 +212,16 @@
             Checking GitHub source access…
           </p>
           <div id="github-sources" class="record-list"></div>
+          <h3>Check private source access</h3>
+          <p class="muted">Read the latest commit for a linked private repository.
+            This check is available without a subscription and creates no automation.</p>
+          <form id="github-source-probe">
+            <label>Private repository<select id="github-probe-repository" name="repository" required></select></label>
+            <label>Branch<input name="branch" value="main" required maxlength="200" /></label>
+            <label>Path<input name="path" value="README.md" required maxlength="300" /></label>
+            <button id="github-probe-submit" disabled>Check source access</button>
+          </form>
+          <pre id="github-probe-result" class="preview" role="status" hidden></pre>
         </section>
         <section class="panel">
           <h2>Advanced · $5 per month</h2>
