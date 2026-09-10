@@ -117,7 +117,7 @@ If staging moves to a custom origin, both URLs must move to that exact HTTPS ori
 
 CI uses the real Workers/D1/SQLite runtime with simulated GitHub HTTP responses. It verifies PKCE/state/session binding, spoofed installation rejection, encrypted credential retention, broad/write permission rejection, per-read privilege revalidation, public anonymous compatibility, deletion fencing and erasure. Deterministic concurrent tests pause refresh responses and cover one-request rotation, uncertain outcomes without replay, expired leases, reconnect supersession, unlink during refresh and persistent removal/rename fences.
 
-Hosted verification remains non-destructive. It checks the private-source static module and confirms unauthenticated status/start/unlink/setup/callback requests are rejected. It does not create a GitHub installation, retain an owner credential or read a private repository.
+Hosted verification remains non-destructive. It checks the private-source static module and confirms unauthenticated status/start/probe/unlink/setup/callback requests are rejected. It does not create a GitHub installation, retain an owner credential or read a private repository.
 
 Remaining external acceptance is therefore:
 
@@ -126,7 +126,7 @@ Remaining external acceptance is therefore:
 3. Deploy the reviewed main revision through the normal protected deployment workflow.
 4. As the invited owner, install the app for one selected private repository and complete the GitHub user OAuth flow.
 5. Verify the workspace status shows only the intended repository and no credential material.
-6. Configure an Advanced source profile for a harmless path and verify one read-only source observation. Do not enable paid Advanced execution merely to prove repository access.
+6. In /app, use **Check private source access** with the linked private repository, branch and harmless path. This owner-only POST to /api/sources/github/probe works with Advanced disabled and returns only repository/branch/path, commit SHA, observation time and release. It revalidates selected-only read permission and current private visibility; an unlinked, stale or now-public source fails closed without anonymous fallback. It creates no profile or schedule.
 7. Remove/revoke access and verify the next check fails closed, then reconnect if the staging test should continue.
 
 Do not treat CI fixtures, an installation redirect, a stored installation ID or a GitHub screenshot as private-source acceptance evidence.

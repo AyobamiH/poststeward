@@ -130,3 +130,9 @@ The current deployment preflight intentionally rejects enabling Advanced/MPP. En
 If the deployment token is unavailable, inspection still validates the syntax of saved nonsecret values, derives the proposed origin and OAuth callback, and reports missing application settings. It checks only presence booleans for a misplaced `CLOUDFLARE_API_TOKEN` variable or `CF_API_TOKEN` secret; it never reads their values or substitutes them into deployment. A proposed origin is not evidence that a Worker is live.
 
 D1 diagnostics distinguish the saved database lookup from the account database list. If both return HTTP 401/403, inspect the token's D1 permission and account restriction rather than recreating the database. Error reports include numeric API codes only, never arbitrary upstream message bodies.
+
+## Live acceptance configuration
+
+The [five-workstream plan](live-acceptance-plan.md) describes the exact owner actions and evidence still required. A staging-only STRIPE_SANDBOX_ENABLED option now permits test Checkout with dedicated sandbox Price/key/webhook configuration; it preserves ADVANCED_ENABLED=false, MPP_ENABLED=false and restricted signup. Deployment retrieves the exact test Price before Cloudflare mutation and refuses live credentials or production sandbox enablement. The option defaults to false. Existing staging deployment requests remain non-effectful.
+
+The free private source probe and native WebMCP check are available in /app after owner sign-in. Neither deployment checks nor a successful probe establishes provider publication, PITR or payment settlement acceptance.

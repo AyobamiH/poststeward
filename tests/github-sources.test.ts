@@ -646,3 +646,69 @@ test("a delayed GitHub callback cannot retain authority after deletion or logout
     } finally { finish.release(); await pending?.catch(() => undefined); await mf.dispose(); }
   }
 });
+
+test("owner private-source probe works with Advanced disabled and refuses missing authority before any anonymous read", async () => {
+  let commitReads = 0;
+  let isPrivate = true;
+  const baseOutbound = githubOutbound();
+  const { mf, db } = await runtime(async (request: Request) => {
+    const url = new URL(request.url);
+    if (url.pathname === "/repos/acme/private-repo/commits") {
+      commitReads++;
+      assert.equal(request.method, "GET");
+      assert.equal(request.headers.get("authorization"), "Bearer github-user-access-token-private-001");
+      assert.equal(url.searchParams.get("sha"), "main");
+      assert.equal(url.searchParams.get("path"), "README.md");
+      assert.equal(url.searchParams.get("per_page"), "1");
+      return RuntimeResponse.json([{ sha: "c".repeat(40) }]);
+    }
+    if (url.pathname === "/user/installations/42/repositories")
+      return RuntimeResponse.json({ total_count: 1, repositories: [repo(99, "acme/private-repo", isPrivate)] });
+    return baseOutbound(request);
+  }, { ...ownerRuntimeBindings, ADVANCED_ENABLED: "false" }, 100);
+  try {
+    const owner = await seedOwner(db, "-probe");
+    const probe = (input = refreshProfile, headers = ownerHeaders(owner)) =>
+      mf.dispatchFetch(`${origin}/api/sources/github/probe`, {
+        method: "POST", headers, body: JSON.stringify(input),
+      });
+    const missing = await probe();
+    assert.equal(missing.status, 409);
+    assert.equal((await missing.json() as any).error.code, "GITHUB_PRIVATE_LINK_REQUIRED");
+    assert.equal(commitReads, 0);
+
+    const state = await startAndSetup(mf, owner);
+    const callback = await mf.dispatchFetch(
+      `${origin}/sources/github/callback?state=${encodeURIComponent(state)}&code=github-code`,
+      { redirect: "manual", headers: { Cookie: `__Host-session=${owner.session}; __Host-github-source=${state}` } },
+    );
+    assert.equal(callback.status, 302);
+    const noCsrf = ownerHeaders(owner);
+    delete (noCsrf as any)["X-CSRF-Token"];
+    assert.equal((await probe(refreshProfile, noCsrf)).status, 403);
+    assert.equal((await probe({ ...refreshProfile, repository: "https://evil.example/repo" })).status, 400);
+    assert.equal(commitReads, 0);
+
+    const response = await probe();
+    assert.equal(response.status, 200, await response.clone().text());
+    const observation: any = await response.json();
+    assert.deepEqual(Object.keys(observation).sort(),
+      ["branch", "observedAt", "path", "private", "release", "repository", "sha"]);
+    assert.equal(observation.sha, "c".repeat(40));
+    assert.equal(observation.private, true);
+    assert.equal(observation.repository, refreshProfile.repository);
+    assert.ok(observation.observedAt <= Date.now());
+    assert.equal(commitReads, 1);
+
+    isPrivate = false;
+    const becamePublic = await probe();
+    assert.equal(becamePublic.status, 409);
+    assert.equal((await becamePublic.json() as any).error.code, "GITHUB_PRIVATE_LINK_REQUIRED");
+    assert.equal(commitReads, 1);
+    await mf.dispatchFetch(`${origin}/api/sources/github/unlink`, {
+      method: "POST", headers: ownerHeaders(owner), body: JSON.stringify({ installationId: 42 }),
+    });
+    assert.equal((await probe()).status, 409);
+    assert.equal(commitReads, 1);
+  } finally { await mf.dispose(); }
+});

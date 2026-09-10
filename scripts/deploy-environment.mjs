@@ -6,6 +6,7 @@ import {
   demand,
   deploymentSecrets,
   validateConfiguration,
+  verifySandboxPrice,
 } from "./deployment-config.mjs";
 
 const c = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
@@ -22,6 +23,7 @@ demand(
   "Deployment account and token are required.",
 );
 const secrets = deploymentSecrets(process.env);
+await verifySandboxPrice(process.env);
 const db = c.d1_databases[0];
 const response = await fetch(
   `https://api.cloudflare.com/client/v4/accounts/${c.account_id}/d1/database/${db.database_id}`,

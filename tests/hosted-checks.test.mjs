@@ -41,7 +41,7 @@ function service(appStatus = 200) {
           credential: "PRIVATE_NOT_FOR_REPORT",
           providers: { x: { oauth: true, token: "PRIVATE_NOT_FOR_REPORT" }, threads: { oauth: false }, linkedin: { oauth: false } },
           access: { signupMode: "restricted", publicSignup: false },
-          payments: { advancedEnabled: false, mppEnabled: false },
+          payments: { sandboxEnabled: false, advancedEnabled: false, mppEnabled: false },
           sources: {
             github: {
               privateRepositories: false,
@@ -157,11 +157,12 @@ test("readiness never follows redirects or retries access rejection", async () =
     assert.equal(calls, 1);
   }
 });
-test("hosted report checks 25 surfaces and does not disclose login state or cookies", async () => {
+test("hosted report checks 26 surfaces and does not disclose login state or cookies", async () => {
   const report = await verifyHosted(c, { send: service(), sleep });
   assert.equal(report.passed, true);
-  assert.equal(report.checks.length, 25);
+  assert.equal(report.checks.length, 26);
   assert.deepEqual(report.configuredCapabilities, {
+    stripeSandbox: false,
     githubPrivateSources: false,
     providerOAuth: { x: true, threads: false, linkedin: false },
   });

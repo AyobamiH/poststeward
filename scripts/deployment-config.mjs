@@ -158,6 +158,8 @@ export function buildConfiguration(base, env) {
     OIDC_CLIENT_ID: env.OIDC_CLIENT_ID,
     DEPLOY_ENV: env.DEPLOY_ENV,
     SIGNUP_MODE: "restricted",
+    STRIPE_SANDBOX_ENABLED: env.STRIPE_SANDBOX_ENABLED || "false",
+    STRIPE_PRICE_ID: env.STRIPE_SANDBOX_ENABLED === "true" ? (env.STRIPE_SANDBOX_PRICE_ID || "") : "",
     ADVANCED_ENABLED: "false",
     MPP_ENABLED: "false",
     GITHUB_APP_CLIENT_ID: github.clientId,
@@ -245,6 +247,12 @@ export function validateConfiguration(c) {
     c.vars.ADVANCED_ENABLED === "false" && c.vars.MPP_ENABLED === "false",
     "Purchases remain disabled pending product and payment acceptance.",
   );
+  demand(
+    ["true", "false"].includes(c.vars.STRIPE_SANDBOX_ENABLED) &&
+      (c.vars.STRIPE_SANDBOX_ENABLED !== "true" ||
+        (environment === "staging" && /^price_[A-Za-z0-9_]+$/.test(c.vars.STRIPE_PRICE_ID || ""))),
+    "Stripe sandbox requires restricted staging and a sandbox Price identifier.",
+  );
   githubAppPublic(c.vars.GITHUB_APP_CLIENT_ID, c.vars.GITHUB_APP_SLUG);
   for (const [clientId] of providerSecretPairs)
     providerClientId(c.vars[clientId], clientId);
@@ -318,5 +326,35 @@ export function deploymentSecrets(env) {
       (env.LINKEDIN_OAUTH_CLIENT_ID && env.LINKEDIN_OAUTH_CLIENT_SECRET),
     "LinkedIn member readback requires a configured LinkedIn OAuth application.",
   );
+  if (env.STRIPE_SANDBOX_ENABLED === "true") {
+    demand(env.DEPLOY_ENV === "staging" &&
+      /^(sk|rk)_test_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_SECRET_KEY || "") &&
+      /^whsec_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_WEBHOOK_SECRET || "") &&
+      /^price_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_PRICE_ID || ""),
+      "Stripe sandbox requires staging, test-only credentials, a webhook signing secret and a Price.");
+    values.STRIPE_SECRET_KEY = env.STRIPE_SANDBOX_SECRET_KEY;
+    values.STRIPE_WEBHOOK_SECRET = env.STRIPE_SANDBOX_WEBHOOK_SECRET;
+  }
   return values;
+}
+
+export async function verifySandboxPrice(env, send = fetch) {
+  if (env.STRIPE_SANDBOX_ENABLED !== "true") return { enabled: false };
+  // Validate the complete configuration before sending even a read-only request.
+  const secrets = deploymentSecrets(env);
+  const response = await send(
+    "https://api.stripe.com/v1/prices/" + encodeURIComponent(env.STRIPE_SANDBOX_PRICE_ID),
+    {
+      headers: { Authorization: "Bearer " + secrets.STRIPE_SECRET_KEY },
+      redirect: "error", signal: AbortSignal.timeout(15000),
+    },
+  ).catch(() => { throw new Error("Stripe sandbox Price verification request failed."); });
+  demand(response.ok, "Stripe sandbox Price verification was refused. No deployment performed.");
+  const price = await response.json().catch(() => null);
+  demand(price && price.id === env.STRIPE_SANDBOX_PRICE_ID &&
+    price.livemode === false && price.active === true &&
+    price.currency === "usd" && price.unit_amount === 500 &&
+    price.recurring?.interval === "month" && price.recurring.interval_count === 1,
+    "Stripe sandbox Price must be active, test-mode, USD 5 per month.");
+  return { enabled: true, priceVerified: true, livemode: false };
 }

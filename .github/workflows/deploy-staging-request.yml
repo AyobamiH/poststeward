@@ -1,9 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-10-private-github-sources-v1
+# Deployment request: 2026-09-10-five-live-acceptance-paths
 # Updating this file on main is an explicit staging deployment request.
-# This deploy adds owner-controlled GitHub sources, refresh leases and migration 0009.
-# GitHub installation and private repository acceptance remain separate owner actions.
+# This deploy adds a private source probe, native WebMCP checks and opt-in sandbox Checkout.
+# Owner consent, live provider access, PITR and sandbox settlement require recorded acceptance.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
 # invoke point-in-time restore, settle payment, or perform any live release.
 on:
@@ -30,3 +30,5 @@ jobs:
       X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
       THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+      STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}

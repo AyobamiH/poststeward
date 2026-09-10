@@ -1,3 +1,4 @@
+import { sandboxBillingEnabled } from "./billing-mode.ts";
 import { githubSourceConfiguration } from "./github-sources.ts";
 import { oauthConfiguration } from "./provider-oauth.ts";
 import type { Env } from "./types.ts";
@@ -27,6 +28,7 @@ export function releaseReadiness(env: Env) {
       },
     },
     payments: {
+      sandboxEnabled: sandboxBillingEnabled(env),
       advancedEnabled: env.ADVANCED_ENABLED === "true",
       mppEnabled: env.MPP_ENABLED === "true",
       checkoutConfigured: Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_PRICE_ID),

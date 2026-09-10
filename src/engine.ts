@@ -51,7 +51,9 @@ export class Engine {
   ) {
     this.now = options.now || Date.now;
     this.handlers = {
-      workspace_status: () => ({
+      workspace_status: (_input, actor) => ({
+        workspace: actor.workspace,
+        release: env.RELEASE_SHA,
         plan: this.paid() ? "advanced" : "free",
         entitlement: this.store.get("entitlement") || null,
         publishingPaused: this.paused(),

@@ -23,6 +23,7 @@ function setup() {
     prices: {
       retrieve: async () => ({
         id: "price_test",
+        livemode: false,
         active: true,
         currency: "usd",
         unit_amount: 500,
@@ -33,7 +34,7 @@ function setup() {
       sessions: {
         create: async (p: any, o: any) => {
           calls.push({ p, o });
-          return { id: "cs_test", url: "https://checkout.stripe.com/test" };
+          return { id: "cs_test", url: "https://checkout.stripe.com/test", livemode: false };
         },
         retrieve: async () => ({
           id: "cs_test",
@@ -260,4 +261,78 @@ test("forged Stripe webhook never reaches a workspace or grants access", async (
     ),
     { code: "INVALID_SIGNATURE" },
   );
+});
+
+test("staging sandbox Checkout does not require or enable Advanced or MPP", async () => {
+  const h = setup();
+  Object.assign(h.env, {
+    DEPLOY_ENV: "staging", SIGNUP_MODE: "restricted",
+    ADVANCED_ENABLED: "false", MPP_ENABLED: "false",
+    STRIPE_SANDBOX_ENABLED: "true", STRIPE_WEBHOOK_SECRET: "whsec_sandbox",
+  });
+  assert.equal((await h.billing.status()).sandbox, true);
+  const q = await h.billing.quote({ mode: "subscription" }, owner);
+  await h.billing.checkout({ quote: q.id }, owner);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.store.get("entitlement"), undefined);
+  await assert.rejects(h.billing.quote({ mode: "pass" }, owner), { code: "MPP_UNAVAILABLE" });
+  assert.equal(h.env.ADVANCED_ENABLED, "false");
+});
+test("sandbox enablement refuses production, public signup, missing webhook and live keys", async () => {
+  for (const changed of [
+    { DEPLOY_ENV: "production" }, { SIGNUP_MODE: "public" },
+    { STRIPE_WEBHOOK_SECRET: "" }, { STRIPE_SECRET_KEY: "sk_live_not_real" },
+  ]) {
+    const h = setup();
+    Object.assign(h.env, {
+      DEPLOY_ENV: "staging", SIGNUP_MODE: "restricted",
+      ADVANCED_ENABLED: "false", MPP_ENABLED: "false",
+      STRIPE_SANDBOX_ENABLED: "true", STRIPE_WEBHOOK_SECRET: "whsec_sandbox",
+    }, changed);
+    await assert.rejects(h.billing.quote({ mode: "subscription" }, owner), { code: "BILLING_UNAVAILABLE" });
+    assert.equal(h.calls.length, 0);
+  }
+});
+test("a live Stripe Price is refused before reservation and sandbox price can then be retried", async () => {
+  const h = setup();
+  const retrieve = h.client.prices.retrieve;
+  h.client.prices.retrieve = async () => ({ ...await retrieve(), livemode: true });
+  const q = await h.billing.quote({ mode: "subscription" }, owner);
+  await assert.rejects(h.billing.checkout({ quote: q.id }, owner), { code: "PRICE_MISMATCH" });
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.store.get("billing:attempt"), undefined);
+  h.client.prices.retrieve = retrieve;
+  await h.billing.checkout({ quote: q.id }, owner);
+  assert.equal(h.calls.length, 1);
+});
+
+test("subscription settlement reconciles once and later refund or dispute revokes confirmed coverage", async () => {
+  for (const outcome of ["refund", "dispute"]) {
+    const h = setup();
+    const q = await h.billing.quote({ mode: "subscription" }, owner);
+    await h.billing.checkout({ quote: q.id }, owner);
+    h.client.checkout.sessions.retrieve = async () => ({
+      id: "cs_test", client_reference_id: owner.workspace,
+      metadata: { quote: q.id }, livemode: false, status: "complete",
+      subscription: "sub_test",
+    });
+    const charge = { refunded: false, amount_refunded: 0, disputed: false };
+    const until = Math.floor(Date.now() / 1000) + 86400;
+    h.client.subscriptions = { retrieve: async () => ({
+      id: "sub_test", status: "active", customer: "cus_test", metadata: { workspace: owner.workspace },
+      items: { data: [{ quantity: 1, current_period_end: until,
+        price: { id: "price_test", unit_amount: 500, currency: "usd" } }] },
+      latest_invoice: { status: "paid", currency: "usd", amount_paid: 500,
+        payments: { data: [{ payment: { payment_intent: { latest_charge: charge } } }] } },
+    }) };
+    await h.billing.reconcile();
+    await h.billing.reconcile();
+    assert.equal(h.store.get<Entitlement>("entitlement")?.until, until * 1000);
+    assert.equal(h.calls.length, 1);
+    if (outcome === "refund") charge.amount_refunded = 500;
+    else charge.disputed = true;
+    await h.billing.reconcile();
+    assert.equal(h.store.get<Entitlement>("entitlement")?.revoked, true);
+    assert.equal(h.calls.length, 1);
+  }
 });

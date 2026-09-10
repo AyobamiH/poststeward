@@ -100,6 +100,16 @@ function render(status) {
     list.append(row);
   }
 
+  const privateRepositories = repositories.filter((repository) => repository.private);
+  $("github-probe-repository").replaceChildren(
+    ...privateRepositories.map((repository) => {
+      const option = document.createElement("option");
+      option.value = repository.full_name;
+      option.textContent = repository.full_name;
+      return option;
+    }),
+  );
+  $("github-probe-submit").disabled = !config.available || !privateRepositories.length;
   const datalist = $("github-repositories");
   datalist.replaceChildren(
     ...repositories.map((repository) => {
@@ -114,6 +124,25 @@ function render(status) {
 async function refreshGitHubSources() {
   render(await api("/api/sources/github/status"));
 }
+
+$("github-source-probe").addEventListener("submit", (event) => {
+  event.preventDefault();
+  action(async () => {
+    const result = $("github-probe-result");
+    result.hidden = true;
+    result.textContent = "";
+    $("github-probe-submit").disabled = true;
+    try {
+      const input = Object.fromEntries(new FormData(event.currentTarget));
+      const observation = await api("/api/sources/github/probe", input);
+      result.textContent = JSON.stringify(observation, null, 2);
+      result.hidden = false;
+      sourceMessage("Private source read verified at the time shown below.");
+    } finally {
+      $("github-probe-submit").disabled = false;
+    }
+  });
+});
 
 $("github-source-connect").addEventListener("click", () =>
   action(async () => {

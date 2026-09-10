@@ -1,4 +1,4 @@
-import { registerWebMCP } from "./webmcp.js";
+import { registerWebMCP, checkNativeWebMCP } from "./webmcp.js";
 import {
   oauthHosts,
   providerPostHosts,
@@ -238,7 +238,9 @@ async function refresh() {
         ),
       );
   });
-  $("billing-status").textContent = billing.entitlement
+  $("billing-status").textContent = billing.sandbox
+    ? "Stripe sandbox only. Use test payment details. Test entitlement does not enable Advanced automation."
+    : billing.entitlement
     ? "Confirmed access until " +
       new Date(billing.entitlement.until).toLocaleString()
     : billing.methods.checkout.available
@@ -533,14 +535,27 @@ $("portal").onclick = () =>
     const p = await invoke("billing_portal", { idempotencyKey: key() });
     navigateExternal(p.url, ["billing.stripe.com"]);
   });
+$("webmcp-check").onclick = () => action(async () => {
+  $("webmcp-observation").hidden = true;
+  const observation = await checkNativeWebMCP(session.workspace);
+  $("webmcp-observation").textContent = JSON.stringify(observation, null, 2);
+  $("webmcp-observation").hidden = false;
+});
+
 try {
   session = await api("/api/session");
   $("session-notice").textContent = "Workspace " + session.workspace;
   const help = await api("/help.json");
-  const registered = await registerWebMCP(help, invoke, session.scopes);
-  $("webmcp-status").textContent = registered.available
-    ? `${registered.count} browser agent tools available.`
-    : "Remote MCP and HTTP are available. Native WebMCP is not available in this browser.";
+  try {
+    const registered = await registerWebMCP(help, invoke, session.scopes);
+    $("webmcp-status").textContent = registered.available
+      ? `${registered.count} browser agent tools registered. Live execution has not yet been checked.`
+      : "Remote MCP and HTTP are available. Native WebMCP is not available in this browser.";
+    $("webmcp-check").disabled = !registered.available;
+  } catch {
+    $("webmcp-status").textContent =
+      "Native WebMCP registration failed. Workspace controls remain available.";
+  }
   await refresh();
   const params = new URL(location.href).searchParams;
   if (params.get("connected"))
