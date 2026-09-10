@@ -22,6 +22,12 @@ type GitHubCredential = {
   refreshExpiresAt: number;
 };
 
+type GitHubRepository = {
+  id: number;
+  fullName: string;
+  private: boolean;
+};
+
 type InstallationRow = {
   workspace: string;
   installation_id: number;
@@ -120,7 +126,12 @@ function githubHeaders(token?: string) {
 }
 
 async function boundedJson(response: Response, maxBytes: number) {
-  requireValue(response.body, "GITHUB_RESPONSE_INVALID", "GitHub returned an empty response.", 502);
+  requireValue(
+    response.body,
+    "GITHUB_RESPONSE_INVALID",
+    "GitHub returned an empty response.",
+    502,
+  );
   const declared = Number(response.headers.get("content-length") || 0);
   requireValue(
     !declared || declared <= maxBytes,
@@ -446,7 +457,8 @@ async function activeCredential(
 
   const winner = await readInstallation(env, row.workspace, row.installation_id);
   requireValue(
-    winner?.status === "linked" && winner.credential_revision !== row.credential_revision,
+    winner?.status === "linked" &&
+      winner.credential_revision !== row.credential_revision,
     "GITHUB_REAUTH_REQUIRED",
     "GitHub repository authorization changed. Reconnect GitHub if the next check fails.",
     409,
@@ -526,7 +538,7 @@ async function accessibleRepositories(
   token: string,
   id: number,
   send: Send,
-) {
+): Promise<GitHubRepository[]> {
   const url = new URL(
     `https://api.github.com/user/installations/${id}/repositories`,
   );
@@ -550,7 +562,7 @@ async function accessibleRepositories(
     409,
   );
   const seen = new Set<number>();
-  return repositories.map((repository: any) => {
+  return repositories.map((repository: any): GitHubRepository => {
     requireValue(
       Number.isSafeInteger(repository?.id) &&
         repository.id > 0 &&
@@ -572,7 +584,11 @@ async function accessibleRepositories(
 }
 
 async function githubUser(token: string, send: Send) {
-  const response = await apiGet(new URL("https://api.github.com/user"), token, send);
+  const response = await apiGet(
+    new URL("https://api.github.com/user"),
+    token,
+    send,
+  );
   requireValue(
     response.ok,
     "GITHUB_USER_VERIFY_FAILED",
@@ -603,7 +619,9 @@ export async function startGitHubSourceLink(
   const verifier = oauth.generateRandomCodeVerifier();
   const stateHash = await digest(state);
   const expiresAt = now + STATE_TTL;
-  await env.IDENTITY.prepare("DELETE FROM github_install_states WHERE expires_at<=?")
+  await env.IDENTITY.prepare(
+    "DELETE FROM github_install_states WHERE expires_at<=?",
+  )
     .bind(now)
     .run();
   const inserted = await env.IDENTITY.prepare(
@@ -649,7 +667,9 @@ export async function continueGitHubSourceSetup(
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
   requireValue(
-    state && state.length <= 512 && requestCookie(request, STATE_COOKIE) === state,
+    state &&
+      state.length <= 512 &&
+      requestCookie(request, STATE_COOKIE) === state,
     "GITHUB_LINK_STATE_INVALID",
     "GitHub repository connection state is invalid. Restart connection.",
     400,
@@ -715,7 +735,9 @@ export async function completeGitHubSourceLink(
   const url = new URL(request.url);
   const state = url.searchParams.get("state");
   requireValue(
-    state && state.length <= 512 && requestCookie(request, STATE_COOKIE) === state,
+    state &&
+      state.length <= 512 &&
+      requestCookie(request, STATE_COOKIE) === state,
     "GITHUB_LINK_STATE_INVALID",
     "GitHub repository connection state is invalid. Restart connection.",
     400,
@@ -820,7 +842,7 @@ export async function completeGitHubSourceLink(
     env.IDENTITY.prepare(
       "DELETE FROM github_repository_links WHERE workspace=? AND installation_id=?",
     ).bind(owner.proof.workspace, pending.installation_id),
-    ...repositories.map((repository) =>
+    ...repositories.map((repository: GitHubRepository) =>
       env.IDENTITY.prepare(
         "INSERT INTO github_repository_links(workspace,repository_id,installation_id,full_name,private,linked_at,verified_at) VALUES (?,?,?,?,?,?,?)",
       ).bind(
@@ -912,7 +934,9 @@ async function verifyLinkedRepositoryStillAccessible(
     link.installation_id,
     send,
   );
-  const current = repositories.find((repository) => repository.id === link.repository_id);
+  const current = repositories.find(
+    (repository: GitHubRepository) => repository.id === link.repository_id,
+  );
   if (!current) {
     await env.IDENTITY.prepare(
       "DELETE FROM github_repository_links WHERE workspace=? AND repository_id=?",
@@ -964,7 +988,10 @@ async function commitSnapshot(
     per_page: "1",
   }).toString();
   const response = await apiGet(url, token, send);
-  if (response.status === 429 || response.headers.get("x-ratelimit-remaining") === "0")
+  if (
+    response.status === 429 ||
+    response.headers.get("x-ratelimit-remaining") === "0"
+  )
     throw new Fault(
       "GITHUB_RATE_LIMITED",
       "GitHub source checks are temporarily rate limited.",
