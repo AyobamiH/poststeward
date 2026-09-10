@@ -4,7 +4,7 @@ run-name: Deploy staging revision ${{ github.sha }}
 # Updating this file on main is an explicit staging deployment request.
 # This deploy applies additive workspace lifecycle migration 0008, the deletion fence and retained-state limits.
 # Hosted acceptance is non-destructive: it must not authenticate a deletion request, erase a real workspace,
-# invoke point-in-time restore, publish social content, settle payment, or perform any production release.
+# invoke point-in-time restore, publish social content, settle payment, or perform any live release.
 on:
   push:
     branches: [main]
