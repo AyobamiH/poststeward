@@ -81,7 +81,7 @@ The source-authority endpoints are intentionally not MCP/WebMCP/agent tools. Aut
 
 ## Deletion boundary
 
-A pending workspace deletion fences every GitHub source route before GitHub-specific handling. Completed erasure removes:
+A pending workspace deletion fences every GitHub source route before GitHub-specific handling. The final callback credential/link transaction rechecks the still-live owner session and absence of a deletion tombstone. A callback already waiting on GitHub cannot recreate authority after logout or pending/completed erasure. Completed erasure removes:
 
 - pending GitHub installation/OAuth state;
 - encrypted GitHub user credentials and installation metadata;

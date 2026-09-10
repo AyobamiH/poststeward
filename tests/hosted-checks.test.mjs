@@ -38,6 +38,8 @@ function service(appStatus = 200) {
       return Response.json(
         {
           release,
+          credential: "PRIVATE_NOT_FOR_REPORT",
+          providers: { x: { oauth: true, token: "PRIVATE_NOT_FOR_REPORT" }, threads: { oauth: false }, linkedin: { oauth: false } },
           access: { signupMode: "restricted", publicSignup: false },
           payments: { advancedEnabled: false, mppEnabled: false },
           sources: {
@@ -159,6 +161,10 @@ test("hosted report checks 25 surfaces and does not disclose login state or cook
   const report = await verifyHosted(c, { send: service(), sleep });
   assert.equal(report.passed, true);
   assert.equal(report.checks.length, 25);
+  assert.deepEqual(report.configuredCapabilities, {
+    githubPrivateSources: false,
+    providerOAuth: { x: true, threads: false, linkedin: false },
+  });
   assert.ok(
     report.checks.some((item) => item.name === "public resource: /app-client.js"),
   );

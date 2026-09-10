@@ -51,6 +51,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
   const release = c.vars.RELEASE_SHA;
   const readiness = await waitForRevision(origin, release, { send, sleep });
   const checks = [];
+  let configuredCapabilities = null;
   async function check(
     name,
     path,
@@ -130,6 +131,13 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     {},
     async (r) => {
       const b = await r.json();
+      configuredCapabilities = {
+        githubPrivateSources: typeof b.sources?.github?.privateRepositories === "boolean"
+          ? b.sources.github.privateRepositories : null,
+        providerOAuth: Object.fromEntries(["x", "threads", "linkedin"].map((name) => [
+          name, typeof b.providers?.[name]?.oauth === "boolean" ? b.providers[name].oauth : null,
+        ])),
+      };
       return (
         secure(r) &&
         r.headers.get("cache-control")?.includes("no-store") &&
@@ -279,6 +287,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     release,
     observedAt: new Date().toISOString(),
     readiness,
+    configuredCapabilities,
     checks,
     passed: checks.every((x) => x.passed),
     notVerified: [
