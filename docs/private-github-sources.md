@@ -18,12 +18,23 @@ The GitHub App must be installed with:
 
 PostSteward rejects an `all`-repositories installation, a write-capable installation, unexpected active permissions, a suspended/wrong app installation, or a repository set outside the bounded inventory.
 
+## GitHub App registration options
+
+The registration settings are part of the protocol contract, not optional operator preferences:
+
+- Keep **User-to-server token expiration** enabled. PostSteward intentionally requires the expiring user access token plus rotating refresh token that GitHub issues for this mode. A non-expiring token response is rejected rather than retained.
+- Leave **Request user authorization (OAuth) during installation** disabled. GitHub makes the Setup URL unavailable when that option is enabled. PostSteward deliberately uses the Setup URL first, then starts the separate GitHub App user OAuth flow after binding the returned candidate installation ID to the existing owner/session/state.
+- Keep the exact **Setup URL** and **Callback URL** separate. GitHub sends installation completion to the Setup URL and web-application user authorization to the Callback URL.
+- Device Flow is not required for the browser-hosted PostSteward owner path.
+
+This preserves the security property GitHub recommends for Setup URLs: the `installation_id` returned to the Setup URL is not trusted by itself; PostSteward obtains a user access token and proves that the installation is accessible to that user before retaining authority.
+
 ## Owner installation flow
 
 1. The owner signs in to PostSteward through the restricted Google OIDC flow.
 2. `POST /api/sources/github/start` requires the owner browser, same-origin CSRF and a fresh owner proof. It creates a bounded ten-minute state plus PKCE verifier in D1 and returns the exact GitHub App installation URL.
 3. GitHub returns to `/sources/github/setup` with a candidate `installation_id`. PostSteward binds that candidate to the existing owner/session/state but does **not** treat the query parameter as proof of authority.
-4. PostSteward starts GitHub App user OAuth with PKCE. The browser can navigate only to exact `https://github.com` through the workspace's trusted-external navigation guard.
+4. PostSteward starts GitHub App user OAuth with PKCE. It sends a random `state`, an S256 `code_challenge`, and later the matching `code_verifier` at token exchange. The browser can navigate only to exact `https://github.com` through the workspace's trusted-external navigation guard.
 5. `/sources/github/callback` atomically consumes the pending state. PostSteward exchanges the code, verifies the GitHub user can see the candidate installation, verifies the expected app slug/active state, selected-repository scope and read-only permissions, then fetches the complete selected repository inventory.
 6. Only after those checks succeed does PostSteward retain the installation and repository links.
 
@@ -95,6 +106,8 @@ For the current workers.dev staging origin, configure the GitHub App with:
 
 - Setup URL: `https://poststeward-staging.woeinvests.workers.dev/sources/github/setup`
 - Callback URL: `https://poststeward-staging.woeinvests.workers.dev/sources/github/callback`
+- Request user authorization (OAuth) during installation: **off**
+- User-to-server token expiration: **on**
 
 If staging moves to a custom origin, both URLs must move to that exact HTTPS origin before enabling the capability there.
 
@@ -106,7 +119,7 @@ Hosted verification remains non-destructive. It checks the private-source static
 
 Remaining external acceptance is therefore:
 
-1. Create/configure the real staging GitHub App with the exact URLs and minimum permissions above.
+1. Create/configure the real staging GitHub App with the exact URLs, registration options and minimum permissions above.
 2. Save the staging client ID/slug/secret in the protected GitHub environment.
 3. Deploy the reviewed main revision through the normal protected deployment workflow.
 4. As the invited owner, install the app for one selected private repository and complete the GitHub user OAuth flow.
