@@ -158,6 +158,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
   for (const path of [
     "/style.css",
     "/app.js",
+    "/app-client.js",
     "/webmcp.js",
     "/docs/agent-guide.md",
     "/llms.txt",

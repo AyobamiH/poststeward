@@ -142,10 +142,13 @@ test("readiness never follows redirects or retries access rejection", async () =
     assert.equal(calls, 1);
   }
 });
-test("hosted report checks 18 surfaces and does not disclose login state or cookies", async () => {
+test("hosted report checks 19 surfaces and does not disclose login state or cookies", async () => {
   const report = await verifyHosted(c, { send: service(), sleep });
   assert.equal(report.passed, true);
-  assert.equal(report.checks.length, 18);
+  assert.equal(report.checks.length, 19);
+  assert.ok(
+    report.checks.some((item) => item.name === "public resource: /app-client.js"),
+  );
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE_|test-client/);
   assert.ok(report.notVerified.includes("completed owner sign-in"));
 });
@@ -168,7 +171,11 @@ test("version-bound read-only surfaces converge independently during edge propag
         );
       if (path === "/help.json" && count === 1)
         return Response.json(
-          { release: "b".repeat(40), operations: Array(26).fill({}), payment: { enabled: false } },
+          {
+            release: "b".repeat(40),
+            operations: Array(26).fill({}),
+            payment: { enabled: false },
+          },
           { headers },
         );
       if (path === "/readiness.json" && count === 1)
@@ -191,7 +198,10 @@ test("safe revision retries never turn redirects or server failures into accepta
       send: async (url, options) => {
         if (new URL(url).pathname === "/help.json") {
           helpCalls++;
-          return new Response(null, { status, headers: { ...headers, Location: "/help.json" } });
+          return new Response(null, {
+            status,
+            headers: { ...headers, Location: "/help.json" },
+          });
         }
         return stable(url, options);
       },
