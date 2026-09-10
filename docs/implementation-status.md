@@ -1,25 +1,24 @@
 # PostSteward implementation status: 10 September 2026
 
-PostSteward is deployed to restricted staging in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward). The active deployed runtime remains the PR #19 merge revision recorded below until the current private-GitHub-source candidate is reviewed, merged and deployed. **Real owner Google consent and the first real controlled publication have not been recorded. A real private GitHub repository grant/read has also not been recorded.** Public customer acceptance and public charging remain outstanding.
+PostSteward PR #20 is merged and deployed to restricted staging. The deployed runtime is `e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c`; [deployment run 34534537780](https://github.com/AyobamiH/poststeward/actions/runs/34534537780) passed migration 0009, upload and every hosted gate. See the [private-source deployment receipt](private-github-staging-2026-09-10.md).
 
-The current release candidate implements the previously missing private GitHub source authority and owner workspace controls. At checkpoint `1d3b8cbfc5f2e1ba43515b8e8f3d900096137ed7`, Verify run `34499989830` passed **169/169 tests**, TypeScript, generated-document checks, dry-run bundling and both production/full high-severity dependency audits. The resumed review found that revision CAS alone did not serialise rotating-token requests. Candidate `5148750312129fa0a9846978512189e372141317` adds pre-refresh leases, interruption/reconnect fences and six regression tests. Its own CI result must be checked before merge; the earlier 169-test checkpoint does not validate these changes.
+**The private-source implementation is deployed, but a real GitHub App connection/private repository read is not activated or proven. Live readiness reports GitHub private sources and X/Threads/LinkedIn OAuth all unconfigured.** Real owner consent, controlled publication and public charging remain external acceptance gates.
 
 ## Current engineering evidence
 
 | Evidence | Recorded result |
 | --- | --- |
-| Owner acceptance page | `https://poststeward-staging.woeinvests.workers.dev/pilot` |
-| Active deployed runtime | `ee19f5a84ca21e4aee8d3ad370b28c6c33203a52` (PR #19 merge) |
-| Cloudflare version | See successful PR #19 deployment run `34474070955` |
-| PR #19 merge deployment | Run `34474070955`: verification, deployment, exact revision, owner/browser/recovery/lifecycle checks succeeded |
-| Private-source candidate verification | Run `34499989830` at checkpoint `1d3b8cb…`: 169 tests passed, zero failed/skipped/cancelled; typecheck/docs/build passed |
-| Candidate hosted verifier | 25 non-destructive base surfaces, including static private-source UI plus unauthenticated denial of all five GitHub source authority routes |
-| Dependency audits | Production and full high-severity audits both report zero known vulnerabilities at the candidate checkpoint |
-| Provider app configuration | X, Threads and LinkedIn OAuth client IDs were absent in the last recorded staging evidence; implementation remains fail-closed until configured |
-| Private GitHub staging evidence | GitHub App code/config contract is implemented; real staging App credentials, owner installation and private repository read remain external evidence |
+| Deployed runtime | `e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c` (PR #20 merge) |
+| Cloudflare version | `06ac1748-140f-4bd0-8286-fd9697fdcc63` |
+| Final reviewed-head verification | Run `34534352457`: 176/176 tests; TypeScript, generated docs and dry-run build passed |
+| Dependency audits | Production and full audits both reported zero known vulnerabilities |
+| Staging deployment | Run `34534537780` succeeded; migration `0009_github_sources.sql` applied |
+| Hosted verification | 25 base HTTP + 12 owner surfaces + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle assertions passed |
+| GitHub private sources | Implemented and deployed; configuration unavailable (`false`) |
+| X / Threads / LinkedIn OAuth | All unavailable (`false`) in the deployed readiness report |
 | Public release | Restricted signup; Advanced and MPP disabled |
 
-The historical 9 September receipts describe earlier revisions. PR #19's deployment run is the current recorded staging evidence. This document distinguishes that live revision from the newer candidate instead of presenting CI fixtures as deployed behaviour.
+The earlier PR #13, #18 and #19 receipts remain historical evidence. Documentation-only commits after PR #20 do not imply a new runtime deployment.
 
 ## Implemented
 
@@ -54,7 +53,7 @@ See [private GitHub source authority](private-github-sources.md) for the full co
 
 ## Verification interpretation
 
-The 169-test candidate checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure.
+The 176-test merged implementation checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure. Seven additional regressions cover exclusive rotation, interrupted refresh without replay, expired leases, reconnect and unlink races, persistent removal/rename fences, and callbacks delayed across logout/deletion.
 
 Google, GitHub and social-provider responses in CI are fixtures. The source tests do not prove that a real GitHub App was created, that an owner granted a private repository, or that the hosted service successfully read that repository. Hosted checks are deliberately non-destructive: they verify the static private-source module and unauthenticated denial of status/start/unlink/setup/callback rather than creating authority.
 
@@ -64,7 +63,7 @@ Payment tests still use simulated Stripe/SDK challenge responses. No merchant se
 
 ## Deployment and operation
 
-The current candidate adds additive `0009_github_sources.sql` for pending GitHub setup state, encrypted installation/user authority and selected repository links. Workspace erasure explicitly removes all three. The existing staging deployment path remains main-only, exact-SHA, D1-identity-checked and secret-minimised.
+PR #20 deployed additive `0009_github_sources.sql` for pending GitHub setup state, encrypted installation/user authority and selected repository links. Workspace erasure explicitly removes all three. The existing staging deployment path remains main-only, exact-SHA, D1-identity-checked and secret-minimised.
 
 GitHub private-source deployment settings are optional but all-or-nothing: `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_SLUG` are non-secret environment variables; `GITHUB_APP_CLIENT_SECRET` is a deploy-step secret. Partial configuration fails before Cloudflare mutation. The verification job receives no application secret.
 
@@ -74,7 +73,7 @@ Before considering an application downgrade, pause publication and inspect activ
 
 For controlled publication, complete `/pilot`: Google sign-in, authorised provider connection, exact text/destination review, one durable publication reservation and separate provider readback. A prepared review, scheduled job, HTTP 2xx write, screenshot, CI fixture or login redirect alone does not satisfy the evidence gate.
 
-For private sources, create/configure the staging GitHub App using the exact `poststeward-staging.woeinvests.workers.dev` setup/callback URLs, selected repositories and read-only Contents permission. Save the protected client ID/slug/secret, deploy the reviewed main revision, then as the invited owner connect one harmless private repository. Confirm only the selected repository appears, perform one read-only source observation, remove/revoke access and prove the next check fails closed. Do not enable paid Advanced execution merely to prove repository access.
+For private sources, create/configure the staging GitHub App using the exact `poststeward-staging.woeinvests.workers.dev` setup/callback URLs, selected repositories and read-only Contents permission. Save the protected client ID/slug/secret, deploy the reviewed main revision, then as the invited owner connect one explicitly selected private repository. Confirm only the selected repository appears, perform one read-only source observation, remove/revoke access and prove the next check fails closed. Do not enable paid Advanced execution merely to prove repository access.
 
 ## Remaining public-release work
 
