@@ -227,10 +227,6 @@ async function lifecycleRoute(request: Request, env: Env) {
     await beginWorkspaceDeletion(env.IDENTITY, auth.actor.workspace);
   }
 
-  // A provider/container write may have acquired its D1 intent immediately
-  // before deletion installed quarantine. Preserve that ledger until the same
-  // two-minute recovery settlement rule proves no request can still be live.
-  // Stale intents become permanently uncertain before their rows are erased.
   await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
 
   const stub = env.WORKSPACES.get(
@@ -278,14 +274,10 @@ function authenticatedProductPath(path: string) {
   );
 }
 
-/**
- * The Durable Object fence covers publication, billing and automation state,
- * but some owner controls (grants and OAuth start/status) live directly in D1.
- * A pending deletion therefore also fences every authenticated product route
- * at the outer edge. The owner browser may only inspect its session, retry the
- * lifecycle state machine, or sign out. Agent tokens never receive that escape.
- */
-async function fenceDeletedWorkspaceRequest(request: Request, env: Env) {
+async function fenceDeletedWorkspaceRequest(
+  request: Request<any, any>,
+  env: Env,
+) {
   const path = new URL(request.url).pathname;
   if (path.startsWith("/api/lifecycle/") || !authenticatedProductPath(path))
     return;
@@ -294,7 +286,6 @@ async function fenceDeletedWorkspaceRequest(request: Request, env: Env) {
   try {
     auth = await authenticate(request.clone(), env);
   } catch {
-    // Preserve the base route's established unauthenticated/CSRF error shape.
     return;
   }
 
