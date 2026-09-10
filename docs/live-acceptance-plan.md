@@ -8,7 +8,7 @@ Baseline main: fb8379e0940732e9361aa76fdac08141f7f50f0d. Baseline runtime: e48a1
 
 The cloud browser reached /pilot on 2026-09-10. Automatic approval review then denied navigation to accounts.google.com because account/session-specific owner sign-in authority was not recognised. No owner session was obtained. Do not retry or route around that denied authentication action without explicit approval. No destination/content, recovery target or payment was selected by the owner in this run.
 
-Stripe is connected. At preparation time the runtime tool registry still exposed no callable Stripe tools, so no Stripe account, mode, product, price or webhook was inspected or created through that connection. This is a tool-exposure issue, not a request to reconnect Stripe. GitHub code tools work; application registration/environment-secret administration is not exposed by those tools. No credentials from unrelated products are authorised substitutes.
+Stripe is connected and its tools are now callable. Account discovery returned one connected account in live and test modes. Stripe's tool instructions require account selection before targeting it, so test-mode account selection remains pending. No account-specific resources or payments have been created. GitHub code tools work; application registration/environment-secret administration is not exposed by those tools. No credentials from unrelated products are authorised substitutes.
 
 ## Dependency order and completion records
 
@@ -62,6 +62,10 @@ The [current WebMCP draft](https://webmachinelearning.github.io/webmcp/) places 
 - GitHub refresh uncertainty or revoked access: reconnect deliberately; no reuse of a possibly consumed refresh credential.
 - Restore uncertainty: keep quarantine; reconcile the existing plan.
 - Payment uncertainty: inspect the existing quote/session and provider record; never create a new key to bypass the pending attempt.
-- Missing native browser or Stripe tool exposure: retain a blocked evidence state. CI simulations do not close these gates.
+- Missing native browser or Stripe account authority: retain a blocked evidence state. CI simulations do not close these gates.
 
 After the code is merged and staged, append the exact head, CI, deployment run, runtime SHA and observed capability flags. Mark each live gate passed only when its own external evidence exists.
+
+## Deployed evidence
+
+[The 10 September acceptance-path receipt](live-acceptance-staging-2026-09-10.md) records PR #22, its exact runtime, 185 passing tests, 58 hosted assertions, browser preflight, Stripe account discovery and the five still-open live gates.
