@@ -16,6 +16,8 @@ export interface Quote {
   end: number;
   expires: number;
   autoRenew: boolean;
+  // Persisted with new quotes so interrupted Checkout retries keep identical parameters.
+  integrationIdentifier?: string;
 }
 type Attempt = {
   quote: string;
@@ -121,6 +123,15 @@ export class Billing implements BillingPort {
       end: addMonth(now),
       expires: now + 600000,
       autoRenew: input.mode === "subscription",
+      ...(input.mode === "subscription"
+        ? {
+            integrationIdentifier:
+              "poststeward_checkout_" +
+              Array.from(crypto.getRandomValues(new Uint8Array(8)), (value) =>
+                String.fromCharCode(97 + (value % 26)),
+              ).join(""),
+          }
+        : {}),
     };
     this.store.put("quote:" + quote.id, quote);
     return {
@@ -213,6 +224,10 @@ export class Billing implements BillingPort {
       const session = await stripe.checkout.sessions.create(
         {
           mode: "subscription",
+          // Legacy quotes omit the new parameter, including retries of pre-upgrade requests.
+          ...(q.integrationIdentifier
+            ? { integration_identifier: q.integrationIdentifier }
+            : {}),
           line_items: [{ price: price.id, quantity: 1 }],
           ...(knownCustomer ? { customer: knownCustomer } : {}),
           client_reference_id: this.workspace,
@@ -554,6 +569,8 @@ export async function stripeWebhook(
   );
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
     httpClient: Stripe.createFetchHttpClient(),
+    maxNetworkRetries: 0,
+    timeout: 15000,
   });
   let event: Stripe.Event;
   try {
@@ -579,12 +596,40 @@ export async function stripeWebhook(
   );
   const object = event.data.object as any;
   let workspace = object.metadata?.workspace || object.client_reference_id;
-  if (!workspace && typeof object.customer === "string")
+  let customer = typeof object.customer === "string" ? object.customer : undefined;
+  // Dispute/refund objects can carry only a charge ID, with no customer or workspace.
+  // Resolve that signed reference before acknowledging; a failed lookup must be retried.
+  if (
+    !workspace &&
+    !customer &&
+    ["dispute", "refund"].includes(object.object) &&
+    typeof object.charge === "string"
+  ) {
+    let charge: Stripe.Charge;
+    try {
+      charge = await stripe.charges.retrieve(object.charge);
+    } catch {
+      throw new Fault(
+        "BILLING_RECONCILIATION_PENDING",
+        "Stripe charge lookup awaits retry.",
+        503,
+      );
+    }
+    requireValue(
+      charge.id === object.charge && charge.livemode === event.livemode,
+      "BILLING_MODE_MISMATCH",
+      "Stripe charge does not match the signed event.",
+      400,
+    );
+    workspace = charge.metadata?.workspace;
+    customer = typeof charge.customer === "string" ? charge.customer : undefined;
+  }
+  if (!workspace && customer)
     workspace = (
       await env.IDENTITY.prepare(
         "SELECT workspace FROM stripe_customers WHERE customer=?",
       )
-        .bind(object.customer)
+        .bind(customer)
         .first<{ workspace: string }>()
     )?.workspace;
   if (!workspace) return json({ received: true, matched: false });
