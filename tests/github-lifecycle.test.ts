@@ -61,13 +61,13 @@ test("pending workspace deletion fences every GitHub source control route before
     const owner = await seedSession(db, "fence");
     await beginWorkspaceDeletion(db, owner.workspace, owner.now + 1);
     const headers = browserHeaders(owner);
-    const requests: Array<[string, RequestInit]> = [
+    const requests = [
       ["/api/sources/github/status", { headers: { Cookie: `__Host-session=${owner.session}` } }],
       ["/api/sources/github/start", { method: "POST", headers, body: "{}" }],
       ["/api/sources/github/unlink", { method: "POST", headers, body: JSON.stringify({ installationId: 42 }) }],
       ["/sources/github/setup?state=fake&installation_id=42", { headers: { Cookie: `__Host-session=${owner.session}` } }],
       ["/sources/github/callback?state=fake&code=fake", { headers: { Cookie: `__Host-session=${owner.session}` } }],
-    ];
+    ] as const;
     for (const [path, init] of requests) {
       const response = await mf.dispatchFetch(origin + path, init);
       assert.equal(response.status, 410, path);
