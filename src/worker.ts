@@ -161,8 +161,7 @@ export class Workspace extends DurableObject<Env> {
     const engine = new Engine(this.store, this.env, providers, {
       wake: (at) => this.wake(at),
       authorized,
-      source: (profile) =>
-        readGitHubSource(profile, this.env, workspace),
+      source: (profile) => readGitHubSource(profile, this.env, workspace),
       billing,
     });
     const pilot = new Pilot(
@@ -1088,6 +1087,7 @@ async function route(
           headers: Object.fromEntries(
             [...request.headers].filter(([key]) =>
               ["payment-authorization", "accept", "content-type"].includes(key),
+            ),
           ),
         },
       );
