@@ -102,3 +102,5 @@ jobs:
         run: node scripts/pilot-smoke.mjs
       - name: Verify unauthenticated browser rendering and blocked owner controls
         run: node scripts/pilot-browser-smoke.mjs
+      - name: Verify non-destructive recovery and provider OAuth boundaries
+        run: node scripts/recovery-smoke.mjs
