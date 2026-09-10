@@ -34,6 +34,8 @@ test("deployment environments have separate Worker names, D1 names, origins and 
   assert.equal(staging.preview_urls, false);
   assert.equal(staging.vars.ADVANCED_ENABLED, "false");
   assert.equal(staging.vars.SIGNUP_MODE, "restricted");
+  assert.equal(staging.vars.GITHUB_APP_CLIENT_ID, "");
+  assert.equal(staging.vars.GITHUB_APP_SLUG, "");
   assert.equal(staging.vars.X_OAUTH_CLIENT_ID, "");
   assert.equal(staging.vars.THREADS_OAUTH_CLIENT_ID, "");
   assert.equal(staging.vars.LINKEDIN_OAUTH_CLIENT_ID, "");
@@ -66,6 +68,22 @@ test("deployment rejects hostile and ambiguous configuration before touching Clo
   );
   assert.throws(() =>
     buildConfiguration(base, { ...environment, GITHUB_SHA: "main" }),
+  );
+  assert.throws(
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        GITHUB_APP_CLIENT_ID: "client-only",
+      }),
+    /configured together/,
+  );
+  assert.throws(
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        GITHUB_APP_SLUG: "slug-only",
+      }),
+    /configured together/,
   );
   assert.throws(() =>
     buildConfiguration(base, {
@@ -114,6 +132,50 @@ test("deployment validates mandatory secret material and never includes the Clou
   assert.throws(
     () => deploymentSecrets({ ...input, ALLOWED_OWNER_EMAILS: "" }),
     /invited/,
+  );
+});
+test("GitHub App source credentials are optional, all-or-nothing and secret-minimised", () => {
+  const mandatory = {
+    ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    OIDC_CLIENT_SECRET: "test-secret-not-real",
+    ALLOWED_OWNER_EMAILS: "owner@example.com",
+  };
+  const configuredEnvironment = {
+    ...environment,
+    GITHUB_APP_CLIENT_ID: "Iv1.test-client",
+    GITHUB_APP_SLUG: "poststeward-test",
+  };
+  const config = buildConfiguration(base, configuredEnvironment);
+  assert.equal(config.vars.GITHUB_APP_CLIENT_ID, "Iv1.test-client");
+  assert.equal(config.vars.GITHUB_APP_SLUG, "poststeward-test");
+  assert.ok(!("GITHUB_APP_CLIENT_SECRET" in config.vars));
+  const secrets = deploymentSecrets({
+    ...mandatory,
+    ...configuredEnvironment,
+    GITHUB_APP_CLIENT_SECRET: "github-client-secret",
+  });
+  assert.deepEqual(Object.keys(secrets).sort(), [
+    "ALLOWED_OWNER_EMAILS",
+    "ENCRYPTION_KEY",
+    "GITHUB_APP_CLIENT_SECRET",
+    "OIDC_CLIENT_SECRET",
+  ]);
+  assert.throws(
+    () =>
+      deploymentSecrets({
+        ...mandatory,
+        GITHUB_APP_CLIENT_ID: "Iv1.test-client",
+        GITHUB_APP_SLUG: "poststeward-test",
+      }),
+    /configured together/,
+  );
+  assert.throws(
+    () =>
+      deploymentSecrets({
+        ...mandatory,
+        GITHUB_APP_CLIENT_SECRET: "orphan-github-secret",
+      }),
+    /configured together/,
   );
 });
 test("provider application secrets are optional but fail closed unless paired with their client ID", () => {
