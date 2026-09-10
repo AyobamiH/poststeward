@@ -73,51 +73,58 @@ export class Workspace extends BaseWorkspace {
   }
 
   async fetch(request: Request): Promise<Response> {
-    const path = new URL(request.url).pathname;
-    const clone = request.clone();
-    let envelope: { workspace?: unknown; actor?: Actor } = {};
     try {
-      envelope = (await clone.json()) as typeof envelope;
-    } catch {
+      const path = new URL(request.url).pathname;
+      const clone = request.clone();
+      let envelope: { workspace?: unknown; actor?: Actor } = {};
+      try {
+        envelope = (await clone.json()) as typeof envelope;
+      } catch {
+        return super.fetch(request);
+      }
+      const workspace =
+        typeof envelope.workspace === "string" ? envelope.workspace : "";
+      if (path === "/lifecycle/delete") {
+        requireValue(
+          workspace &&
+            envelope.actor?.workspace === workspace &&
+            !envelope.actor.grant &&
+            envelope.actor.scopes?.includes("admin"),
+          "OWNER_SESSION_REQUIRED",
+          "Workspace deletion requires the signed-in owner.",
+          403,
+        );
+        const deletion = await workspaceDeletion(
+          this.lifecycleEnv.IDENTITY,
+          workspace,
+        );
+        requireValue(
+          deletion?.state === "pending",
+          "WORKSPACE_DELETE_NOT_PENDING",
+          "Workspace deletion has not been durably started.",
+          409,
+        );
+        await this.lifecycleCtx.storage.deleteAlarm();
+        this.lifecycleCtx.storage.sql.exec("DELETE FROM records");
+        await this.lifecycleCtx.storage.deleteAll();
+        return json({ cleared: true });
+      }
+      if (workspace)
+        await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
       return super.fetch(request);
+    } catch (error) {
+      // Internal callers should receive a normal typed HTTP result rather than
+      // a proxy exception that can be mistaken for transport uncertainty.
+      return errorResponse(error);
     }
-    const workspace =
-      typeof envelope.workspace === "string" ? envelope.workspace : "";
-    if (path === "/lifecycle/delete") {
-      requireValue(
-        workspace &&
-          envelope.actor?.workspace === workspace &&
-          !envelope.actor.grant &&
-          envelope.actor.scopes?.includes("admin"),
-        "OWNER_SESSION_REQUIRED",
-        "Workspace deletion requires the signed-in owner.",
-        403,
-      );
-      const deletion = await workspaceDeletion(
-        this.lifecycleEnv.IDENTITY,
-        workspace,
-      );
-      requireValue(
-        deletion?.state === "pending",
-        "WORKSPACE_DELETE_NOT_PENDING",
-        "Workspace deletion has not been durably started.",
-        409,
-      );
-      await this.lifecycleCtx.storage.deleteAlarm();
-      // Application business state lives in our SQLite records table. Clear it
-      // explicitly; deleteAll() is retained for any Durable Object KV state.
-      this.lifecycleCtx.storage.sql.exec("DELETE FROM records");
-      await this.lifecycleCtx.storage.deleteAll();
-      return json({ cleared: true });
-    }
-    if (workspace)
-      await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
-    return super.fetch(request);
   }
 
   async alarm() {
     const workspace = this.storedWorkspace();
-    if (workspace && (await workspaceDeletion(this.lifecycleEnv.IDENTITY, workspace))) {
+    if (
+      workspace &&
+      (await workspaceDeletion(this.lifecycleEnv.IDENTITY, workspace))
+    ) {
       await this.lifecycleCtx.storage.deleteAlarm();
       console.warn(
         JSON.stringify({
