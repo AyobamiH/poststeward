@@ -107,11 +107,12 @@ export class SQLiteStore implements Store {
   }
 
   usage(): Usage {
-    return (
-      this.storage.sql
-        .exec<Usage>("SELECT records,bytes FROM record_usage WHERE id=1")
-        .toArray()[0] || { records: 0, bytes: 0 }
-    );
+    const row = this.storage.sql
+      .exec<Usage>("SELECT records,bytes FROM record_usage WHERE id=1")
+      .toArray()[0];
+    return row
+      ? { records: Number(row.records), bytes: Number(row.bytes) }
+      : { records: 0, bytes: 0 };
   }
 
   tx<T>(fn: () => T): T {
