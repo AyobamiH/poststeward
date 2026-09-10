@@ -4,7 +4,7 @@
 
 The owner selected the connected account in test mode on 10 September 2026. Inventory was empty. A dedicated PostSteward staging Product and USD 5 monthly Price were created and independently retrieved: active, livemode=false, currency=usd, unit_amount=500, interval=month, interval_count=1, tax_behavior=inclusive. Reuse that resource; do not create another Price on retry. Its identifiers are available in the private owner session.
 
-No customer, Checkout Session, subscription or payment has been created. Hosted sandbox billing remains disabled. Automatic tax remains disabled for this test run.
+No customer, Checkout Session, subscription or payment has been created. Billing Portal configuration inventory is also empty; the existing Portal Session code uses the account default. Configure a test default with invoice history, payment-method updates and cancellation enabled before exercising that journey. Available Stripe discovery exposes Portal configuration reads but did not expose configuration creation; this remains an external setup gate. Hosted sandbox billing remains disabled. Automatic tax remains disabled for this test run.
 
 ## Protected configuration
 

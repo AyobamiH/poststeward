@@ -1,6 +1,6 @@
 # PostSteward implementation status: 10 September 2026
 
-PostSteward PR #22 is merged and deployed to restricted staging at `93215b0467986e4f17f2c6777c1bb69551d66bd9`. [Deployment run 34537259784](https://github.com/AyobamiH/poststeward/actions/runs/34537259784) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
+PostSteward PR #24 is merged and deployed to restricted staging at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`. [Deployment run 34541570597](https://github.com/AyobamiH/poststeward/actions/runs/34541570597) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
 
 **Engineering is deployed; all five live gates remain open.** Google sign-in was rejected by automatic approval review. Provider OAuth, private GitHub and Stripe sandbox are unconfigured. WebMCP API exposure was observed, but authenticated execution remains unverified. Stripe is connected and account discovery succeeded; explicit test-account selection remains pending.
 
@@ -12,9 +12,9 @@ The owner has now approved this browser's Google sign-in and selected Stripe tes
 | --- | --- |
 | Runtime | `93215b0467986e4f17f2c6777c1bb69551d66bd9` (PR #22 merge) |
 | Cloudflare version | `2b789a06-8c56-47c0-a9be-dfb35dc3b419` |
-| Final reviewed-head CI | Run `34537062391`: 185/185 tests, TypeScript, generated docs and Worker build passed; final push CI also passed |
+| Final reviewed-head CI | Run `34537062391`: 188/185 tests, TypeScript, generated docs and Worker build passed; final push CI also passed |
 | Dependency audits | Production and full audits: zero known vulnerabilities |
-| Deployment | Run `34537259784` passed; migrations already current |
+| Deployment | Run `34541570597` passed; migrations already current |
 | Hosted assertions | 26 HTTP + 12 owner surfaces + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle = 58 passed |
 | Private GitHub | Owner-only free probe deployed; configured `false` |
 | X / Threads / LinkedIn OAuth | All configured `false` |
@@ -56,13 +56,13 @@ See [private GitHub source authority](private-github-sources.md) for the full co
 
 ## Verification interpretation
 
-The 185-test merged implementation checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure. The PR #20 regressions cover exclusive rotation, interrupted refresh without replay, expired leases, reconnect and unlink races, persistent removal/rename fences, and callbacks delayed across logout/deletion.
+The 188-test merged implementation checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure. The PR #20 regressions cover exclusive rotation, interrupted refresh without replay, expired leases, reconnect and unlink races, persistent removal/rename fences, and callbacks delayed across logout/deletion.
 
 Google, GitHub and social-provider responses in CI are fixtures. The source tests do not prove that a real GitHub App was created, that an owner granted a private repository, or that the hosted service successfully read that repository. Hosted checks are deliberately non-destructive: they verify the static private-source module and unauthenticated denial of status/start/probe/unlink/setup/callback rather than creating authority.
 
 The provider client bounds both response bytes and time through the response body. A successful social write status followed by incomplete/unreadable evidence remains ambiguous. Threads readback uses `owner.id`, not a username that can change or be reused. Permalinks and external browser navigation are restricted to exact provider/GitHub hosts.
 
-Payment tests still use simulated Stripe/SDK challenge responses. No merchant settlement, real charge, refund/dispute lifecycle or eligible wallet has been verified. Native browser WebMCP remains unverified.
+Payment tests still use simulated Stripe/SDK challenge responses. The PR #24 Workers/D1 regression verifies charge-only dispute routing, signature-before-read, retryable lookup failure, mode rejection, quarantine, event completion and deduplication. Checkout retry tests cover Worker reconstruction and pre-upgrade quotes. No merchant settlement, real charge, refund/dispute lifecycle or eligible wallet has been verified. Native browser WebMCP remains unverified.
 
 ## Deployment and operation
 
