@@ -268,21 +268,48 @@ async function lifecycleRoute(request: Request, env: Env) {
   );
 }
 
-async function fenceProviderCallback(request: Request, env: Env) {
+function authenticatedProductPath(path: string) {
+  return (
+    path.startsWith("/api/") ||
+    path === "/mcp" ||
+    path.startsWith("/payments/") ||
+    path === "/auth/logout" ||
+    /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path)
+  );
+}
+
+/**
+ * The Durable Object fence covers publication, billing and automation state,
+ * but some owner controls (grants and OAuth start/status) live directly in D1.
+ * A pending deletion therefore also fences every authenticated product route
+ * at the outer edge. The owner browser may only inspect its session, retry the
+ * lifecycle state machine, or sign out. Agent tokens never receive that escape.
+ */
+async function fenceDeletedWorkspaceRequest(request: Request, env: Env) {
   const path = new URL(request.url).pathname;
-  if (!/^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path))
+  if (path.startsWith("/api/lifecycle/") || !authenticatedProductPath(path))
     return;
+
+  let auth: Awaited<ReturnType<typeof authenticate>>;
   try {
-    const auth = await authenticate(request, env);
+    auth = await authenticate(request.clone(), env);
+  } catch {
+    // Preserve the base route's established unauthenticated/CSRF error shape.
+    return;
+  }
+
+  const deletion = await workspaceDeletion(env.IDENTITY, auth.actor.workspace);
+  if (!deletion) return;
+  if (
+    auth.browser &&
+    (path === "/api/session" || path === "/auth/logout")
+  )
+    return;
+
+  try {
     await assertWorkspaceNotDeleted(env.IDENTITY, auth.actor.workspace);
-  } catch (error: any) {
-    if (
-      error?.code === "WORKSPACE_DELETION_IN_PROGRESS" ||
-      error?.code === "WORKSPACE_DELETED"
-    )
-      return errorResponse(error);
-    // Let the base route preserve its established authentication/callback error
-    // semantics for requests that are not authenticated owner callbacks.
+  } catch (error) {
+    return errorResponse(error);
   }
 }
 
@@ -293,7 +320,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const path = new URL(request.url).pathname;
     if (!path.startsWith("/api/lifecycle/")) {
-      const fenced = await fenceProviderCallback(request, env);
+      const fenced = await fenceDeletedWorkspaceRequest(request, env);
       return fenced || base.fetch(request, env, ctx);
     }
     const requestId = crypto.randomUUID();
