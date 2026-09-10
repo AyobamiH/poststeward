@@ -14,7 +14,7 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
-      scriptPath: "dist/worker.js",
+      scriptPath: "dist/edge.js",
       compatibilityDate: "2026-09-09",
       compatibilityFlags: ["nodejs_compat"],
       bindings: {
