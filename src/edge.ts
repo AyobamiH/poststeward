@@ -284,7 +284,7 @@ async function fenceDeletedWorkspaceRequest(
 
   let auth: Awaited<ReturnType<typeof authenticate>>;
   try {
-    auth = await authenticate(request.clone(), env);
+    auth = await authenticate(request.clone() as unknown as Request, env);
   } catch {
     return;
   }
