@@ -71,4 +71,4 @@ After the code is merged and staged, append the exact head, CI, deployment run, 
 
 ## Deployed evidence
 
-[The 10 September acceptance-path receipt](live-acceptance-staging-2026-09-10.md) records PR #22, its exact runtime, 185 passing tests, 58 hosted assertions, browser preflight, Stripe account discovery and the five still-open live gates.
+[The 10 September acceptance-path receipt](live-acceptance-staging-2026-09-10.md) records PR #22 and the deployed PR #24 follow-up at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`: 188 passing tests, 58 hosted assertions, existing owner/account approvals, the callback URL-policy block, successful test Product/Price creation and the five still-open live gates. The Stripe test account also has no Portal configuration; configure cancellation before claiming the Portal journey.

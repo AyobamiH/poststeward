@@ -1,8 +1,8 @@
 # Five-workstream staging receipt — 10 September 2026
 
-[PR #22](https://github.com/AyobamiH/poststeward/pull/22) is merged and deployed to https://poststeward-staging.woeinvests.workers.dev. The implementation is verified; the five live acceptance gates remain open.
+[PR #24](https://github.com/AyobamiH/poststeward/pull/24) is the current staging follow-up, deployed at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0` to https://poststeward-staging.woeinvests.workers.dev. It follows the PR #22 acceptance-path implementation. The five live acceptance gates remain open.
 
-## Engineering evidence
+## PR #22 engineering checkpoint
 
 | Evidence | Result |
 | --- | --- |
@@ -65,4 +65,24 @@ Eligible-wallet MPP remains separately disabled. Fixtures are not live evidence.
 
 ## Follow-up billing corrections
 
-The Stripe integration review identified that a dispute webhook can contain a charge ID without customer/workspace metadata. The follow-up change resolves that charge after signature/mode verification and maps its customer before reconciliation. Lookup failures remain retryable; quarantine and event deduplication remain enforced. It also persists Checkout integration identifiers with new quotes while preserving pre-upgrade retry payloads. These are engineering changes awaiting the follow-up CI/deployment receipt, not live settlement evidence. See [the exact sandbox setup and acceptance sequence](stripe-sandbox-acceptance.md).
+The Stripe integration review identified that a dispute webhook can contain a charge ID without customer/workspace metadata. The follow-up change resolves that charge after signature/mode verification and maps its customer before reconciliation. Lookup failures remain retryable; quarantine and event deduplication remain enforced. It also persists Checkout integration identifiers with new quotes while preserving pre-upgrade retry payloads. The follow-up is merged and deployed with the evidence below. These are engineering results, not live settlement evidence. See [the exact sandbox setup and acceptance sequence](stripe-sandbox-acceptance.md).
+
+| PR #24 evidence | Result |
+| --- | --- |
+| Reviewed head | `49813929578db282fb2a87166aeaa1a38f754783` |
+| Merge / current deployed runtime | `2dc0bfee59a441bbcedd95a59d6877a89c4845f0` |
+| PR CI | [34541404203](https://github.com/AyobamiH/poststeward/actions/runs/34541404203), job 103084637168: passed |
+| Push CI | [34541383571](https://github.com/AyobamiH/poststeward/actions/runs/34541383571): passed |
+| Merged-main CI | [34541570338](https://github.com/AyobamiH/poststeward/actions/runs/34541570338): passed |
+| Tests | 188/188; zero failures, skips or cancellations |
+| TypeScript, generated docs, Worker build | Passed |
+| Production and full dependency audits | Both zero known vulnerabilities |
+| Deployment | [34541570597](https://github.com/AyobamiH/poststeward/actions/runs/34541570597), verify job 103085161644 and deploy job 103085470167: passed |
+| Cloudflare version | `04b2ebf5-4d4a-40b7-8d69-f3c8aae4df96` |
+| Hosted observation | 2026-09-10 23:20:48–23:21:03 UTC |
+| Hosted assertions | 58/58: 26 HTTP/access, 12 pilot, 2 browser viewports, 13 recovery/OAuth, 5 lifecycle |
+| Database | No new migration |
+
+The deployed reports confirm restricted staging, the exact current revision, sandbox=false, githubPrivateSources=false and all three providerOAuth flags=false. Advanced and MPP remain disabled. No owner grant, publication, recovery, deletion or payment was performed by deployment.
+
+A subsequent read of the selected Stripe test account found no Billing Portal configurations. Cancellation acceptance therefore also requires the account's test Portal configuration. The available Stripe discovery returned read operations but no configuration-creation operation. Plugin-directory searches found no Cloudflare administration plugin; the installed GitHub integration continues to exclude protected-secret administration.
