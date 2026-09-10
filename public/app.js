@@ -542,6 +542,10 @@ $("webmcp-check").onclick = () => action(async () => {
   $("webmcp-observation").hidden = false;
 });
 
+$("webmcp-status").textContent = document.modelContext?.registerTool
+  ? "This browser exposes WebMCP. Sign in to register and check workspace tools."
+  : "Native WebMCP is not available in this browser.";
+
 try {
   session = await api("/api/session");
   $("session-notice").textContent = "Workspace " + session.workspace;

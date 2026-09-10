@@ -151,7 +151,8 @@ test("Workers sessions enforce CSRF, reject Bearer fallback and cap active agent
     assert.equal((await db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 1);
     assert.equal((await db.prepare("SELECT count(*) AS n FROM login_states").first<any>())?.n, 0);
     const statuses = [];
-    for (let n = 0; n < 121; n++) {
+    // A short burst can cross a fixed 60-second bucket boundary; cover both buckets.
+    for (let n = 0; n < 241; n++) {
       const r = await mf.dispatchFetch("https://publish.example/api/session", {
         headers: { "CF-Connecting-IP": "203.0.113.17" },
       });
