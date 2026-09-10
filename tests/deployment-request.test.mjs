@@ -22,14 +22,20 @@ test("staging deployment requests are limited to their explicit main-only path",
   assert.ok(request.includes("github.actor == 'AyobamiH'"));
   assert.ok(request.includes("github.repository == 'AyobamiH/poststeward'"));
   assert.ok(request.includes("github.ref == 'refs/heads/main'"));
+  assert.doesNotMatch(request, /workflow_dispatch|production/);
 });
 
-test("staging request reuses the same commit with only explicitly named secret fallbacks", () => {
-  assert.match(request, /uses: \.\/\.github\/workflows\/deploy\.yml\n/);
-  assert.match(request, /with:\n      environment: staging\n/);
-  assert.doesNotMatch(request, /secrets: inherit|contents: write|actions: write|workflow_dispatch|production|runs-on:/);
-  assert.match(request, /permissions:\n  contents: read\n/);
-  const forwarded = request.split("    secrets:\n")[1].trimEnd().split("\n");
+test("staging request proves merge provenance before reusing the exact commit", () => {
+  assert.match(request, /  provenance:\n/);
+  assert.match(request, /Require exact merged-PR provenance/);
+  assert.match(request, /pull-requests: read/);
+  const staging = request.split("  staging:\n")[1];
+  assert.match(staging, /needs: provenance/);
+  assert.match(staging, /uses: \.\/\.github\/workflows\/deploy\.yml\n/);
+  assert.match(staging, /with:\n      environment: staging\n/);
+  assert.doesNotMatch(staging, /secrets: inherit|contents: write|actions: write|runs-on:/);
+  assert.match(request, /permissions:\n  contents: read\n  pull-requests: read\n/);
+  const forwarded = staging.split("    secrets:\n")[1].trimEnd().split("\n");
   assert.deepEqual(
     forwarded,
     secretNames.map((name) => `      ${name}: \${{ secrets.${name} }}`),
@@ -60,6 +66,7 @@ test("deployment still verifies before entering the protected environment", () =
   assert.ok(deploy.includes("environment:\n      name: ${{ inputs.environment }}"));
   assert.ok(deploy.includes("npm ci --ignore-scripts"));
   assert.ok(deploy.includes("run: node scripts/smoke.mjs"));
+  assert.ok(deploy.includes("run: node scripts/recovery-smoke.mjs"));
   assert.doesNotMatch(deploy, /contents: write|actions: write|secrets: inherit/);
 });
 
