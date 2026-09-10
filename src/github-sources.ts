@@ -483,6 +483,18 @@ async function accessibleInstallation(
       page: String(page),
     }).toString();
     const response = await apiGet(url, token, send);
+    if (response.status === 401)
+      throw new Fault(
+        "GITHUB_REAUTH_REQUIRED",
+        "GitHub repository authorization expired or was revoked. Reconnect GitHub.",
+        409,
+      );
+    if (response.status === 403)
+      throw new Fault(
+        "GITHUB_ACCESS_REVOKED",
+        "The signed-in GitHub user can no longer inspect this installation.",
+        409,
+      );
     requireValue(
       response.ok,
       "GITHUB_INSTALLATION_VERIFY_FAILED",
@@ -544,6 +556,18 @@ async function accessibleRepositories(
   );
   url.search = new URLSearchParams({ per_page: "100", page: "1" }).toString();
   const response = await apiGet(url, token, send);
+  if (response.status === 401)
+    throw new Fault(
+      "GITHUB_REAUTH_REQUIRED",
+      "GitHub repository authorization expired or was revoked. Reconnect GitHub.",
+      409,
+    );
+  if (response.status === 403)
+    throw new Fault(
+      "GITHUB_ACCESS_REVOKED",
+      "GitHub repository access is no longer authorised. Reconnect GitHub.",
+      409,
+    );
   requireValue(
     response.ok,
     "GITHUB_REPOSITORY_VERIFY_FAILED",
@@ -808,9 +832,7 @@ export async function completeGitHubSourceLink(
       typeof account.login === "string" &&
       account.login.length > 0 &&
       account.login.length <= 100 &&
-      typeof account.type === "string" &&
-      account.type.length > 0 &&
-      account.type.length <= 30,
+      ["User", "Organization"].includes(account.type),
     "GITHUB_INSTALLATION_INVALID",
     "GitHub returned invalid installation account metadata.",
     502,
@@ -929,11 +951,61 @@ async function verifyLinkedRepositoryStillAccessible(
   send: Send,
   now: number,
 ) {
-  const repositories = await accessibleRepositories(
-    credential.accessToken,
-    link.installation_id,
-    send,
-  );
+  const config = requireApp(env);
+  try {
+    await accessibleInstallation(
+      credential.accessToken,
+      link.installation_id,
+      config.slug,
+      send,
+    );
+  } catch (error) {
+    if (
+      error instanceof Fault &&
+      [
+        "GITHUB_REAUTH_REQUIRED",
+        "GITHUB_ACCESS_REVOKED",
+        "GITHUB_INSTALLATION_NOT_AUTHORISED",
+        "GITHUB_INSTALLATION_INVALID",
+        "GITHUB_REPOSITORY_SCOPE_TOO_BROAD",
+        "GITHUB_APP_PERMISSION_TOO_BROAD",
+      ].includes(error.code)
+    )
+      await markInstallationStale(
+        env,
+        link.workspace,
+        link.installation_id,
+        error.code,
+        now,
+      );
+    throw error;
+  }
+
+  let repositories: GitHubRepository[];
+  try {
+    repositories = await accessibleRepositories(
+      credential.accessToken,
+      link.installation_id,
+      send,
+    );
+  } catch (error) {
+    if (
+      error instanceof Fault &&
+      [
+        "GITHUB_REAUTH_REQUIRED",
+        "GITHUB_ACCESS_REVOKED",
+        "GITHUB_REPOSITORY_SCOPE_TOO_BROAD",
+      ].includes(error.code)
+    )
+      await markInstallationStale(
+        env,
+        link.workspace,
+        link.installation_id,
+        error.code,
+        now,
+      );
+    throw error;
+  }
   const current = repositories.find(
     (repository: GitHubRepository) => repository.id === link.repository_id,
   );
@@ -967,11 +1039,14 @@ async function verifyLinkedRepositoryStillAccessible(
       409,
     );
   }
-  await env.IDENTITY.prepare(
-    "UPDATE github_repository_links SET private=?,verified_at=? WHERE workspace=? AND repository_id=?",
-  )
-    .bind(current.private ? 1 : 0, now, link.workspace, link.repository_id)
-    .run();
+  await env.IDENTITY.batch([
+    env.IDENTITY.prepare(
+      "UPDATE github_repository_links SET private=?,verified_at=? WHERE workspace=? AND repository_id=?",
+    ).bind(current.private ? 1 : 0, now, link.workspace, link.repository_id),
+    env.IDENTITY.prepare(
+      "UPDATE github_installations SET status='linked',last_error=NULL,last_verified_at=?,updated_at=? WHERE workspace=? AND installation_id=?",
+    ).bind(now, now, link.workspace, link.installation_id),
+  ]);
 }
 
 async function commitSnapshot(
@@ -1027,7 +1102,8 @@ export async function readGitHubSource(
   }
 
   const credential = await activeCredential(env, link, send, now);
-  let response = await commitSnapshot(profile, credential.accessToken, send);
+  await verifyLinkedRepositoryStillAccessible(env, link, credential, send, now);
+  const response = await commitSnapshot(profile, credential.accessToken, send);
   if (response.status === 401) {
     await markInstallationStale(
       env,
@@ -1056,16 +1132,6 @@ export async function readGitHubSource(
       409,
     );
   }
-  if (response.status === 404) {
-    await verifyLinkedRepositoryStillAccessible(
-      env,
-      link,
-      credential,
-      send,
-      now,
-    );
-    response = await commitSnapshot(profile, credential.accessToken, send);
-  }
   requireValue(
     response.ok,
     "SOURCE_UNAVAILABLE",
@@ -1079,15 +1145,5 @@ export async function readGitHubSource(
     "No valid source snapshot was returned.",
     502,
   );
-  await env.IDENTITY.prepare(
-    "UPDATE github_installations SET status='linked',last_error=NULL,last_verified_at=?,updated_at=? WHERE workspace=? AND installation_id=?",
-  )
-    .bind(now, now, workspace, link.installation_id)
-    .run();
-  await env.IDENTITY.prepare(
-    "UPDATE github_repository_links SET verified_at=? WHERE workspace=? AND repository_id=?",
-  )
-    .bind(now, workspace, link.repository_id)
-    .run();
   return { sha: data[0].sha as string };
 }
