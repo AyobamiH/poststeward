@@ -12,6 +12,10 @@ const app = {
   GITHUB_APP_CLIENT_SECRET: "github-client-secret",
   GITHUB_APP_SLUG: "poststeward-test",
 };
+const ownerRuntimeBindings = {
+  ...app,
+  OIDC_ISSUER: "https://accounts.google.com",
+};
 
 async function seedOwner(db: D1Database, suffix = "") {
   const session = `github-owner-session${suffix}`;
@@ -28,9 +32,9 @@ async function seedOwner(db: D1Database, suffix = "") {
     ).bind(
       sessionHash,
       `github-proof${suffix}`,
-      "https://identity.example",
+      "https://accounts.google.com",
       "poststeward-test",
-      await digest(`owner${suffix}@example.com`),
+      await digest("owner@example.com"),
       1,
       now,
       "test",
@@ -158,7 +162,7 @@ async function startAndSetup(
 }
 
 test("owner GitHub App flow verifies installation ownership and stores only encrypted refreshable authority", async () => {
-  const { mf, db } = await runtime(githubOutbound(), app, 100);
+  const { mf, db } = await runtime(githubOutbound(), ownerRuntimeBindings, 100);
   try {
     const owner = await seedOwner(db);
     const state = await startAndSetup(mf, owner);
@@ -218,7 +222,11 @@ test("owner GitHub App flow verifies installation ownership and stores only encr
 });
 
 test("a spoofed setup installation id cannot become repository authority", async () => {
-  const { mf, db } = await runtime(githubOutbound({ candidate: 42 }), app, 100);
+  const { mf, db } = await runtime(
+    githubOutbound({ candidate: 42 }),
+    ownerRuntimeBindings,
+    100,
+  );
   try {
     const owner = await seedOwner(db, "-spoof");
     const state = await startAndSetup(mf, owner, 999);
@@ -263,7 +271,7 @@ test("installation-wide or write GitHub authority is rejected before credentials
       "GITHUB_APP_PERMISSION_TOO_BROAD",
     ],
   ] as const) {
-    const { mf, db } = await runtime(outbound, app, 100);
+    const { mf, db } = await runtime(outbound, ownerRuntimeBindings, 100);
     try {
       const owner = await seedOwner(db, `-${name.replaceAll(" ", "-")}`);
       const state = await startAndSetup(mf, owner);
@@ -298,7 +306,7 @@ test("installation-wide or write GitHub authority is rejected before credentials
 });
 
 test("every linked private read revalidates selected-only read authority before the commit endpoint", async () => {
-  const { mf, db } = await runtime(githubOutbound(), app, 100);
+  const { mf, db } = await runtime(githubOutbound(), ownerRuntimeBindings, 100);
   try {
     const owner = await seedOwner(db, "-drift");
     const state = await startAndSetup(mf, owner);
