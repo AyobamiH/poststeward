@@ -28,7 +28,7 @@ async function seedOwner(db: D1Database, suffix = "") {
     ).bind(
       sessionHash,
       `github-proof${suffix}`,
-      "https://accounts.google.com",
+      "https://identity.example",
       "poststeward-test",
       await digest(`owner${suffix}@example.com`),
       1,
