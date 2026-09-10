@@ -94,6 +94,7 @@ test("readiness tolerates bounded propagation and old revisions, never redeploys
   const report = await waitForRevision(origin, release, {
     send: async (_url, options) => {
       assert.equal(options.method, undefined);
+      assert.equal(options.headers["Cache-Control"], "no-cache");
       calls++;
       if (calls === 1) throw new Error("private network details");
       if (calls === 2) return new Response(null, { status: 404 });
@@ -147,6 +148,57 @@ test("hosted report checks 18 surfaces and does not disclose login state or cook
   assert.equal(report.checks.length, 18);
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE_|test-client/);
   assert.ok(report.notVerified.includes("completed owner sign-in"));
+});
+test("version-bound read-only surfaces converge independently during edge propagation", async () => {
+  const stable = service();
+  const calls = new Map();
+  let waits = 0;
+  const report = await verifyHosted(c, {
+    sleep: async () => {
+      waits++;
+    },
+    send: async (url, options) => {
+      const path = new URL(url).pathname;
+      const count = (calls.get(path) || 0) + 1;
+      calls.set(path, count);
+      if (path === "/health" && count === 2)
+        return Response.json(
+          { status: "ok", release: "b".repeat(40), advancedEnabled: false },
+          { headers },
+        );
+      if (path === "/help.json" && count === 1)
+        return Response.json(
+          { release: "b".repeat(40), operations: Array(26).fill({}), payment: { enabled: false } },
+          { headers },
+        );
+      if (path === "/readiness.json" && count === 1)
+        return new Response(null, { status: 404, headers });
+      return stable(url, options);
+    },
+  });
+  assert.equal(report.passed, true);
+  assert.equal(report.checks[0].attempts, 2);
+  assert.equal(report.checks[1].attempts, 2);
+  assert.equal(report.checks[2].attempts, 2);
+  assert.equal(waits, 3);
+});
+test("safe revision retries never turn redirects or server failures into acceptance", async () => {
+  for (const status of [307, 500]) {
+    let helpCalls = 0;
+    const stable = service();
+    const report = await verifyHosted(c, {
+      sleep,
+      send: async (url, options) => {
+        if (new URL(url).pathname === "/help.json") {
+          helpCalls++;
+          return new Response(null, { status, headers: { ...headers, Location: "/help.json" } });
+        }
+        return stable(url, options);
+      },
+    });
+    assert.equal(report.passed, false);
+    assert.equal(helpCalls, 1);
+  }
 });
 test("a workspace self-redirect fails acceptance rather than being followed", async () => {
   const report = await verifyHosted(c, { send: service(307), sleep });
