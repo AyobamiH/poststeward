@@ -7,6 +7,7 @@
     <title>PostSteward workspace</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
+    <script type="module" src="/github-sources-ui.js"></script>
   </head>
   <body>
     <header>
@@ -192,6 +193,25 @@
           <div id="grants" class="record-list"></div>
         </section>
         <section class="panel">
+          <div class="row">
+            <h2>Private GitHub sources</h2>
+            <button id="github-source-connect" type="button" disabled>
+              Connect GitHub repositories
+            </button>
+          </div>
+          <p class="muted">
+            Optional for private repositories. PostSteward accepts only selected
+            repositories with read-only Contents access, revalidates authority
+            before every private source check, and keeps GitHub credentials out
+            of the browser. Public repositories continue to work without this
+            connection.
+          </p>
+          <p id="github-source-status" class="muted" role="status">
+            Checking GitHub source access…
+          </p>
+          <div id="github-sources" class="record-list"></div>
+        </section>
+        <section class="panel">
           <h2>Advanced · $5 per month</h2>
           <p>
             Continuing source monitoring and schedule management. Configuration
@@ -221,7 +241,10 @@
               >Repository<input
                 name="repository"
                 required
-                placeholder="owner/repository" /></label
+                list="github-repositories"
+                placeholder="owner/repository" /><datalist
+                id="github-repositories"
+              ></datalist></label
             ><label>Branch<input name="branch" required value="main" /></label
             ><label>Path<input name="path" required value="README.md" /></label
             ><label
