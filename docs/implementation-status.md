@@ -1,24 +1,25 @@
 # PostSteward implementation status: 10 September 2026
 
-PostSteward PR #20 is merged and deployed to restricted staging. The deployed runtime is `e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c`; [deployment run 34534537780](https://github.com/AyobamiH/poststeward/actions/runs/34534537780) passed migration 0009, upload and every hosted gate. See the [private-source deployment receipt](private-github-staging-2026-09-10.md).
+PostSteward PR #22 is merged and deployed to restricted staging at `93215b0467986e4f17f2c6777c1bb69551d66bd9`. [Deployment run 34537259784](https://github.com/AyobamiH/poststeward/actions/runs/34537259784) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
 
-**The private-source implementation is deployed, but a real GitHub App connection/private repository read is not activated or proven. Live readiness reports GitHub private sources and X/Threads/LinkedIn OAuth all unconfigured.** Real owner consent, controlled publication and public charging remain external acceptance gates.
+**Engineering is deployed; all five live gates remain open.** Google sign-in was rejected by automatic approval review. Provider OAuth, private GitHub and Stripe sandbox are unconfigured. WebMCP API exposure was observed, but authenticated execution remains unverified. Stripe is connected and account discovery succeeded; explicit test-account selection remains pending.
 
 ## Current engineering evidence
 
-| Evidence | Recorded result |
+| Evidence | Result |
 | --- | --- |
-| Deployed runtime | `e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c` (PR #20 merge) |
-| Cloudflare version | `06ac1748-140f-4bd0-8286-fd9697fdcc63` |
-| Final reviewed-head verification | Run `34534352457`: 176/176 tests; TypeScript, generated docs and dry-run build passed |
-| Dependency audits | Production and full audits both reported zero known vulnerabilities |
-| Staging deployment | Run `34534537780` succeeded; migration `0009_github_sources.sql` applied |
-| Hosted verification | 25 base HTTP + 12 owner surfaces + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle assertions passed |
-| GitHub private sources | Implemented and deployed; configuration unavailable (`false`) |
-| X / Threads / LinkedIn OAuth | All unavailable (`false`) in the deployed readiness report |
+| Runtime | `93215b0467986e4f17f2c6777c1bb69551d66bd9` (PR #22 merge) |
+| Cloudflare version | `2b789a06-8c56-47c0-a9be-dfb35dc3b419` |
+| Final reviewed-head CI | Run `34537062391`: 185/185 tests, TypeScript, generated docs and Worker build passed; final push CI also passed |
+| Dependency audits | Production and full audits: zero known vulnerabilities |
+| Deployment | Run `34537259784` passed; migrations already current |
+| Hosted assertions | 26 HTTP + 12 owner surfaces + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle = 58 passed |
+| Private GitHub | Owner-only free probe deployed; configured `false` |
+| X / Threads / LinkedIn OAuth | All configured `false` |
+| Stripe sandbox | Staging-only opt-in deployed; configured `false` |
 | Public release | Restricted signup; Advanced and MPP disabled |
 
-The earlier PR #13, #18 and #19 receipts remain historical evidence. Documentation-only commits after PR #20 do not imply a new runtime deployment.
+Earlier receipts remain historical evidence. Documentation-only commits after PR #22 do not imply a new runtime deployment.
 
 ## Implemented
 
@@ -32,14 +33,14 @@ The earlier PR #13, #18 and #19 receipts remain historical evidence. Documentati
 | Controlled readback | At most eight separate reads of the known post ID, thirty seconds apart; exact ID/author/text matching; no publication retry to repair missing evidence; LinkedIn is capability-gated by approved member readback |
 | Free publishing | Verified account aliases, explicit project routing, immutable approved copy and X/Threads/LinkedIn API adapters |
 | Free schedules/evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics and duplicate/uncertain-effect protections |
-| Agent surfaces | 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files |
+| Agent surfaces | Native round-trip check and partial-registration cleanup; 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files |
 | Provider OAuth | X PKCE OAuth, Threads long-lived tokens and LinkedIn OAuth with encrypted refresh handling, owner/session binding and identity-drift blocking |
 | Private GitHub sources | Owner-only GitHub App setup + user OAuth/PKCE; selected repositories only; read-only Contents/Metadata; maximum 50 repositories; encrypted expiring user access/refresh authority with exclusive pre-refresh leases and CAS rotation; per-read installation/permission/repository revalidation; explicit removal/rename/revocation handling; anonymous public fallback only when no private link exists |
-| Private-source UI | Dedicated owner module shows non-secret installation/repository state, constrains navigation to exact `github.com`, supports unlink/reconnect and populates Advanced repository suggestions without removing public free-text input |
+| Private-source UI | Free owner-only probe with commit SHA/time/release and no anonymous fallback; dedicated owner module shows non-secret installation/repository state, constrains navigation to exact `github.com`, supports unlink/reconnect and populates Advanced repository suggestions without removing public free-text input |
 | Lifecycle | Pending deletion globally fences GitHub authority routes; completed erasure purges pending GitHub state, encrypted GitHub credentials and repository links alongside other workspace authority |
 | Recovery safety | D1 external-effect/container fences, global quarantine, owner-only PITR plans, exact undo and restored-authority invalidation |
 | Advanced foundation | Source-path monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, spacing and independently scheduled metrics |
-| Stripe | USD 5 monthly Checkout, Portal, signed webhooks, entitlement reconciliation and SDK-backed MPP for a non-renewing calendar-month pass |
+| Stripe | Staging-only sandbox opt-in with test-key/test-price preflight while Advanced stays disabled; USD 5 monthly Checkout, Portal, signed webhooks, entitlement reconciliation and SDK-backed MPP for a non-renewing calendar-month pass |
 
 Direct publishing and explicit scheduling remain Free; continuing campaign management is the proposed paid boundary. Advanced and MPP are disabled in the active deployment. LinkedIn controlled acceptance is implemented but remains available only when the deployment and connection prove approved member-post readback authority.
 
@@ -53,9 +54,9 @@ See [private GitHub source authority](private-github-sources.md) for the full co
 
 ## Verification interpretation
 
-The 176-test merged implementation checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure. Seven additional regressions cover exclusive rotation, interrupted refresh without replay, expired leases, reconnect and unlink races, persistent removal/rename fences, and callbacks delayed across logout/deletion.
+The 185-test merged implementation checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure. The PR #20 regressions cover exclusive rotation, interrupted refresh without replay, expired leases, reconnect and unlink races, persistent removal/rename fences, and callbacks delayed across logout/deletion.
 
-Google, GitHub and social-provider responses in CI are fixtures. The source tests do not prove that a real GitHub App was created, that an owner granted a private repository, or that the hosted service successfully read that repository. Hosted checks are deliberately non-destructive: they verify the static private-source module and unauthenticated denial of status/start/unlink/setup/callback rather than creating authority.
+Google, GitHub and social-provider responses in CI are fixtures. The source tests do not prove that a real GitHub App was created, that an owner granted a private repository, or that the hosted service successfully read that repository. Hosted checks are deliberately non-destructive: they verify the static private-source module and unauthenticated denial of status/start/probe/unlink/setup/callback rather than creating authority.
 
 The provider client bounds both response bytes and time through the response body. A successful social write status followed by incomplete/unreadable evidence remains ambiguous. Threads readback uses `owner.id`, not a username that can change or be reused. Permalinks and external browser navigation are restricted to exact provider/GitHub hosts.
 
