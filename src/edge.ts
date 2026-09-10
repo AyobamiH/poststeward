@@ -77,7 +77,10 @@ export class Workspace extends BaseWorkspace {
         "Workspace deletion requires the signed-in owner.",
         403,
       );
-      const deletion = await workspaceDeletion(this.lifecycleEnv.IDENTITY, workspace);
+      const deletion = await workspaceDeletion(
+        this.lifecycleEnv.IDENTITY,
+        workspace,
+      );
       requireValue(
         deletion?.state === "pending",
         "WORKSPACE_DELETE_NOT_PENDING",
@@ -85,10 +88,14 @@ export class Workspace extends BaseWorkspace {
         409,
       );
       await this.lifecycleCtx.storage.deleteAlarm();
+      // Application business state lives in our SQLite records table. Clear it
+      // explicitly; deleteAll() is retained for any Durable Object KV state.
+      this.lifecycleCtx.storage.sql.exec("DELETE FROM records");
       await this.lifecycleCtx.storage.deleteAll();
       return json({ cleared: true });
     }
-    if (workspace) await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
+    if (workspace)
+      await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
     return super.fetch(request);
   }
 }
@@ -163,10 +170,14 @@ async function lifecycleRoute(request: Request, env: Env) {
     "Type the exact workspace deletion phrase shown by the application.",
     409,
   );
-  const control = await workspaceQuarantined(env.IDENTITY, auth.actor.workspace);
+  const control = await workspaceQuarantined(
+    env.IDENTITY,
+    auth.actor.workspace,
+  );
   const recovery = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
   requireValue(
-    !control.quarantined && !["prepared", "armed"].includes(recovery.plan?.state || ""),
+    !control.quarantined &&
+      !["prepared", "armed"].includes(recovery.plan?.state || ""),
     "RECOVERY_ACTIVE",
     "Cancel or finish active workspace recovery before erasing the workspace.",
     409,
@@ -214,7 +225,8 @@ export default {
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/api/lifecycle/")) return base.fetch(request, env, ctx);
+    if (!path.startsWith("/api/lifecycle/"))
+      return base.fetch(request, env, ctx);
     const requestId = crypto.randomUUID();
     try {
       return secure(await lifecycleRoute(request, env), requestId);
