@@ -13,13 +13,15 @@ class StorageFixture {
   db = new DatabaseSync(":memory:");
   sql = {
     exec: <T>(query: string, ...args: unknown[]) => {
+      if (/^\s*SELECT/i.test(query)) {
+        const statement = this.db.prepare(query);
+        return new SqlResult<T>(statement.all(...(args as any[])) as T[]);
+      }
       if (!args.length) {
         this.db.exec(query);
         return new SqlResult<T>();
       }
       const statement = this.db.prepare(query);
-      if (/^\s*SELECT/i.test(query))
-        return new SqlResult<T>(statement.all(...(args as any[])) as T[]);
       statement.run(...(args as any[]));
       return new SqlResult<T>();
     },
