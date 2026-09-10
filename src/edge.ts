@@ -10,7 +10,7 @@ import {
 } from "./lifecycle.ts";
 import { workspaceQuarantined } from "./effects.ts";
 import { ownerAuthority, demandFreshOwner } from "./owner-proof.ts";
-import { recoveryStatus } from "./recovery.ts";
+import { assertRecoveryCanResume, recoveryStatus } from "./recovery.ts";
 import { boundedBody, limitEdge } from "./security.ts";
 import type { Actor, Env } from "./types.ts";
 
@@ -41,12 +41,6 @@ function secure(response: Response, requestId: string) {
   return new Response(response.body, { status: response.status, headers });
 }
 
-/**
- * The exported class is the actual binding target. A deletion tombstone in D1
- * therefore fences every old/stale Durable Object request before base
- * publishing, billing or OAuth logic can be reached. Alarm events consult the
- * same tombstone so restoring an old object cannot resurrect background work.
- */
 export class Workspace extends BaseWorkspace {
   private lifecycleCtx: DurableObjectState;
   private lifecycleEnv: Env;
@@ -113,8 +107,6 @@ export class Workspace extends BaseWorkspace {
         await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
       return super.fetch(request);
     } catch (error) {
-      // Internal callers should receive a normal typed HTTP result rather than
-      // a proxy exception that can be mistaken for transport uncertainty.
       return errorResponse(error);
     }
   }
@@ -235,6 +227,12 @@ async function lifecycleRoute(request: Request, env: Env) {
     await beginWorkspaceDeletion(env.IDENTITY, auth.actor.workspace);
   }
 
+  // A provider/container write may have acquired its D1 intent immediately
+  // before deletion installed quarantine. Preserve that ledger until the same
+  // two-minute recovery settlement rule proves no request can still be live.
+  // Stale intents become permanently uncertain before their rows are erased.
+  await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
+
   const stub = env.WORKSPACES.get(
     env.WORKSPACES.idFromName(auth.actor.workspace),
   );
@@ -270,14 +268,34 @@ async function lifecycleRoute(request: Request, env: Env) {
   );
 }
 
+async function fenceProviderCallback(request: Request, env: Env) {
+  const path = new URL(request.url).pathname;
+  if (!/^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path))
+    return;
+  try {
+    const auth = await authenticate(request, env);
+    await assertWorkspaceNotDeleted(env.IDENTITY, auth.actor.workspace);
+  } catch (error: any) {
+    if (
+      error?.code === "WORKSPACE_DELETION_IN_PROGRESS" ||
+      error?.code === "WORKSPACE_DELETED"
+    )
+      return errorResponse(error);
+    // Let the base route preserve its established authentication/callback error
+    // semantics for requests that are not authenticated owner callbacks.
+  }
+}
+
 export default {
   async scheduled(controller: ScheduledController, env: Env) {
     return base.scheduled(controller, env);
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const path = new URL(request.url).pathname;
-    if (!path.startsWith("/api/lifecycle/"))
-      return base.fetch(request, env, ctx);
+    if (!path.startsWith("/api/lifecycle/")) {
+      const fenced = await fenceProviderCallback(request, env);
+      return fenced || base.fetch(request, env, ctx);
+    }
     const requestId = crypto.randomUUID();
     try {
       return secure(await lifecycleRoute(request, env), requestId);
