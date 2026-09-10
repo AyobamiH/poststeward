@@ -15,15 +15,22 @@ test("release readiness exposes capabilities without secrets and remains fail-cl
     MPP_ENABLED: "false",
     X_OAUTH_CLIENT_ID: "x",
     X_OAUTH_CLIENT_SECRET: "secret-x",
+    GITHUB_APP_CLIENT_ID: "Iv1.poststeward-test",
+    GITHUB_APP_CLIENT_SECRET: "github-secret-test",
+    GITHUB_APP_SLUG: "poststeward-test",
   });
   assert.equal(value.access.publicSignup, false);
   assert.equal(value.payments.advancedEnabled, false);
   assert.equal(value.providers.x.oauth, true);
   assert.equal(value.providers.threads.oauth, false);
+  assert.equal(value.sources.github.privateRepositories, true);
+  assert.equal(value.sources.github.ownerOnly, true);
+  assert.equal(value.sources.github.repositorySelection, "selected_only");
+  assert.equal(value.sources.github.maxRepositories, 50);
   assert.equal(value.recovery.externalEffectLedger, true);
   assert.doesNotMatch(
     JSON.stringify(value),
-    /secret-x|ENCRYPTION|CLIENT_SECRET/,
+    /secret-x|github-secret-test|ENCRYPTION|CLIENT_SECRET/,
   );
 });
 
@@ -85,18 +92,26 @@ test("staging merge provenance accepts only the exact merged main PR and redacts
   );
 });
 
-test("workspace UI makes OAuth primary, exposes reviewed Advanced and recovery controls, and keeps tokens ephemeral", () => {
+test("workspace UI keeps GitHub source authority owner-only, constrained and out of browser storage", () => {
   const html = readFileSync("public/app.html", "utf8"),
-    js = readFileSync("public/app.js", "utf8");
+    js = readFileSync("public/app.js", "utf8"),
+    github = readFileSync("public/github-sources-ui.js", "utf8");
   assert.match(html, /id="oauth-buttons"/);
   assert.match(html, /Manual token import fallback/);
   assert.match(html, /id="recovery-prepare"/);
   assert.match(html, /id="profile"/);
+  assert.match(html, /id="github-source-connect"/);
+  assert.match(html, /id="github-repositories"/);
+  assert.match(html, /src="\/github-sources-ui\.js"/);
   assert.match(js, /returnPath: "\/app"/);
   assert.match(js, /RESTORE \$\{session\.workspace\}/);
   assert.match(js, /form\.elements\.accessToken\.value = ""/);
+  assert.match(github, /\/api\/sources\/github\/status/);
+  assert.match(github, /\/api\/sources\/github\/start/);
+  assert.match(github, /\/api\/sources\/github\/unlink/);
+  assert.match(github, /trustedExternal\(started\.installationUrl, \["github\.com"\]\)/);
   assert.doesNotMatch(
-    js,
+    js + github,
     /localStorage|sessionStorage|innerHTML|document\.cookie/,
   );
 });
