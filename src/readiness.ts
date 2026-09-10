@@ -1,8 +1,10 @@
+import { githubSourceConfiguration } from "./github-sources.ts";
 import { oauthConfiguration } from "./provider-oauth.ts";
 import type { Env } from "./types.ts";
 
 export function releaseReadiness(env: Env) {
   const providers = oauthConfiguration(env);
+  const github = githubSourceConfiguration(env);
   return {
     release: env.RELEASE_SHA,
     environment: env.DEPLOY_ENV || "unknown",
@@ -16,6 +18,14 @@ export function releaseReadiness(env: Env) {
         { oauth: value.available, readback: value.readback },
       ]),
     ),
+    sources: {
+      github: {
+        privateRepositories: github.available,
+        ownerOnly: github.ownerOnly,
+        repositorySelection: github.repositorySelection,
+        maxRepositories: github.maxRepositories,
+      },
+    },
     payments: {
       advancedEnabled: env.ADVANCED_ENABLED === "true",
       mppEnabled: env.MPP_ENABLED === "true",
