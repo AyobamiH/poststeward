@@ -8,7 +8,7 @@ PostSteward separates code-complete capability from externally proven capability
 - X, Threads and LinkedIn publishing adapters with explicit uncertain-outcome handling and durable external-effect fences.
 - Provider OAuth architecture for X, Threads and LinkedIn, encrypted access/refresh storage, background refresh and identity-drift blocking. Each provider remains unavailable until its own application credentials are configured.
 - Capability-gated LinkedIn member-post readback. It remains disabled unless the LinkedIn app actually has `r_member_social`.
-- Owner-authorised private GitHub sources: selected-repository/read-only GitHub App enforcement, session/state/PKCE installation flow, encrypted expiring user credentials with refresh CAS, per-read installation/repository revalidation, owner workspace controls and workspace-erasure cleanup. Public GitHub sources remain anonymous and do not require the app.
+- Owner-authorised private GitHub sources: selected-repository/read-only GitHub App enforcement, session/state/PKCE installation flow, encrypted expiring user credentials with exclusive pre-refresh leases and credential CAS, per-read installation/repository revalidation, owner workspace controls and workspace-erasure cleanup. Public GitHub sources remain anonymous and do not require the app.
 - Workspace PITR coordination, quarantine, restored-authority invalidation, exact undo and D1 effect fences outside restored Durable Object state.
 - Free explicit publishing/scheduling/receipts and Advanced source-monitoring foundations, including scheduled metrics. Advanced/MPP stay disabled until payment acceptance is proven.
 - Blocking production and full dependency audits.

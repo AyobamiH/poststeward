@@ -1,17 +1,17 @@
 # PostSteward implementation status: 10 September 2026
 
-PostSteward is deployed to restricted staging in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward). The active deployed runtime remains the PR #13 merge revision recorded below until the current private-GitHub-source candidate is reviewed, merged and deployed. **Real owner Google consent and the first real controlled publication have not been recorded. A real private GitHub repository grant/read has also not been recorded.** Public customer acceptance and public charging remain outstanding.
+PostSteward is deployed to restricted staging in [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward). The active deployed runtime remains the PR #19 merge revision recorded below until the current private-GitHub-source candidate is reviewed, merged and deployed. **Real owner Google consent and the first real controlled publication have not been recorded. A real private GitHub repository grant/read has also not been recorded.** Public customer acceptance and public charging remain outstanding.
 
-The current release candidate implements the previously missing private GitHub source authority and owner workspace controls. At checkpoint `1d3b8cbfc5f2e1ba43515b8e8f3d900096137ed7`, Verify run `34499989830` passed **169/169 tests**, TypeScript, generated-document checks, dry-run bundling and both production/full high-severity dependency audits. Later commits in this branch are documentation-only unless otherwise noted; the final PR head must receive its own green Verify result before merge.
+The current release candidate implements the previously missing private GitHub source authority and owner workspace controls. At checkpoint `1d3b8cbfc5f2e1ba43515b8e8f3d900096137ed7`, Verify run `34499989830` passed **169/169 tests**, TypeScript, generated-document checks, dry-run bundling and both production/full high-severity dependency audits. The resumed review found that revision CAS alone did not serialise rotating-token requests. Candidate `5148750312129fa0a9846978512189e372141317` adds pre-refresh leases, interruption/reconnect fences and six regression tests. Its own CI result must be checked before merge; the earlier 169-test checkpoint does not validate these changes.
 
 ## Current engineering evidence
 
 | Evidence | Recorded result |
 | --- | --- |
 | Owner acceptance page | `https://poststeward-staging.woeinvests.workers.dev/pilot` |
-| Active deployed runtime | `28579527895955651b2f4b7ea61227ce194113a6` (PR #13 merge) |
-| Cloudflare version | `464a8dc4-f3ae-4965-94df-2259bc7c0339` |
-| PR #13 merge deployment | Run `34448815060`: migrations `0005` and `0006`, exact revision upload and its hosted checks succeeded |
+| Active deployed runtime | `ee19f5a84ca21e4aee8d3ad370b28c6c33203a52` (PR #19 merge) |
+| Cloudflare version | See successful PR #19 deployment run `34474070955` |
+| PR #19 merge deployment | Run `34474070955`: verification, deployment, exact revision, owner/browser/recovery/lifecycle checks succeeded |
 | Private-source candidate verification | Run `34499989830` at checkpoint `1d3b8cb…`: 169 tests passed, zero failed/skipped/cancelled; typecheck/docs/build passed |
 | Candidate hosted verifier | 25 non-destructive base surfaces, including static private-source UI plus unauthenticated denial of all five GitHub source authority routes |
 | Dependency audits | Production and full high-severity audits both report zero known vulnerabilities at the candidate checkpoint |
@@ -19,7 +19,7 @@ The current release candidate implements the previously missing private GitHub s
 | Private GitHub staging evidence | GitHub App code/config contract is implemented; real staging App credentials, owner installation and private repository read remain external evidence |
 | Public release | Restricted signup; Advanced and MPP disabled |
 
-The historical 9 September deployment/acceptance receipts remain evidence for the active deployed runtime. This document distinguishes that live revision from the newer candidate instead of presenting CI fixtures as deployed behaviour.
+The historical 9 September receipts describe earlier revisions. PR #19's deployment run is the current recorded staging evidence. This document distinguishes that live revision from the newer candidate instead of presenting CI fixtures as deployed behaviour.
 
 ## Implemented
 
@@ -35,7 +35,7 @@ The historical 9 September deployment/acceptance receipts remain evidence for th
 | Free schedules/evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics and duplicate/uncertain-effect protections |
 | Agent surfaces | 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files |
 | Provider OAuth | X PKCE OAuth, Threads long-lived tokens and LinkedIn OAuth with encrypted refresh handling, owner/session binding and identity-drift blocking |
-| Private GitHub sources | Owner-only GitHub App setup + user OAuth/PKCE; selected repositories only; read-only Contents/Metadata; maximum 50 repositories; encrypted expiring user access/refresh authority with CAS rotation; per-read installation/permission/repository revalidation; explicit removal/rename/revocation handling; anonymous public fallback only when no private link exists |
+| Private GitHub sources | Owner-only GitHub App setup + user OAuth/PKCE; selected repositories only; read-only Contents/Metadata; maximum 50 repositories; encrypted expiring user access/refresh authority with exclusive pre-refresh leases and CAS rotation; per-read installation/permission/repository revalidation; explicit removal/rename/revocation handling; anonymous public fallback only when no private link exists |
 | Private-source UI | Dedicated owner module shows non-secret installation/repository state, constrains navigation to exact `github.com`, supports unlink/reconnect and populates Advanced repository suggestions without removing public free-text input |
 | Lifecycle | Pending deletion globally fences GitHub authority routes; completed erasure purges pending GitHub state, encrypted GitHub credentials and repository links alongside other workspace authority |
 | Recovery safety | D1 external-effect/container fences, global quarantine, owner-only PITR plans, exact undo and restored-authority invalidation |
@@ -48,7 +48,7 @@ Direct publishing and explicit scheduling remain Free; continuing campaign manag
 
 Private-source installation is deliberately not an agent/MCP/WebMCP operation. A setup-returned `installation_id` is treated only as a candidate. PostSteward binds it to a fresh owner browser session/state and then independently verifies, through GitHub App user OAuth, that the user can access that exact installation. The installation must match the configured app slug, be unsuspended, use selected repositories and have no active permission beyond read-level Contents/Metadata.
 
-PostSteward retains an encrypted expiring GitHub App user credential rather than switching monitoring to broad installation-token authority. Refresh tokens rotate under D1 compare-and-swap. Before every linked private source commit read, the current user-accessible installation and complete bounded repository inventory are re-read. Permission expansion, `all`-repository expansion, suspension, owner/repository access loss or repository removal therefore fails closed before the requested source path is read. A linked private repository is never retried anonymously.
+PostSteward retains an encrypted expiring GitHub App user credential rather than switching monitoring to broad installation-token authority. Refresh tokens rotate only after an exclusive D1 lease is acquired and commit under credential/revision/lease compare-and-swap. Abandoned or uncertain refreshes require reconnection and cannot replay the old credential. Before every linked private source commit read, the current user-accessible installation and complete bounded repository inventory are re-read. Permission expansion, `all`-repository expansion, suspension, owner/repository access loss or repository removal therefore fails closed before the requested source path is read. A linked private repository is never retried anonymously.
 
 See [private GitHub source authority](private-github-sources.md) for the full contract and exact staging callback/setup URLs.
 

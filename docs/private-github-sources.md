@@ -46,7 +46,9 @@ PostSteward retains an expiring **GitHub App user access/refresh credential**, n
 
 The credential is encrypted with the deployment encryption root and authenticated context `<workspace>:github:<installation-id>`. Plaintext access/refresh tokens are not returned by status APIs, stored in browser storage or included in logs.
 
-GitHub refresh tokens rotate. PostSteward stores a credential revision and updates a refreshed credential with compare-and-swap semantics. A concurrent loser re-reads the winning revision rather than overwriting rotated material. Expired/revoked refresh authority marks the installation stale with a bounded error code and requires reconnection.
+GitHub refresh tokens rotate and invalidate the preceding access/refresh pair ([GitHub contract](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens)). Before sending a refresh token, PostSteward atomically claims a 30-second D1 lease for the exact encrypted credential and revision. A concurrent reader receives retryable `GITHUB_REFRESH_IN_PROGRESS`, or uses the newly committed credential if rotation has already finished. Only that lease holder can commit before the deadline; reconnection clears the lease and supersedes earlier responses.
+
+A lost response, expired lease or uncertain refresh outcome never permits replay of the old token. The installation remains fenced with `GITHUB_REFRESH_UNCERTAIN` and requires owner reconnection. This deliberately trades automatic recovery for avoiding reuse of a possibly consumed credential. Revocation/error updates also match the exact credential revision, so a delayed request cannot mark a newer owner connection stale.
 
 ## Every private source read revalidates authority
 
@@ -56,7 +58,7 @@ A linked private source check does not trust the installation snapshot captured 
 2. Re-reads the GitHub user's accessible installations.
 3. Re-proves the expected app slug, unsuspended state, selected-repositories mode and read-only permission set.
 4. Re-reads the selected repository inventory and proves the exact linked repository ID remains present.
-5. Handles repository removal or rename explicitly.
+5. Handles repository removal or rename by marking the installation stale while retaining the original repository link, so a subsequent read cannot silently switch to anonymous access.
 6. Only then reads the requested branch/path commit snapshot.
 
 If the owner later grants a write permission, widens the installation to all repositories, loses organisation/repository access, removes the repository, suspends the app or revokes the user credential, the next private source read fails closed before repository content is consumed. No anonymous fallback is attempted for a repository that is already linked as private authority.
@@ -113,7 +115,7 @@ If staging moves to a custom origin, both URLs must move to that exact HTTPS ori
 
 ## Verification boundary
 
-CI uses the real Workers/D1/SQLite runtime with simulated GitHub HTTP responses. It verifies PKCE/state/session binding, spoofed installation rejection, encrypted credential retention, broad/write permission rejection, per-read privilege revalidation, public anonymous compatibility, deletion fencing and erasure.
+CI uses the real Workers/D1/SQLite runtime with simulated GitHub HTTP responses. It verifies PKCE/state/session binding, spoofed installation rejection, encrypted credential retention, broad/write permission rejection, per-read privilege revalidation, public anonymous compatibility, deletion fencing and erasure. Deterministic concurrent tests pause refresh responses and cover one-request rotation, uncertain outcomes without replay, expired leases, reconnect supersession, unlink during refresh and persistent removal/rename fences.
 
 Hosted verification remains non-destructive. It checks the private-source static module and confirms unauthenticated status/start/unlink/setup/callback requests are rejected. It does not create a GitHub installation, retain an owner credential or read a private repository.
 
