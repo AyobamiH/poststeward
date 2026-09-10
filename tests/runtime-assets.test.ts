@@ -6,7 +6,7 @@ import { environment } from "./helpers.ts";
 test("real Workers Assets resolves the workspace and canonical redirects without looping", async () => {
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true,
-    scriptPath: "dist/worker.js",
+    scriptPath: "dist/edge.js",
     compatibilityDate: "2026-09-09",
     compatibilityFlags: ["nodejs_compat"],
     bindings: Object.fromEntries(Object.entries(environment).filter(([, value]) => typeof value === "string")) as Record<string, string>,
@@ -24,7 +24,7 @@ test("real Workers Assets resolves the workspace and canonical redirects without
     },
   }));
   try {
-    for (const path of ["/", "/app", "/app?tab=connections"]) {
+    for (const path of ["/", "/app", "/app?tab=connections", "/lifecycle"]) {
       const response = await mf.dispatchFetch("https://publish.example" + path, { redirect: "manual" });
       assert.equal(response.status, 200, path);
       assert.equal(response.headers.get("location"), null);

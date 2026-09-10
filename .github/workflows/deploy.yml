@@ -111,3 +111,5 @@ jobs:
         run: node scripts/pilot-browser-smoke.mjs
       - name: Verify non-destructive recovery and provider OAuth boundaries
         run: node scripts/recovery-smoke.mjs
+      - name: Verify non-destructive account lifecycle boundary
+        run: node scripts/lifecycle-smoke.mjs

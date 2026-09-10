@@ -5,7 +5,7 @@ import { environment } from "./helpers.ts";
 /** Actual Workers/D1/SQLite runtime. Outbound identity/provider responses are test fixtures, never live evidence. */
 export async function runtime(outboundService?: (request: Request) => Promise<any>, bindings: Record<string, string> = {}, loginLimit = 10) {
   const mf = new Miniflare(convertV4MiniflareOptions({
-    modules: true, scriptPath: "dist/worker.js", compatibilityDate: "2026-09-09", compatibilityFlags: ["nodejs_compat"],
+    modules: true, scriptPath: "dist/edge.js", compatibilityDate: "2026-09-09", compatibilityFlags: ["nodejs_compat"],
     bindings: {
       ...Object.fromEntries(Object.entries(environment).filter(([, value]) => typeof value === "string")),
       OIDC_ISSUER: "https://identity.example", OIDC_CLIENT_ID: "poststeward-test", OIDC_CLIENT_SECRET: "not-a-real-secret",

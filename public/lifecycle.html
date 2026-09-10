@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Data & account · PostSteward</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script type="module" src="/lifecycle.js"></script>
+</head>
+<body>
+<header><a class="wordmark" href="/">PostSteward</a><nav><a href="/app">Workspace</a><a href="/pilot">Controlled acceptance</a></nav></header>
+<main class="workspace">
+  <section class="summary">
+    <div><p class="eyebrow">OWNER DATA LIFECYCLE</p><h1>Export before erasure.</h1><p id="status" role="status">Checking your owner session…</p></div>
+  </section>
+  <section class="panel wide">
+    <h2>Workspace data</h2>
+    <p>Use the workspace export before deletion if you need a copy of project, campaign and receipt history. Provider credentials and payment tokens are never included in that export.</p>
+    <a class="button" href="/app">Open workspace export</a>
+  </section>
+  <section class="panel wide" aria-labelledby="delete-heading">
+    <h2 id="delete-heading">Delete this PostSteward workspace</h2>
+    <p><strong>This is irreversible inside PostSteward.</strong> Deletion first installs a durable D1 tombstone and quarantines provider writes, then clears the workspace Durable Object and identity, grant, payment-mapping, recovery and external-effect records. The minimal workspace tombstone remains so stale restored state cannot be reactivated.</p>
+    <p>Provider-side authorization grants may remain at the provider until revoked there, but PostSteward deletes its locally usable credential material and can no longer use this workspace. A later Google sign-in may create a new workspace; it does not reactivate this one.</p>
+    <p id="instruction" class="muted"></p>
+    <form id="delete-form" autocomplete="off">
+      <label>Exact confirmation<input id="confirmation" required autocomplete="off" spellcheck="false" /></label>
+      <label class="check"><input id="understand" type="checkbox" required />I understand this erases the PostSteward workspace and there is no in-product undo.</label>
+      <button id="delete" type="submit" disabled>Delete workspace</button>
+    </form>
+    <pre id="result" class="preview" hidden></pre>
+  </section>
+</main>
+<footer>PostSteward · restricted staging data lifecycle</footer>
+</body>
+</html>
