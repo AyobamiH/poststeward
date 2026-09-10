@@ -11,6 +11,7 @@ const MAX_PENDING_STATES = 5;
 const MAX_LINKED_REPOSITORIES = 50;
 const REQUEST_TIMEOUT = 10_000;
 const REFRESH_SKEW = 5 * 60 * 1000;
+const REFRESH_LEASE_TTL = 30_000;
 const USER_INSTALLATION_PAGES = 10;
 
 type Send = typeof fetch;
@@ -41,6 +42,8 @@ type InstallationRow = {
   last_error?: string | null;
   credential: string;
   credential_revision: number;
+  refresh_lease: string | null;
+  refresh_lease_until: number | null;
   token_expires_at: number;
   refresh_expires_at: number;
   linked_at: number;
@@ -343,15 +346,16 @@ async function refreshToken(
 
 async function markInstallationStale(
   env: Env,
-  workspace: string,
-  id: number,
+  row: InstallationRow,
   code: string,
   now: number,
 ) {
+  // A response using old authority must not poison a reconnect or a refresh.
   await env.IDENTITY.prepare(
-    "UPDATE github_installations SET status='stale',last_error=?,updated_at=? WHERE workspace=? AND installation_id=?",
+    "UPDATE github_installations SET status='stale',last_error=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease IS NULL AND status='linked'",
   )
-    .bind(code.slice(0, 100), now, workspace, id)
+    .bind(code.slice(0, 100), now, row.workspace, row.installation_id,
+      row.credential_revision, row.credential)
     .run();
 }
 
@@ -369,105 +373,93 @@ async function readInstallation(
   );
 }
 
+async function refreshInProgress(env: Env, row: InstallationRow, now: number) {
+  if (!row.refresh_lease) return;
+  if ((row.refresh_lease_until || 0) <= now) {
+    // Never reclaim an abandoned rotating token: GitHub may have consumed it.
+    await env.IDENTITY.prepare(
+      "UPDATE github_installations SET status='stale',last_error='GITHUB_REFRESH_UNCERTAIN',updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease=? AND refresh_lease_until<=? AND status='linked'",
+    ).bind(now, row.workspace, row.installation_id, row.credential_revision,
+      row.credential, row.refresh_lease, now).run();
+    throw new Fault("GITHUB_REAUTH_REQUIRED",
+      "GitHub credential refresh was interrupted. Reconnect GitHub.", 409);
+  }
+  throw new Fault("GITHUB_REFRESH_IN_PROGRESS",
+    "GitHub credentials are being refreshed. Retry this source check shortly.", 503);
+}
+
 async function activeCredential(
   env: Env,
   row: InstallationRow,
   send: Send,
   now: number,
 ): Promise<GitHubCredential> {
-  requireValue(
-    row.status === "linked",
-    "GITHUB_REAUTH_REQUIRED",
-    "GitHub repository authorization is stale. Reconnect GitHub.",
-    409,
-  );
+  requireValue(row.status === "linked", "GITHUB_REAUTH_REQUIRED",
+    "GitHub repository authorization is stale. Reconnect GitHub.", 409);
+  await refreshInProgress(env, row, now);
   const context = `${row.workspace}:github:${row.installation_id}`;
   const current = await unseal<GitHubCredential>(
-    row.credential,
-    env.ENCRYPTION_KEY,
-    context,
+    row.credential, env.ENCRYPTION_KEY, context,
   );
   if (current.expiresAt > now + REFRESH_SKEW) return current;
   if (current.refreshExpiresAt <= now + REFRESH_SKEW) {
-    await markInstallationStale(
-      env,
-      row.workspace,
-      row.installation_id,
-      "GITHUB_REAUTH_REQUIRED",
-      now,
-    );
-    throw new Fault(
-      "GITHUB_REAUTH_REQUIRED",
-      "GitHub repository authorization must be renewed.",
-      409,
-    );
+    await markInstallationStale(env, row, "GITHUB_REAUTH_REQUIRED", now);
+    throw new Fault("GITHUB_REAUTH_REQUIRED",
+      "GitHub repository authorization must be renewed.", 409);
   }
 
+  const lease = crypto.randomUUID();
+  const started = Date.now();
+  const claimed = await env.IDENTITY.prepare(
+    "UPDATE github_installations SET refresh_lease=?,refresh_lease_until=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND status='linked' AND refresh_lease IS NULL",
+  ).bind(lease, now + REFRESH_LEASE_TTL, row.workspace, row.installation_id,
+    row.credential_revision, row.credential).run();
+  if (claimed.meta.changes !== 1) {
+    const latest = await readInstallation(env, row.workspace, row.installation_id);
+    requireValue(latest?.status === "linked", "GITHUB_REAUTH_REQUIRED",
+      "GitHub repository authorization changed. Reconnect GitHub.", 409);
+    await refreshInProgress(env, latest, now);
+    requireValue(latest.credential !== row.credential &&
+      latest.token_expires_at > now + REFRESH_SKEW,
+      "GITHUB_REFRESH_IN_PROGRESS",
+      "GitHub credentials changed. Retry this source check shortly.", 503);
+    Object.assign(row, latest);
+    return unseal<GitHubCredential>(latest.credential, env.ENCRYPTION_KEY, context);
+  }
+
+  // Only the lease holder may send this single-use refresh token.
   let refreshed: GitHubCredential;
+  let encrypted: string;
   try {
     refreshed = await refreshToken(env, current.refreshToken, send, now);
+    encrypted = await seal(refreshed, env.ENCRYPTION_KEY, context,
+      env.ENCRYPTION_KEY_VERSION);
   } catch (error) {
-    const latest = await readInstallation(
-      env,
-      row.workspace,
-      row.installation_id,
-    );
-    if (
-      latest &&
-      latest.status === "linked" &&
-      latest.credential_revision !== row.credential_revision &&
-      latest.token_expires_at > now + 60_000
-    )
-      return unseal<GitHubCredential>(
-        latest.credential,
-        env.ENCRYPTION_KEY,
-        context,
-      );
-    if (error instanceof Fault && error.code === "GITHUB_REAUTH_REQUIRED")
-      await markInstallationStale(
-        env,
-        row.workspace,
-        row.installation_id,
-        error.code,
-        now,
-      );
-    throw error;
+    // An HTTP error/timeout can occur after token consumption. Do not replay it.
+    const code = error instanceof Fault && error.code === "GITHUB_REAUTH_REQUIRED"
+      ? error.code : "GITHUB_REFRESH_UNCERTAIN";
+    await env.IDENTITY.prepare(
+      "UPDATE github_installations SET status='stale',last_error=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease=? AND status='linked'",
+    ).bind(code, now, row.workspace, row.installation_id, row.credential_revision,
+      row.credential, lease).run();
+    throw new Fault("GITHUB_REAUTH_REQUIRED",
+      "GitHub credential refresh could not be confirmed. Reconnect GitHub.", 409);
   }
 
-  const encrypted = await seal(
-    refreshed,
-    env.ENCRYPTION_KEY,
-    context,
-    env.ENCRYPTION_KEY_VERSION,
-  );
+  const completedAt = now + Math.max(0, Date.now() - started);
   const updated = await env.IDENTITY.prepare(
-    "UPDATE github_installations SET credential=?,credential_revision=credential_revision+1,token_expires_at=?,refresh_expires_at=?,status='linked',last_error=NULL,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND status='linked'",
-  )
-    .bind(
-      encrypted,
-      refreshed.expiresAt,
-      refreshed.refreshExpiresAt,
-      now,
-      row.workspace,
-      row.installation_id,
-      row.credential_revision,
-    )
-    .run();
-  if (updated.meta.changes === 1) return refreshed;
-
-  const winner = await readInstallation(env, row.workspace, row.installation_id);
-  requireValue(
-    winner?.status === "linked" &&
-      winner.credential_revision !== row.credential_revision,
-    "GITHUB_REAUTH_REQUIRED",
-    "GitHub repository authorization changed. Reconnect GitHub if the next check fails.",
-    409,
-  );
-  return unseal<GitHubCredential>(
-    winner.credential,
-    env.ENCRYPTION_KEY,
-    context,
-  );
+    "UPDATE github_installations SET credential=?,credential_revision=credential_revision+1,token_expires_at=?,refresh_expires_at=?,refresh_lease=NULL,refresh_lease_until=NULL,last_error=NULL,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease=? AND refresh_lease_until>? AND status='linked'",
+  ).bind(encrypted, refreshed.expiresAt, refreshed.refreshExpiresAt, completedAt,
+    row.workspace, row.installation_id, row.credential_revision, row.credential,
+    lease, completedAt).run();
+  requireValue(updated.meta.changes === 1, "GITHUB_REAUTH_REQUIRED",
+    "GitHub repository authorization changed during refresh. Retry or reconnect GitHub.", 409);
+  Object.assign(row, {
+    credential: encrypted, credential_revision: row.credential_revision + 1,
+    token_expires_at: refreshed.expiresAt, refresh_expires_at: refreshed.refreshExpiresAt,
+    refresh_lease: null, refresh_lease_until: null,
+  });
+  return refreshed;
 }
 
 async function accessibleInstallation(
@@ -845,7 +837,7 @@ export async function completeGitHubSourceLink(
   );
   const statements = [
     env.IDENTITY.prepare(
-      "INSERT INTO github_installations(workspace,installation_id,account_id,account_login,account_type,user_id,user_login,repository_selection,status,last_error,credential,credential_revision,token_expires_at,refresh_expires_at,linked_at,last_verified_at,updated_at) VALUES (?,?,?,?,?,?,?,'selected','linked',NULL,?,1,?,?,?,?,?) ON CONFLICT(workspace,installation_id) DO UPDATE SET account_id=excluded.account_id,account_login=excluded.account_login,account_type=excluded.account_type,user_id=excluded.user_id,user_login=excluded.user_login,repository_selection='selected',status='linked',last_error=NULL,credential=excluded.credential,credential_revision=github_installations.credential_revision+1,token_expires_at=excluded.token_expires_at,refresh_expires_at=excluded.refresh_expires_at,last_verified_at=excluded.last_verified_at,updated_at=excluded.updated_at",
+      "INSERT INTO github_installations(workspace,installation_id,account_id,account_login,account_type,user_id,user_login,repository_selection,status,last_error,credential,credential_revision,token_expires_at,refresh_expires_at,linked_at,last_verified_at,updated_at) VALUES (?,?,?,?,?,?,?,'selected','linked',NULL,?,1,?,?,?,?,?) ON CONFLICT(workspace,installation_id) DO UPDATE SET account_id=excluded.account_id,account_login=excluded.account_login,account_type=excluded.account_type,user_id=excluded.user_id,user_login=excluded.user_login,repository_selection='selected',status='linked',last_error=NULL,credential=excluded.credential,credential_revision=github_installations.credential_revision+1,refresh_lease=NULL,refresh_lease_until=NULL,token_expires_at=excluded.token_expires_at,refresh_expires_at=excluded.refresh_expires_at,last_verified_at=excluded.last_verified_at,updated_at=excluded.updated_at",
     ).bind(
       owner.proof.workspace,
       pending.installation_id,
@@ -937,7 +929,7 @@ async function linkedRepository(
 ): Promise<(RepositoryLink & InstallationRow) | undefined> {
   return (
     (await env.IDENTITY.prepare(
-      "SELECT r.workspace,r.repository_id,r.installation_id,r.full_name,r.private,r.linked_at,r.verified_at,i.account_id,i.account_login,i.account_type,i.user_id,i.user_login,i.repository_selection,i.status,i.last_error,i.credential,i.credential_revision,i.token_expires_at,i.refresh_expires_at,i.last_verified_at,i.updated_at FROM github_repository_links r JOIN github_installations i ON i.workspace=r.workspace AND i.installation_id=r.installation_id WHERE r.workspace=? AND r.full_name=?",
+      "SELECT r.workspace,r.repository_id,r.installation_id,r.full_name,r.private,r.linked_at,r.verified_at,i.account_id,i.account_login,i.account_type,i.user_id,i.user_login,i.repository_selection,i.status,i.last_error,i.credential,i.credential_revision,i.refresh_lease,i.refresh_lease_until,i.token_expires_at,i.refresh_expires_at,i.last_verified_at,i.updated_at FROM github_repository_links r JOIN github_installations i ON i.workspace=r.workspace AND i.installation_id=r.installation_id WHERE r.workspace=? AND r.full_name=?",
     )
       .bind(workspace, fullName)
       .first<any>()) || undefined
@@ -973,8 +965,7 @@ async function verifyLinkedRepositoryStillAccessible(
     )
       await markInstallationStale(
         env,
-        link.workspace,
-        link.installation_id,
+        link,
         error.code,
         now,
       );
@@ -999,8 +990,7 @@ async function verifyLinkedRepositoryStillAccessible(
     )
       await markInstallationStale(
         env,
-        link.workspace,
-        link.installation_id,
+        link,
         error.code,
         now,
       );
@@ -1010,11 +1000,7 @@ async function verifyLinkedRepositoryStillAccessible(
     (repository: GitHubRepository) => repository.id === link.repository_id,
   );
   if (!current) {
-    await env.IDENTITY.prepare(
-      "DELETE FROM github_repository_links WHERE workspace=? AND repository_id=?",
-    )
-      .bind(link.workspace, link.repository_id)
-      .run();
+    await markInstallationStale(env, link, "GITHUB_REPOSITORY_ACCESS_REVOKED", now);
     throw new Fault(
       "GITHUB_REPOSITORY_ACCESS_REVOKED",
       "This repository is no longer available through the linked GitHub installation.",
@@ -1022,17 +1008,7 @@ async function verifyLinkedRepositoryStillAccessible(
     );
   }
   if (current.fullName !== link.full_name) {
-    await env.IDENTITY.prepare(
-      "UPDATE github_repository_links SET full_name=?,private=?,verified_at=? WHERE workspace=? AND repository_id=?",
-    )
-      .bind(
-        current.fullName,
-        current.private ? 1 : 0,
-        now,
-        link.workspace,
-        link.repository_id,
-      )
-      .run();
+    await markInstallationStale(env, link, "GITHUB_REPOSITORY_RENAMED", now);
     throw new Fault(
       "GITHUB_REPOSITORY_RENAMED",
       "The linked GitHub repository was renamed. Review and update the automation profile.",
@@ -1044,8 +1020,8 @@ async function verifyLinkedRepositoryStillAccessible(
       "UPDATE github_repository_links SET private=?,verified_at=? WHERE workspace=? AND repository_id=?",
     ).bind(current.private ? 1 : 0, now, link.workspace, link.repository_id),
     env.IDENTITY.prepare(
-      "UPDATE github_installations SET status='linked',last_error=NULL,last_verified_at=?,updated_at=? WHERE workspace=? AND installation_id=?",
-    ).bind(now, now, link.workspace, link.installation_id),
+      "UPDATE github_installations SET last_verified_at=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease IS NULL AND status='linked'",
+    ).bind(now, now, link.workspace, link.installation_id, link.credential_revision, link.credential),
   ]);
 }
 
@@ -1107,8 +1083,7 @@ export async function readGitHubSource(
   if (response.status === 401) {
     await markInstallationStale(
       env,
-      workspace,
-      link.installation_id,
+      link,
       "GITHUB_REAUTH_REQUIRED",
       now,
     );
@@ -1121,8 +1096,7 @@ export async function readGitHubSource(
   if (response.status === 403) {
     await markInstallationStale(
       env,
-      workspace,
-      link.installation_id,
+      link,
       "GITHUB_ACCESS_REVOKED",
       now,
     );

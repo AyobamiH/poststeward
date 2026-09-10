@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { seal, unseal } from "../src/crypto.ts";
 import { digest } from "../src/common.ts";
 import { readGitHubSource } from "../src/github-sources.ts";
 import { environment } from "./helpers.ts";
@@ -388,5 +389,216 @@ test("unlinked public GitHub sources remain anonymous and require no GitHub App 
     assert.equal(calls, 1);
   } finally {
     await mf.dispose();
+  }
+});
+
+const refreshProfile = { repository: "acme/private-repo", branch: "main", path: "README.md" } as any;
+
+async function refreshFixture() {
+  const { mf, db } = await runtime(undefined, {}, 100);
+  const now = Date.now();
+  const workspace = "refresh-workspace";
+  const env = { IDENTITY: db, ENCRYPTION_KEY: environment.ENCRYPTION_KEY,
+    ENCRYPTION_KEY_VERSION: "2", ...app } as any;
+  const context = `${workspace}:github:42`;
+  const credential = await seal({
+    accessToken: "old-github-user-access-token-001",
+    refreshToken: "old-github-user-refresh-token-001",
+    expiresAt: now + 60_000, refreshExpiresAt: now + 86_400_000,
+  }, env.ENCRYPTION_KEY, context, "2");
+  await db.prepare(
+    "INSERT INTO github_installations(workspace,installation_id,account_id,account_login,account_type,user_id,user_login,repository_selection,status,credential,credential_revision,token_expires_at,refresh_expires_at,linked_at,last_verified_at,updated_at) VALUES (?,42,7,'acme','Organization',101,'owner','selected','linked',?,1,?,?,?,?,?)",
+  ).bind(workspace, credential, now + 60_000, now + 86_400_000, now, now, now).run();
+  await db.prepare(
+    "INSERT INTO github_repository_links(workspace,repository_id,installation_id,full_name,private,linked_at,verified_at) VALUES (?,99,42,'acme/private-repo',1,?,?)",
+  ).bind(workspace, now, now).run();
+  const row = () => db.prepare("SELECT * FROM github_installations WHERE workspace=? AND installation_id=42")
+    .bind(workspace).first<any>();
+  const read = (send: typeof fetch, at = now) =>
+    readGitHubSource(refreshProfile, env, workspace, send, at);
+  return { mf, db, env, now, workspace, context, row, read };
+}
+
+function rotatedResponse() {
+  return Response.json({
+    access_token: "new-github-user-access-token-002",
+    refresh_token: "new-github-user-refresh-token-002",
+    expires_in: 28800, refresh_token_expires_in: 15811200,
+  });
+}
+
+function privateReadResponse(url: URL) {
+  if (url.pathname === "/user/installations")
+    return Response.json({ installations: [installation()] });
+  if (url.pathname === "/user/installations/42/repositories")
+    return Response.json({ total_count: 1, repositories: [repo()] });
+  if (url.pathname === "/repos/acme/private-repo/commits")
+    return Response.json([{ sha: "c".repeat(40) }]);
+  throw new Error("Unexpected test endpoint");
+}
+
+function gate() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => { release = resolve; });
+  return { promise, release };
+}
+
+test("concurrent private reads send a rotating refresh token only once", { timeout: 20_000 }, async () => {
+  const f = await refreshFixture();
+  const entered = gate(), finish = gate();
+  let refreshes = 0;
+  const send = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    if (url.hostname === "github.com") {
+      refreshes++;
+      assert.equal(new URLSearchParams(await request.text()).get("refresh_token"),
+        "old-github-user-refresh-token-001");
+      assert.ok((await f.row()).refresh_lease);
+      entered.release();
+      await finish.promise;
+      return rotatedResponse();
+    }
+    assert.equal(request.headers.get("authorization"), "Bearer new-github-user-access-token-002");
+    return privateReadResponse(url);
+  }) as typeof fetch;
+  const first = f.read(send);
+  void first.catch(() => entered.release());
+  try {
+    await entered.promise;
+    await assert.rejects(f.read(send), { code: "GITHUB_REFRESH_IN_PROGRESS" });
+    assert.equal(refreshes, 1);
+    assert.equal((await f.row()).status, "linked");
+    finish.release();
+    assert.equal((await first).sha, "c".repeat(40));
+    const stored = await f.row();
+    assert.equal(stored.credential_revision, 2);
+    assert.equal(stored.refresh_lease, null);
+    assert.equal(stored.refresh_lease_until, null);
+    assert.equal(stored.status, "linked");
+    const decrypted: any = await unseal(stored.credential, f.env.ENCRYPTION_KEY, f.context);
+    assert.equal(decrypted.refreshToken, "new-github-user-refresh-token-002");
+    assert.equal((await f.read(send)).sha, "c".repeat(40));
+    assert.equal(refreshes, 1);
+  } finally {
+    finish.release();
+    await first.catch(() => undefined);
+    await f.mf.dispose();
+  }
+});
+
+test("uncertain refresh outcomes are fenced and never replay the consumed token", async () => {
+  const f = await refreshFixture();
+  let calls = 0;
+  const send = (async () => { calls++; throw new Error("response lost after consumption"); }) as typeof fetch;
+  try {
+    await assert.rejects(f.read(send), { code: "GITHUB_REAUTH_REQUIRED" });
+    await assert.rejects(f.read(send), { code: "GITHUB_REAUTH_REQUIRED" });
+    const stored = await f.row();
+    assert.equal(calls, 1);
+    assert.equal(stored.status, "stale");
+    assert.equal(stored.last_error, "GITHUB_REFRESH_UNCERTAIN");
+    assert.ok(stored.refresh_lease);
+  } finally { await f.mf.dispose(); }
+});
+
+test("an expired refresh lease is not reclaimed and a late holder cannot commit", { timeout: 20_000 }, async () => {
+  const f = await refreshFixture();
+  const entered = gate(), finish = gate();
+  let calls = 0;
+  const send = (async () => {
+    calls++; entered.release(); await finish.promise; return rotatedResponse();
+  }) as typeof fetch;
+  const first = f.read(send);
+  void first.catch(() => entered.release());
+  try {
+    await entered.promise;
+    await f.db.prepare("UPDATE github_installations SET refresh_lease_until=? WHERE workspace=?")
+      .bind(f.now - 1, f.workspace).run();
+    await assert.rejects(f.read(send), { code: "GITHUB_REAUTH_REQUIRED" });
+    finish.release();
+    await assert.rejects(first, { code: "GITHUB_REAUTH_REQUIRED" });
+    assert.equal(calls, 1);
+    assert.equal((await f.row()).status, "stale");
+    assert.equal((await f.row()).credential_revision, 1);
+  } finally { finish.release(); await first.catch(() => undefined); await f.mf.dispose(); }
+});
+
+test("reconnection supersedes both successful and failed in-flight refreshes", { timeout: 30_000 }, async () => {
+  for (const failure of [false, true]) {
+    const f = await refreshFixture();
+    const entered = gate(), finish = gate();
+    const send = (async () => {
+      entered.release(); await finish.promise;
+      if (failure) throw new Error("old refresh failed");
+      return rotatedResponse();
+    }) as typeof fetch;
+    const first = f.read(send);
+    void first.catch(() => entered.release());
+    try {
+      await entered.promise;
+      const replacement = await seal({
+        accessToken: "reconnected-github-access-token",
+        refreshToken: "reconnected-github-refresh-token",
+        expiresAt: f.now + 28_800_000, refreshExpiresAt: f.now + 86_400_000,
+      }, f.env.ENCRYPTION_KEY, f.context, "2");
+      await f.db.prepare(
+        "UPDATE github_installations SET credential=?,credential_revision=credential_revision+1,refresh_lease=NULL,refresh_lease_until=NULL,token_expires_at=? WHERE workspace=?",
+      ).bind(replacement, f.now + 28_800_000, f.workspace).run();
+      finish.release();
+      await assert.rejects(first, { code: "GITHUB_REAUTH_REQUIRED" });
+      const stored = await f.row();
+      assert.equal(stored.credential, replacement);
+      assert.equal(stored.credential_revision, 2);
+      assert.equal(stored.status, "linked");
+      assert.equal(stored.last_error, null);
+      assert.equal(stored.refresh_lease, null);
+    } finally { finish.release(); await first.catch(() => undefined); await f.mf.dispose(); }
+  }
+});
+
+test("unlink during refresh cannot recreate credentials or read repository content", { timeout: 20_000 }, async () => {
+  const f = await refreshFixture();
+  const entered = gate(), finish = gate();
+  let calls = 0;
+  const send = (async () => {
+    calls++; entered.release(); await finish.promise; return rotatedResponse();
+  }) as typeof fetch;
+  const first = f.read(send);
+  void first.catch(() => entered.release());
+  try {
+    await entered.promise;
+    await f.db.prepare("DELETE FROM github_installations WHERE workspace=?").bind(f.workspace).run();
+    finish.release();
+    await assert.rejects(first, { code: "GITHUB_REAUTH_REQUIRED" });
+    assert.equal(calls, 1);
+    assert.equal(await f.row(), null);
+  } finally { finish.release(); await first.catch(() => undefined); await f.mf.dispose(); }
+});
+
+test("removed and renamed private repositories remain fenced on subsequent reads", async () => {
+  for (const renamed of [false, true]) {
+    const f = await refreshFixture();
+    let commits = 0;
+    const send = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      assert.ok(new URL(request.url).hostname === "github.com" || request.headers.get("authorization"));
+      const url = new URL(request.url);
+      if (url.hostname === "github.com") return rotatedResponse();
+      if (url.pathname === "/user/installations/42/repositories")
+        return Response.json({ total_count: 1, repositories: [renamed ? repo(99, "acme/renamed") : repo(100, "acme/other")] });
+      if (url.pathname.includes("/commits")) commits++;
+      return privateReadResponse(url);
+    }) as typeof fetch;
+    try {
+      await assert.rejects(f.read(send), {
+        code: renamed ? "GITHUB_REPOSITORY_RENAMED" : "GITHUB_REPOSITORY_ACCESS_REVOKED",
+      });
+      await assert.rejects(f.read(send), { code: "GITHUB_REAUTH_REQUIRED" });
+      assert.equal(commits, 0);
+      assert.equal((await f.row()).status, "stale");
+      assert.equal((await f.db.prepare("SELECT full_name FROM github_repository_links WHERE workspace=?")
+        .bind(f.workspace).first<any>()).full_name, "acme/private-repo");
+    } finally { await f.mf.dispose(); }
   }
 });
