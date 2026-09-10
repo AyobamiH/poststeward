@@ -270,6 +270,8 @@ function authenticatedProductPath(path: string) {
     path === "/mcp" ||
     path.startsWith("/payments/") ||
     path === "/auth/logout" ||
+    path === "/sources/github/setup" ||
+    path === "/sources/github/callback" ||
     /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path)
   );
 }
