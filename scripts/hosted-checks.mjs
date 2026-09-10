@@ -12,7 +12,6 @@ export async function waitForRevision(origin, release, { send = fetch, sleep = d
       response = await send(new URL("/health", origin), { redirect: "manual", signal: AbortSignal.timeout(5000) });
       lastStatus = response.status;
     } catch {
-      // A new workers.dev hostname may not yet resolve. Never print network exception bodies.
       lastStatus = 0;
     }
     if (response) {
@@ -54,7 +53,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
   });
   for (const path of ["/", "/app"])
     await check(`HTML serves without a redirect: ${path}`, path, 200, {}, async (r) => secure(r) && r.headers.get("content-type")?.includes("text/html") && (await r.text()).includes("PostSteward"));
-  for (const path of ["/style.css", "/app.js", "/webmcp.js", "/docs/agent-guide.md", "/llms.txt", "/openapi.json", "/plans.json"])
+  for (const path of ["/style.css", "/app.js", "/app-client.js", "/webmcp.js", "/docs/agent-guide.md", "/llms.txt", "/openapi.json", "/plans.json"])
     await check(`public resource: ${path}`, path, 200, {}, secure);
   await check("unauthenticated session rejected without caching", "/api/session", 401, {}, (r) => r.headers.get("cache-control")?.includes("no-store"));
   await check("forged bearer rejected through D1", "/api/session", 401, { headers: { Authorization: "Bearer invalid-deployment-probe" } }, async (r) => (await r.json()).error?.code === "UNAUTHENTICATED");
