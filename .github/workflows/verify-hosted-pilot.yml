@@ -1,6 +1,6 @@
 name: Verify an existing staging pilot
-run-name: Verify existing pilot revision ${{ inputs.runtime_revision || '00544af2ae1333357c4f6b427541007cbd2206ba' }}
-# Explicit read-only acceptance request for the Worker already uploaded by PR #8.
+run-name: Verify existing pilot revision ${{ inputs.runtime_revision || '05be59a6034c21931919c80bec34db4a98fd9f5b' }}
+# Explicit read-only acceptance request for an already uploaded staging Worker.
 # This workflow never deploys, changes a database schema or publishes content.
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         description: Exact already-deployed runtime SHA to verify
         type: string
         required: true
-        default: 00544af2ae1333357c4f6b427541007cbd2206ba
+        default: 05be59a6034c21931919c80bec34db4a98fd9f5b
   push:
     branches: [main]
     paths:
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 10
     env:
       DEPLOY_ENV: staging
-      RUNTIME_REVISION: ${{ inputs.runtime_revision || '00544af2ae1333357c4f6b427541007cbd2206ba' }}
+      RUNTIME_REVISION: ${{ inputs.runtime_revision || '05be59a6034c21931919c80bec34db4a98fd9f5b' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.D1_ID }}
       WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
