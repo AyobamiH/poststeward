@@ -44,7 +44,8 @@ function secure(response: Response, requestId: string) {
 /**
  * The exported class is the actual binding target. A deletion tombstone in D1
  * therefore fences every old/stale Durable Object request before base
- * publishing, billing, OAuth or alarm-side business logic can be reached.
+ * publishing, billing or OAuth logic can be reached. Alarm events consult the
+ * same tombstone so restoring an old object cannot resurrect background work.
  */
 export class Workspace extends BaseWorkspace {
   private lifecycleCtx: DurableObjectState;
@@ -54,6 +55,21 @@ export class Workspace extends BaseWorkspace {
     super(ctx, env);
     this.lifecycleCtx = ctx;
     this.lifecycleEnv = env;
+  }
+
+  private storedWorkspace() {
+    const row = this.lifecycleCtx.storage.sql
+      .exec<{ value: string }>(
+        "SELECT value FROM records WHERE key='workspace' LIMIT 1",
+      )
+      .toArray()[0];
+    if (!row) return undefined;
+    try {
+      const value = JSON.parse(row.value);
+      return typeof value === "string" ? value : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -97,6 +113,21 @@ export class Workspace extends BaseWorkspace {
     if (workspace)
       await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
     return super.fetch(request);
+  }
+
+  async alarm() {
+    const workspace = this.storedWorkspace();
+    if (workspace && (await workspaceDeletion(this.lifecycleEnv.IDENTITY, workspace))) {
+      await this.lifecycleCtx.storage.deleteAlarm();
+      console.warn(
+        JSON.stringify({
+          event: "workspace_alarm_suppressed_for_deletion",
+          workspace,
+        }),
+      );
+      return;
+    }
+    return super.alarm();
   }
 }
 
@@ -170,20 +201,33 @@ async function lifecycleRoute(request: Request, env: Env) {
     "Type the exact workspace deletion phrase shown by the application.",
     409,
   );
-  const control = await workspaceQuarantined(
+
+  const existingDeletion = await workspaceDeletion(
     env.IDENTITY,
     auth.actor.workspace,
   );
-  const recovery = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
   requireValue(
-    !control.quarantined &&
-      !["prepared", "armed"].includes(recovery.plan?.state || ""),
-    "RECOVERY_ACTIVE",
-    "Cancel or finish active workspace recovery before erasing the workspace.",
-    409,
+    existingDeletion?.state !== "completed",
+    "WORKSPACE_DELETED",
+    "This workspace has already been deleted.",
+    410,
   );
+  if (!existingDeletion) {
+    const control = await workspaceQuarantined(
+      env.IDENTITY,
+      auth.actor.workspace,
+    );
+    const recovery = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
+    requireValue(
+      !control.quarantined &&
+        !["prepared", "armed"].includes(recovery.plan?.state || ""),
+      "RECOVERY_ACTIVE",
+      "Cancel or finish active workspace recovery before erasing the workspace.",
+      409,
+    );
+    await beginWorkspaceDeletion(env.IDENTITY, auth.actor.workspace);
+  }
 
-  await beginWorkspaceDeletion(env.IDENTITY, auth.actor.workspace);
   const stub = env.WORKSPACES.get(
     env.WORKSPACES.idFromName(auth.actor.workspace),
   );
