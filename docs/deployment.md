@@ -47,6 +47,8 @@ Configure the app with:
 
 - **Repository access at installation:** selected repositories only. PostSteward rejects `all`-repository installations.
 - **Repository permissions:** Contents = Read-only. Metadata remains Read-only. Do not grant write access or other active repository permissions.
+- **User-to-server token expiration:** keep enabled. PostSteward requires GitHub's expiring user access token plus rotating refresh token and rejects a non-expiring token response.
+- **Request user authorization (OAuth) during installation:** keep disabled. GitHub makes the Setup URL unavailable when this option is enabled; PostSteward deliberately returns through Setup first and then starts its separately state/PKCE-bound user OAuth flow.
 - **Setup URL:** the exact PostSteward origin plus `/sources/github/setup`.
 - **User authorisation callback URL:** the exact PostSteward origin plus `/sources/github/callback`.
 
