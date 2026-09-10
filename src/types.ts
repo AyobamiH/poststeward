@@ -1,39 +1,34 @@
 export type Provider = "x" | "threads" | "linkedin";
 export type Scope =
+  | "admin"
   | "read"
+  | "connections"
   | "campaign:write"
   | "publish"
   | "schedule"
-  | "connections"
   | "automation"
-  | "billing"
-  | "admin";
+  | "billing";
 export interface Actor {
   workspace: string;
   id: string;
   scopes: Scope[];
+  expiresAt?: number;
   grant?: string;
-  /** Internal, only for a session-bound controlled publication. Never exported. */
   ownerSession?: string;
-}
-export interface Identity {
-  id: string;
-  username: string;
-}
-export interface AccountCapabilities {
-  oauth: boolean;
-  refresh: boolean;
-  readback: boolean;
 }
 export interface Account {
   alias: string;
   provider: Provider;
-  identity: Identity;
+  identity: { id: string; username: string };
   version: number;
   secret: string;
   active: boolean;
   verifiedAt: number;
-  capabilities?: AccountCapabilities;
+  capabilities?: {
+    oauth?: boolean;
+    refresh?: boolean;
+    readback?: boolean;
+  };
 }
 export interface Project {
   id: string;
@@ -52,11 +47,11 @@ export type DeliveryStatus =
   | "scheduled"
   | "executing"
   | "waiting_container"
-  | "cancelled"
   | "published_verified"
   | "published_unverified"
   | "ambiguous_effect"
   | "failed"
+  | "cancelled"
   | "drift_blocked";
 export interface Delivery {
   id: string;
@@ -65,7 +60,7 @@ export interface Delivery {
   project: string;
   account: string;
   provider: Provider;
-  identity: Identity;
+  identity: { id: string; username: string };
   binding: number;
   text: string;
   digest: string;
@@ -75,27 +70,36 @@ export interface Delivery {
   createdAt: number;
   updatedAt: number;
   actor: Actor;
-  automatic: boolean;
-  policy?: string;
-  policyVersion?: number;
-  phase?:
-    "identity" | "container_create" | "container_wait" | "publish" | "readback";
-  claimUntil?: number;
   claimId?: string;
-  reviewedRelease?: string;
-  containerId?: string;
-  containerChecks?: number;
-  nextCheck?: number;
+  claimUntil?: number;
+  phase?:
+    | "identity"
+    | "container_create"
+    | "container_wait"
+    | "publish"
+    | "readback";
   postId?: string;
   url?: string;
   reason?: string;
-  metrics?: unknown;
+  containerId?: string;
+  nextCheck?: number;
+  containerChecks?: number;
+  metrics?: MetricSnapshot;
+  automatic?: boolean;
+  policy?: string;
+  policyVersion?: number;
+  reviewedRelease?: string;
+}
+export interface MetricSnapshot {
+  availability: "available" | "unavailable";
+  capturedAt?: number;
+  values?: Record<string, number>;
+  reason?: string;
 }
 export interface Entitlement {
   kind: "subscription" | "pass";
   until: number;
   reference: string;
-  customer?: string;
   revoked?: boolean;
 }
 export interface Profile {
@@ -114,6 +118,9 @@ export interface Profile {
   lastCheck?: number;
   nextRun: number;
   nextMetrics: number;
+  lastMetricsAttempt?: number;
+  lastMetricsSuccess?: number;
+  metricsError?: string;
   error?: string;
   authority: Actor;
 }
