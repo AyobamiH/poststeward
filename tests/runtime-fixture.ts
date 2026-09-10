@@ -4,6 +4,23 @@ import { environment } from "./helpers.ts";
 
 /** Actual Workers/D1/SQLite runtime. Outbound identity/provider responses are test fixtures, never live evidence. */
 export async function runtime(outboundService?: (request: Request) => Promise<any>, bindings: Record<string, string> = {}, loginLimit = 10) {
+  const diagnosticOutbound = outboundService
+    ? async (request: Request) => {
+        try {
+          return await outboundService(request);
+        } catch (error) {
+          const url = new URL(request.url);
+          console.error(
+            "TEST_OUTBOUND_FAILURE",
+            request.method,
+            url.hostname,
+            url.pathname,
+            error instanceof Error ? error.message : String(error),
+          );
+          throw error;
+        }
+      }
+    : async () => { throw new Error("Unexpected network access"); };
   const mf = new Miniflare(convertV4MiniflareOptions({
     modules: true, scriptPath: "dist/edge.js", compatibilityDate: "2026-09-09", compatibilityFlags: ["nodejs_compat"],
     bindings: {
@@ -18,7 +35,7 @@ export async function runtime(outboundService?: (request: Request) => Promise<an
     d1Databases: { IDENTITY: "security-test" },
     durableObjects: { WORKSPACES: { className: "Workspace", useSQLite: true } },
     serviceBindings: { ASSETS: async () => new RuntimeResponse("asset") },
-    outboundService: outboundService || (async () => { throw new Error("Unexpected network access"); }),
+    outboundService: diagnosticOutbound,
   }));
   const db = await mf.getD1Database("IDENTITY");
   for (const file of readdirSync("migrations").filter((name) => /^\d+.*\.sql$/.test(name)).sort())
