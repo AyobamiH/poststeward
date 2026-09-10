@@ -1,4 +1,9 @@
 import { registerWebMCP } from "./webmcp.js";
+import {
+  oauthHosts,
+  providerPostHosts,
+  trustedExternal,
+} from "./app-client.js";
 const $ = (id) => document.getElementById(id);
 let session,
   selectedCampaign,
@@ -10,8 +15,10 @@ async function api(path, input, method = input === undefined ? "GET" : "POST") {
   const response = await fetch(path, {
     method,
     credentials: "same-origin",
+    mode: "same-origin",
     cache: "no-store",
     redirect: "manual",
+    signal: AbortSignal.timeout(20000),
     headers: {
       "Content-Type": "application/json",
       ...(session?.csrf ? { "X-CSRF-Token": session.csrf } : {}),
@@ -69,6 +76,12 @@ function button(row, label, fn, disabled = false) {
   b.disabled = disabled;
   b.onclick = () => action(fn);
   row.append(b);
+}
+function navigateExternal(value, hosts) {
+  const destination = trustedExternal(value, hosts);
+  if (!destination)
+    throw new Error("The external destination was not on the expected provider host.");
+  location.assign(destination);
 }
 function renderOAuth() {
   if (!oauthInfo) return;
@@ -194,9 +207,12 @@ async function refresh() {
     const copy = document.createElement("p");
     copy.textContent = d.text;
     r.append(copy);
-    if (d.url) {
+    const providerUrl = d.url
+      ? trustedExternal(d.url, providerPostHosts(d.provider))
+      : undefined;
+    if (providerUrl) {
       const link = document.createElement("a");
-      link.href = d.url;
+      link.href = providerUrl;
       link.textContent = "Provider post";
       link.target = "_blank";
       link.rel = "noopener noreferrer";
@@ -271,11 +287,12 @@ for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]"))
       const alias = new FormData($("oauth")).get("alias");
       if (!/^[A-Za-z0-9_-]{1,100}$/.test(alias))
         throw new Error("Choose an account alias first.");
+      const provider = b.dataset.provider;
       const started = await api(
-        `/api/connections/oauth/${b.dataset.provider}/start`,
+        `/api/connections/oauth/${provider}/start`,
         { alias, returnPath: "/app" },
       );
-      location.assign(started.authorizationUrl);
+      navigateExternal(started.authorizationUrl, oauthHosts(provider));
     });
 for (const id of [
   "connection",
@@ -508,13 +525,13 @@ $("subscribe").onclick = () =>
         quote: q.id,
         idempotencyKey: key(),
       });
-      location.assign(checkout.url);
+      navigateExternal(checkout.url, ["checkout.stripe.com"]);
     });
   });
 $("portal").onclick = () =>
   action(async () => {
     const p = await invoke("billing_portal", { idempotencyKey: key() });
-    location.assign(p.url);
+    navigateExternal(p.url, ["billing.stripe.com"]);
   });
 try {
   session = await api("/api/session");
