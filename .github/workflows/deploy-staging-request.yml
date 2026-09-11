@@ -1,11 +1,11 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-11-threads-oauth-configuration
+# Deployment request: 2026-09-12-hosted-completion-closure
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the owner-confirmed Threads application configuration through the protected staging environment.
-# Owner consent, live provider access, PITR and sandbox settlement require recorded acceptance.
+# Deploy the merged hosted-completion tooling, owner Advanced inventory view and reconciled status contract.
+# Owner Threads consent/publication, private GitHub grants, PITR, Stripe settlement and root-secret replacement remain separate live acceptance gates.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
-# invoke point-in-time restore, settle payment, or perform any live release.
+# invoke point-in-time restore, settle payment, rotate a protected root secret, or broaden owner authority.
 on:
   push:
     branches: [main]
