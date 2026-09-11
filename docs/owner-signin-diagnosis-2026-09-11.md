@@ -16,7 +16,7 @@ The Google runtime fixture now follows the documented separate discovery, token 
 
 ## Staging negative client probe
 
-The protected staging deploy step uses the already-selected OIDC client secret only against Google's exact token endpoint. It supplies a newly generated synthetic invalid code and verifier. It accepts no user code, browser cookie or callback URL and cannot create a PostSteward session. Dependency installation and tests do not receive the secret.
+The protected staging deploy step uses the already-selected OIDC client secret only against Google's exact token endpoint. It compares the existing `client_secret_basic` method with Google's documented `client_secret_post` method, supplying a separate newly generated synthetic invalid code and verifier to each. This comparison does not retry a real authorisation code. It accepts no user code, browser cookie or callback URL and cannot create a PostSteward session. Dependency installation and tests do not receive the secret.
 
 - `client_rejected`: Google rejected the client authentication/grant authorisation; check the paired saved client ID and secret.
 - `configuration_invalid`: the configured diagnostic inputs are malformed, missing, have surrounding/control whitespace, or do not match the canonical staging origin.

@@ -7,7 +7,7 @@ const env = {
   OIDC_CLIENT_ID: "fixture.apps.googleusercontent.com", OIDC_CLIENT_SECRET: "private-fixture-client-secret",
   PUBLIC_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
 };
-function sender(error = "invalid_grant", tokenEndpoint = "https://oauth2.googleapis.com/token") {
+function sender(error = "invalid_grant", tokenEndpoint = "https://oauth2.googleapis.com/token", method = "client_secret_basic") {
   const calls = [];
   let assertionFailure;
   const send = async (input, init) => {
@@ -17,8 +17,19 @@ function sender(error = "invalid_grant", tokenEndpoint = "https://oauth2.googlea
     if (url === "https://accounts.google.com/.well-known/openid-configuration")
       return Response.json({ issuer: env.OIDC_ISSUER, token_endpoint: tokenEndpoint, authorization_response_iss_parameter_supported: true });
     assert.equal(url, "https://oauth2.googleapis.com/token");
-    assert.equal(new Headers(init.headers).get("authorization"), "Basic " + Buffer.from(env.OIDC_CLIENT_ID + ":" + env.OIDC_CLIENT_SECRET).toString("base64"));
     const form = new URLSearchParams(init.body);
+    const authorization = new Headers(init.headers).get("authorization");
+    if (method === "client_secret_basic") {
+      assert.match(authorization, /^Basic /);
+      const credentials = Buffer.from(authorization.slice(6), "base64").toString().split(":")
+        .map(value => decodeURIComponent(value.replaceAll("+", " ")));
+      assert.deepEqual(credentials, [env.OIDC_CLIENT_ID, env.OIDC_CLIENT_SECRET]);
+      assert.equal(form.get("client_secret"), null);
+    } else {
+      assert.equal(authorization, null);
+      assert.equal(form.get("client_id"), env.OIDC_CLIENT_ID);
+      assert.equal(form.get("client_secret"), env.OIDC_CLIENT_SECRET);
+    }
     assert.equal(form.get("grant_type"), "authorization_code");
     assert.equal(form.get("redirect_uri"), env.PUBLIC_ORIGIN + "/auth/callback");
     assert.match(form.get("code"), /^poststeward-invalid-diagnostic-[a-f0-9-]{36}$/);
@@ -31,9 +42,10 @@ function sender(error = "invalid_grant", tokenEndpoint = "https://oauth2.googlea
 }
 
 test("negative OIDC probe sends only a synthetic code and never claims sign-in", async () => {
+  for (const method of ["client_secret_basic", "client_secret_post"])
   for (const [error, expected] of [["invalid_grant", "synthetic_code_rejected"], ["invalid_client", "client_rejected"], ["unauthorized_client", "client_rejected"], ["private-unrecognised-error", "provider_rejected"]]) {
-    const f = sender(error);
-    const result = await probeOwnerClient(env, f.send);
+    const f = sender(error, "https://oauth2.googleapis.com/token", method);
+    const result = await probeOwnerClient(env, f.send, method);
     f.assertHealthy();
     assert.deepEqual(result, { outcome: expected, stage: "token_exchange", ownerSignInVerified: false });
     assert.equal(f.calls.length, 2);
