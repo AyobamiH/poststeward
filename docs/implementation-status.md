@@ -4,7 +4,7 @@
 
 A manual Google sign-in in the owner's normal browser reached the application callback and returned `INTERNAL_ERROR`. This is distinct from the Cloud Browser URL-policy block. Owner sign-in and all five live journeys remain unverified. See [the diagnosis and evidence boundary](owner-signin-diagnosis-2026-09-11.md); the protected live comparison rejected Basic client authentication and reached synthetic-code rejection with POST. The Google callback now selects the documented POST method before its one-use code exchange. A fresh real owner sign-in is still required; neither the comparison nor isolated tests are sign-in acceptance.
 
-PostSteward PR #24 is merged and deployed to restricted staging at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`. [Deployment run 34541570597](https://github.com/AyobamiH/poststeward/actions/runs/34541570597) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
+Historical baseline (10 September 2026): PostSteward PR #24 was merged and deployed to restricted staging at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`. [Deployment run 34541570597](https://github.com/AyobamiH/poststeward/actions/runs/34541570597) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
 
 **Engineering is deployed; all five live gates remain open.** Google sign-in was rejected by automatic approval review. Provider OAuth, private GitHub and Stripe sandbox are unconfigured. WebMCP API exposure was observed, but authenticated execution remains unverified. Stripe is connected and account discovery succeeded; explicit test-account selection remains pending.
 
