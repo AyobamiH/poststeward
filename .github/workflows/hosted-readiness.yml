@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "scripts/hosted-acceptance.mjs"
+      - "scripts/staging-assets-check.mjs"
       - "docs/live-acceptance-plan.md"
       - "docs/implementation-status.md"
       - ".github/workflows/hosted-readiness.yml"
@@ -25,4 +26,6 @@ jobs:
       - name: Verify restricted staging readiness
         env:
           POSTSTEWARD_ORIGIN: https://poststeward-staging.woeinvests.workers.dev
-        run: node scripts/hosted-acceptance.mjs readiness
+        run: |
+          node scripts/hosted-acceptance.mjs readiness
+          node scripts/staging-assets-check.mjs
