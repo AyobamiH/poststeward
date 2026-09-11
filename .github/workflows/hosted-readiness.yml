@@ -1,0 +1,28 @@
+name: Hosted readiness
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/hosted-acceptance.mjs"
+      - "docs/live-acceptance-plan.md"
+      - "docs/implementation-status.md"
+      - ".github/workflows/hosted-readiness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  threads-first-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+      - name: Verify restricted staging readiness
+        env:
+          POSTSTEWARD_ORIGIN: https://poststeward-staging.woeinvests.workers.dev
+        run: node scripts/hosted-acceptance.mjs readiness
