@@ -1,8 +1,8 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-11-owner-proof-notice-contrast
+# Deployment request: 2026-09-11-threads-oauth-configuration
 # Updating this file on main is an explicit staging deployment request.
-# Owner sign-in succeeded; deploy the status-banner contrast correction shown by the acceptance screenshots.
+# Deploy the owner-confirmed Threads application configuration through the protected staging environment.
 # Owner consent, live provider access, PITR and sandbox settlement require recorded acceptance.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
 # invoke point-in-time restore, settle payment, or perform any live release.
