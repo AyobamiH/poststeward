@@ -14,16 +14,23 @@ async function googleFixture() {
   let nonce = "", challenge = "", mode = "valid", postedText = "", writes = 0, readbacks = 0;
   const { mf, db } = await runtime(async (request) => {
     const url = new URL(request.url);
-    if (url.hostname === "accounts.google.com") {
+    if (["accounts.google.com", "oauth2.googleapis.com", "www.googleapis.com"].includes(url.hostname)) {
       if (url.pathname === "/.well-known/openid-configuration") return RuntimeResponse.json({
-        issuer: "https://accounts.google.com", authorization_endpoint: "https://accounts.google.com/authorize",
-        token_endpoint: "https://accounts.google.com/token", jwks_uri: "https://accounts.google.com/jwks",
+        issuer: "https://accounts.google.com", authorization_endpoint: "https://accounts.google.com/o/oauth2/v2/auth",
+        token_endpoint: "https://oauth2.googleapis.com/token", jwks_uri: "https://www.googleapis.com/oauth2/v3/certs",
+        authorization_response_iss_parameter_supported: true,
         response_types_supported: ["code"], subject_types_supported: ["public"],
         id_token_signing_alg_values_supported: ["RS256"], code_challenge_methods_supported: ["S256"],
-        token_endpoint_auth_methods_supported: ["client_secret_basic"],
+        token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
       });
-      if (url.pathname === "/jwks") return RuntimeResponse.json({ keys: [jwk] });
+      if (url.pathname === "/oauth2/v3/certs") return RuntimeResponse.json({ keys: [jwk] });
       if (url.pathname === "/token") {
+        if (mode === "client_rejected" || mode === "code_rejected")
+          return RuntimeResponse.json({ error: mode === "client_rejected" ? "invalid_client" : "invalid_grant",
+            error_description: "private-upstream-description private-google-fixture-token" }, { status: mode === "client_rejected" ? 401 : 400 });
+        if (mode === "challenge")
+          return new RuntimeResponse("", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="private-provider-realm"' } });
+        if (mode === "malformed") return RuntimeResponse.json({ private_value: "private-google-fixture-token" });
         const form = new URLSearchParams(await request.text());
         assert.equal(form.get("redirect_uri"), origin + "/auth/callback");
         assert.ok(request.headers.get("authorization")?.startsWith("Basic "));
@@ -61,7 +68,7 @@ async function googleFixture() {
     nonce = location.searchParams.get("nonce")!; challenge = location.searchParams.get("code_challenge")!;
     const state = location.searchParams.get("state")!;
     const cookie = "__Host-login=" + state + (previousCookie ? "; " + previousCookie : "");
-    return () => mf.dispatchFetch(origin + "/auth/callback?state=" + encodeURIComponent(state) + "&code=fixture-code", { redirect: "manual", headers: { Cookie: cookie } });
+    return () => mf.dispatchFetch(origin + "/auth/callback?state=" + encodeURIComponent(state) + "&code=fixture-code&iss=" + encodeURIComponent(mode === "response_issuer" ? "https://wrong.example" : "https://accounts.google.com"), { redirect: "manual", headers: { Cookie: cookie } });
   }
   async function signin(previousCookie = "") {
     const response = await (await begin("valid", previousCookie))();
@@ -131,7 +138,7 @@ test("real D1 proof admission rejects forged/wrong claims, replay, missing proof
   try {
     const redirected = await f.mf.dispatchFetch(f.origin + "/auth/login?return=https%3A%2F%2Fevil.example", { redirect: "manual" });
     assert.equal(redirected.status, 400);
-    for (const mode of ["forged", "issuer", "audience", "nonce", "expired", "uninvited", "unverified"]) {
+    for (const mode of ["forged", "issuer", "response_issuer", "audience", "nonce", "expired", "uninvited", "unverified"]) {
       const denied = await (await f.begin(mode))(); assert.ok(denied.status >= 400, mode);
       assert.equal((await f.db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 0, mode);
       assert.equal((await f.db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 0, mode);
@@ -162,8 +169,44 @@ test("proof storage failure cannot return a newly usable owner session", async (
   try {
     await f.db.prepare("CREATE TRIGGER reject_proof BEFORE INSERT ON owner_proofs BEGIN SELECT RAISE(ABORT, 'fixture failure'); END").run();
     const response = await (await f.begin())(); assert.equal(response.status, 500);
+    const failure: any = await response.clone().json();
+    assert.equal(failure.error.code, "LOGIN_STORAGE_FAILED");
+    assert.equal(failure.error.details.stage, "session");
+    assert.match(failure.error.details.reference, /^[a-f0-9-]{36}$/);
+    assert.doesNotMatch(JSON.stringify(failure), /fixture failure|RAISE|INSERT|owner@example.com|private-/);
     assert.doesNotMatch(response.headers.get("set-cookie") || "", /__Host-session=/);
     assert.equal((await f.db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 0);
     assert.equal((await f.db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 0);
+  } finally { await f.mf.dispose(); }
+});
+
+test("Google callback failures report safe causes, consume state once and preserve an existing owner session", async () => {
+  const f = await googleFixture();
+  try {
+    const auth = await f.signin();
+    for (const [mode, code, status] of [
+      ["client_rejected", "LOGIN_CLIENT_REJECTED", 503],
+      ["code_rejected", "LOGIN_CODE_REJECTED", 400],
+      ["challenge", "LOGIN_CLIENT_REJECTED", 503],
+      ["malformed", "LOGIN_IDENTITY_INVALID", 400],
+      ["nonce", "LOGIN_IDENTITY_INVALID", 400],
+      ["response_issuer", "LOGIN_RESPONSE_INVALID", 400],
+    ] as const) {
+      const callback = await f.begin(mode, auth.cookie);
+      const response = await callback();
+      assert.equal(response.status, status, mode);
+      const failure: any = await response.json();
+      assert.equal(failure.error.code, code, mode);
+      assert.match(failure.error.details.reference, /^[a-f0-9-]{36}$/);
+      assert.doesNotMatch(JSON.stringify(failure), /private-|fixture-code|owner@example.com|Basic |claims|nonce.*wrong/);
+      assert.doesNotMatch(response.headers.get("set-cookie") || "", /__Host-session=/);
+      const replay = await callback();
+      assert.equal(replay.status, 400);
+      assert.equal((await replay.json() as any).error.code, "LOGIN_STATE_EXPIRED");
+      assert.equal((await f.call(auth, "/api/pilot/status")).status, 200);
+      assert.equal((await f.db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 1);
+      assert.equal((await f.db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 1);
+    }
+    assert.equal(f.writes(), 0);
   } finally { await f.mf.dispose(); }
 });

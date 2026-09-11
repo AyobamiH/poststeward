@@ -103,6 +103,11 @@ jobs:
         run: |
           node scripts/configure-deploy.mjs
           node --input-type=module -e 'import fs from "node:fs"; const c=JSON.parse(fs.readFileSync("wrangler.jsonc","utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, "origin="+c.vars.PUBLIC_ORIGIN+"\n");'
+      - name: Inspect staging Google client rejection without signing in
+        if: inputs.environment == 'staging'
+        run: node scripts/owner-oidc-probe.mjs
+        env:
+          OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
       - name: Validate secrets and database; migrate and deploy
         run: npm run deploy
         env:
