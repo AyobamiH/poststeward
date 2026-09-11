@@ -48,4 +48,14 @@ The targeted correction selects `ClientSecretPost` for the strictly discovered G
 
 The Google runtime fixture now reproduces the observed Basic rejection and requires the form credentials. It proves the successful isolated owner path with exactly one token exchange, no extra exchange on failed/replayed callbacks, and rejection before exchange when the required method is unavailable.
 
-Diagnostic deployment also passed all 58 hosted boundary/rendering checks and reported Cloudflare version `831698ed-b011-467e-8993-3675e36969a7`. Those checks do not close any live owner acceptance journey. The correction still needs deployment verification and a fresh real owner sign-in.
+Diagnostic deployment also passed all 58 hosted boundary/rendering checks and reported Cloudflare version `831698ed-b011-467e-8993-3675e36969a7`. Those checks do not close any live owner acceptance journey. The correction's deployment and subsequent owner attempt are recorded below.
+
+## POST correction deployed; owner admission is the next gate
+
+[PR #27](https://github.com/AyobamiH/poststeward/pull/27) merged as `667dd3fb5a076d37de3ff5637d867c1893892cb3`. [Deployment 34548560986](https://github.com/AyobamiH/poststeward/actions/runs/34548560986) completed successfully with Cloudflare version `a0516e15-59a8-4d69-96b0-7b1cb47b8be8`. Verification passed 193 tests, TypeScript, generated documentation, the Worker build, and production/full dependency audits with zero known vulnerabilities. All 58 hosted checks passed between 00:57:43 and 00:57:56 UTC on 11 September 2026.
+
+The owner subsequently started a new Google sign-in in their normal browser. The application returned `SIGNUP_RESTRICTED`. In this deployed callback, that deliberate fault occurs after token processing and application-level signature validation, before principal/session/proof persistence. This observation shows progress past Google token validation; it does not establish a signed-in owner session. Admission requires a verified Google email present in the restricted owner allowlist.
+
+The owner identified the intended Google account and confirmed that they saved its address in the staging `ALLOWED_OWNER_EMAILS` secret. The address and secret value are not included in this public record. The agent's GitHub connection cannot inspect or update environment secrets, so the saved contents are owner-reported until a fresh deployed sign-in verifies admission.
+
+The accompanying staging deployment request refreshes the existing protected configuration without changing application code or loosening admission. After it succeeds, start a fresh sign-in from `/pilot`; do not reload an old callback. Observe the authenticated owner proof and workspace before accepting this gate. Cloud Browser's earlier callback policy block remains separate from the owner's normal-browser session. All five live journeys remain open.
