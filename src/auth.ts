@@ -218,11 +218,24 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     const { as, client } = await oidc(env);
     stage = "authorization";
     const params = oauth.validateAuthResponse(as, client, url, state);
+    // Google's documented form authentication avoids its observed rejection
+    // of percent-encoded Basic credentials. Choose once before exchanging the
+    // one-use code; never retry a real code with another authentication method.
+    const google = as.issuer === "https://accounts.google.com";
+    requireValue(
+      !google || as.token_endpoint_auth_methods_supported?.includes("client_secret_post"),
+      "LOGIN_UNCONFIGURED",
+      "Google's documented client authentication method is unavailable.",
+      503,
+    );
+    const clientAuthentication = google
+      ? oauth.ClientSecretPost(env.OIDC_CLIENT_SECRET)
+      : oauth.ClientSecretBasic(env.OIDC_CLIENT_SECRET);
     stage = "token_exchange";
     const response = await oauth.authorizationCodeGrantRequest(
       as,
       client,
-      oauth.ClientSecretBasic(env.OIDC_CLIENT_SECRET),
+      clientAuthentication,
       params,
       env.PUBLIC_ORIGIN + "/auth/callback",
       record.verifier,
