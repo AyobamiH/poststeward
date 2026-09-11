@@ -1,81 +1,128 @@
-# Five live acceptance workstreams
+# Live acceptance plan
 
-## Objective and current authority
+## Current baseline
 
-Complete five restricted-staging acceptance journeys: owner sign-in plus one controlled provider publication, private GitHub sources, Durable Object PITR recovery, native browser WebMCP, and Stripe sandbox payments. Production launch controls are a separate milestone. Code, CI, hosted boundary checks and real external observations are different evidence classes.
+Restricted staging remains the acceptance environment. The latest deployed baseline before this completion pass is main `e8a95086548a23541e89e2f33d56c0abd274d9cc` from PR #30 at `https://poststeward-staging.woeinvests.workers.dev`.
 
-Historical planning baseline main: fb8379e0940732e9361aa76fdac08141f7f50f0d. Baseline runtime: e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c. Origin: https://poststeward-staging.woeinvests.workers.dev. See [the deployment receipt](private-github-staging-2026-09-10.md).
+Current facts:
 
-The owner explicitly approved Google owner sign-in in the current cloud-browser session and selected the connected Stripe account in test mode. Those approvals remain valid and must not be requested again.
+- Owner Google sign-in has been accepted live in the owner's normal browser.
+- Threads provider OAuth is configured in staging.
+- A real Threads owner grant has not yet been accepted.
+- No owner-approved real Threads publication/readback receipt has been recorded.
+- X and LinkedIn provider applications remain unconfigured.
+- Private GitHub engineering is deployed; staging App configuration and real grant/read/revoke are open.
+- Stripe engineering is deployed; protected sandbox configuration and payment lifecycle acceptance are open.
+- Advanced, MPP and public signup are disabled.
 
-The cloud browser's URL policy blocked the PostSteward callback despite the existing owner approval. Subsequent normal-browser attempts exposed an application client-authentication failure and then owner-admission rejection; those were addressed through the Google POST client-authentication correction and the saved staging owner allowlist. After PR #28 deployed, two owner-supplied screenshots showed completed sign-ins at 01:18:53.128 and 01:19:20.873 UTC on 11 September 2026, with different proofs for the same workspace. The owner-sign-in prerequisite is satisfied on that live UI evidence. See [the full diagnosis and outcome](owner-signin-diagnosis-2026-09-11.md).
+Do not recreate working Google or Threads application credentials. Do not broaden to X or LinkedIn until the single Threads path is complete.
 
-The agent's cloud-browser session remains unauthenticated. Do not conflate that session with the owner's normal browser, replay callback parameters, rewrite the callback to evade policy, or fabricate/transfer an owner session. Reauthentication is needed only when an actual owner operation requires fresh proof.
+## Phase 1: close the hosted product loop
 
-Stripe account targeting now works. The test catalogue was empty. A dedicated PostSteward staging product and active USD 5 monthly Price were created and independently retrieved with livemode=false. No customer, Checkout Session, subscription or payment was created. The webhook inventory was empty. Creating the endpoint remains pending a secure destination for its one-time signing secret and the restricted test API key. The available Stripe API discovery exposes no key-creation operation; the GitHub integration excludes environment-secret administration. No credentials from unrelated products are authorised substitutes.
+### 1. Readiness
 
-## Dependency order and completion records
+Run the repository's read-only verifier against staging:
 
-| Workstream | Implementation and configuration | Live sequence | Required acceptance evidence |
-| --- | --- | --- | --- |
-| Owner + provider publication | Existing verified Google callback, provider OAuth, /pilot review, exact approval, cancellation window and durable readback. Configure one provider's own staging application. | Continue from the verified normal-browser owner session; choose the intended provider/account; configure and complete provider OAuth; prepare one account/text review; approve that exact review; inspect reservation and independent readback. Agent browser execution requires its own supported authenticated session. | Owner callback proof, stable provider identity, approved digest/release, one delivery/provider ID, separate GET matching ID/author/text. |
-| Private GitHub source | Existing dedicated GitHub App installation, selected-only Contents read, encrypted refresh leases. New free owner-only source probe. | Configure staging App triple; owner selects one private repository; run probe on a harmless path; revoke selection; probe again; reconnect only if wanted. | Selected repository identity, private commit SHA/time/release, next check denied after revocation, no anonymous fallback or credential output. |
-| Recovery | Existing owner prepare/execute/reconcile/resume/undo with D1 quarantine and effect fences. No fake local PITR implementation. | Inspect workspace first; perform rehearsal before provider/payment grants where possible; choose an explicit target; review returned plan/digest; authorise execute; reconcile after restart; verify invalidated authority and preserved fences; resume explicitly. | Actual Cloudflare restore/restart plus reconciled plan, quarantine transitions, canary restored, accounts/profiles/billing invalidated, no duplicate effect. Undo is a separate exact-plan action. |
-| Native WebMCP | Current Document API registration, cleanup on partial failure and a read-only native round-trip button. Workspace remains usable after registration failure. | Sign in using a supported native browser; run Check native WebMCP; then invoke workspace_status through that browser's agent tool interface; verify logout makes captured authority unusable. | Browser/version and release, registration and API round-trip observation, separate browser-agent tool invocation/result. A fixture or HTTP fallback never closes this gate. |
-| Stripe sandbox | Explicit staging-only sandbox configuration, test-key/test-price preflight, mode checks before Checkout, verified-webhook reconciliation. Advanced automation and MPP remain disabled. | Reuse the created USD 5 monthly test Price in the selected account; configure the signed webhook and protected credentials; configure protected environment; deploy; create one quote/Checkout; complete with Stripe test details; reconcile; replay same quote/event; refund; separately exercise dispute; cancel sandbox subscriptions. | Test account and livemode=false, quote/session/payment/invoice mapping, one settlement, bounded paid entitlement, no duplicate charge on retry, refund/dispute revocation, cleanup record. |
+```sh
+POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
+  node scripts/hosted-acceptance.mjs readiness
+```
 
-## Implementation changes
+It must report Threads OAuth configured, X/LinkedIn unavailable, restricted signup and Advanced/MPP disabled.
 
-1. /api/sources/github/probe accepts only repository/branch/path, requires a fresh owner browser and CSRF, and checks an existing private link before any source request. It uses the same refresh lease and installation/repository revalidation as automation. The UI clears old success evidence before every new attempt.
-2. WebMCP registration failure aborts all registrations made in that attempt and no longer prevents ordinary workspace loading. The native check selects only this window's workspace_status tool, invokes it through document.modelContext and verifies the returned workspace. workspace_status now includes workspace and release.
-3. STRIPE_SANDBOX_ENABLED is an explicit staging-only opt-in with restricted signup. Test Checkout does not turn on Advanced automation or MPP. Protected deployment validates a test credential and retrieves the exact active USD 5/month test Price before any Cloudflare mutation. Checkout validates mode before reservation; failed price validation cannot strand a purchase attempt.
-4. New Checkout quotes persist an integration identifier so retries retain identical Stripe parameters; pre-upgrade quotes keep their original payload. Verified dispute/refund events resolve their charge when customer/workspace is omitted, then reconcile through the existing customer mapping. A failed lookup returns a retryable response and never marks the event complete.
-5. Hosted probes include unauthenticated denial of the private source check and the exact sandbox-enabled state. Automatic deployment never signs in, posts, restores, settles a payment or removes a workspace.
-6. Operator documents reconcile provider OAuth, conditional LinkedIn readback and the cleared dependency advisory.
+### 2. Threads owner grant
 
-## Sandbox configuration contract
+From the owner's normal browser:
 
-Protected staging variables:
+1. open the hosted workspace or `/pilot`;
+2. choose the intended Threads alias;
+3. start Threads OAuth;
+4. approve the requested Threads permissions;
+5. return to PostSteward and verify the stable provider identity shown by the service.
 
-- STRIPE_SANDBOX_ENABLED=true only for the deliberate sandbox run.
-- STRIPE_SANDBOX_PRICE_ID: the actual test Price, USD 5.00, monthly, interval_count=1.
-- Existing restricted owner/OIDC configuration remains required.
+Acceptance requires the code exchange to complete and the verified stable Threads identity/capabilities to be stored. A provider success screen without PostSteward's stored identity is not acceptance. Never copy the provider token into chat, source, logs or an evidence document.
 
-Protected staging secrets:
+### 3. Exact controlled publication
 
-- STRIPE_SANDBOX_SECRET_KEY: an sk_test_ or rk_test_ key for the selected sandbox with the operations needed by billing.
-- STRIPE_SANDBOX_WEBHOOK_SECRET: the signing secret for this sandbox's https://poststeward-staging.woeinvests.workers.dev/webhooks/stripe endpoint.
+1. In `/pilot`, select the verified Threads destination.
+2. Enter the exact text intended for the one acceptance post.
+3. Review the destination, stable identity, text, digest and current release.
+4. Approve that exact immutable review.
+5. Preserve the resulting PostSteward delivery ID and provider creation ID.
 
-The workflow maps these to Worker STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET only in the deploy step. Never put values in PRs, chat, logs or receipts. Use the exact event selection and staged activation sequence in [Stripe sandbox setup](stripe-sandbox-acceptance.md). Verify delivery and reconciliation in the chosen sandbox; a whsec_ prefix alone does not prove correct endpoint configuration.
+The existing owner-pilot path supplies a 30-second cancellation boundary before the claimed external effect. If the request disconnects or the provider response becomes uncertain, inspect the existing delivery. Do not create a fresh campaign/review/key to bypass uncertainty.
 
-Use Stripe test payment details only, following [Stripe testing documentation](https://docs.stripe.com/testing). Sandbox settlement is simulated money and must never be described as real-money settlement. MPP needs a separately eligible merchant profile and agent wallet; this change does not activate it. Disabling STRIPE_SANDBOX_ENABLED and redeploying closes new Checkout access; cancel sandbox subscriptions separately.
+### 4. Independent readback
 
-## Recovery run detail
+The controlled path must perform a separate provider GET after the creation result. Acceptance requires the same provider post ID, stable owner ID and exact text. `published_verified` is the successful terminal state. `published_unverified` and `ambiguous_effect` are not substitutes.
 
-Use the existing [recovery procedure](recovery.md) and exact UI confirmation text. Preparation itself quarantines the workspace; explain this before selecting a target. Record the pre-rehearsal business canary, effect counts and authority inventory without credentials. Confirm that the returned target time is intentional, the plan belongs to the owner and its ten-minute expiry has not passed. Do not treat a dropped connection during execute as success. Reconcile after restart and inspect recovered state before resume. If execution is uncertain, keep quarantine and inspect the existing plan; never create a fresh restore to guess the outcome.
+## Phase 2: close agent delegation
 
-A safe first rehearsal can restore an owner-created draft canary in a workspace with no external publication or payment in flight. That is only a proposal until the owner chooses the workspace and target. Do not seed owner sessions or fabricate PITR success through D1.
+Create a least-privilege agent grant from the owner workspace. A `read`-only grant is sufficient for the first transport proof; add another scope only if a separately reviewed workflow requires it.
 
-## Native browser evidence boundary
+Put the shown-once token directly into the agent secret environment, not a shell history file or acceptance document, then run:
 
-The [current WebMCP draft](https://webmachinelearning.github.io/webmcp/) places the API on document.modelContext. The new button exercises getTools and executeTool directly; it does not install a polyfill. Its observation is an in-page native round trip, not proof that a separate browser agent discovered/invoked the tools. Preserve both observations for full acceptance. Browsers without the API report unsupported and retain normal HTTP/MCP workspace access.
+```sh
+POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
+POSTSTEWARD_AGENT_TOKEN='...' \
+  node scripts/hosted-acceptance.mjs agent
+```
 
-## Stop and recovery conditions
+The harness calls `workspace_status` through HTTP and remote MCP and requires both to resolve to the same release/workspace. It emits only a workspace fingerprint.
 
-- Authentication denial: Google owner sign-in is now observed in the normal browser. The cloud-browser callback policy remains separate, and existing owner approval remains valid. Do not bypass a denied action or confuse fresh sign-in with exact publication approval.
-- Public-write uncertainty: keep the one captured delivery and use readback only.
-- GitHub refresh uncertainty or revoked access: reconnect deliberately; no reuse of a possibly consumed refresh credential.
-- Restore uncertainty: keep quarantine; reconcile the existing plan.
-- Payment uncertainty: inspect the existing quote/session and provider record; never create a new key to bypass the pending attempt.
-- Missing native browser or Stripe account authority: retain a blocked evidence state. CI simulations do not close these gates.
+Revoke that grant in the owner UI. With the same token, run:
 
-After the code is merged and staged, append the exact head, CI, deployment run, runtime SHA and observed capability flags. Mark each live gate passed only when its own external evidence exists.
+```sh
+POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
+POSTSTEWARD_AGENT_TOKEN='...' \
+  node scripts/hosted-acceptance.mjs revoked
+```
 
-## Deployed evidence
+Both HTTP and remote MCP must return denial. This closes agent delegation acceptance only when the real grant was issued and revoked; a unit test does not.
 
-[The 10 September acceptance-path receipt](live-acceptance-staging-2026-09-10.md) records PR #22 and the deployed PR #24 follow-up at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`: 188 passing tests, 58 hosted assertions, existing owner/account approvals, the callback URL-policy block, successful test Product/Price creation and the five still-open live gates. The Stripe test account also has no Portal configuration; configure cancellation before claiming the Portal journey.
+## Phase 3: safety and recovery
 
+### Private GitHub, when in release scope
 
-## Owner-sign-in checkpoint — 11 September 2026
+Configure the dedicated staging GitHub App with the existing setup/callback contract, selected repositories only and read-only Contents/Metadata. The invited owner selects one deliberately small private repository set. Prove only the selected repository is visible, perform one harmless path probe, revoke/remove access and prove the next private read fails closed without anonymous fallback.
 
-[PR #28](https://github.com/AyobamiH/poststeward/pull/28) deployed revision `133b39fe09cff63192ee44b9b43b96113be6d6f6` with 193 passing tests and all 58 hosted checks passing. The subsequent owner screenshots show two successful sign-ins to the same workspace. This closes the Google sign-in prerequisite only. Provider publication still requires a chosen account, configured provider application, grant, exact review and independent readback; the other four journeys remain open. The source of the sign-in evidence is the owner's normal-browser UI, not an agent-authenticated API read.
+### Durable Object PITR
+
+Use a disposable/non-production workspace with an explicit restore target. Record a pre-rehearsal canary, authority inventory and effect state without credentials. Execute the existing prepare -> execute -> reconcile -> resume state machine using one immutable plan/digest. Verify restored authority is invalidated and no external effect replays. Treat undo as a separate exact-plan action.
+
+### Workspace erasure
+
+Use a disposable staging workspace. Export it, delete it through the owner lifecycle UI, prove the tombstone prevents resurrection, then sign in again and prove a new workspace is created. Do not erase the primary owner acceptance workspace simply to close the checklist.
+
+### Root-key replacement
+
+Follow `docs/production-readiness-acceptance.md`. Key-schedule version rotation is already implemented; root-secret replacement must enumerate and rewrap real encrypted state. `src/root-rotation.ts` provides the narrow per-envelope primitive and tests, but only an actual staging rewrap/restart/rollback rehearsal closes the gate.
+
+## Phase 4: Advanced and Stripe
+
+The Advanced product boundary remains disabled until both product and payment acceptance are complete.
+
+Advanced inventory/category decision: the reviewed profile `family` is the category identity. The owner can inspect grouped categories, current source snapshots, reserved automatic deliveries and metrics evidence at `/advanced-inventory.html`. A second category store is intentionally not introduced. Profile changes still use the existing paused/reviewed configuration path.
+
+Before enabling Advanced, validate a real source change -> source snapshot -> deterministic campaign inventory -> spaced reservation -> provider effect/readback -> scheduled metrics cycle.
+
+For Stripe, use the already created USD 5 monthly test Product/Price. Do not create a webhook until its one-time signing secret can be stored directly in protected staging secret storage. Configure a restricted test API key, signed webhook and Billing Portal, then perform one quote -> Checkout -> test payment -> webhook reconciliation -> entitlement journey. Replay the same quote/event and prove no duplicate charge or entitlement. Separately exercise renewal/payment-method change, cancellation/expiry, refund and dispute, then clean up the sandbox subscriptions and disable sandbox access.
+
+MPP remains a separate acceptance stream and must not block the Free Threads launch.
+
+## Phase 5: productionise
+
+Use `docs/production-readiness-acceptance.md` for:
+
+- real capacity/cost observations and customer-facing retention/limit calibration;
+- operational alert delivery and escalation ownership;
+- hosted cross-tenant attack checks;
+- custom production origin, DNS/TLS, WAF and rate-policy evidence;
+- GitHub main ruleset activation/verification;
+- public signup, abuse, support, deletion/revocation and incident ownership.
+
+Production and public signup are separate gates. A successful production deployment does not imply unrestricted admission.
+
+## Evidence rule
+
+Mark a live gate passed only when the external system itself produced the required effect and PostSteward independently observed the required evidence. Configuration flags, fixtures, source assertions, screenshots of a setup form and successful redirects may support diagnosis, but they do not replace provider readback, restore state, payment reconciliation, browser-agent invocation or post-revocation denial.

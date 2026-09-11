@@ -1,91 +1,100 @@
-# PostSteward implementation status: 11 September 2026
+# PostSteward implementation status: 12 September 2026
 
-## Owner sign-in completed; controlled publication remains open
+## Executive state
 
-After the Google client-authentication correction and staging allowlist update, the owner supplied two normal-browser screenshots showing successful sign-in at 01:18:53.128 UTC and a fresh sign-in at 01:19:20.873 UTC on 11 September 2026. Different completed proofs refer to the same workspace. This satisfies the owner-sign-in prerequisite on the supplied UI evidence; it is not evidence of a provider publication or an agent-authenticated cloud-browser session. See [the sign-in evidence and its limits](owner-signin-diagnosis-2026-09-11.md).
+PostSteward is substantially implemented. The remaining work is primarily live external acceptance and productionisation, not another product rewrite.
 
-All five complete live journeys remain open. The immediate publication prerequisite is a selected destination and a configured provider application with a real owner grant. Provider OAuth, private GitHub and Stripe sandbox remained unconfigured in the most recent acceptance deployment. PITR and authenticated native WebMCP have not been exercised.
+The last accepted restricted-staging baseline before this completion pass is main `e8a95086548a23541e89e2f33d56c0abd274d9cc`, merged by PR #30. That deployment reported 193 automated tests, clean production/full dependency audits, 58/58 hosted checks, successful owner Google sign-in and `providerOAuth.threads=true`.
 
-Existing Google sign-in and Stripe test-account approvals remain valid. The approved Stripe test Product and USD 5 monthly Price exist and were independently retrieved. Secure sandbox key/webhook configuration and a test Portal configuration remain outstanding. The cloud browser's callback policy block is separate from the successful normal-browser sign-ins; no cookie or session transfer is implied. See [the live execution plan](live-acceptance-plan.md) and [sandbox sequence](stripe-sandbox-acceptance.md).
+Current hosted truth:
 
-## Verified deployment checkpoint for the owner screenshots
+- Owner Google sign-in: **live accepted**.
+- Threads provider application: **configured**. Fresh owner Threads consent, the first controlled real publication and independent provider readback are still open.
+- X and LinkedIn applications: **not configured** and outside the Threads-first P0 path.
+- Scoped agent grants + HTTP/remote MCP: **implemented and deployed**. A real least-privilege grant -> use -> revoke -> denial acceptance record is still open.
+- Private GitHub sources: **engineered and deployed**. Staging App configuration and real grant/read/revoke acceptance are still open.
+- Durable Object PITR: recovery/quarantine/effect fencing is **implemented**. A real restore/reconcile/resume rehearsal remains open.
+- Native browser WebMCP: registration and native round-trip engineering is **implemented**. Authenticated browser-agent invocation remains open.
+- Stripe subscription billing: **implemented**. The test Product/Price exists; protected sandbox webhook/key/Portal configuration and the test lifecycle remain open.
+- Advanced, MPP and public signup: **disabled**.
+- GitHub main protection: deploy provenance exists, but server-side ruleset protection was still absent when this completion pass began.
 
-| Evidence | Result |
-| --- | --- |
-| Merge / deployed runtime | `133b39fe09cff63192ee44b9b43b96113be6d6f6` (PR #28) |
-| Cloudflare version | `41d5de49-94d8-45e8-8556-c462ecf669ed` |
-| PR verification | Run [34549616195](https://github.com/AyobamiH/poststeward/actions/runs/34549616195): 193 tests, TypeScript, generated docs and Worker build passed |
-| Dependency audits | Production and full audits: zero known vulnerabilities |
-| Deployment | Run [34549772524](https://github.com/AyobamiH/poststeward/actions/runs/34549772524) passed; no new migration |
-| Hosted assertions | 26 HTTP + 12 pilot + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle = 58 passed |
-| Hosted observation | 2026-09-11 01:15:12–01:15:27 UTC |
-| Private GitHub / provider OAuth / Stripe sandbox | All configured `false` |
-| Public release | Restricted signup; Advanced and MPP disabled |
+See [private hosted completion gap closure](completion-gap-closure-2026-09-12.md) for the gap-by-gap disposition and [production readiness acceptance](production-readiness-acceptance.md) for the remaining production evidence contract.
 
-This is the deployed checkpoint associated with the owner screenshots. The accompanying notice-contrast change needs its own deployment receipt; later commits do not retroactively change this evidence. Earlier deployment records remain historical.
-
-## Implemented
+## Implemented product foundation
 
 | Area | Current implementation |
 | --- | --- |
-| Hosted foundation | TypeScript Worker, D1 identity, SQLite Durable Objects, alarms, deployment configuration and CI |
-| Customer authority | Google OIDC owner sign-in, browser sessions, CSRF protection, scoped revocable agent tokens and workspace isolation |
-| Owner completion proof | Minimal proof committed atomically with a validated session; expiry/logout cascade; fixed post-login return paths; legacy sessions cannot approve high-consequence owner flows without signing in again |
-| Controlled acceptance | Owner-only `/pilot` UI/API, fresh stable provider identity, immutable expiring review, explicit approval, one durable delivery and private receipt/export |
-| Controlled execution | Thirty-second cancellation window, captured session/account/runtime checks, stale-claim fencing, late creation-ID preservation and no one-shot reset through other publishing transports |
-| Controlled readback | At most eight separate reads of the known post ID, thirty seconds apart; exact ID/author/text matching; no publication retry to repair missing evidence; LinkedIn is capability-gated by approved member readback |
-| Free publishing | Verified account aliases, explicit project routing, immutable approved copy and X/Threads/LinkedIn API adapters |
-| Free schedules/evidence | Publish-now reservations, explicit schedules, cancellation/replacement, receipts, export, on-demand metrics and duplicate/uncertain-effect protections |
-| Agent surfaces | Native round-trip check and partial-registration cleanup; 26 shared operations across HTTP, remote MCP and browser WebMCP; generated help/reference/OpenAPI and public discovery files |
-| Provider OAuth | X PKCE OAuth, Threads long-lived tokens and LinkedIn OAuth with encrypted refresh handling, owner/session binding and identity-drift blocking |
-| Private GitHub sources | Owner-only GitHub App setup + user OAuth/PKCE; selected repositories only; read-only Contents/Metadata; maximum 50 repositories; encrypted expiring user access/refresh authority with exclusive pre-refresh leases and CAS rotation; per-read installation/permission/repository revalidation; explicit removal/rename/revocation handling; anonymous public fallback only when no private link exists |
-| Private-source UI | Free owner-only probe with commit SHA/time/release and no anonymous fallback; dedicated owner module shows non-secret installation/repository state, constrains navigation to exact `github.com`, supports unlink/reconnect and populates Advanced repository suggestions without removing public free-text input |
-| Lifecycle | Pending deletion globally fences GitHub authority routes; completed erasure purges pending GitHub state, encrypted GitHub credentials and repository links alongside other workspace authority |
-| Recovery safety | D1 external-effect/container fences, global quarantine, owner-only PITR plans, exact undo and restored-authority invalidation |
-| Advanced foundation | Source-path monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, spacing and independently scheduled metrics |
-| Stripe | Staging-only sandbox opt-in with test-key/test-price preflight while Advanced stays disabled; USD 5 monthly Checkout, Portal, signed webhooks, entitlement reconciliation and SDK-backed MPP for a non-renewing calendar-month pass |
+| Hosted foundation | TypeScript Cloudflare Worker, D1 identity, SQLite Durable Objects, alarms, explicit deployment configuration and CI |
+| Owner identity | Google OIDC code/PKCE, browser sessions, CSRF, restricted admission and atomic owner proof |
+| Agent authority | Scoped, expiring, revocable Bearer grants with admin non-delegation and workspace isolation |
+| Controlled publication | Owner-only `/pilot`, stable provider identity, immutable expiring review, explicit approval, one-shot reservation and 30-second cancellation boundary |
+| Effect safety | Idempotency, fingerprint dedupe, claim fencing, ambiguous-effect preservation, known creation-ID retention and no blind retry across the write boundary |
+| Readback | Separate bounded provider GET with exact post ID, stable author ID and exact text verification |
+| Provider OAuth | X PKCE, Threads long-lived/refresh flow and LinkedIn OAuth with capability-gated member readback |
+| Free publishing | Explicit project routing, immutable campaigns, publish now, explicit schedules, cancel/replace, receipts, export and on-demand metrics |
+| Agent transports | 26 shared operations over HTTP, remote MCP and browser WebMCP; generated help/OpenAPI/reference/discovery |
+| Private GitHub | Owner-only selected-repository authority, read-only Contents/Metadata, encrypted rotating user credential, per-read revalidation, unlink/revoke/lifecycle cleanup and fail-closed private reads |
+| Recovery | Owner-only PITR plan, quarantine, restore/reconcile/resume/undo state machine, restored-authority invalidation and external-effect fences |
+| Advanced foundation | Source monitoring, reviewed deterministic templates, baseline/change detection, stale-work withdrawal, bounded replenishment/spacing and scheduled metrics |
+| Advanced management model | `Profile.family` is the category identity. `/advanced-inventory.html` provides an owner view of category groups, source snapshots, reserved automatic deliveries and metric evidence without introducing a second drifting category store |
+| Billing | Staging-only Stripe sandbox gate, USD 5 monthly Checkout/Portal, signed webhook reconciliation, entitlement logic and separately disabled MPP foundation |
+| Root-rotation support | Narrow old-root -> new-root envelope rewrap/verification primitive with adversarial tests. Real storage enumeration and staging replacement rehearsal remain external |
+| Acceptance tooling | Read-only Threads-first readiness, HTTP/MCP grant, revoked-grant, cross-tenant, capacity, Cloudflare edge and GitHub ruleset verification harnesses |
 
-Direct publishing and explicit scheduling remain Free; continuing campaign management is the proposed paid boundary. Advanced and MPP are disabled in the active deployment. LinkedIn controlled acceptance is implemented but remains available only when the deployment and connection prove approved member-post readback authority.
+## Explicit product decisions
 
-## Private GitHub source trust boundary
+### CLI
 
-Private-source installation is deliberately not an agent/MCP/WebMCP operation. A setup-returned `installation_id` is treated only as a candidate. PostSteward binds it to a fresh owner browser session/state and then independently verifies, through GitHub App user OAuth, that the user can access that exact installation. The installation must match the configured app slug, be unsuspended, use selected repositories and have no active permission beyond read-level Contents/Metadata.
+PostSteward's supported command-line contract is shell/cURL over the documented HTTP operations. There is no promise of a separately packaged PostSteward binary, updater or package distribution channel. Do not add a CLI package merely to satisfy old wording.
 
-PostSteward retains an encrypted expiring GitHub App user credential rather than switching monitoring to broad installation-token authority. Refresh tokens rotate only after an exclusive D1 lease is acquired and commit under credential/revision/lease compare-and-swap. Abandoned or uncertain refreshes require reconnection and cannot replay the old credential. Before every linked private source commit read, the current user-accessible installation and complete bounded repository inventory are re-read. Permission expansion, `all`-repository expansion, suspension, owner/repository access loss or repository removal therefore fails closed before the requested source path is read. A linked private repository is never retried anonymously.
+### Remote MCP authorization
 
-See [private GitHub source authority](private-github-sources.md) for the full contract and exact staging callback/setup URLs.
+Remote MCP uses owner-issued, scoped, expiring, revocable Bearer tokens. Standards-based OAuth-compatible MCP authorization discovery/bootstrap is not part of the current release contract. Discovery may describe tools and consequence classes, but it must not mint or broaden authority.
 
-## Verification interpretation
+### Advanced categories and inventory
 
-The 188-test merged implementation checkpoint includes actual Workers/D1/SQLite/Assets execution, signed-token callback processing, proof/session transaction rollback, migration compatibility, expiry/logout/replay handling, CSRF/Bearer rejection, workspace isolation, parallel publication approval, lost response recovery, external-effect fencing, provider OAuth, scheduled metrics and private GitHub authority tests. The GitHub tests cover spoofed installation IDs, broad/write permission rejection, encrypted refreshable credential retention, per-read privilege-drift checks, public anonymous compatibility, deletion fencing and erasure. The PR #20 regressions cover exclusive rotation, interrupted refresh without replay, expired leases, reconnect and unlink races, persistent removal/rename fences, and callbacks delayed across logout/deletion.
+The existing reviewed profile `family` is the category boundary used by spacing decisions. A second category entity would create drift without additional authority value. Inventory is represented by the profile's current observed source snapshot and any automatic deliveries reserved from that snapshot. The owner-facing Advanced inventory view groups and exposes that state while profile changes continue to require the existing reviewed, paused configuration path.
 
-Google, GitHub and social-provider responses in CI are fixtures. The source tests do not prove that a real GitHub App was created, that an owner granted a private repository, or that the hosted service successfully read that repository. Hosted checks are deliberately non-destructive: they verify the static private-source module and unauthenticated denial of status/start/probe/unlink/setup/callback rather than creating authority.
+## Evidence interpretation
 
-The provider client bounds both response bytes and time through the response body. A successful social write status followed by incomplete/unreadable evidence remains ambiguous. Threads readback uses `owner.id`, not a username that can change or be reused. Permalinks and external browser navigation are restricted to exact provider/GitHub hosts.
+Automated tests and Miniflare runtime scenarios exercise real Worker/D1/SQLite/Assets code, tenant isolation, Bearer/CSRF rejection, idempotency, effect fencing, provider OAuth, private GitHub authority, recovery coordination, billing reconciliation and browser registration logic. Provider/Google/GitHub/Stripe responses in CI are fixtures unless a receipt explicitly says otherwise.
 
-Payment tests still use simulated Stripe/SDK challenge responses. The PR #24 Workers/D1 regression verifies charge-only dispute routing, signature-before-read, retryable lookup failure, mode rejection, quarantine, event completion and deduplication. Checkout retry tests cover Worker reconstruction and pre-upgrade quotes. No merchant settlement, real charge, refund/dispute lifecycle or eligible wallet has been verified. Native browser WebMCP remains unverified.
+The following cannot be inferred from code or CI and remain separate evidence classes:
 
-## Deployment and operation
+- real provider consent;
+- a real public provider write;
+- independent provider readback;
+- a real private-repository grant/read/revoke;
+- a Cloudflare PITR restore;
+- workspace deletion against real staging state;
+- native browser-agent WebMCP invocation;
+- Stripe test payment lifecycle or MPP settlement;
+- root-secret replacement across real encrypted state;
+- alert delivery, Cloudflare WAF/rate policy configuration or GitHub ruleset activation.
 
-PR #20 deployed additive `0009_github_sources.sql` for pending GitHub setup state, encrypted installation/user authority and selected repository links. Workspace erasure explicitly removes all three. The existing staging deployment path remains main-only, exact-SHA, D1-identity-checked and secret-minimised.
+A success redirect, configured flag, screenshot, fixture or HTTP 2xx alone does not close those gates.
 
-GitHub private-source deployment settings are optional but all-or-nothing: `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_SLUG` are non-secret environment variables; `GITHUB_APP_CLIENT_SECRET` is a deploy-step secret. Partial configuration fails before Cloudflare mutation. The verification job receives no application secret.
+## Immediate P0 sequence
 
-Before considering an application downgrade, pause publication and inspect active/uncertain publication, recovery and source-authority state. Additive database compatibility alone is not a safe rollback rehearsal. Resolve pending high-consequence state and preserve provider creation evidence before a reviewed rollback.
+1. Keep X and LinkedIn out of the path.
+2. Complete fresh owner Threads consent and verify the stable account identity.
+3. Review exact destination + exact text in `/pilot` and approve one controlled publication.
+4. Preserve exactly one provider creation ID. On uncertainty, inspect existing evidence; never create a fresh publication attempt to guess.
+5. Require the separate Threads readback to match creation ID, stable owner ID and exact text.
+6. Issue a least-privilege agent grant; validate `workspace_status` over HTTP and remote MCP; perform only the authorised operation(s); revoke; prove the same token is denied.
+7. Close native browser WebMCP separately in a supporting authenticated browser.
 
-## Next live milestones
+The repository-side harness for steps 1 and 6 is `scripts/hosted-acceptance.mjs`. It is non-publishing and redacts the raw workspace identifier in emitted evidence.
 
-For controlled publication, continue `/pilot` from the successful owner sign-in: authorise one provider connection, prepare the exact text/destination review, approve one durable publication reservation and inspect separate provider readback. A prepared review, scheduled job, HTTP 2xx write, screenshot, CI fixture or login redirect alone does not satisfy the evidence gate.
+## Next safety/production milestones
 
-For private sources, create/configure the staging GitHub App using the exact `poststeward-staging.woeinvests.workers.dev` setup/callback URLs, selected repositories and read-only Contents permission. Save the protected client ID/slug/secret, deploy the reviewed main revision, then as the invited owner connect one explicitly selected private repository. Confirm only the selected repository appears, perform one read-only source observation, remove/revoke access and prove the next check fails closed. Do not enable paid Advanced execution merely to prove repository access.
+After P0:
 
-## Remaining public-release work
+1. Private GitHub staging App/grant/read/revoke, if private sources are in release scope.
+2. PITR rehearsal, disposable workspace erasure and root-key replacement/rewrap rehearsal.
+3. Advanced source-to-inventory-to-spaced-allocation-to-metrics live acceptance before paid automation is enabled.
+4. Stripe webhook/Portal/Checkout/settlement/renewal/cancel/refund/dispute sandbox lifecycle. Keep MPP separate unless launch requires it.
+5. Capacity/cost calibration, operational alert delivery, hosted cross-tenant attack run, custom production domain/DNS/TLS/WAF/rate policies, GitHub main ruleset and public signup/support/abuse controls.
 
-1. Continue from the completed Google owner sign-in: obtain a real provider grant, then record exactly one controlled publication plus independent provider readback.
-2. Supply/approve provider application credentials. The OAuth, refresh and LinkedIn-readback code is implemented; unavailable providers must remain fail-closed until configured.
-3. Configure the real staging GitHub App and complete one owner-authorised private-repository grant/read/revocation acceptance. Private-source authority engineering and owner UI are implemented; richer Advanced inventory/category management remains product work.
-4. Run Stripe sandbox settlement, renewal, refund/dispute and eligible-wallet MPP acceptance before enabling Advanced or MPP.
-5. Perform an explicitly approved staging PITR rehearsal, native WebMCP acceptance in a supporting browser, capacity/retention calibration, encryption-key rotation, operational alerts, cross-tenant hosted attack testing and production-domain/WAF acceptance. The account-erasure path is implemented and must be exercised with real staging data rather than described as missing code.
-6. Enable an actual GitHub main ruleset with required Verify checks. The deployment path has merged-PR provenance enforcement, but that is not a substitute for server-side branch protection.
-
-Pilot delivery limits remain 20 reservations per UTC day, 100 active schedules and 10 source profiles per workspace. Private GitHub installations are additionally bounded to 50 selected repositories. These are initial limits, not proven unit economics. PostSteward is hosted centrally on the service operator's Cloudflare account; customers connect to the product rather than provision their own Cloudflare stack.
+Automatic CI/deploy must remain non-destructive throughout: it must not sign in, publish, grant/revoke owner authority, restore, delete a workspace, rotate a real secret or settle a payment.

@@ -2,22 +2,44 @@
 
 Reliable social publishing for AI agents, hosted on Cloudflare. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
 
-**Status: deployed to restricted staging. Owner acceptance, self-service provider OAuth architecture, exact provider readback, dependency-audit closure and restore-safe external-effect recovery are implemented. The current release candidate also implements owner-authorised private GitHub sources with selected-repository/read-only enforcement, encrypted rotating user authority, per-read access revalidation, lifecycle erasure and owner workspace controls. Real owner/provider consent, a controlled live publication, a real PITR rehearsal, native WebMCP acceptance, payment settlement and real private-repository acceptance remain external evidence gates. Public charging is not approved.**
+**Status: restricted staging. Owner Google sign-in is live-accepted. Threads application configuration is deployed and ready; the real Threads owner grant, first controlled live publication and independent provider readback are the current P0 external evidence gates. X and LinkedIn applications remain unconfigured. Private GitHub authority, PITR coordination, native WebMCP integration and Stripe billing are engineered but still require their separate live acceptance journeys. Advanced, MPP and public signup remain disabled.**
 
-Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststeward-staging.woeinvests.workers.dev). The [owner acceptance page](https://poststeward-staging.woeinvests.workers.dev/pilot) takes the owner through Google sign-in, explicit account choice, exact-content review, one durable publication reservation and separate provider readback. Opening it does not publish anything. The [current acceptance engineering receipt](docs/owner-acceptance-deployment-2026-09-09.md) records the exact deployed runtime and verification boundaries; the [earlier infrastructure receipt](docs/staging-deployment-2026-09-09.md) remains historical evidence. Private GitHub source security and the remaining hosted acceptance are documented separately in [private GitHub source authority](docs/private-github-sources.md).
+Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststeward-staging.woeinvests.workers.dev). The [owner acceptance page](https://poststeward-staging.woeinvests.workers.dev/pilot) takes the owner through provider connection, exact-content review, one durable publication reservation and separate provider readback. Opening it does not publish anything.
 
-Free includes verified account routing, immutable campaigns, publish-now dispatch, explicit schedules, cancellation/replacement, durable receipts, export and available metrics on demand. Advanced is USD 5 per workspace/month and adds continuing management. Source monitoring, deterministic replenishment, spacing and scheduled metrics are implemented behind a disabled flag; the complete Advanced release still needs the external validation and remaining product work below.
+The current completion boundary is documented in [implementation status](docs/implementation-status.md), [live acceptance plan](docs/live-acceptance-plan.md), [private hosted completion gap closure](docs/completion-gap-closure-2026-09-12.md) and [production readiness acceptance](docs/production-readiness-acceptance.md).
 
 ## What runs
 
 - TypeScript Cloudflare Worker, D1 identity and one SQLite-backed Durable Object per workspace.
-- Maintained OIDC code/PKCE flow, browser sessions, CSRF checks and revocable scoped agent tokens. Owner acceptance records a minimal completion proof atomically with a validated session.
-- X, Threads and LinkedIn provider adapters. Threads resumes readiness checks using alarms. No blind retry after an uncertain publication.
-- 26 operations shared by HTTP, remote MCP and native browser WebMCP. Generated help, OpenAPI, agent guide, `llms.txt` and crawlable discovery. Additional owner acceptance, provider OAuth and private-source authority APIs are browser-owner controls rather than delegated agent tools.
-- Owner-controlled `/pilot` acceptance for one text-only X, Threads or capability-approved LinkedIn publication: fresh sign-in, expiring immutable review, one-shot reservation, thirty-second cancellation window, session-bound dispatch and bounded independent post-ID readback.
-- Stripe recurring Checkout, Portal, signed-webhook reconciliation and an SDK-backed MPP endpoint for a non-renewing USD 5 calendar-month pass. Both require real account validation before enablement.
-- GitHub source-path monitoring with anonymous public reads plus optional owner-authorised private reads. Private links require selected repositories and read-only Contents access, retain encrypted expiring GitHub user authority, and revalidate installation permissions plus exact repository membership before every private source snapshot.
-- First-observation baselines, exact approved templates, stale-work withdrawal, bounded scheduling and independently scheduled metrics timers.
+- Google OIDC code/PKCE owner sign-in, browser sessions, CSRF and revocable scoped agent tokens. Admin authority cannot be delegated through the grant endpoint.
+- X, Threads and LinkedIn provider adapters with stable identity checks. Threads uses long-lived token refresh handling. LinkedIn controlled readback is capability-gated.
+- 26 operations shared by HTTP, remote MCP and native browser WebMCP. Additional owner acceptance, provider OAuth, private-source, recovery and lifecycle APIs remain owner-browser controls rather than delegated agent tools.
+- Owner-controlled `/pilot`: fresh provider identity, expiring immutable review, explicit approval, thirty-second cancellation boundary, session/account/release fencing and bounded independent readback.
+- Fingerprint dedupe, operation idempotency, stale-claim recovery and ambiguous-effect preservation. A lost/uncertain write is inspected, never blindly retried with a fresh key.
+- Private GitHub source-path monitoring with optional owner-authorised selected-repository access, read-only Contents/Metadata authority, encrypted rotating user credentials and per-read revalidation.
+- Advanced source monitoring, deterministic reviewed templates, first-observation baselines, stale-work withdrawal, bounded replenishment/spacing and independently scheduled metrics.
+- Owner Advanced inventory view at `/advanced-inventory.html`. The reviewed profile `family` is the category identity; the view groups categories, source snapshots, reserved automatic deliveries and metric evidence without creating a second drifting category store.
+- Stripe recurring Checkout, Portal and signed-webhook reconciliation plus a separately disabled MPP foundation. Public charging is not approved until live sandbox acceptance is complete.
+
+## Free and Advanced
+
+Free includes verified account routing, immutable campaigns, publish-now dispatch, explicit schedules, cancellation/replacement, durable receipts, export, available on-demand metrics and all agent transports.
+
+Advanced is proposed at USD 5 per workspace/month and adds continuing source monitoring, replenishment, rolling allocation, spacing controls and scheduled metrics. `ADVANCED_ENABLED` remains false until the product and Stripe acceptance gates are complete. MPP has its own independent gate.
+
+## Agent contract
+
+Remote agents authenticate with owner-issued, scoped, expiring, revocable Bearer tokens. HTTP and remote MCP use the same operation catalogue and workspace authority checks. OAuth-compatible MCP authorization discovery/bootstrap is **not** claimed for the current release; discovery must never mint or broaden authority.
+
+PostSteward does **not** promise a separately packaged CLI binary. The supported command-line workflow is shell/cURL over the documented HTTP operation surface. Avoid creating a package/update channel that adds no product value.
+
+Generated operation documentation comes from `src/operations/catalog.ts`:
+
+- [Agent guide](public/docs/agent-guide.md)
+- [Operation reference](docs/operations.md)
+- `/help.json`
+- `/openapi.json`
+- remote `/mcp`
 
 ## Develop and verify
 
@@ -28,23 +50,38 @@ npm ci
 npm run verify
 ```
 
-`verify` checks TypeScript, generated documentation, deployment bundling and unit/integration scenarios. The integration tests use the actual Workers runtime with SQLite Durable Objects, D1 and Workers Assets; Google, GitHub and social provider responses are simulated. The owner acceptance test waits for a real thirty-second Durable Object alarm without polling during that wait, observes one simulated public write, and then separately reads it back. This does not prove real Google/GitHub consent, a real private-repository grant or a live social post. Native WebMCP and authenticated real-user browser acceptance remain separate checks.
+`verify` checks TypeScript, generated documentation, deployment bundling and unit/integration scenarios. Runtime tests use actual Workers/D1/SQLite/Assets execution under Miniflare while Google, GitHub, Stripe and social-provider responses are simulated. Fixtures prove code paths, not real external acceptance.
 
-Documentation comes from `src/operations/catalog.ts`. Run `npm run docs` when changing an operation. Do not hand-edit generated references. All effectful operations declare their consequence class, scope and safe inspection operation.
+Automatic CI/deploy is deliberately non-destructive. It must not sign in, publish, grant/revoke owner authority, restore, erase a workspace, rotate a real root secret or settle a payment.
+
+## Hosted acceptance helpers
+
+Read-only Threads-first staging readiness:
+
+```sh
+POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
+  node scripts/hosted-acceptance.mjs readiness
+```
+
+A real least-privilege token can be exercised over HTTP and remote MCP with `scripts/hosted-acceptance.mjs agent`, then verified denied after owner revocation with `revoked`. The harness receives tokens only through environment variables and emits a workspace fingerprint rather than the raw workspace identifier.
+
+Production-side read-only verification helpers cover capacity observations, hosted cross-tenant isolation, Cloudflare DNS/TLS/WAF/rate evidence and GitHub main ruleset state. See [production readiness acceptance](docs/production-readiness-acceptance.md).
 
 ## Repository and deployment
 
-[AyobamiH/poststeward](https://github.com/AyobamiH/poststeward) is the standalone product repository, with its own deployment and release lifecycle. Post Once remains a separate project. See [deployment](docs/deployment.md), [private GitHub source authority](docs/private-github-sources.md) and [explicit staging requests](docs/staging-deployment-request.md). Ordinary application/documentation merges do not automatically deploy. Production resources are deliberately unconfigured; dry-run bundling works without credentials.
+[AyobamiH/poststeward](https://github.com/AyobamiH/poststeward) is the standalone product repository with its own deployment lifecycle. Post Once remains separate.
 
-The active runtime is recorded separately from main. The existing-runtime verification workflow can recheck a specified deployed SHA without rerunning migrations, uploading code or receiving deployment credentials. Its login-initiation probe creates an expiring state only; it never fabricates an owner session, GitHub installation or publication approval.
+See [deployment](docs/deployment.md), [private GitHub source authority](docs/private-github-sources.md), [provenance](docs/provenance.md), [operating runbook](docs/operations-runbook.md) and [security model](docs/security.md). Ordinary application/documentation changes do not automatically establish live provider, payment, recovery or browser acceptance.
 
-## Remaining release work
+## Immediate release sequence
 
-1. Complete the real owner journey at `/pilot`: Google consent, an authorised account connection, exact destination/content approval and independent readback of the single resulting post. No real owner session, provider credential or approval was manufactured by CI or deployment. Record the private receipt only after these actually happen. Staging settings/resources are already configured; do not recreate them or regenerate keys.
-2. Configure and approve at least one real X/Threads/LinkedIn provider application and validate the implemented OAuth/refresh path with a real owner grant. Provider OAuth code exists, but staging correctly reports all provider apps unavailable until their credentials are supplied.
-3. Create/configure the real staging GitHub App, save its protected client ID/slug/secret, and complete one owner-authorised private-repository acceptance using selected repositories and read-only Contents access. The source authority, owner UI, lifecycle cleanup and per-read revalidation are implemented; richer Advanced inventory/category management remains product work.
-4. Run Stripe sandbox lifecycle and eligible-wallet MPP settlement tests, including refund/dispute linkage and uncertain-payment reconciliation. No real Stripe merchant capability or charge was verified here.
-5. Validate native browser WebMCP, full authenticated browser interaction, and fresh-customer isolation/revocation on the hosted service. Remote MCP currently uses scoped Bearer headers; OAuth-compatible MCP authorization discovery remains separate work.
-6. Calibrate traffic/storage retention limits, configure operational alerts, exercise the implemented account-erasure path, and perform real staging restore plus encryption-key rotation rehearsals. Both production and full high-severity dependency audits are clean. Choose and validate the production origin before public launch.
+1. Keep Threads as the only P0 provider. Complete fresh owner Threads consent and confirm the stable identity stored by PostSteward.
+2. In `/pilot`, approve one exact destination/text review. Preserve exactly one provider creation ID and require the separate Threads GET to match ID, stable owner and exact text.
+3. Issue a least-privilege agent grant; validate `workspace_status` over HTTP and remote MCP; revoke it and prove the same token is denied.
+4. Close native browser WebMCP separately in a supporting authenticated browser.
+5. If private sources are part of release scope, configure the staging GitHub App and complete selected private grant/read/revoke acceptance.
+6. Rehearse PITR, disposable workspace erasure and root-key replacement against non-production state.
+7. Complete Advanced source-to-allocation-to-metrics acceptance plus Stripe webhook/Portal/Checkout/settlement/renewal/cancel/refund/dispute before enabling paid automation.
+8. Calibrate capacity/cost, prove alert delivery, run hosted cross-tenant checks, validate the production custom domain/DNS/TLS/WAF/rate policies, enable a real GitHub main ruleset, then decide when public signup/support/abuse controls are ready.
 
-Read the [owner acceptance plan](docs/owner-publication-acceptance.md), [current receipt](docs/owner-acceptance-deployment-2026-09-09.md), [private GitHub source authority](docs/private-github-sources.md), [provenance](docs/provenance.md), [agent guide](public/docs/agent-guide.md), generated [operation reference](docs/operations.md), [operating runbook](docs/operations-runbook.md) and [security model](docs/security.md).
+X, LinkedIn and MPP do not block the Threads-first Free launch unless they are deliberately added to launch scope.
