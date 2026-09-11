@@ -2,11 +2,11 @@
 
 ## Current baseline
 
-Restricted staging remains the acceptance environment. The latest deployed baseline before this completion pass is main `e8a95086548a23541e89e2f33d56c0abd274d9cc` from PR #30 at `https://poststeward-staging.woeinvests.workers.dev`.
+Restricted staging remains the acceptance environment. The current deployed revision is main `558bb795786865a24e4bc77e4ec126973d43eb4a` at `https://poststeward-staging.woeinvests.workers.dev`, deployed by run `34657943245` after PR #31 implemented the repository-side completion work and PR #32 made the explicit staging deployment request. The deployment passed verification plus all 58 non-destructive hosted checks. See `docs/hosted-completion-deployment-2026-09-12.md` for the receipt.
 
 Current facts:
 
-- Owner Google sign-in has been accepted live in the owner's normal browser.
+- Owner Google sign-in has been accepted live in the owner's normal browser from the earlier owner journey; the latest deployment deliberately did not manufacture another owner session.
 - Threads provider OAuth is configured in staging.
 - A real Threads owner grant has not yet been accepted.
 - No owner-approved real Threads publication/readback receipt has been recorded.
@@ -14,6 +14,7 @@ Current facts:
 - Private GitHub engineering is deployed; staging App configuration and real grant/read/revoke are open.
 - Stripe engineering is deployed; protected sandbox configuration and payment lifecycle acceptance are open.
 - Advanced, MPP and public signup are disabled.
+- The owner Advanced inventory assets are deployed; repository review also runs a read-only hosted marker/security-header check for those assets.
 
 Do not recreate working Google or Threads application credentials. Do not broaden to X or LinkedIn until the single Threads path is complete.
 
@@ -21,14 +22,16 @@ Do not recreate working Google or Threads application credentials. Do not broade
 
 ### 1. Readiness
 
-Run the repository's read-only verifier against staging:
+Run the repository's read-only verifiers against staging:
 
 ```sh
 POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
   node scripts/hosted-acceptance.mjs readiness
+POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
+  node scripts/staging-assets-check.mjs
 ```
 
-It must report Threads OAuth configured, X/LinkedIn unavailable, restricted signup and Advanced/MPP disabled.
+The first must report Threads OAuth configured, X/LinkedIn unavailable, restricted signup and Advanced/MPP disabled. The second must confirm the deployed Advanced inventory HTML/JS markers with hardened response headers. Neither performs a sign-in, provider grant or write.
 
 ### 2. Threads owner grant
 
