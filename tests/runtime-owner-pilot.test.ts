@@ -11,7 +11,7 @@ async function googleFixture() {
   const trusted = await generateKeyPair("RS256"), attacker = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(trusted.publicKey)), kid: "test-key", alg: "RS256", use: "sig" };
   const origin = "https://publish.example";
-  let nonce = "", challenge = "", mode = "valid", postedText = "", writes = 0, readbacks = 0;
+  let nonce = "", challenge = "", mode = "valid", postedText = "", writes = 0, readbacks = 0, tokenExchanges = 0;
   const { mf, db } = await runtime(async (request) => {
     const url = new URL(request.url);
     if (["accounts.google.com", "oauth2.googleapis.com", "www.googleapis.com"].includes(url.hostname)) {
@@ -21,10 +21,15 @@ async function googleFixture() {
         authorization_response_iss_parameter_supported: true,
         response_types_supported: ["code"], subject_types_supported: ["public"],
         id_token_signing_alg_values_supported: ["RS256"], code_challenge_methods_supported: ["S256"],
-        token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+        token_endpoint_auth_methods_supported: mode === "method_unavailable" ? ["client_secret_basic"] : ["client_secret_post", "client_secret_basic"],
       });
       if (url.pathname === "/oauth2/v3/certs") return RuntimeResponse.json({ keys: [jwk] });
       if (url.pathname === "/token") {
+        tokenExchanges++;
+        // Reproduce the observed live incompatibility: Basic is rejected;
+        // the documented form method is required for this Google fixture.
+        if (request.headers.has("authorization"))
+          return RuntimeResponse.json({ error: "invalid_client" }, { status: 401 });
         if (mode === "client_rejected" || mode === "code_rejected")
           return RuntimeResponse.json({ error: mode === "client_rejected" ? "invalid_client" : "invalid_grant",
             error_description: "private-upstream-description private-google-fixture-token" }, { status: mode === "client_rejected" ? 401 : 400 });
@@ -33,7 +38,8 @@ async function googleFixture() {
         if (mode === "malformed") return RuntimeResponse.json({ private_value: "private-google-fixture-token" });
         const form = new URLSearchParams(await request.text());
         assert.equal(form.get("redirect_uri"), origin + "/auth/callback");
-        assert.ok(request.headers.get("authorization")?.startsWith("Basic "));
+        assert.equal(form.get("client_id"), "poststeward-test");
+        assert.equal(form.get("client_secret"), "not-a-real-secret");
         const computed = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(form.get("code_verifier")!))).toString("base64url");
         assert.equal(computed, challenge);
         const id_token = await new SignJWT({ nonce: mode === "nonce" ? "wrong" : nonce,
@@ -85,13 +91,14 @@ async function googleFixture() {
     headers: { Cookie: auth.cookie, Origin: origin, "Content-Type": "application/json", "X-CSRF-Token": auth.session.csrf, ...extra },
     ...(input === undefined ? {} : { body: JSON.stringify(input) }),
   });
-  return { mf, db, origin, begin, signin, call, writes: () => writes, readbacks: () => readbacks };
+  return { mf, db, origin, begin, signin, call, writes: () => writes, readbacks: () => readbacks, tokenExchanges: () => tokenExchanges };
 }
 
 test("real Workers callback proof, owner approval, durable alarm and independent provider readback form one path", { timeout: 90000 }, async () => {
   const f = await googleFixture();
   try {
     const auth = await f.signin();
+    assert.equal(f.tokenExchanges(), 1);
     const status: any = await (await f.call(auth, "/api/pilot/status")).json();
     assert.equal(status.owner.issuer, "https://accounts.google.com"); assert.equal(status.owner.workspace, auth.session.workspace);
     assert.ok(status.owner.id); assert.equal(status.record, null); assert.equal(status.completed, false);
@@ -193,6 +200,7 @@ test("Google callback failures report safe causes, consume state once and preser
       ["response_issuer", "LOGIN_RESPONSE_INVALID", 400],
     ] as const) {
       const callback = await f.begin(mode, auth.cookie);
+      const before = f.tokenExchanges();
       const response = await callback();
       assert.equal(response.status, status, mode);
       const failure: any = await response.json();
@@ -203,10 +211,26 @@ test("Google callback failures report safe causes, consume state once and preser
       const replay = await callback();
       assert.equal(replay.status, 400);
       assert.equal((await replay.json() as any).error.code, "LOGIN_STATE_EXPIRED");
+      assert.equal(f.tokenExchanges() - before, mode === "response_issuer" ? 0 : 1);
       assert.equal((await f.call(auth, "/api/pilot/status")).status, 200);
       assert.equal((await f.db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 1);
       assert.equal((await f.db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 1);
     }
     assert.equal(f.writes(), 0);
+  } finally { await f.mf.dispose(); }
+});
+
+test("Google callback refuses an unavailable POST method before any code exchange", async () => {
+  const f = await googleFixture();
+  try {
+    const callback = await f.begin("method_unavailable");
+    const response = await callback();
+    assert.equal(response.status, 503);
+    assert.equal((await response.json() as any).error.code, "LOGIN_UNCONFIGURED");
+    assert.equal(f.tokenExchanges(), 0);
+    assert.equal((await callback()).status, 400);
+    assert.equal(f.tokenExchanges(), 0);
+    assert.equal((await f.db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 0);
+    assert.equal((await f.db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 0);
   } finally { await f.mf.dispose(); }
 });

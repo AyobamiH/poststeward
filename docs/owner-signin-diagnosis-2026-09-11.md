@@ -32,3 +32,20 @@ Inspect the staging probe result first. After resolving any demonstrated configu
 The five live journeys remain open. Do not infer provider publication, private GitHub authority, point-in-time recovery, native WebMCP execution, or Stripe settlement from this change.
 
 References: [Google discovery metadata](https://accounts.google.com/.well-known/openid-configuration), [Google OIDC reference](https://developers.google.com/identity/openid-connect/reference).
+
+## Live method comparison and targeted correction
+
+Diagnostic deployment [34547984613](https://github.com/AyobamiH/poststeward/actions/runs/34547984613), deploy job 103104916706, used revision `5e7223dc68762a15ffc7c9216df76c61585b5417`. At 2026-09-11 00:49:07 UTC, with the same protected configured client credentials:
+
+| Method | Safe observed outcome |
+| --- | --- |
+| `client_secret_basic` (the original callback method) | `client_rejected` |
+| `client_secret_post` (Google's documented form method) | `synthetic_code_rejected` |
+
+The live comparison establishes that the existing Basic path is rejected. POST reached rejection of the intentionally invalid code. This does not itself verify the earlier owner's callback cause, validate an actual identity token, or complete a sign-in.
+
+The targeted correction selects `ClientSecretPost` for the strictly discovered Google issuer and requires that discovery advertises it. Other issuers retain their existing Basic method. Selection happens before the code exchange; there is no retry or fallback using a real code. State consumption, PKCE, nonce, issuer/audience/signature verification, owner allowlist and atomic session/proof persistence are unchanged.
+
+The Google runtime fixture now reproduces the observed Basic rejection and requires the form credentials. It proves the successful isolated owner path with exactly one token exchange, no extra exchange on failed/replayed callbacks, and rejection before exchange when the required method is unavailable.
+
+Diagnostic deployment also passed all 58 hosted boundary/rendering checks and reported Cloudflare version `831698ed-b011-467e-8993-3675e36969a7`. Those checks do not close any live owner acceptance journey. The correction still needs deployment verification and a fresh real owner sign-in.

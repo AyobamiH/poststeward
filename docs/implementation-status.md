@@ -2,7 +2,7 @@
 
 ## New owner sign-in failure — 11 September 2026
 
-A manual Google sign-in in the owner's normal browser reached the application callback and returned `INTERNAL_ERROR`. This is distinct from the Cloud Browser URL-policy block. Owner sign-in and all five live journeys remain unverified. See [the diagnosis and evidence boundary](owner-signin-diagnosis-2026-09-11.md); the callback now has redacted stage diagnostics and staging runs a synthetic-code client probe, neither of which is sign-in acceptance.
+A manual Google sign-in in the owner's normal browser reached the application callback and returned `INTERNAL_ERROR`. This is distinct from the Cloud Browser URL-policy block. Owner sign-in and all five live journeys remain unverified. See [the diagnosis and evidence boundary](owner-signin-diagnosis-2026-09-11.md); the protected live comparison rejected Basic client authentication and reached synthetic-code rejection with POST. The Google callback now selects the documented POST method before its one-use code exchange. A fresh real owner sign-in is still required; neither the comparison nor isolated tests are sign-in acceptance.
 
 PostSteward PR #24 is merged and deployed to restricted staging at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`. [Deployment run 34541570597](https://github.com/AyobamiH/poststeward/actions/runs/34541570597) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
 
