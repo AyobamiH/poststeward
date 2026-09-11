@@ -1,31 +1,28 @@
-# PostSteward implementation status: 10 September 2026
+# PostSteward implementation status: 11 September 2026
 
-## New owner sign-in failure — 11 September 2026
+## Owner sign-in completed; controlled publication remains open
 
-A manual Google sign-in in the owner's normal browser reached the application callback and returned `INTERNAL_ERROR`. This is distinct from the Cloud Browser URL-policy block. Owner sign-in and all five live journeys remain unverified. See [the diagnosis and evidence boundary](owner-signin-diagnosis-2026-09-11.md); the protected live comparison rejected Basic client authentication and reached synthetic-code rejection with POST. The Google callback now selects the documented POST method before its one-use code exchange. A fresh real owner sign-in is still required; neither the comparison nor isolated tests are sign-in acceptance.
+After the Google client-authentication correction and staging allowlist update, the owner supplied two normal-browser screenshots showing successful sign-in at 01:18:53.128 UTC and a fresh sign-in at 01:19:20.873 UTC on 11 September 2026. Different completed proofs refer to the same workspace. This satisfies the owner-sign-in prerequisite on the supplied UI evidence; it is not evidence of a provider publication or an agent-authenticated cloud-browser session. See [the sign-in evidence and its limits](owner-signin-diagnosis-2026-09-11.md).
 
-Historical baseline (10 September 2026): PostSteward PR #24 was merged and deployed to restricted staging at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`. [Deployment run 34541570597](https://github.com/AyobamiH/poststeward/actions/runs/34541570597) passed every hosted gate. See the [five-workstream receipt](live-acceptance-staging-2026-09-10.md) and [execution plan](live-acceptance-plan.md).
+All five complete live journeys remain open. The immediate publication prerequisite is a selected destination and a configured provider application with a real owner grant. Provider OAuth, private GitHub and Stripe sandbox remained unconfigured in the most recent acceptance deployment. PITR and authenticated native WebMCP have not been exercised.
 
-**Engineering is deployed; all five live gates remain open.** Google sign-in was rejected by automatic approval review. Provider OAuth, private GitHub and Stripe sandbox are unconfigured. WebMCP API exposure was observed, but authenticated execution remains unverified. Stripe is connected and account discovery succeeded; explicit test-account selection remains pending.
+Existing Google sign-in and Stripe test-account approvals remain valid. The approved Stripe test Product and USD 5 monthly Price exist and were independently retrieved. Secure sandbox key/webhook configuration and a test Portal configuration remain outstanding. The cloud browser's callback policy block is separate from the successful normal-browser sign-ins; no cookie or session transfer is implied. See [the live execution plan](live-acceptance-plan.md) and [sandbox sequence](stripe-sandbox-acceptance.md).
 
-The owner has now approved this browser's Google sign-in and selected Stripe test mode. Stripe Product/Price provisioning and independent readback succeeded. The cloud-browser URL policy blocks /auth/callback (owner screenshot: ERR_BLOCKED_BY_CLIENT); /app remains unauthenticated. Secure Stripe key/webhook configuration is still unavailable through the working integrations. See [the updated receipt](live-acceptance-staging-2026-09-10.md) and [sandbox execution sequence](stripe-sandbox-acceptance.md). These approvals must not be requested again.
-
-## Current engineering evidence
+## Verified deployment checkpoint for the owner screenshots
 
 | Evidence | Result |
 | --- | --- |
-| Runtime | `93215b0467986e4f17f2c6777c1bb69551d66bd9` (PR #22 merge) |
-| Cloudflare version | `2b789a06-8c56-47c0-a9be-dfb35dc3b419` |
-| Final reviewed-head CI | Run `34537062391`: 188/185 tests, TypeScript, generated docs and Worker build passed; final push CI also passed |
+| Merge / deployed runtime | `133b39fe09cff63192ee44b9b43b96113be6d6f6` (PR #28) |
+| Cloudflare version | `41d5de49-94d8-45e8-8556-c462ecf669ed` |
+| PR verification | Run [34549616195](https://github.com/AyobamiH/poststeward/actions/runs/34549616195): 193 tests, TypeScript, generated docs and Worker build passed |
 | Dependency audits | Production and full audits: zero known vulnerabilities |
-| Deployment | Run `34541570597` passed; migrations already current |
-| Hosted assertions | 26 HTTP + 12 owner surfaces + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle = 58 passed |
-| Private GitHub | Owner-only free probe deployed; configured `false` |
-| X / Threads / LinkedIn OAuth | All configured `false` |
-| Stripe sandbox | Staging-only opt-in deployed; configured `false` |
+| Deployment | Run [34549772524](https://github.com/AyobamiH/poststeward/actions/runs/34549772524) passed; no new migration |
+| Hosted assertions | 26 HTTP + 12 pilot + 2 browser viewports + 13 recovery/OAuth + 5 lifecycle = 58 passed |
+| Hosted observation | 2026-09-11 01:15:12–01:15:27 UTC |
+| Private GitHub / provider OAuth / Stripe sandbox | All configured `false` |
 | Public release | Restricted signup; Advanced and MPP disabled |
 
-Earlier receipts remain historical evidence. Documentation-only commits after PR #22 do not imply a new runtime deployment.
+This is the deployed checkpoint associated with the owner screenshots. The accompanying notice-contrast change needs its own deployment receipt; later commits do not retroactively change this evidence. Earlier deployment records remain historical.
 
 ## Implemented
 
@@ -78,13 +75,13 @@ Before considering an application downgrade, pause publication and inspect activ
 
 ## Next live milestones
 
-For controlled publication, complete `/pilot`: Google sign-in, authorised provider connection, exact text/destination review, one durable publication reservation and separate provider readback. A prepared review, scheduled job, HTTP 2xx write, screenshot, CI fixture or login redirect alone does not satisfy the evidence gate.
+For controlled publication, continue `/pilot` from the successful owner sign-in: authorise one provider connection, prepare the exact text/destination review, approve one durable publication reservation and inspect separate provider readback. A prepared review, scheduled job, HTTP 2xx write, screenshot, CI fixture or login redirect alone does not satisfy the evidence gate.
 
 For private sources, create/configure the staging GitHub App using the exact `poststeward-staging.woeinvests.workers.dev` setup/callback URLs, selected repositories and read-only Contents permission. Save the protected client ID/slug/secret, deploy the reviewed main revision, then as the invited owner connect one explicitly selected private repository. Confirm only the selected repository appears, perform one read-only source observation, remove/revoke access and prove the next check fails closed. Do not enable paid Advanced execution merely to prove repository access.
 
 ## Remaining public-release work
 
-1. Complete real Google owner consent and a real provider grant, then record exactly one controlled publication plus independent provider readback.
+1. Continue from the completed Google owner sign-in: obtain a real provider grant, then record exactly one controlled publication plus independent provider readback.
 2. Supply/approve provider application credentials. The OAuth, refresh and LinkedIn-readback code is implemented; unavailable providers must remain fail-closed until configured.
 3. Configure the real staging GitHub App and complete one owner-authorised private-repository grant/read/revocation acceptance. Private-source authority engineering and owner UI are implemented; richer Advanced inventory/category management remains product work.
 4. Run Stripe sandbox settlement, renewal, refund/dispute and eligible-wallet MPP acceptance before enabling Advanced or MPP.

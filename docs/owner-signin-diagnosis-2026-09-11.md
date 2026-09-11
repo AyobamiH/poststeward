@@ -1,6 +1,10 @@
 # Owner sign-in diagnosis — 11 September 2026
 
-## Observed failure
+## Current outcome
+
+Owner sign-in and a subsequent fresh sign-in succeeded in the owner's normal browser after the saved allowlist was deployed. See the final evidence section below. The cloud browser remains a separate unauthenticated session; controlled publication and the other live journeys are still open.
+
+## Original observed failure
 
 The owner attempted Google sign-in outside ChatGPT. The callback returned PostSteward's JSON `INTERNAL_ERROR` response. The screenshot contains no verified owner workspace or completed sign-in receipt. The deployed runtime at that observation was `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`; documentation-only main was `96de71ab2efd6ab7c4241b4be7e5aa50e40b4a0d`.
 
@@ -8,7 +12,7 @@ Cloud Browser separately rejected the callback with Chromium `ERR_BLOCKED_BY_CLI
 
 ## Diagnostic defect and change
 
-The existing callback converted every unexpected OAuth or database exception to a generic durable-operation error. Neither that message nor the existing request-failure log identified the failing sign-in stage. The cause of the observed callback error is therefore still unproven.
+The existing callback converted every unexpected OAuth or database exception to a generic durable-operation error. Neither that message nor the existing request-failure log identified the failing sign-in stage. At that checkpoint, the cause of the observed callback error was unproven.
 
 The callback now classifies client rejection, rejected authorisation codes, response/token validation, provider availability and identity storage failures. It returns an opaque support reference, fixed stage/reason and release identifier. Logs contain only that bounded classification; provider descriptions, exception messages/causes, claims, credentials and callback URLs are excluded. Existing deliberate access/state faults remain intact.
 
@@ -25,7 +29,7 @@ The protected staging deploy step uses the already-selected OIDC client secret o
 
 The probe is diagnostic, not a deployment acceptance gate. A successful deployment still does not close the owner sign-in journey.
 
-## Next acceptance evidence
+## Diagnostic acceptance procedure (before the successful sign-ins)
 
 Inspect the staging probe result first. After resolving any demonstrated configuration failure, start a new sign-in from `/pilot`; never reload or replay an old callback. If it fails, retain only the returned error code, support reference, stage/reason and release. A successful owner proof must then be observed in the owner's workspace. Cloud Browser sign-in is a separate session and remains blocked until its policy issue is resolved.
 
@@ -59,3 +63,20 @@ The owner subsequently started a new Google sign-in in their normal browser. The
 The owner identified the intended Google account and confirmed that they saved its address in the staging `ALLOWED_OWNER_EMAILS` secret. The address and secret value are not included in this public record. The agent's GitHub connection cannot inspect or update environment secrets, so the saved contents are owner-reported until a fresh deployed sign-in verifies admission.
 
 The accompanying staging deployment request refreshes the existing protected configuration without changing application code or loosening admission. After it succeeds, start a fresh sign-in from `/pilot`; do not reload an old callback. Observe the authenticated owner proof and workspace before accepting this gate. Cloud Browser's earlier callback policy block remains separate from the owner's normal-browser session. All five live journeys remain open.
+
+## Owner sign-in and fresh sign-in observed
+
+[PR #28](https://github.com/AyobamiH/poststeward/pull/28) deployed the saved staging owner allowlist at revision `133b39fe09cff63192ee44b9b43b96113be6d6f6`. [Deployment 34549772524](https://github.com/AyobamiH/poststeward/actions/runs/34549772524) passed both jobs and all 58 hosted assertions; Cloudflare version was `41d5de49-94d8-45e8-8556-c462ecf669ed`. Required verification passed 193 tests with zero failures and both dependency audits reported zero known vulnerabilities.
+
+The owner supplied two screenshots from their normal browser, both showing the authenticated `/pilot` owner section and the destination-selection workbench. The displayed sign-in completion times were:
+
+| Observation | Displayed UTC completion time | Relationship |
+| --- | --- | --- |
+| Initial successful sign-in | 2026-09-11T01:18:53.128Z | A completed owner proof and workspace were displayed |
+| Fresh sign-in | 2026-09-11T01:19:20.873Z | A different proof was displayed for the same workspace |
+
+The owner explicitly confirmed that the second screenshot followed the fresh-sign-in action. This is owner-supplied live UI evidence of successful admission, session/proof persistence and repeated sign-in with stable workspace routing. It is not an agent-observed authenticated API read, proof of revocation of the earlier session, or an approval to publish specific content. Private proof/workspace identifiers and the owner's address are omitted from this public record.
+
+The Google owner-sign-in prerequisite is now satisfied by this evidence. Do not request another sign-in merely because the refresh button remains visible. A fresh sign-in is needed again only when the application's fifteen-minute approval rule requires it for the actual controlled review. The five complete journeys remain open because no controlled provider publication has yet been evidenced, and private GitHub, PITR, native WebMCP and Stripe acceptance are still incomplete.
+
+The screenshots also exposed dark inherited text on the dark pilot status banner. The accompanying CSS correction sets explicit light notice text and light red error text; it does not change authentication, approval or publication behaviour.
