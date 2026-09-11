@@ -1,6 +1,8 @@
 # Five-workstream staging receipt — 10 September 2026
 
-[PR #24](https://github.com/AyobamiH/poststeward/pull/24) is the current staging follow-up, deployed at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0` to https://poststeward-staging.woeinvests.workers.dev. It follows the PR #22 acceptance-path implementation. The five live acceptance gates remain open.
+This is a historical 10 September checkpoint. [The 11 September sign-in outcome](owner-signin-diagnosis-2026-09-11.md#owner-sign-in-and-fresh-sign-in-observed) supersedes its owner-authentication status: the owner subsequently completed two normal-browser sign-ins after PR #28 deployed. The complete publication and other live journeys remain open.
+
+[PR #24](https://github.com/AyobamiH/poststeward/pull/24) was the staging follow-up at this checkpoint, deployed at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0` to https://poststeward-staging.woeinvests.workers.dev. It follows the PR #22 acceptance-path implementation. The five live acceptance gates remain open.
 
 ## PR #22 engineering checkpoint
 
@@ -51,7 +53,7 @@ Earlier, /pilot loaded successfully, but automatic approval review initially den
 
 Stripe is connected and the owner explicitly selected the account in test mode. Read-only inventory showed no products or webhook endpoints. A dedicated PostSteward staging product and USD 5/month Price were created, then independently retrieved: both active and livemode=false; the Price uses USD 500 cents, one-month recurrence and inclusive tax behaviour. No customer, Checkout Session, subscription, payment or webhook endpoint has been created. Account-specific identifiers are kept out of this public receipt. Restricted API-key creation and protected GitHub environment-secret administration are not exposed by the working integrations.
 
-## Remaining live gates
+## Live gates at the 10 September checkpoint
 
 | Workstream | Current state | Exact next action |
 | --- | --- | --- |

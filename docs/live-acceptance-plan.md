@@ -4,11 +4,13 @@
 
 Complete five restricted-staging acceptance journeys: owner sign-in plus one controlled provider publication, private GitHub sources, Durable Object PITR recovery, native browser WebMCP, and Stripe sandbox payments. Production launch controls are a separate milestone. Code, CI, hosted boundary checks and real external observations are different evidence classes.
 
-Baseline main: fb8379e0940732e9361aa76fdac08141f7f50f0d. Baseline runtime: e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c. Origin: https://poststeward-staging.woeinvests.workers.dev. See [the deployment receipt](private-github-staging-2026-09-10.md).
+Historical planning baseline main: fb8379e0940732e9361aa76fdac08141f7f50f0d. Baseline runtime: e48a1e7ef9ed6388f8c5934aae5426fe40a0ed6c. Origin: https://poststeward-staging.woeinvests.workers.dev. See [the deployment receipt](private-github-staging-2026-09-10.md).
 
 The owner explicitly approved Google owner sign-in in the current cloud-browser session and selected the connected Stripe account in test mode. Those approvals remain valid and must not be requested again.
 
-Google sign-in opened through PostSteward; Google displayed the existing configured OAuth application's branding. After the secure sign-in handoff, the browser URL policy blocked the PostSteward /auth/callback page. The owner's screenshot independently showed Chromium ERR_BLOCKED_BY_CLIENT on that callback. A separate read-only visit to PostSteward /app still reported unauthenticated access. The remaining authentication blocker is the cloud-browser callback policy, not missing owner approval. Do not replay callback parameters, rewrite the callback route to evade the policy, or fabricate an owner session.
+The cloud browser's URL policy blocked the PostSteward callback despite the existing owner approval. Subsequent normal-browser attempts exposed an application client-authentication failure and then owner-admission rejection; those were addressed through the Google POST client-authentication correction and the saved staging owner allowlist. After PR #28 deployed, two owner-supplied screenshots showed completed sign-ins at 01:18:53.128 and 01:19:20.873 UTC on 11 September 2026, with different proofs for the same workspace. The owner-sign-in prerequisite is satisfied on that live UI evidence. See [the full diagnosis and outcome](owner-signin-diagnosis-2026-09-11.md).
+
+The agent's cloud-browser session remains unauthenticated. Do not conflate that session with the owner's normal browser, replay callback parameters, rewrite the callback to evade policy, or fabricate/transfer an owner session. Reauthentication is needed only when an actual owner operation requires fresh proof.
 
 Stripe account targeting now works. The test catalogue was empty. A dedicated PostSteward staging product and active USD 5 monthly Price were created and independently retrieved with livemode=false. No customer, Checkout Session, subscription or payment was created. The webhook inventory was empty. Creating the endpoint remains pending a secure destination for its one-time signing secret and the restricted test API key. The available Stripe API discovery exposes no key-creation operation; the GitHub integration excludes environment-secret administration. No credentials from unrelated products are authorised substitutes.
 
@@ -16,7 +18,7 @@ Stripe account targeting now works. The test catalogue was empty. A dedicated Po
 
 | Workstream | Implementation and configuration | Live sequence | Required acceptance evidence |
 | --- | --- | --- | --- |
-| Owner + provider publication | Existing verified Google callback, provider OAuth, /pilot review, exact approval, cancellation window and durable readback. Configure one provider's own staging application. | Resolve the cloud-browser callback policy using the existing sign-in approval; verify invited owner; complete provider OAuth; prepare one account/text review; approve that exact review; inspect reservation and independent readback. | Owner callback proof, stable provider identity, approved digest/release, one delivery/provider ID, separate GET matching ID/author/text. |
+| Owner + provider publication | Existing verified Google callback, provider OAuth, /pilot review, exact approval, cancellation window and durable readback. Configure one provider's own staging application. | Continue from the verified normal-browser owner session; choose the intended provider/account; configure and complete provider OAuth; prepare one account/text review; approve that exact review; inspect reservation and independent readback. Agent browser execution requires its own supported authenticated session. | Owner callback proof, stable provider identity, approved digest/release, one delivery/provider ID, separate GET matching ID/author/text. |
 | Private GitHub source | Existing dedicated GitHub App installation, selected-only Contents read, encrypted refresh leases. New free owner-only source probe. | Configure staging App triple; owner selects one private repository; run probe on a harmless path; revoke selection; probe again; reconnect only if wanted. | Selected repository identity, private commit SHA/time/release, next check denied after revocation, no anonymous fallback or credential output. |
 | Recovery | Existing owner prepare/execute/reconcile/resume/undo with D1 quarantine and effect fences. No fake local PITR implementation. | Inspect workspace first; perform rehearsal before provider/payment grants where possible; choose an explicit target; review returned plan/digest; authorise execute; reconcile after restart; verify invalidated authority and preserved fences; resume explicitly. | Actual Cloudflare restore/restart plus reconciled plan, quarantine transitions, canary restored, accounts/profiles/billing invalidated, no duplicate effect. Undo is a separate exact-plan action. |
 | Native WebMCP | Current Document API registration, cleanup on partial failure and a read-only native round-trip button. Workspace remains usable after registration failure. | Sign in using a supported native browser; run Check native WebMCP; then invoke workspace_status through that browser's agent tool interface; verify logout makes captured authority unusable. | Browser/version and release, registration and API round-trip observation, separate browser-agent tool invocation/result. A fixture or HTTP fallback never closes this gate. |
@@ -60,7 +62,7 @@ The [current WebMCP draft](https://webmachinelearning.github.io/webmcp/) places 
 
 ## Stop and recovery conditions
 
-- Authentication denial: distinguish missing owner approval from browser URL-policy rejection. The owner approval is already recorded; resolving the callback policy is the current requirement. Do not bypass the denied action.
+- Authentication denial: Google owner sign-in is now observed in the normal browser. The cloud-browser callback policy remains separate, and existing owner approval remains valid. Do not bypass a denied action or confuse fresh sign-in with exact publication approval.
 - Public-write uncertainty: keep the one captured delivery and use readback only.
 - GitHub refresh uncertainty or revoked access: reconnect deliberately; no reuse of a possibly consumed refresh credential.
 - Restore uncertainty: keep quarantine; reconcile the existing plan.
@@ -72,3 +74,8 @@ After the code is merged and staged, append the exact head, CI, deployment run, 
 ## Deployed evidence
 
 [The 10 September acceptance-path receipt](live-acceptance-staging-2026-09-10.md) records PR #22 and the deployed PR #24 follow-up at `2dc0bfee59a441bbcedd95a59d6877a89c4845f0`: 188 passing tests, 58 hosted assertions, existing owner/account approvals, the callback URL-policy block, successful test Product/Price creation and the five still-open live gates. The Stripe test account also has no Portal configuration; configure cancellation before claiming the Portal journey.
+
+
+## Owner-sign-in checkpoint — 11 September 2026
+
+[PR #28](https://github.com/AyobamiH/poststeward/pull/28) deployed revision `133b39fe09cff63192ee44b9b43b96113be6d6f6` with 193 passing tests and all 58 hosted checks passing. The subsequent owner screenshots show two successful sign-ins to the same workspace. This closes the Google sign-in prerequisite only. Provider publication still requires a chosen account, configured provider application, grant, exact review and independent readback; the other four journeys remain open. The source of the sign-in evidence is the owner's normal-browser UI, not an agent-authenticated API read.
