@@ -88,7 +88,9 @@ test("Workers OIDC accepts a signed invited identity and rejects replay, forged 
     );
     assert.equal((await finish()).status, 400);
     forged = true;
-    assert.equal((await (await begin())()).status, 500);
+    const forgedResponse = await (await begin())();
+    assert.equal(forgedResponse.status, 400);
+    assert.equal((await forgedResponse.json() as any).error.code, "LOGIN_IDENTITY_INVALID");
     forged = false;
     verified = false;
     assert.equal((await (await begin())()).status, 403);

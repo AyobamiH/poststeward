@@ -1,6 +1,7 @@
 import * as oauth from "oauth4webapi";
 import { digest, Fault, json, requireValue, uid } from "./common.ts";
 import { activeOwnerSession, ownerProofStatement } from "./owner-proof.ts";
+import { loginFailure, type LoginStage } from "./login-failure.ts";
 import type { Actor, Env, Scope } from "./types.ts";
 export const scopes: Scope[] = [
   "read",
@@ -192,89 +193,101 @@ export async function login(request: Request, env: Env): Promise<Response> {
   });
 }
 export async function callback(request: Request, env: Env): Promise<Response> {
-  const url = new URL(request.url),
-    state = url.searchParams.get("state");
-  requireValue(
-    state && cookie(request, "__Host-login") === state,
-    "LOGIN_STATE_INVALID",
-    "Sign-in state is invalid or belongs to another browser.",
-    400,
-  );
-  const stateHash = await digest(state);
-  const destination = await env.IDENTITY.prepare("SELECT return_path FROM login_return_paths WHERE state_hash=?")
-    .bind(stateHash).first<{ return_path: string }>();
-  // The consuming DELETE is the one-use gate. Concurrent callbacks may read
-  // the fixed return path, but only the winner may exchange the authorization code.
-  const record = await env.IDENTITY.prepare(
-    "DELETE FROM login_states WHERE state_hash=? AND expires_at>? RETURNING *",
-  )
-    .bind(stateHash, Date.now())
-    .first<any>();
-  requireValue(record, "LOGIN_STATE_EXPIRED", "Restart sign-in.", 400);
-  const { as, client } = await oidc(env),
-    params = oauth.validateAuthResponse(as, client, url, state);
-  const response = await oauth.authorizationCodeGrantRequest(
-    as,
-    client,
-    oauth.ClientSecretBasic(env.OIDC_CLIENT_SECRET),
-    params,
-    env.PUBLIC_ORIGIN + "/auth/callback",
-    record.verifier,
-    { signal: AbortSignal.timeout(10000) },
-  );
-  const result = await oauth.processAuthorizationCodeResponse(
-    as,
-    client,
-    response,
-    { expectedNonce: record.nonce, requireIdToken: true },
-  );
-  await oauth.validateApplicationLevelSignature(as, response, {
-    signal: AbortSignal.timeout(10000),
-  });
-  const claims = oauth.getValidatedIdTokenClaims(result);
-  requireValue(
-    claims?.sub,
-    "LOGIN_IDENTITY_MISSING",
-    "Identity provider returned no subject.",
-    400,
-  );
-  allowOwner(claims, env);
-  const subject = await digest({ issuer: as.issuer, subject: claims.sub });
-  await env.IDENTITY.prepare(
-    "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
-  )
-    .bind(subject, uid(), Date.now())
-    .run();
-  const principal = await env.IDENTITY.prepare(
-    "SELECT workspace FROM principals WHERE subject=?",
-  )
-    .bind(subject)
-    .first<{ workspace: string }>();
-  requireValue(
-    principal,
-    "WORKSPACE_CREATION_FAILED",
-    "Unable to create workspace.",
-    500,
-  );
-  const session = token(), csrf = token(), at = Date.now();
-  const sessionHash = await digest(session);
-  const statements = [
-    env.IDENTITY.prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
-      .bind(sessionHash, principal.workspace, subject, at + 86400000, csrf),
-    await ownerProofStatement(env, sessionHash, as.issuer, claims, at),
-  ];
-  const previousSession = cookie(request, "__Host-session");
-  if (previousSession)
-    statements.push(env.IDENTITY.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(previousSession)));
-  // No usable new session is returned unless its completion proof also commits.
-  await env.IDENTITY.batch(statements);
-  const headers = new Headers({
-    Location: destination?.return_path === "/pilot" ? "/pilot" : "/app",
-    "Cache-Control": "no-store",
-  });
-  headers.append("Set-Cookie", sessionCookie(session, 86400));
-  headers.append("Set-Cookie", stateCookie("", 0));
-  return new Response(null, { status: 302, headers });
+  let stage: LoginStage = "state";
+  try {
+    const url = new URL(request.url),
+      state = url.searchParams.get("state");
+    requireValue(
+      state && cookie(request, "__Host-login") === state,
+      "LOGIN_STATE_INVALID",
+      "Sign-in state is invalid or belongs to another browser.",
+      400,
+    );
+    const stateHash = await digest(state);
+    const destination = await env.IDENTITY.prepare("SELECT return_path FROM login_return_paths WHERE state_hash=?")
+      .bind(stateHash).first<{ return_path: string }>();
+    // The consuming DELETE is the one-use gate. Concurrent callbacks may read
+    // the fixed return path, but only the winner may exchange the authorization code.
+    const record = await env.IDENTITY.prepare(
+      "DELETE FROM login_states WHERE state_hash=? AND expires_at>? RETURNING *",
+    )
+      .bind(stateHash, Date.now())
+      .first<any>();
+    requireValue(record, "LOGIN_STATE_EXPIRED", "Restart sign-in.", 400);
+    stage = "discovery";
+    const { as, client } = await oidc(env);
+    stage = "authorization";
+    const params = oauth.validateAuthResponse(as, client, url, state);
+    stage = "token_exchange";
+    const response = await oauth.authorizationCodeGrantRequest(
+      as,
+      client,
+      oauth.ClientSecretBasic(env.OIDC_CLIENT_SECRET),
+      params,
+      env.PUBLIC_ORIGIN + "/auth/callback",
+      record.verifier,
+      { signal: AbortSignal.timeout(10000) },
+    );
+    stage = "token_validation";
+    const result = await oauth.processAuthorizationCodeResponse(
+      as,
+      client,
+      response,
+      { expectedNonce: record.nonce, requireIdToken: true },
+    );
+    stage = "signature";
+    await oauth.validateApplicationLevelSignature(as, response, {
+      signal: AbortSignal.timeout(10000),
+    });
+    const claims = oauth.getValidatedIdTokenClaims(result);
+    requireValue(
+      claims?.sub,
+      "LOGIN_IDENTITY_MISSING",
+      "Identity provider returned no subject.",
+      400,
+    );
+    allowOwner(claims, env);
+    stage = "principal";
+    const subject = await digest({ issuer: as.issuer, subject: claims.sub });
+    await env.IDENTITY.prepare(
+      "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
+    )
+      .bind(subject, uid(), Date.now())
+      .run();
+    const principal = await env.IDENTITY.prepare(
+      "SELECT workspace FROM principals WHERE subject=?",
+    )
+      .bind(subject)
+      .first<{ workspace: string }>();
+    requireValue(
+      principal,
+      "WORKSPACE_CREATION_FAILED",
+      "Unable to create workspace.",
+      500,
+    );
+    stage = "session";
+    const session = token(), csrf = token(), at = Date.now();
+    const sessionHash = await digest(session);
+    const statements = [
+      env.IDENTITY.prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
+        .bind(sessionHash, principal.workspace, subject, at + 86400000, csrf),
+      await ownerProofStatement(env, sessionHash, as.issuer, claims, at),
+    ];
+    const previousSession = cookie(request, "__Host-session");
+    if (previousSession)
+      statements.push(env.IDENTITY.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(previousSession)));
+    // No usable new session is returned unless its completion proof also commits.
+    await env.IDENTITY.batch(statements);
+    const headers = new Headers({
+      Location: destination?.return_path === "/pilot" ? "/pilot" : "/app",
+      "Cache-Control": "no-store",
+    });
+    headers.append("Set-Cookie", sessionCookie(session, 86400));
+    headers.append("Set-Cookie", stateCookie("", 0));
+    return new Response(null, { status: 302, headers });
+  } catch (error) {
+    throw loginFailure(error, stage, env.RELEASE_SHA);
+  }
 }
 export async function grants(
   request: Request,
