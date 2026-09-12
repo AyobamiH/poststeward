@@ -395,7 +395,7 @@ export class Billing implements BillingPort {
         : session.subscription.id,
       {
         expand: [
-          "latest_invoice.payments.data.payment.payment_intent.latest_charge",
+          "latest_invoice.payments",
         ],
       },
     );
@@ -417,9 +417,21 @@ export class Billing implements BillingPort {
         i.quantity === 1,
     );
     const invoice = sub.latest_invoice;
-    const paymentIntents = (invoice?.payments?.data || [])
-      .map((p: any) => p.payment?.payment_intent)
-      .filter((p: any) => p && typeof p === "object");
+    const payments = invoice?.payments;
+    requireValue(payments && payments.has_more === false && payments.data.length > 0,
+      "BILLING_RECONCILIATION_PENDING", "Invoice payment evidence is incomplete.", 503);
+    const paymentIntents: any[] = [];
+    for (const payment of payments.data) {
+      const reference = payment.payment?.payment_intent;
+      const id = typeof reference === "string" ? reference : reference?.id;
+      requireValue(id, "BILLING_RECONCILIATION_PENDING", "Invoice payment requires verification.", 503);
+      const intent = await this.stripe.paymentIntents.retrieve(id, { expand: ["latest_charge"] });
+      requireValue(intent.id === id && intent.livemode === session.livemode &&
+        intent.status === "succeeded" && intent.currency === "usd" &&
+        intent.latest_charge && typeof intent.latest_charge === "object",
+        "BILLING_RECONCILIATION_PENDING", "Payment and charge evidence is incomplete.", 503);
+      paymentIntents.push(intent);
+    }
     const invalid = paymentIntents.some(
       (p: any) =>
         p.latest_charge?.refunded ||
