@@ -8,8 +8,8 @@ Current facts:
 
 - Owner Google sign-in has been accepted live in the owner's normal browser from the earlier owner journey; the latest deployment deliberately did not manufacture another owner session.
 - Threads app credentials are configured in staging; Meta redirect-allowlist saving is blocked by a dashboard POST returning 404.
-- A real Threads owner grant has not yet been accepted.
-- No owner-approved real Threads publication/readback receipt has been recorded.
+- A manually imported authorised Threads token has verified the owner identity; PostSteward OAuth callback/code exchange remains open.
+- The owner receipt records a completed, verified Threads publication and two exact readback observations. Do not repeat those phases.
 - X and LinkedIn provider applications remain unconfigured.
 - Private GitHub engineering is deployed; staging App configuration and real grant/read/revoke are open.
 - Stripe engineering is deployed; protected sandbox configuration and payment lifecycle acceptance are open.
@@ -45,7 +45,7 @@ From the owner's normal browser:
 
 Acceptance requires the code exchange to complete and the verified stable Threads identity/capabilities to be stored. A provider success screen without PostSteward's stored identity is not acceptance. Never copy the provider token into chat, source, logs or an evidence document.
 
-### 3. Exact controlled publication
+### 3. Exact controlled publication — completed; historical procedure
 
 1. In `/pilot`, select the verified Threads destination.
 2. Enter the exact text intended for the one acceptance post.
@@ -55,7 +55,7 @@ Acceptance requires the code exchange to complete and the verified stable Thread
 
 The existing owner-pilot path supplies a 30-second cancellation boundary before the claimed external effect. If the request disconnects or the provider response becomes uncertain, inspect the existing delivery. Do not create a fresh campaign/review/key to bypass uncertainty.
 
-### 4. Independent readback
+### 4. Independent readback — completed; historical procedure
 
 The controlled path must perform a separate provider GET after the creation result. Acceptance requires the same provider post ID, stable owner ID and exact text. `published_verified` is the successful terminal state. `published_unverified` and `ambiguous_effect` are not substitutes.
 

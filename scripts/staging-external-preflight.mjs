@@ -89,6 +89,8 @@ export async function ensureStripePortalConfiguration({ secret, origin, send = f
     {},
     send,
   );
+  demand(list.has_more !== true,
+    "Stripe portal inventory is incomplete; refuse mutation until all configurations are reviewed.");
   const owned = (list.data || []).filter(
     (config) =>
       config?.metadata?.application === portalApplication &&

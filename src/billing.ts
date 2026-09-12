@@ -68,6 +68,12 @@ export class Billing implements BillingPort {
       active: true,
       limit: 100,
     });
+    requireValue(
+      configurations.has_more !== true,
+      "PORTAL_CONFIGURATION_INVALID",
+      "Stripe portal inventory is incomplete; refuse selection until all configurations are reviewed.",
+      503,
+    );
     const matches = configurations.data.filter(
       (configuration: any) =>
         configuration?.livemode === false &&

@@ -11,7 +11,7 @@ The prior PR #30 revision `e8a95086548a23541e89e2f33d56c0abd274d9cc` remains his
 Current hosted truth:
 
 - Owner Google sign-in: **live accepted** from the earlier owner journey. The latest deployment deliberately did not manufacture or repeat owner consent.
-- Threads provider application: **configured**. Fresh owner Threads consent, the first controlled real publication and independent provider readback are still open.
+- Threads provider application: **configured**. PostSteward OAuth consent/callback remains open. The manual-token publication and independent readback are accepted from the owner receipt.
 - X and LinkedIn applications: **not configured** and outside the Threads-first P0 path.
 - Scoped agent grants + HTTP/remote MCP: **live accepted for Inspect-only scope from owner-supplied transcript**. Both transports accepted the same workspace/release, then denied the same token after owner revocation. See [P0 evidence and limits](p0-live-evidence-2026-09-12.md); delegated publishing remains unproven.
 - Private GitHub sources: **engineered and deployed**. Staging App configuration and real grant/read/revoke acceptance are still open.
@@ -79,15 +79,11 @@ A success redirect, configured flag, screenshot, fixture or HTTP 2xx alone does 
 
 ## Immediate P0 sequence
 
-1. Keep X and LinkedIn out of the path.
-2. Complete fresh owner Threads consent and verify the stable account identity.
-3. Review exact destination + exact text in `/pilot` and approve one controlled publication.
-4. Preserve exactly one provider creation ID. On uncertainty, inspect existing evidence; never create a fresh publication attempt to guess.
-5. Require the separate Threads readback to match creation ID, stable owner ID and exact text.
-6. Preserve the completed Inspect-only HTTP/remote MCP grant/revoke evidence; do not rerun it merely to close this checklist.
-7. Close native browser WebMCP separately in a supporting authenticated browser.
+1. Preserve the completed manual-token publication/readback and Inspect-only revoke proof.
+2. Finish PostSteward OAuth callback/code exchange when Meta allows the exact callback to persist.
+3. Execute remaining external gates only with the required protected configuration and disposable targets.
 
-The repository-side harness for steps 1 and 6 is `scripts/hosted-acceptance.mjs`. It is non-publishing and redacts the raw workspace identifier in emitted evidence. `scripts/staging-assets-check.mjs` separately verifies the deployed Advanced inventory HTML/JS markers and security headers.
+See [P0 evidence](p0-live-evidence-2026-09-12.md). The offline receipt checker performs no network operation.
 
 ## Next safety/production milestones
 
