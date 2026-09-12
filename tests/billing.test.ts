@@ -318,13 +318,26 @@ test("subscription settlement reconciles once and later refund or dispute revoke
     });
     const charge = { refunded: false, amount_refunded: 0, disputed: false };
     const until = Math.floor(Date.now() / 1000) + 86400;
-    h.client.subscriptions = { retrieve: async () => ({
+    h.client.subscriptions = { retrieve: async (_id: string, params: any) => {
+      assert.deepEqual(params.expand, ["latest_invoice.payments"]);
+      return ({
       id: "sub_test", status: "active", customer: "cus_test", metadata: { workspace: owner.workspace },
       items: { data: [{ quantity: 1, current_period_end: until,
         price: { id: "price_test", unit_amount: 500, currency: "usd" } }] },
       latest_invoice: { status: "paid", currency: "usd", amount_paid: 500,
-        payments: { data: [{ payment: { payment_intent: { latest_charge: charge } } }] } },
-    }) };
+        payments: { has_more: false, data: [{ payment: { payment_intent: "pi_test" } }] } },
+    }); } };
+    h.client.paymentIntents.retrieve = async (id: string, params: any) => {
+      assert.equal(id, "pi_test");
+      assert.deepEqual(params.expand, ["latest_charge"]);
+      return { id, livemode: false, status: "succeeded", currency: "usd", latest_charge: charge };
+    };
+    const retrievePayment = h.client.paymentIntents.retrieve;
+    h.client.paymentIntents.retrieve = async () => { throw new Error("Provider unavailable"); };
+    await assert.rejects(h.billing.reconcile(), /Provider unavailable/);
+    assert.equal(h.store.get("entitlement"), undefined);
+    assert.equal(h.store.get<any>("billing:attempt").status, "pending");
+    h.client.paymentIntents.retrieve = retrievePayment;
     await h.billing.reconcile();
     await h.billing.reconcile();
     assert.equal(h.store.get<Entitlement>("entitlement")?.until, until * 1000);
