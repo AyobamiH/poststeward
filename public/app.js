@@ -238,16 +238,54 @@ async function refresh() {
         ),
       );
   });
-  $("billing-status").textContent = billing.sandbox
-    ? "Stripe sandbox only. Use test payment details. Test entitlement does not enable Advanced automation."
-    : billing.entitlement
-    ? "Confirmed access until " +
-      new Date(billing.entitlement.until).toLocaleString()
-    : billing.methods.checkout.available
-      ? "Subscription checkout is available."
-      : "Purchases remain disabled pending settlement acceptance.";
-  $("subscribe").disabled = !billing.methods.checkout.available;
-  $("portal").disabled = !billing.methods.checkout.available;
+  const billingRoot = $("billing-status");
+  billingRoot.replaceChildren();
+  if (billing.sandbox) {
+    line(billingRoot, "Stripe sandbox only. Test payments do not enable Advanced automation.");
+  }
+  const entitlement = billing.entitlement;
+  const covered = !!entitlement && !entitlement.revoked && entitlement.until > Date.now();
+  const paymentState = billing.attempt?.status;
+  const summary = document.createElement("p");
+  summary.textContent = entitlement?.revoked
+    ? "Access revoked. Manage the existing subscription before purchasing again."
+    : covered
+      ? (billing.sandbox ? "Confirmed test access until " : "Confirmed access until ") +
+        new Date(entitlement.until).toLocaleString()
+      : paymentState === "pending"
+        ? "Payment pending verification. Do not start another purchase."
+        : paymentState === "failed"
+          ? "Payment was not completed. Inspect the existing payment before retrying."
+          : entitlement
+            ? "The confirmed access period has ended."
+            : paymentState === "paid"
+              ? "Payment recorded. No current access period is confirmed."
+              : billing.methods.checkout.available
+                ? "No payment recorded. Subscription checkout is available."
+                : "Purchases remain disabled pending settlement acceptance.";
+  billingRoot.append(summary);
+  if (billing.attempt || entitlement) {
+    const receipt = {
+      observedAt: new Date().toISOString(),
+      sandbox: billing.sandbox,
+      paymentStatus: paymentState || null,
+      quoteId: billing.attempt?.quote || null,
+      checkoutSessionId: billing.attempt?.session || null,
+      accessUntil: entitlement?.until || null,
+      revoked: !!entitlement?.revoked,
+      price: billing.price,
+      evidenceBoundary: "Last confirmed application state. Status reads may reconcile with Stripe; this is not proof of signed webhook delivery.",
+    };
+    const details = document.createElement("details");
+    const title = document.createElement("summary");
+    title.textContent = "Inspect billing receipt";
+    const pre = document.createElement("pre");
+    pre.textContent = JSON.stringify(receipt, null, 2);
+    details.append(title, pre);
+    billingRoot.append(details);
+  }
+  $("subscribe").disabled = !billing.methods.checkout.available || covered || paymentState === "pending";
+  $("portal").disabled = !billing.methods.checkout.available || !billing.attempt;
   $("profile-configure").disabled = status.plan !== "advanced";
   records("profiles", profiles.profiles, (r, p) => {
     line(r, p.id + " · " + (p.enabled ? "Running" : "Paused"), true);

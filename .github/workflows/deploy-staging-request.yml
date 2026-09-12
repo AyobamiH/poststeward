@@ -1,6 +1,6 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-12-accepted-pilot-proof
+# Deployment request: 2026-09-12-billing-receipt-view
 # Updating this file on main is an explicit staging deployment request.
 # Deploy PR #37: completed pilot evidence, offline receipt checker and incomplete Portal inventory guard.
 # Sandbox billing remains disabled unless the reviewed staging variables and protected secrets are deliberately configured.
