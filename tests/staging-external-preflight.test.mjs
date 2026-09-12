@@ -92,7 +92,7 @@ test("portal setup creates exactly one test configuration without logging key", 
 test("portal setup fails closed on ambiguous owned configurations", async () => {
   await assert.rejects(
     ensureStripePortalConfiguration({
-      secret: "sk_test_not_real",
+      secret: "rk_test_not_real",
       origin,
       send: async () => response({ data: [config(), config({ id: "bpc_second" })] }),
     }),
@@ -100,8 +100,26 @@ test("portal setup fails closed on ambiguous owned configurations", async () => 
   );
 });
 
-test("preflight reports secret presence only and never secret material", async () => {
-  const secret = "rk_test_supersecret";
+test("portal setup rejects a broad test secret key", async () => {
+  let called = false;
+  await assert.rejects(
+    ensureStripePortalConfiguration({
+      secret: "sk_test_broad_key",
+      origin,
+      send: async () => {
+        called = true;
+        return response({ data: [] });
+      },
+    }),
+    /restricted test key/,
+  );
+  assert.equal(called, false);
+});
+
+test("preflight separates setup authority from the runtime Stripe key and emits no secret", async () => {
+  const operatorKey = "rk_test_operatorsecret";
+  const runtimeKey = "rk_test_runtimesecret";
+  let authorization;
   const report = await stagingExternalPreflight(
     {
       POSTSTEWARD_ORIGIN: origin,
@@ -112,12 +130,40 @@ test("preflight reports secret presence only and never secret material", async (
       HAS_ENCRYPTION_KEY_NEXT: "false",
       STRIPE_SANDBOX_ENABLED: "false",
       STRIPE_SANDBOX_PRICE_ID: "price_test",
-      STRIPE_SANDBOX_SECRET_KEY: secret,
+      HAS_STRIPE_SANDBOX_SECRET_KEY: "true",
+      STRIPE_SANDBOX_OPERATOR_KEY: operatorKey,
+      STRIPE_SANDBOX_SECRET_KEY: runtimeKey,
       HAS_STRIPE_SANDBOX_WEBHOOK_SECRET: "false",
     },
-    async () => response({ data: [config()] }),
+    async (_url, init) => {
+      authorization = new Headers(init.headers).get("authorization");
+      return response({ data: [config()] });
+    },
   );
+  assert.equal(authorization, `Bearer ${operatorKey}`);
   assert.equal(report.githubPrivateSources.configured, true);
+  assert.equal(report.stripeSandbox.protectedRuntimeKeyPresent, true);
+  assert.equal(report.stripeSandbox.protectedOperatorKeyPresent, true);
   assert.equal(report.stripeSandbox.portal.state, "present");
-  assert.equal(JSON.stringify(report).includes(secret), false);
+  assert.equal(JSON.stringify(report).includes(operatorKey), false);
+  assert.equal(JSON.stringify(report).includes(runtimeKey), false);
+});
+
+test("missing operator key cannot consume a runtime key or mutate Stripe", async () => {
+  let called = false;
+  const report = await stagingExternalPreflight(
+    {
+      POSTSTEWARD_ORIGIN: origin,
+      HAS_STRIPE_SANDBOX_SECRET_KEY: "true",
+      STRIPE_SANDBOX_SECRET_KEY: "rk_test_runtime_should_not_be_used",
+    },
+    async () => {
+      called = true;
+      return response({ data: [] });
+    },
+  );
+  assert.equal(called, false);
+  assert.equal(report.stripeSandbox.protectedRuntimeKeyPresent, true);
+  assert.equal(report.stripeSandbox.protectedOperatorKeyPresent, false);
+  assert.equal(report.stripeSandbox.portal.state, "blocked_missing_protected_operator_key");
 });
