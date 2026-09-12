@@ -42,11 +42,6 @@ export interface Project {
 }
 export interface Campaign {
   id: string;
-  name: string;
-  accounts: string[];
-}
-export interface Campaign {
-  id: string;
   project: string;
   text: Record<string, string>;
   digest: string;
