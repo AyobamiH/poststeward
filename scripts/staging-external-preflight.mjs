@@ -57,8 +57,8 @@ export function portalConfigurationBody(origin) {
 }
 
 async function stripeJson(url, secret, init = {}, send = fetch) {
-  demand(/^(sk|rk)_test_[A-Za-z0-9_]+$/.test(secret || ""),
-    "Stripe staging operator key must be a test-mode secret or restricted key.");
+  demand(/^rk_test_[A-Za-z0-9_]+$/.test(secret || ""),
+    "Stripe staging operator key must be a restricted test key.");
   const response = await send(url, {
     ...init,
     headers: {
