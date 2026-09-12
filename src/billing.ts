@@ -62,6 +62,45 @@ export class Billing implements BillingPort {
     );
     return this.stripe!;
   }
+  private async sandboxPortalConfiguration(stripe: Stripe) {
+    if (!sandboxBillingEnabled(this.env)) return undefined;
+    const configurations = await stripe.billingPortal.configurations.list({
+      active: true,
+      limit: 100,
+    });
+    const matches = configurations.data.filter(
+      (configuration: any) =>
+        configuration?.livemode === false &&
+        configuration?.metadata?.application === "poststeward" &&
+        configuration?.metadata?.environment === "staging",
+    );
+    requireValue(
+      matches.length === 1,
+      "PORTAL_CONFIGURATION_INVALID",
+      "Stripe staging must have exactly one active PostSteward Billing Portal configuration.",
+      503,
+    );
+    const configuration: any = matches[0];
+    const allowedUpdates = new Set(
+      configuration.features?.customer_update?.allowed_updates || [],
+    );
+    requireValue(
+      configuration.default_return_url === this.env.PUBLIC_ORIGIN + "/app" &&
+        configuration.features?.customer_update?.enabled === true &&
+        allowedUpdates.has("email") &&
+        allowedUpdates.has("name") &&
+        configuration.features?.invoice_history?.enabled === true &&
+        configuration.features?.payment_method_update?.enabled === true &&
+        configuration.features?.subscription_cancel?.enabled === true &&
+        configuration.features?.subscription_cancel?.mode === "at_period_end" &&
+        configuration.features?.subscription_cancel?.proration_behavior === "none" &&
+        configuration.features?.subscription_update?.enabled === false,
+      "PORTAL_CONFIGURATION_INVALID",
+      "Stripe staging Billing Portal configuration does not match the reviewed PostSteward contract.",
+      503,
+    );
+    return configuration.id as string;
+  }
   private covered() {
     const e = this.store.get<Entitlement>("entitlement");
     return e && !e.revoked && e.until > Date.now();
@@ -267,8 +306,13 @@ export class Billing implements BillingPort {
       "There is no Stripe customer for this workspace.",
       409,
     );
+    const configuration = await this.sandboxPortalConfiguration(stripe);
     const session = await stripe.billingPortal.sessions.create(
-      { customer, return_url: this.env.PUBLIC_ORIGIN + "/app" },
+      {
+        customer,
+        return_url: this.env.PUBLIC_ORIGIN + "/app",
+        ...(configuration ? { configuration } : {}),
+      },
       {
         idempotencyKey: "portal:" + this.workspace + ":" + input.idempotencyKey,
       },
