@@ -58,7 +58,7 @@ export function portalConfigurationBody(origin) {
 
 async function stripeJson(url, secret, init = {}, send = fetch) {
   demand(/^(sk|rk)_test_[A-Za-z0-9_]+$/.test(secret || ""),
-    "Stripe staging key must be a test-mode secret or restricted key.");
+    "Stripe staging operator key must be a test-mode secret or restricted key.");
   const response = await send(url, {
     ...init,
     headers: {
@@ -78,7 +78,7 @@ async function stripeJson(url, secret, init = {}, send = fetch) {
 export async function ensureStripePortalConfiguration({ secret, origin, send = fetch }) {
   if (!secret)
     return {
-      state: "blocked_missing_protected_test_key",
+      state: "blocked_missing_protected_operator_key",
       created: false,
       active: false,
       livemode: false,
@@ -128,7 +128,7 @@ export async function ensureStripePortalConfiguration({ secret, origin, send = f
 export async function stagingExternalPreflight(env, send = fetch) {
   const origin = env.POSTSTEWARD_ORIGIN || "https://poststeward-staging.woeinvests.workers.dev";
   const portal = await ensureStripePortalConfiguration({
-    secret: env.STRIPE_SANDBOX_SECRET_KEY || "",
+    secret: env.STRIPE_SANDBOX_OPERATOR_KEY || "",
     origin,
     send,
   });
@@ -149,7 +149,8 @@ export async function stagingExternalPreflight(env, send = fetch) {
     stripeSandbox: {
       enabledVariable: env.STRIPE_SANDBOX_ENABLED === "true",
       priceVariablePresent: /^price_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_PRICE_ID || ""),
-      protectedTestKeyPresent: Boolean(env.STRIPE_SANDBOX_SECRET_KEY),
+      protectedRuntimeKeyPresent: env.HAS_STRIPE_SANDBOX_SECRET_KEY === "true",
+      protectedOperatorKeyPresent: Boolean(env.STRIPE_SANDBOX_OPERATOR_KEY),
       protectedWebhookSecretPresent: env.HAS_STRIPE_SANDBOX_WEBHOOK_SECRET === "true",
       portal,
     },
@@ -160,10 +161,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const report = await stagingExternalPreflight(process.env);
   const serialized = JSON.stringify(report);
   for (const secret of [
-    process.env.STRIPE_SANDBOX_SECRET_KEY,
+    process.env.STRIPE_SANDBOX_OPERATOR_KEY,
     process.env.ENCRYPTION_KEY,
     process.env.ENCRYPTION_KEY_NEXT,
     process.env.GITHUB_APP_CLIENT_SECRET,
+    process.env.STRIPE_SANDBOX_SECRET_KEY,
     process.env.STRIPE_SANDBOX_WEBHOOK_SECRET,
   ].filter(Boolean))
     demand(!serialized.includes(secret), "External-gate preflight attempted to emit protected material.");
