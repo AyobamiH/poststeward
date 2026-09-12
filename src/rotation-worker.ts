@@ -81,7 +81,7 @@ export class Workspace extends BaseWorkspace {
           "Root rotation internal request does not match the reviewed run.",
           403,
         );
-        const known = state.store.get<string>("workspace");
+        const known = state.store.get("workspace") as string | undefined;
         requireValue(
           !known || known === data.workspace,
           "WORKSPACE_MISMATCH",
@@ -140,7 +140,7 @@ export class Workspace extends BaseWorkspace {
 }
 
 export default {
-  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Env, _ctx: ExecutionContext) {
     if (rootRotationMaintenance(env)) {
       try {
         const report = await runRootRotation(env);
@@ -166,7 +166,7 @@ export default {
         throw error;
       }
     }
-    return baseEdge.scheduled(controller, env, ctx);
+    return baseEdge.scheduled(controller, env);
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
