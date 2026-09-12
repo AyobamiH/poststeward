@@ -1,9 +1,10 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-12-hosted-completion-closure
+# Deployment request: 2026-09-12-stripe-portal-hardening
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the merged hosted-completion tooling, owner Advanced inventory view and reconciled status contract.
-# Owner Threads consent/publication, private GitHub grants, PITR, Stripe settlement and root-secret replacement remain separate live acceptance gates.
+# Deploy the merged deterministic Stripe sandbox Portal selection and protected external-acceptance preflight hardening.
+# Sandbox billing remains disabled unless the reviewed staging variables and protected secrets are deliberately configured.
+# Owner/provider consent, private GitHub grants, PITR, workspace erasure, Stripe settlement and root-secret replacement remain separate live acceptance gates.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
 # invoke point-in-time restore, settle payment, rotate a protected root secret, or broaden owner authority.
 on:
