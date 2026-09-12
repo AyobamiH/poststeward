@@ -4,6 +4,7 @@ run-name: Deploy staging revision ${{ github.sha }}
 # Updating this file on main is an explicit staging deployment request.
 # Deploy the merged deterministic Stripe sandbox Portal selection and protected external-acceptance preflight hardening.
 # Sandbox billing remains disabled unless the reviewed staging variables and protected secrets are deliberately configured.
+# Root rotation remains off unless the staging environment explicitly sets paused rewrap/verify variables.
 # Owner/provider consent, private GitHub grants, PITR, workspace erasure, Stripe settlement and root-secret replacement remain separate live acceptance gates.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
 # invoke point-in-time restore, settle payment, rotate a protected root secret, or broaden owner authority.
@@ -25,6 +26,7 @@ jobs:
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
       OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
       ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
       GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}
