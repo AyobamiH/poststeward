@@ -6,6 +6,8 @@ This document reconciles the private hosted completion audit against the reposit
 
 ## Current hosted truth
 
+Update: [12 September P0 live evidence](p0-live-evidence-2026-09-12.md) records accepted Inspect-only HTTP/remote MCP grant/revoke proof and the Meta callback-save blocker. The opening PR #30 baseline above is historical.
+
 - Owner Google sign-in: **live accepted** in the owner browser.
 - Threads application: **configured in restricted staging**. A real owner Threads grant, one controlled publication and independent provider readback remain open.
 - X and LinkedIn applications: **not configured** and intentionally outside the Threads-first P0 path.
@@ -21,7 +23,7 @@ This document reconciles the private hosted completion audit against the reposit
 | P0-1 real Threads owner grant | External live-acceptance blocker | Complete fresh owner consent and store the stable provider identity. No token may appear in logs or source. |
 | P0-2 first controlled real publication | External live-acceptance blocker | Owner must approve one exact `/pilot` review. Exactly one provider creation ID is permitted; ambiguous write outcomes are inspected, never retried with a fresh key. |
 | P0-3 independent Threads readback | External live-acceptance blocker | Separate provider GET must match creation ID, stable owner ID and exact text. |
-| P0-4 scoped agent delegation | Repository-side acceptance tooling added; live run still required | `scripts/hosted-acceptance.mjs agent` proves HTTP + remote MCP on the same workspace/release without printing the raw workspace or token. `revoked` proves both transports deny the same token after owner revocation. |
+| P0-4 scoped agent delegation | Accepted for Inspect-only scope from owner-executed live transcript | Both HTTP and remote MCP accepted the same workspace/release at 13:25:57Z and denied the same token after owner revocation at 13:26:35Z. See [evidence and limits](p0-live-evidence-2026-09-12.md). Delegated publishing is not established. |
 | Private GitHub grant/read/revoke | External live-acceptance blocker | Existing selected-only/read-only authority remains the product boundary. Real staging App setup and owner grant are not fabricated by CI. |
 | Durable Object PITR | External destructive rehearsal | Existing recovery coordinator/effect fences remain authoritative. A real prepare -> execute -> reconcile -> resume run against an explicit non-production target is still required. |
 | Native browser WebMCP | External browser-capability acceptance | Existing native registration/round-trip remains. A supported browser-agent invocation and post-logout/revoke denial are still required. |
@@ -46,7 +48,7 @@ This document reconciles the private hosted completion audit against the reposit
 3. Review the exact destination and exact text in `/pilot`, then approve that single review.
 4. Preserve the one provider creation ID. If the response is lost or ambiguous, inspect existing evidence only. Do not create a fresh publication attempt.
 5. Require the separate provider readback to match ID, stable owner ID and exact text.
-6. Create a least-privilege agent grant. Run the HTTP + remote MCP acceptance. Revoke it from the owner UI and run the denial check.
+6. Preserve the completed Inspect-only grant/revoke proof. Do not repeat it merely to satisfy this older sequence.
 7. Close native WebMCP separately. X/LinkedIn remain unrelated to this P0 chain.
 
 ## Acceptance tooling
@@ -83,7 +85,6 @@ Cross-tenant hosted acceptance requires two deliberately created test workspaces
 The repository can define and verify boundaries, but these facts require the real external systems:
 
 - one actual Threads consent/publication/readback;
-- one actual least-privilege agent grant/revoke journey;
 - private GitHub App/grant/read/revoke if private sources are in release scope;
 - Cloudflare PITR and disposable-workspace erasure rehearsals;
 - root-secret replacement using an exact credential inventory and rollback plan;

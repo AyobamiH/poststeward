@@ -2,7 +2,7 @@
 
 Reliable social publishing for AI agents, hosted on Cloudflare. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
 
-**Status: restricted staging. Owner Google sign-in is live-accepted. Threads application configuration is deployed and ready; the real Threads owner grant, first controlled live publication and independent provider readback are the current P0 external evidence gates. X and LinkedIn applications remain unconfigured. Private GitHub authority, PITR coordination, native WebMCP integration and Stripe billing are engineered but still require their separate live acceptance journeys. Advanced, MPP and public signup remain disabled.**
+**Status: restricted staging. Owner Google sign-in is live-accepted. Inspect-only HTTP/remote MCP grant and revocation passed in an owner-executed live run. Threads app credentials are deployed, but saving the Meta redirect allowlist is blocked; the real Threads owner grant, first controlled live publication and independent provider readback are the current P0 external evidence gates. X and LinkedIn applications remain unconfigured. Private GitHub authority, PITR coordination, native WebMCP integration and Stripe billing are engineered but still require their separate live acceptance journeys. Advanced, MPP and public signup remain disabled.**
 
 Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststeward-staging.woeinvests.workers.dev). The [owner acceptance page](https://poststeward-staging.woeinvests.workers.dev/pilot) takes the owner through provider connection, exact-content review, one durable publication reservation and separate provider readback. Opening it does not publish anything.
 
@@ -77,7 +77,7 @@ See [deployment](docs/deployment.md), [private GitHub source authority](docs/pri
 
 1. Keep Threads as the only P0 provider. Complete fresh owner Threads consent and confirm the stable identity stored by PostSteward.
 2. In `/pilot`, approve one exact destination/text review. Preserve exactly one provider creation ID and require the separate Threads GET to match ID, stable owner and exact text.
-3. Issue a least-privilege agent grant; validate `workspace_status` over HTTP and remote MCP; revoke it and prove the same token is denied.
+3. Preserve the completed Inspect-only HTTP/remote MCP grant/revoke proof in [P0 live evidence](docs/p0-live-evidence-2026-09-12.md). Do not repeat it or treat it as delegated publishing acceptance.
 4. Close native browser WebMCP separately in a supporting authenticated browser.
 5. If private sources are part of release scope, configure the staging GitHub App and complete selected private grant/read/revoke acceptance.
 6. Rehearse PITR, disposable workspace erasure and root-key replacement against non-production state.
