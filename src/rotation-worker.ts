@@ -1,5 +1,5 @@
 import type { Env } from "./types.ts";
-import baseWorker, { Workspace as BaseWorkspace } from "./worker.ts";
+import baseEdge, { Workspace as BaseWorkspace } from "./edge.ts";
 import {
   rewrapWorkspaceCredentials,
   rootRotationMaintenance,
@@ -53,7 +53,7 @@ function publicRequestBlockedDuringRotation(path: string) {
 }
 
 /**
- * Preserve the existing Durable Object class identity while adding two
+ * Preserve the lifecycle-aware Durable Object class identity while adding two
  * internal-only root-rotation operations. No public Worker route maps to these
  * paths. The same wrapper also fences every normal workspace operation while
  * protected credentials are between roots.
@@ -166,7 +166,7 @@ export default {
         throw error;
       }
     }
-    return baseWorker.scheduled(controller, env, ctx);
+    return baseEdge.scheduled(controller, env, ctx);
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
@@ -176,6 +176,6 @@ export default {
       publicRequestBlockedDuringRotation(path)
     )
       return maintenanceResponse(env);
-    return baseWorker.fetch(request, env, ctx);
+    return baseEdge.fetch(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;
