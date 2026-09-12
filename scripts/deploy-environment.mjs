@@ -8,6 +8,7 @@ import {
   validateConfiguration,
   verifySandboxPrice,
 } from "./deployment-config.mjs";
+import { appendRootRotationSecrets } from "./root-rotation-deploy-config.mjs";
 
 const c = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 validateConfiguration(c);
@@ -22,7 +23,10 @@ demand(
     process.env.CLOUDFLARE_API_TOKEN,
   "Deployment account and token are required.",
 );
-const secrets = deploymentSecrets(process.env);
+const secrets = appendRootRotationSecrets(
+  deploymentSecrets(process.env),
+  process.env,
+);
 await verifySandboxPrice(process.env);
 const db = c.d1_databases[0];
 const response = await fetch(
