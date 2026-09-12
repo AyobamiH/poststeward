@@ -92,12 +92,28 @@ test("portal setup creates exactly one test configuration without logging key", 
 test("portal setup fails closed on ambiguous owned configurations", async () => {
   await assert.rejects(
     ensureStripePortalConfiguration({
-      secret: "sk_test_not_real",
+      secret: "rk_test_not_real",
       origin,
       send: async () => response({ data: [config(), config({ id: "bpc_second" })] }),
     }),
     /Multiple active PostSteward staging portal configurations/,
   );
+});
+
+test("portal setup rejects a broad test secret key", async () => {
+  let called = false;
+  await assert.rejects(
+    ensureStripePortalConfiguration({
+      secret: "sk_test_broad_key",
+      origin,
+      send: async () => {
+        called = true;
+        return response({ data: [] });
+      },
+    }),
+    /restricted test key/,
+  );
+  assert.equal(called, false);
 });
 
 test("preflight separates setup authority from the runtime Stripe key and emits no secret", async () => {
