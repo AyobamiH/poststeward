@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "poststeward",
-  "main": "src/edge.ts",
+  "main": "src/rotation-worker.ts",
   "compatibility_date": "2026-09-09",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
@@ -44,6 +44,8 @@
     "SIGNUP_MODE": "restricted",
     "WORKSPACE_REQUEST_LIMIT": "120",
     "ENCRYPTION_KEY_VERSION": "2",
+    "ROOT_ROTATION_MODE": "off",
+    "ROOT_ROTATION_ID": "",
     "GITHUB_APP_CLIENT_ID": "",
     "GITHUB_APP_SLUG": "",
     "X_OAUTH_CLIENT_ID": "",
