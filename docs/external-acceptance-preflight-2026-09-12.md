@@ -26,7 +26,9 @@ The run at `2026-09-12T06:38:39.280Z` observed:
 | Stripe sandbox Price variable | absent |
 | Stripe sandbox runtime key | absent |
 | Stripe sandbox webhook secret | absent |
-| Active PostSteward staging Portal configuration | not created by the run because no protected setup key was available |
+| Active PostSteward staging Portal configuration | not created because the only Stripe key checked by that run was absent |
+
+A separate Portal setup/operator key did not exist in the workflow contract at the time of this observation, so this receipt does not pretend that its secret-presence flag was inspected by run `34678656296`. The follow-up hardening introduces that distinct least-privilege key and a subsequent preflight can record its state directly.
 
 The Stripe account was also checked separately in test mode. The existing PostSteward USD 5 monthly Price remains active, while active Billing Portal configuration inventory was empty before the preflight work. No webhook was created because the available tooling cannot capture its one-time signing secret and place it into the protected staging environment in the same operation.
 
@@ -54,8 +56,8 @@ The application registers scoped tools through `document.modelContext` and expos
 
 ### Stripe lifecycle
 
-The Product/Price exists, but protected sandbox runtime/setup/webhook configuration is absent. No Checkout, customer, subscription or payment acceptance object was created by this pass. A webhook must not be created until its one-time signing secret can be stored directly in the staging secret store.
+The Product/Price exists, but the observed protected sandbox runtime/webhook configuration is absent, and a separate Portal setup key had not yet been introduced when that run executed. No Checkout, customer, subscription or payment acceptance object was created by this pass. A webhook must not be created until its one-time signing secret can be stored directly in the staging secret store.
 
 ## Follow-up hardening
 
-The follow-up Stripe change separates Portal setup authority from the Worker runtime payment key. `STRIPE_SANDBOX_OPERATOR_KEY` is workflow-only and is never deployed to the Worker. Sandbox Portal session creation explicitly selects the one metadata-bound reviewed PostSteward staging Portal configuration and fails closed if it is missing, duplicated, live-mode or weakened. This avoids depending on an account-wide default configuration and avoids giving the Worker Portal-configuration write authority.
+The follow-up Stripe change separates Portal setup authority from the Worker runtime payment key. `STRIPE_SANDBOX_OPERATOR_KEY` is workflow-only, must be a restricted `rk_test_` key, and is never deployed to the Worker. Sandbox Portal session creation explicitly selects the one metadata-bound reviewed PostSteward staging Portal configuration and fails closed if it is missing, duplicated, live-mode or weakened. This avoids depending on an account-wide default configuration and avoids giving the Worker Portal-configuration write authority.
