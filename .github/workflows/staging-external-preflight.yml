@@ -1,0 +1,41 @@
+name: Staging external acceptance preflight
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/staging-external-preflight.yml
+      - scripts/staging-external-preflight.mjs
+      - tests/staging-external-preflight.test.mjs
+      - src/billing.ts
+permissions:
+  contents: read
+concurrency:
+  group: staging-external-acceptance-preflight
+  cancel-in-progress: false
+jobs:
+  inspect-and-configure:
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: staging
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Inspect protected gate state and ensure dedicated Stripe test portal configuration
+        env:
+          POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN }}
+          GITHUB_APP_CLIENT_ID: ${{ vars.GITHUB_APP_CLIENT_ID }}
+          GITHUB_APP_SLUG: ${{ vars.GITHUB_APP_SLUG }}
+          HAS_GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET != '' }}
+          HAS_ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY != '' }}
+          HAS_ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT != '' }}
+          STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
+          STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
+          STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+          HAS_STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET != '' }}
+        run: node scripts/staging-external-preflight.mjs
