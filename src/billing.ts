@@ -112,6 +112,25 @@ export class Billing implements BillingPort {
     return e && !e.revoked && e.until > Date.now();
   }
   async status() {
+    // Capture persisted webhook completion before this status read can reconcile.
+    const webhookEvidence: {
+      available: boolean;
+      observedAt: number;
+      events: Array<{ id: string; receivedAt: number; completedAt: number | null }>;
+    } = { available: false, observedAt: Date.now(), events: [] };
+    try {
+      const rows = await this.env.IDENTITY.prepare(
+        "SELECT id, received_at, completed_at FROM stripe_events WHERE workspace=? ORDER BY received_at DESC, id DESC LIMIT 20",
+      ).bind(this.workspace).all<{ id: string; received_at: number; completed_at: number | null }>();
+      if (rows.success) {
+        webhookEvidence.available = true;
+        webhookEvidence.events = rows.results.map((row) => ({
+          id: row.id, receivedAt: row.received_at, completedAt: row.completed_at,
+        }));
+      }
+    } catch {
+      // A missing ledger is unavailable evidence, never evidence of zero events.
+    }
     if (this.stripe && this.store.get("billing:attempt")) {
       try {
         await this.reconcile();
@@ -121,6 +140,7 @@ export class Billing implements BillingPort {
     }
     return {
       sandbox: sandboxBillingEnabled(this.env),
+      webhookEvidence,
       entitlement: this.store.get<Entitlement>("entitlement") || null,
       attempt: this.store.get<Attempt>("billing:attempt") || null,
       price: { amount: 500, currency: "usd", interval: "month" },

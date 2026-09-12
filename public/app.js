@@ -274,7 +274,8 @@ async function refresh() {
       accessUntil: entitlement?.until || null,
       revoked: !!entitlement?.revoked,
       price: billing.price,
-      evidenceBoundary: "Last confirmed application state. Status reads may reconcile with Stripe; this is not proof of signed webhook delivery.",
+      webhookEvidence: billing.webhookEvidence || { available: false, events: [] },
+      evidenceBoundary: "Payment state may be reconciled by refresh. Webhook events are a separate persisted ledger captured before that reconciliation; only non-null completedAt records completed processing. Latest 20 events only; replay is not established by this receipt.",
     };
     const details = document.createElement("details");
     const title = document.createElement("summary");

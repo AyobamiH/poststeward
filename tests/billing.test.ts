@@ -384,3 +384,36 @@ test("pre-upgrade quotes keep their original Checkout parameters on retry", asyn
   assert.equal(Object.hasOwn(h.calls[0].p, "integration_identifier"), false);
   assert.equal(h.calls[0].o.idempotencyKey, "checkout:" + owner.workspace + ":" + q.id);
 });
+
+test("billing evidence reads only this workspace and precedes status reconciliation", async () => {
+  const h = setup();
+  const order: string[] = [];
+  h.env.IDENTITY = { prepare(sql: string) {
+    assert.match(sql, /WHERE workspace=\? ORDER BY received_at DESC, id DESC LIMIT 20/);
+    return { bind(workspace: string) {
+      assert.equal(workspace, owner.workspace);
+      return { async all() {
+        order.push("ledger");
+        return { success: true, results: [
+          { id: "evt_complete", received_at: 100, completed_at: 200, private: "omit" },
+          { id: "evt_pending", received_at: 300, completed_at: null },
+        ] };
+      } };
+    } };
+  } } as any;
+  h.store.put("billing:attempt", { status: "pending" });
+  h.billing.reconcile = async () => { order.push("reconcile"); };
+  const result = await h.billing.status();
+  assert.deepEqual(order, ["ledger", "reconcile"]);
+  assert.equal(result.webhookEvidence.available, true);
+  assert.deepEqual(result.webhookEvidence.events, [
+    { id: "evt_complete", receivedAt: 100, completedAt: 200 },
+    { id: "evt_pending", receivedAt: 300, completedAt: null },
+  ]);
+});
+test("unavailable webhook ledger is not reported as a successful empty inventory", async () => {
+  const h = setup();
+  const result = await h.billing.status();
+  assert.equal(result.webhookEvidence.available, false);
+  assert.deepEqual(result.webhookEvidence.events, []);
+});
