@@ -167,3 +167,16 @@ test("missing operator key cannot consume a runtime key or mutate Stripe", async
   assert.equal(report.stripeSandbox.protectedOperatorKeyPresent, false);
   assert.equal(report.stripeSandbox.portal.state, "blocked_missing_protected_operator_key");
 });
+
+test("portal setup refuses incomplete inventory without mutation", async () => {
+  let calls = 0;
+  await assert.rejects(ensureStripePortalConfiguration({
+    secret: "rk_test_not_real", origin,
+    send: async (_url, init) => {
+      calls++;
+      assert.notEqual(init.method, "POST");
+      return response({ data: [], has_more: true });
+    },
+  }), /inventory is incomplete/);
+  assert.equal(calls, 1);
+});

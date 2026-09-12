@@ -23,7 +23,7 @@ const portalConfig = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function sandboxHarness(configurations = [portalConfig()]) {
+function sandboxHarness(configurations = [portalConfig()], hasMore = false) {
   const store = new MemoryStore();
   store.put("billing:customer", "cus_staging");
   const env = {
@@ -43,7 +43,7 @@ function sandboxHarness(configurations = [portalConfig()]) {
       configurations: {
         list: async (params: any) => {
           calls.push({ kind: "list", params });
-          return { data: configurations };
+          return { data: configurations, has_more: hasMore };
         },
       },
       sessions: {
@@ -150,4 +150,11 @@ test("non-sandbox billing keeps the account-default portal behaviour", async () 
   await billing.portal({ idempotencyKey: "portal-test" }, owner);
   assert.equal(listed, 0);
   assert.equal(Object.hasOwn(sessionParams, "configuration"), false);
+});
+
+test("staging sandbox refuses incomplete inventory before opening a portal", async () => {
+  const h = sandboxHarness([portalConfig()], true);
+  await assert.rejects(h.billing.portal({ idempotencyKey: "incomplete" }, owner),
+    { code: "PORTAL_CONFIGURATION_INVALID" });
+  assert.equal(h.calls.some((call) => call.kind === "session"), false);
 });

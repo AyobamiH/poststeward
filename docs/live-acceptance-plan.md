@@ -2,14 +2,14 @@
 
 ## Current baseline
 
-Restricted staging remains the acceptance environment. The current deployed revision is main `558bb795786865a24e4bc77e4ec126973d43eb4a` at `https://poststeward-staging.woeinvests.workers.dev`, deployed by run `34657943245` after PR #31 implemented the repository-side completion work and PR #32 made the explicit staging deployment request. The deployment passed verification plus all 58 non-destructive hosted checks. See `docs/hosted-completion-deployment-2026-09-12.md` for the receipt.
+The latest owner-observed restricted-staging release is `ae4831ef368c5e3361f053e4ea28f4b2faa0a4f8`, also recorded by successful [deployment run 34679445845](https://github.com/AyobamiH/poststeward/actions/runs/34679445845). See [P0 live evidence](p0-live-evidence-2026-09-12.md) for the owner-executed token proof and the Meta callback-save blocker. The earlier PR #31/#32 deployment and its 58 hosted checks remain historical evidence in [the deployment receipt](hosted-completion-deployment-2026-09-12.md).
 
 Current facts:
 
 - Owner Google sign-in has been accepted live in the owner's normal browser from the earlier owner journey; the latest deployment deliberately did not manufacture another owner session.
-- Threads provider OAuth is configured in staging.
-- A real Threads owner grant has not yet been accepted.
-- No owner-approved real Threads publication/readback receipt has been recorded.
+- Threads app credentials are configured in staging; Meta redirect-allowlist saving is blocked by a dashboard POST returning 404.
+- A manually imported authorised Threads token has verified the owner identity; PostSteward OAuth callback/code exchange remains open.
+- The owner receipt records a completed, verified Threads publication and two exact readback observations. Do not repeat those phases.
 - X and LinkedIn provider applications remain unconfigured.
 - Private GitHub engineering is deployed; staging App configuration and real grant/read/revoke are open.
 - Stripe engineering is deployed; protected sandbox configuration and payment lifecycle acceptance are open.
@@ -45,7 +45,7 @@ From the owner's normal browser:
 
 Acceptance requires the code exchange to complete and the verified stable Threads identity/capabilities to be stored. A provider success screen without PostSteward's stored identity is not acceptance. Never copy the provider token into chat, source, logs or an evidence document.
 
-### 3. Exact controlled publication
+### 3. Exact controlled publication — completed; historical procedure
 
 1. In `/pilot`, select the verified Threads destination.
 2. Enter the exact text intended for the one acceptance post.
@@ -55,11 +55,13 @@ Acceptance requires the code exchange to complete and the verified stable Thread
 
 The existing owner-pilot path supplies a 30-second cancellation boundary before the claimed external effect. If the request disconnects or the provider response becomes uncertain, inspect the existing delivery. Do not create a fresh campaign/review/key to bypass uncertainty.
 
-### 4. Independent readback
+### 4. Independent readback — completed; historical procedure
 
 The controlled path must perform a separate provider GET after the creation result. Acceptance requires the same provider post ID, stable owner ID and exact text. `published_verified` is the successful terminal state. `published_unverified` and `ambiguous_effect` are not substitutes.
 
-## Phase 2: close agent delegation
+## Phase 2: agent delegation accepted
+
+**Completed for Inspect-only HTTP/remote MCP, based on the owner-supplied live transcript on 12 September 2026.** Preserve [the evidence record](p0-live-evidence-2026-09-12.md); do not issue another token to repeat this checklist. The procedure below is reference material for a deliberately requested future run. It does not establish delegated publishing.
 
 Create a least-privilege agent grant from the owner workspace. A `read`-only grant is sufficient for the first transport proof; add another scope only if a separately reviewed workflow requires it.
 
