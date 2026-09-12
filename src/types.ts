@@ -42,6 +42,11 @@ export interface Project {
 }
 export interface Campaign {
   id: string;
+  name: string;
+  accounts: string[];
+}
+export interface Campaign {
+  id: string;
   project: string;
   text: Record<string, string>;
   digest: string;
@@ -141,6 +146,9 @@ export interface Env {
   RELEASE_SHA: string;
   ENCRYPTION_KEY: string;
   ENCRYPTION_KEY_VERSION?: string;
+  ENCRYPTION_KEY_NEXT?: string;
+  ROOT_ROTATION_MODE?: string;
+  ROOT_ROTATION_ID?: string;
   OIDC_ISSUER: string;
   OIDC_CLIENT_ID: string;
   OIDC_CLIENT_SECRET: string;
