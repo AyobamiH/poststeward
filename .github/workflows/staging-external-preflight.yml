@@ -8,6 +8,7 @@ on:
       - scripts/staging-external-preflight.mjs
       - tests/staging-external-preflight.test.mjs
       - src/billing.ts
+      - tests/stripe-portal-selection.test.ts
 permissions:
   contents: read
 concurrency:
@@ -36,6 +37,7 @@ jobs:
           HAS_ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT != '' }}
           STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
           STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
-          STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+          HAS_STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY != '' }}
+          STRIPE_SANDBOX_OPERATOR_KEY: ${{ secrets.STRIPE_SANDBOX_OPERATOR_KEY }}
           HAS_STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET != '' }}
         run: node scripts/staging-external-preflight.mjs
