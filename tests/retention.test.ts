@@ -47,3 +47,17 @@ test("changed archive and fresh drafts cannot be pruned", async () => {
     confirmation: "PRUNE " + h.store.get("workspace") }, h.now()), /no longer matches/);
   assert.ok(h.store.get("campaign:" + c.id));
 });
+
+test("compacting even a small completed result reduces retained bytes", async () => {
+  const h = fixture();
+  const original = { hash: "a".repeat(64), status: "complete", result: {},
+    completedAt: h.now() - 31 * 86400000 };
+  h.store.put("operation:small", original);
+  const snapshot = await exportRetention(h.store, h.now());
+  await commitRetention(h.store, { ...snapshot,
+    confirmation: "PRUNE " + h.store.get("workspace") }, h.now());
+  const compacted: any = h.store.get("operation:small");
+  assert.equal(compacted.status, "archived");
+  assert.equal(compacted.hash, original.hash);
+  assert.ok(Buffer.byteLength(JSON.stringify(compacted)) < Buffer.byteLength(JSON.stringify(original)));
+});
