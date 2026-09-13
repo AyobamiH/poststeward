@@ -72,3 +72,10 @@ The receiver verifies the signature and event mode before charge lookup. A dispu
 9. Cancel all subscriptions created by the rehearsal, expire abandoned open Checkout Sessions where applicable, disable sandbox Checkout and redeploy unless another test has been authorised. Retain the dedicated Product/Price for a later rerun.
 
 Record actual observations and exact object IDs in an appropriate private acceptance record. Public receipts may state outcomes without account/customer/financial identifiers. Tests with Workers/D1 and mocked Stripe responses remain engineering evidence. MPP requires separate merchant/wallet eligibility and remains outside this Checkout run.
+
+
+## Billing after workspace recovery
+
+Restored entitlement and checkout state remain invalidated. Status can rebuild a subscription attempt from current Stripe Checkout and customer/subscription inventory, then run the ordinary invoice/payment/charge verification. Portal access uses the verified customer mapping. Inventory is bounded to 100 results; incomplete or conflicting inventory blocks a new purchase rather than selecting an arbitrary subscription. Multiple open subscriptions or overlapping open Checkout require reconciliation.
+
+This recovery path covers subscription Checkout. Deployments with machine payments enabled remain blocked pending separate machine-payment inventory evidence. No historical entitlement is trusted merely because it survived a restore. Live PITR remains a separate acceptance exercise on a disposable workspace.
