@@ -235,3 +235,27 @@ test("unavailable Stripe clearance retains billing mapping and pending deletion"
     assert.equal(row.state, "pending");
   } finally { await f.mf.dispose(); }
 });
+
+test("retention export is owner-only and pruning requires the exact exported workspace", async () => {
+  const f = await fixture();
+  try {
+    const initial = await f.mf.dispatchFetch("https://publish.example/api/operations/workspace_status",
+      { method: "POST", headers: f.headers, body: "{}" });
+    assert.equal(initial.status, 200);
+    const exported = await f.mf.dispatchFetch("https://publish.example/api/lifecycle/retention/export",
+      { method: "POST", headers: f.headers, body: "{}" });
+    assert.equal(exported.status, 200, await exported.clone().text());
+    const archive: any = await exported.json();
+    assert.equal(archive.workspace, f.workspace);
+    assert.equal(archive.records.length, 0);
+    const wrong = await f.mf.dispatchFetch("https://publish.example/api/lifecycle/retention/prune",
+      { method: "POST", headers: f.headers, body: JSON.stringify({
+        cutoff: archive.cutoff, digest: archive.digest, confirmation: "PRUNE wrong",
+      }) });
+    assert.equal(wrong.status, 409);
+    const anonymous = await f.mf.dispatchFetch("https://publish.example/api/lifecycle/retention/export",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    assert.equal(anonymous.status, 401);
+    assert.equal(await count(f.db, "external_effects", f.workspace), 1);
+  } finally { await f.mf.dispose(); }
+});

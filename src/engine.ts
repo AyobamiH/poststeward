@@ -466,6 +466,8 @@ export class Engine {
       return undefined;
     });
     if (prior) {
+      requireValue(prior.status !== "archived", "OPERATION_ARCHIVED",
+        "This completed operation was archived. Inspect the saved archive; it will not be executed again.", 409);
       if (prior.status === "failed")
         throw new Fault(prior.code, prior.message, prior.httpStatus);
       return prior.status === "complete"
@@ -478,7 +480,7 @@ export class Engine {
     }
     try {
       const result = await this.handlers[name](data, actor);
-      this.store.put(key, { hash, status: "complete", result });
+      this.store.put(key, { hash, status: "complete", result, completedAt: this.now() });
       return result;
     } catch (e) {
       if (e instanceof Fault)
