@@ -252,7 +252,9 @@ async function refresh() {
   const covered = !!entitlement && !entitlement.revoked && entitlement.until > Date.now();
   const paymentState = billing.attempt?.status;
   const summary = document.createElement("p");
-  summary.textContent = entitlement?.revoked
+  summary.textContent = billing.recoveryPending
+    ? "Billing recovery is pending. Refresh to reconcile existing Stripe records before another purchase."
+    : entitlement?.revoked
     ? "Access revoked. Manage the existing subscription before purchasing again."
     : covered
       ? (billing.sandbox ? "Confirmed test access until " : "Confirmed access until ") +
@@ -269,11 +271,12 @@ async function refresh() {
                 ? "No payment recorded. Subscription checkout is available."
                 : "Purchases remain disabled pending settlement acceptance.";
   billingRoot.append(summary);
-  if (billing.attempt || entitlement) {
+  if (billing.attempt || entitlement || billing.recoveryPending) {
     const receipt = {
       observedAt: new Date().toISOString(),
       sandbox: billing.sandbox,
       paymentStatus: paymentState || null,
+      recoveryPending: !!billing.recoveryPending,
       quoteId: billing.attempt?.quote || null,
       checkoutSessionId: billing.attempt?.session || null,
       accessUntil: entitlement?.until || null,
@@ -291,7 +294,7 @@ async function refresh() {
     billingRoot.append(details);
   }
   $("subscribe").disabled = !billing.methods.checkout.available || covered || paymentState === "pending";
-  $("portal").disabled = !billing.methods.checkout.available || !billing.attempt;
+  $("portal").disabled = !billing.portalAvailable;
   $("profile-configure").disabled = status.plan !== "advanced";
   records("profiles", profiles.profiles, (r, p) => {
     line(r, p.id + " · " + (p.enabled ? "Running" : "Paused"), true);
