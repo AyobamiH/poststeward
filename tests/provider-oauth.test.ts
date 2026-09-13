@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { unseal } from "../src/crypto.ts";
-import { ProviderOAuthConnections } from "../src/provider-oauth.ts";
+import { ProviderOAuthConnections, oauthConfiguration } from "../src/provider-oauth.ts";
 import { harness, owner } from "./helpers.ts";
 import type { Account } from "../src/types.ts";
 import type { Credential } from "../src/providers.ts";
@@ -351,3 +351,21 @@ test("manual identity verification cannot overwrite an intervening disconnect", 
   await rejection;
   assert.deepEqual(h.store.get("account:social"), disconnected);
 });
+
+for (const insights of [false, true]) {
+  test("Threads publishing connects with optional insights scope: " + insights, async () => {
+    const h = configuredHarness();
+    assert.ok(oauthConfiguration(h.env).threads.scopes.includes("threads_manage_insights"));
+    const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+    const result: any = await oauth.connect(owner, {
+      alias: "threads",
+      token: {
+        provider: "threads", accessToken: "threads-access-private-001",
+        expiresAt: h.now() + 3600000, obtainedAt: h.now(),
+        scopes: ["threads_basic", "threads_content_publish", ...(insights ? ["threads_manage_insights"] : [])],
+      },
+    });
+    assert.equal(result.account.active, true);
+    assert.equal(result.account.capabilities.metrics, insights ? true : undefined);
+  });
+}
