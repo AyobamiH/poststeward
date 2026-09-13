@@ -4,7 +4,7 @@ import { environment } from "./helpers.ts";
 
 /** Actual Workers/D1/SQLite runtime. Outbound identity/provider responses are test fixtures, never live evidence. */
 export async function runtime(outboundService?: (request: Request) => Promise<any>, bindings: Record<string, string> = {}, loginLimit = 10) {
-  const mf = new Miniflare(convertV4MiniflareOptions({
+  const options = {
     modules: true, scriptPath: "dist/edge.js", compatibilityDate: "2026-09-09", compatibilityFlags: ["nodejs_compat"],
     bindings: {
       ...Object.fromEntries(Object.entries(environment).filter(([, value]) => typeof value === "string")),
@@ -19,10 +19,14 @@ export async function runtime(outboundService?: (request: Request) => Promise<an
     durableObjects: { WORKSPACES: { className: "Workspace", useSQLite: true } },
     serviceBindings: { ASSETS: async () => new RuntimeResponse("asset") },
     outboundService: outboundService || (async () => { throw new Error("Unexpected network access"); }),
-  }));
+  } satisfies Parameters<typeof convertV4MiniflareOptions>[0];
+  const mf = new Miniflare(convertV4MiniflareOptions(options));
   const db = await mf.getD1Database("IDENTITY");
   for (const file of readdirSync("migrations").filter((name) => /^\d+.*\.sql$/.test(name)).sort())
     for (const statement of readFileSync("migrations/" + file, "utf8").split(";").map((part) => part.trim()).filter(Boolean))
       await db.prepare(statement).run();
-  return { mf, db };
+  return { mf, db, reconfigure: async (updated: Record<string, string>) => {
+    Object.assign(options.bindings!, updated);
+    await mf.setOptions(convertV4MiniflareOptions(options));
+  } };
 }

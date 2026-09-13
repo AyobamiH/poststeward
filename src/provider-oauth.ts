@@ -1,5 +1,5 @@
 import { digest, Fault, json, requireValue, uid } from "./common.ts";
-import { seal, unseal } from "./crypto.ts";
+import { credentialRoots, seal, unseal } from "./crypto.ts";
 import {
   readProviderBody,
   type Credential,
@@ -504,7 +504,7 @@ export class ProviderOAuthConnections {
   private async accountCredential(account: Account) {
     return unseal<Credential>(
       account.secret,
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       this.workspace() + ":" + account.alias,
     );
   }
@@ -512,7 +512,7 @@ export class ProviderOAuthConnections {
     return meta.secret
       ? unseal<{ refreshToken?: string }>(
           meta.secret,
-          this.env.ENCRYPTION_KEY,
+          credentialRoots(this.env),
           this.workspace() + ":oauth:" + meta.alias,
         )
       : {};
@@ -542,7 +542,7 @@ export class ProviderOAuthConnections {
         ? {
             secret: await seal(
               { refreshToken: token.refreshToken },
-              this.env.ENCRYPTION_KEY,
+              credentialRoots(this.env),
               this.workspace() + ":oauth:" + alias,
               this.env.ENCRYPTION_KEY_VERSION,
             ),
@@ -590,7 +590,7 @@ export class ProviderOAuthConnections {
           ? { funding: "service_app" as const }
           : {}),
       },
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       actor.workspace + ":" + input.alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );
@@ -741,7 +741,7 @@ export class ProviderOAuthConnections {
               ? { funding: "service_app" as const }
               : {}),
           },
-          this.env.ENCRYPTION_KEY,
+          credentialRoots(this.env),
           this.workspace() + ":" + account.alias,
           this.env.ENCRYPTION_KEY_VERSION,
         );
@@ -808,7 +808,7 @@ export class ProviderOAuthConnections {
     }
     account.secret = await seal(
       { accessToken: "disconnected", expiresAt: 0 },
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       this.workspace() + ":" + alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );

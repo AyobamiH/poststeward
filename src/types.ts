@@ -145,6 +145,10 @@ export interface Env {
   PUBLIC_ORIGIN: string;
   RELEASE_SHA: string;
   ENCRYPTION_KEY: string;
+  ENCRYPTION_KEY_NEXT?: string;
+  ENCRYPTION_ROOT_WRITE?: "legacy" | "next";
+  ROOT_ROTATION_TOKEN?: string;
+  ROOT_ROTATION_EXPIRES_AT?: string;
   ENCRYPTION_KEY_VERSION?: string;
   OIDC_ISSUER: string;
   OIDC_CLIENT_ID: string;

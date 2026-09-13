@@ -262,11 +262,12 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     allowOwner(claims, env);
     stage = "principal";
     const subject = await digest({ issuer: as.issuer, subject: claims.sub });
-    await env.IDENTITY.prepare(
+    await env.IDENTITY.batch([env.IDENTITY.prepare(
       "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
     )
-      .bind(subject, uid(), Date.now())
-      .run();
+      .bind(subject, uid(), Date.now()),
+      env.IDENTITY.prepare("INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM principals WHERE subject=?").bind(subject),
+    ]);
     const principal = await env.IDENTITY.prepare(
       "SELECT workspace FROM principals WHERE subject=?",
     )

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { digest, Fault, requireValue, uid } from "./common.ts";
-import { unseal } from "./crypto.ts";
+import { credentialRoots, unseal } from "./crypto.ts";
 import { Engine } from "./engine.ts";
 import { demandFreshOwner, type OwnerAuthority, type OwnerProof } from "./owner-proof.ts";
 import { validateText, type Credential, type ProviderAPI } from "./providers.ts";
@@ -62,7 +62,7 @@ export class Pilot {
       "ACCOUNT_DRIFT", "The reviewed account binding changed. Prepare a new review; nothing new was published.", 409);
   }
   private credential(account: Account) {
-    return unseal<Credential>(account.secret, this.env.ENCRYPTION_KEY, this.store.get<string>("workspace") + ":" + account.alias);
+    return unseal<Credential>(account.secret, credentialRoots(this.env), this.store.get<string>("workspace") + ":" + account.alias);
   }
   status() {
     const record = this.store.get<PilotRecord>(slot);

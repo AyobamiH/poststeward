@@ -2,6 +2,8 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { assertRetainedRoots, runRootCutover } from "./root-cutover.mjs";
 import {
   demand,
   deploymentSecrets,
@@ -23,6 +25,28 @@ demand(
   "Deployment account and token are required.",
 );
 const secrets = deploymentSecrets(process.env);
+const rootHash = value => createHash("sha256").update(Buffer.from(value, "base64")).digest("hex");
+c.vars.ENCRYPTION_LEGACY_ROOT_ID = rootHash(secrets.ENCRYPTION_KEY);
+if (secrets.ENCRYPTION_KEY_NEXT) c.vars.ENCRYPTION_NEXT_ROOT_ID = rootHash(secrets.ENCRYPTION_KEY_NEXT);
+// A redeployment must not strand mixed-root or recoverable historical data.
+const currentResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${c.account_id}/workers/scripts/${c.name}/settings`, {
+  headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+  redirect: "error", signal: AbortSignal.timeout(15000),
+});
+demand(currentResponse.ok || currentResponse.status === 404, "Cannot inspect current Worker root bindings; deployment stopped.");
+if (currentResponse.ok) {
+  const current = await currentResponse.json();
+  demand(current.success && Array.isArray(current.result?.bindings), "Current Worker settings are incomplete.");
+  const vars = Object.fromEntries(current.result.bindings.filter(b => b.type === "plain_text").map(b => [b.name, b.text]));
+  assertRetainedRoots(vars, c.vars);
+}
+if (c.vars.ENCRYPTION_ROOT_WRITE === "next") {
+  secrets.ROOT_ROTATION_TOKEN = randomBytes(32).toString("hex");
+  c.vars.ROOT_ROTATION_EXPIRES_AT = String(Date.now() + 45 * 60 * 1000);
+} else {
+  c.vars.ROOT_ROTATION_EXPIRES_AT = "0";
+}
+writeFileSync("wrangler.jsonc", JSON.stringify(c, null, 2) + "\n");
 await verifySandboxPrice(process.env);
 const db = c.d1_databases[0];
 const response = await fetch(
@@ -68,6 +92,14 @@ try {
   }
   wrangler(["d1", "migrations", "apply", db.database_name, "--remote"]);
   wrangler(["deploy", "--secrets-file", file]);
+  if (secrets.ROOT_ROTATION_TOKEN) {
+    // Allow bounded requests from the prior deployment to finish before the
+    // current writer's inventory is traversed. No provider request is retried.
+    await new Promise(resolve => setTimeout(resolve, 120000));
+    const report = await runRootCutover({ origin: c.vars.PUBLIC_ORIGIN, release: c.vars.RELEASE_SHA,
+      token: secrets.ROOT_ROTATION_TOKEN });
+    console.log("POSTSTEWARD_ROOT_CUTOVER " + JSON.stringify(report));
+  }
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

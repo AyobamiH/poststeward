@@ -147,7 +147,15 @@ export async function stagingExternalPreflight(env, send = fetch) {
     rootSecret: {
       currentPresent: env.HAS_ENCRYPTION_KEY === "true",
       nextPresent: env.HAS_ENCRYPTION_KEY_NEXT === "true",
+      writeRoot: env.ENCRYPTION_ROOT_WRITE || "legacy",
     },
+    providerApplications: Object.fromEntries(["X", "THREADS", "LINKEDIN"].map(provider => [provider.toLowerCase(), {
+      clientIdPresent: Boolean(env[provider + "_OAUTH_CLIENT_ID"]),
+      protectedClientSecretPresent: env["HAS_" + provider + "_OAUTH_CLIENT_SECRET"] === "true",
+      configured: Boolean(env[provider + "_OAUTH_CLIENT_ID"]) && env["HAS_" + provider + "_OAUTH_CLIENT_SECRET"] === "true",
+      ...(provider === "LINKEDIN" ? { memberReadbackDeclared: env.LINKEDIN_MEMBER_READBACK === "true" } : {}),
+      liveGrantVerified: false,
+    }])),
     stripeSandbox: {
       enabledVariable: env.STRIPE_SANDBOX_ENABLED === "true",
       priceVariablePresent: /^price_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_PRICE_ID || ""),
