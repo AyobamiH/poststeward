@@ -446,3 +446,63 @@ test("explicit offsets and calendar month ends are preserved", () => {
     "2027-02-28T12:00:00.000Z",
   );
 });
+
+test("ordinary receipt readback recovers verification without a second publication", async () => {
+  const h = harness();
+  await h.setup();
+  h.provider.verify = async () => ({ verified: false });
+  const c = await h.campaign();
+  const reservation = await h.run("publish_now", { campaign: c.id, idempotencyKey: "readback-publish" });
+  await h.engine.tick();
+  const id = reservation.deliveries[0].id;
+  assert.equal((await h.run("receipt_get", { delivery: id })).status, "published_unverified");
+  h.provider.verify = async (d) => { assert.equal(d.postId, "post-1"); return { verified: true }; };
+  const receipt = await h.run("receipt_recheck", { delivery: id, idempotencyKey: "readback-recover" });
+  assert.equal(receipt.status, "published_verified");
+  assert.equal(receipt.readbackAttempts, 1);
+  await h.run("receipt_recheck", { delivery: id, idempotencyKey: "readback-recover" });
+  assert.equal(h.calls.publish, 1);
+});
+
+test("ordinary readback bounds failures and refuses targets without a known post", async () => {
+  const h = harness();
+  await h.setup();
+  h.provider.verify = async () => { throw new Error("provider timeout"); };
+  const c = await h.campaign();
+  const r = await h.run("publish_now", { campaign: c.id, idempotencyKey: "bounded-publish" });
+  const id = r.deliveries[0].id;
+  await assert.rejects(h.run("receipt_recheck", { delivery: id, idempotencyKey: "no-target-check" }), { code: "NO_READBACK_TARGET" });
+  await h.engine.tick();
+  for (let n = 0; n < 8; n++) {
+    const receipt = await h.run("receipt_recheck", { delivery: id, idempotencyKey: `bounded-check-${n}` });
+    assert.equal(receipt.status, "published_unverified");
+    assert.equal(receipt.readbackAttempts, n + 1);
+    await assert.rejects(h.run("receipt_recheck", { delivery: id, idempotencyKey: `too-early-check-${n}` }), { code: "READBACK_LIMIT" });
+    h.advance(60000);
+  }
+  await assert.rejects(h.run("receipt_recheck", { delivery: id, idempotencyKey: "exhausted-check" }), { code: "READBACK_LIMIT" });
+  assert.equal(h.calls.publish, 1);
+});
+
+test("late readback cannot claim verification after owner disconnect", async () => {
+  const h = harness();
+  await h.setup();
+  h.provider.verify = async () => ({ verified: false });
+  const c = await h.campaign();
+  const r = await h.run("publish_now", { campaign: c.id, idempotencyKey: "drift-read-publish" });
+  await h.engine.tick();
+  let started!: () => void;
+  let finish!: (v: { verified: boolean }) => void;
+  const entered = new Promise<void>(resolve => { started = resolve; });
+  const response = new Promise<{ verified: boolean }>(resolve => { finish = resolve; });
+  h.provider.verify = async () => { started(); return response; };
+  const id = r.deliveries[0].id;
+  const pending = h.run("receipt_recheck", { delivery: id, idempotencyKey: "drift-read-check" });
+  const rejected = assert.rejects(pending, { code: "CONNECTION_INACTIVE" });
+  await entered;
+  await h.run("account_disconnect", { alias: "account", idempotencyKey: "drift-disconnect" });
+  finish({ verified: true });
+  await rejected;
+  assert.equal((await h.run("receipt_get", { delivery: id })).status, "published_unverified");
+  assert.equal(h.calls.publish, 1);
+});

@@ -228,6 +228,11 @@ async function refresh() {
         );
         await refresh();
       });
+    if (d.postId && d.status === "published_unverified")
+      button(r, "Read back existing post", async () => {
+        show(await invoke("receipt_recheck", { delivery: d.id, idempotencyKey: key() }));
+        await refresh();
+      });
     if (d.postId)
       button(r, "Capture metrics", async () =>
         show(

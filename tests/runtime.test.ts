@@ -130,7 +130,9 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
       "https://publish.example/help.json",
     );
     assert.equal(discovery.status, 200);
-    assert.equal(((await discovery.json()) as any).operations.length, 26);
+    const operations = ((await discovery.json()) as any).operations;
+    assert.equal(operations.length, 27);
+    assert.ok(operations.some((operation: any) => operation.name === "receipt_recheck"));
     const unauth = await mf.dispatchFetch(
       "https://publish.example/api/operations/workspace_status",
       {

@@ -205,6 +205,7 @@ export class Engine {
       },
       receipt_get: (i) =>
         this.publicDelivery(this.get<Delivery>("delivery:", i.delivery)),
+      receipt_recheck: (i) => this.recheckReceipt(i.delivery),
       receipts_list: (i) =>
         this.deliveries()
           .filter((d) => !i.before || d.createdAt < i.before)
@@ -493,6 +494,51 @@ export class Engine {
         });
       throw e;
     }
+  }
+  private async recheckReceipt(id: string) {
+    const delivery = this.get<Delivery>("delivery:", id);
+    requireValue(delivery.postId && ["published_unverified", "published_verified"].includes(delivery.status),
+      "NO_READBACK_TARGET", "Inspect the existing receipt. A recorded publication ID is required; never republish an uncertain write.", 409);
+    if (delivery.status === "published_verified") return this.publicDelivery(delivery);
+    const demandBinding = () => {
+      const account = this.connected(delivery.account);
+      requireValue(account.provider === delivery.provider && account.version === delivery.binding && account.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT", "The connection no longer matches the recorded publication.", 409);
+      requireValue(delivery.provider !== "linkedin" || account.capabilities?.readback === true,
+        "READBACK_AUTHORITY_CHANGED", "LinkedIn member readback authority is unavailable.", 409);
+      return account;
+    };
+    const account = demandBinding();
+    const attempt = this.store.tx(() => {
+      const current = this.get<Delivery>("delivery:", id);
+      requireValue((current.readbackAttempts || 0) < 8 && (current.nextReadbackAt || 0) <= this.now(),
+        "READBACK_LIMIT", "Readback recovery permits eight attempts, at least sixty seconds apart.", 429);
+      const attempt = (current.readbackAttempts || 0) + 1;
+      this.update(current, { readbackAttempts: attempt, nextReadbackAt: this.now() + 60000 });
+      return attempt;
+    });
+    let evidence: { verified: boolean; url?: string } = { verified: false };
+    try {
+      const credential = await this.credential(account);
+      demandBinding();
+      evidence = await this.providers.verify(delivery, credential);
+    } catch {
+      // A failed read cannot erase the durable creation ID or enable a write.
+    }
+    demandBinding();
+    return this.store.tx(() => {
+      const current = this.get<Delivery>("delivery:", id);
+      requireValue(current.postId === delivery.postId && current.fingerprint === delivery.fingerprint && current.readbackAttempts === attempt,
+        "READBACK_CHANGED", "A newer readback owns this receipt.", 409);
+      if (current.status !== "published_unverified") return this.publicDelivery(current);
+      this.update(current, {
+        status: evidence.verified ? "published_verified" : "published_unverified",
+        url: evidence.url || current.url,
+        lastReadbackAt: this.now(),
+        reason: evidence.verified ? undefined : "Provider creation ID retained; exact readback not confirmed.",
+      });
+      return this.publicDelivery(current);
+    });
   }
   private validate(c: Campaign) {
     const p = this.get<Project>("project:", c.project);
