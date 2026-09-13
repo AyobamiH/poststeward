@@ -90,3 +90,47 @@ try {
   $("status").append(link);
   $("delete-form").hidden = true;
 }
+
+
+let retentionArchive;
+$("archive-export").onclick = async () => {
+  $("archive-prune").disabled = true;
+  retentionArchive = undefined;
+  try {
+    const value = await api("/api/lifecycle/retention/export", {});
+    const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "poststeward-retention-" + value.digest.slice(0, 16) + ".json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    retentionArchive = value;
+    $("archive-result").hidden = false;
+    $("archive-result").textContent = value.records.length + " eligible records. Save the download before confirming cleanup.";
+  } catch (error) {
+    $("archive-result").hidden = false;
+    $("archive-result").textContent = error.message;
+  }
+  renderRetention();
+};
+function renderRetention() {
+  $("archive-prune").disabled = !session || !retentionArchive?.records.length ||
+    $("archive-confirmation").value !== "PRUNE " + session.workspace;
+}
+$("archive-confirmation").addEventListener("input", renderRetention);
+$("archive-prune").onclick = async () => {
+  if ($("archive-prune").disabled) return;
+  $("archive-prune").disabled = true;
+  try {
+    const value = await api("/api/lifecycle/retention/prune", {
+      cutoff: retentionArchive.cutoff, digest: retentionArchive.digest,
+      confirmation: $("archive-confirmation").value,
+    });
+    $("archive-result").textContent = JSON.stringify(value, null, 2);
+  } catch (error) {
+    $("archive-result").textContent = error.message;
+  }
+  retentionArchive = undefined;
+  renderRetention();
+};
