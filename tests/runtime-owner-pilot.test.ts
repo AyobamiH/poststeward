@@ -7,7 +7,7 @@ import { digest } from "../src/common.ts";
 import { expireIdentity } from "../src/security.ts";
 import type { Env } from "../src/types.ts";
 
-async function googleFixture() {
+async function googleFixture(bindings: Record<string, string> = {}) {
   const trusted = await generateKeyPair("RS256"), attacker = await generateKeyPair("RS256");
   const jwk = { ...(await exportJWK(trusted.publicKey)), kid: "test-key", alg: "RS256", use: "sig" };
   const origin = "https://publish.example";
@@ -65,7 +65,7 @@ async function googleFixture() {
       }
     }
     throw new Error("Unexpected outbound endpoint in isolated runtime fixture");
-  }, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  }, { OIDC_ISSUER: "https://accounts.google.com", ...bindings }, 100);
   async function begin(nextMode = "valid", previousCookie = "") {
     mode = nextMode;
     const response = await mf.dispatchFetch(origin + "/auth/login?return=%2Fpilot", { redirect: "manual" });
@@ -232,5 +232,23 @@ test("Google callback refuses an unavailable POST method before any code exchang
     assert.equal(f.tokenExchanges(), 0);
     assert.equal((await f.db.prepare("SELECT count(*) AS n FROM sessions").first<any>())?.n, 0);
     assert.equal((await f.db.prepare("SELECT count(*) AS n FROM owner_proofs").first<any>())?.n, 0);
+  } finally { await f.mf.dispose(); }
+});
+
+test("public verified Google owner retains workspace authority while pilot stays restricted", async () => {
+  const f = await googleFixture({ SIGNUP_MODE: "public", ALLOWED_OWNER_EMAILS: "" });
+  try {
+    const auth = await f.signin();
+    const recovery = await f.call(auth, "/api/recovery/status");
+    assert.equal(recovery.status, 200, await recovery.clone().text());
+    const pilot = await f.call(auth, "/api/pilot/status");
+    assert.equal(pilot.status, 403);
+    assert.equal((await pilot.json() as any).error.code, "PILOT_RESTRICTED_ONLY");
+    assert.equal(f.writes(), 0);
+    await f.db.prepare("UPDATE owner_proofs SET email_verified=0 WHERE session_hash=?")
+      .bind(await digest(auth.value)).run();
+    const denied = await f.call(auth, "/api/recovery/status");
+    assert.equal(denied.status, 409);
+    assert.equal((await denied.json() as any).error.code, "OWNER_SIGNIN_REQUIRED");
   } finally { await f.mf.dispose(); }
 });

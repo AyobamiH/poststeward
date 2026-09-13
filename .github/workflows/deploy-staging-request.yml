@@ -1,8 +1,8 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-12-webhook-ledger-evidence
+# Deployment request: 2026-09-13-sequential-engineering-gap-fixes
 # Updating this file on main is an explicit staging deployment request.
-# Deploy PR #37: completed pilot evidence, offline receipt checker and incomplete Portal inventory guard.
+# Deploy merged PRs #42–#49: concurrency, readback, billing lifecycle, metrics, retention, root rehearsal and owner authority.
 # Sandbox billing remains disabled unless the reviewed staging variables and protected secrets are deliberately configured.
 # Owner/provider consent, private GitHub grants, PITR, workspace erasure, Stripe settlement and root-secret replacement remain separate live acceptance gates.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
