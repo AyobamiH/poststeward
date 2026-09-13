@@ -323,3 +323,31 @@ test("connection verification cannot overwrite a disconnect while identity is pe
   await rejection;
   assert.deepEqual(h.store.get("account:social"), disconnected);
 });
+
+test("manual replacement removes the previous OAuth refresh grant", async () => {
+  const h = configuredHarness();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  await h.engine.connect(owner, { alias: "social", provider: "x", accessToken: "manual-replacement-token", funding: "customer_app" });
+  assert.equal(h.store.get("oauth:social"), undefined);
+  assert.equal(oauth.nextWake(), undefined);
+  assert.equal(h.store.get<Account>("account:social")!.active, true);
+});
+
+test("manual identity verification cannot overwrite an intervening disconnect", async () => {
+  const h = configuredHarness();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  const started = latch<void>();
+  const identity = latch<{ id: string; username: string }>();
+  h.provider.identity = async () => { started.resolve(); return identity.promise; };
+  const pending = h.engine.connect(owner, { alias: "social", provider: "x", accessToken: "manual-replacement-token", funding: "customer_app" });
+  const rejection = assert.rejects(pending, /Connection changed/);
+  await started.promise;
+  const account = h.store.get<Account>("account:social")!;
+  const disconnected = { ...account, active: false, version: account.version + 1 };
+  h.store.put("account:social", disconnected);
+  identity.resolve(account.identity);
+  await rejection;
+  assert.deepEqual(h.store.get("account:social"), disconnected);
+});
