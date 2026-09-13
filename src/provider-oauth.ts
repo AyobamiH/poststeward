@@ -163,7 +163,7 @@ function config(env: Env, provider: OAuthProvider): ProviderConfig {
       clientId: env.THREADS_OAUTH_CLIENT_ID || "",
       clientSecret: env.THREADS_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://threads.net/oauth/authorize",
-      scopes: ["threads_basic", "threads_content_publish"],
+      scopes: ["threads_basic", "threads_content_publish", "threads_manage_insights"],
     },
     linkedin: {
       clientId: env.LINKEDIN_OAUTH_CLIENT_ID || "",
@@ -329,7 +329,10 @@ async function exchangeCode(
       provider,
       accessToken: demandToken(data.access_token),
       expiresAt: demandExpiry(data.expires_in, now),
-      scopes: c.scopes,
+      // Token responses may omit scopes. Never infer insights access from the request.
+      scopes: data.scope || short.scope
+        ? parseScopes(data.scope || short.scope)
+        : ["threads_basic", "threads_content_publish"],
       obtainedAt: now,
     };
   }
@@ -463,6 +466,8 @@ function capabilities(
     oauth: true,
     refresh: refreshable,
     readback: provider !== "linkedin" || granted.includes("r_member_social"),
+    ...(provider === "threads" && granted.includes("threads_manage_insights")
+      ? { metrics: true } : {}),
   };
 }
 function publicAccount(account: Account) {
@@ -562,7 +567,7 @@ export class ProviderOAuthConnections {
       "Provider OAuth is unavailable.",
       503,
     );
-    requireScopes(input.token.scopes, c.scopes);
+    requireScopes(input.token.scopes, c.scopes.filter((scope) => scope !== "threads_manage_insights"));
     requireValue(
       input.token.expiresAt > this.now() + 30000,
       "OAUTH_TOKEN_INVALID",
