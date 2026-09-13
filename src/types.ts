@@ -24,6 +24,8 @@ export interface AccountCapabilities {
   oauth: boolean;
   refresh: boolean;
   readback: boolean;
+  /** True only with granted scope evidence; absent means unknown. */
+  metrics?: boolean;
 }
 export interface Account {
   alias: string;

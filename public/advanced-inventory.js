@@ -142,7 +142,7 @@ async function load() {
       text(row, `${delivery.account} · ${new Date(delivery.dueAt).toLocaleString()}`);
       text(
         row,
-        `${delivery.postId ? "provider creation ID recorded" : "no provider creation ID"} · ${delivery.metrics ? "metrics captured" : "metrics not captured"}`,
+        `${delivery.postId ? "provider creation ID recorded" : "no provider creation ID"} · ${delivery.metrics?.availability === "available" ? "metrics captured" : delivery.metrics?.availability === "unavailable" ? `metrics unavailable: ${delivery.metrics.reason || "provider read unavailable"}` : "metrics not captured"}`,
       );
     },
   );
