@@ -226,11 +226,8 @@ export class Engine {
           "Account changed since publication.",
           409,
         );
-        const metrics = await this.providers.metrics(
-          d,
-          await this.credential(a),
-        );
-        this.update(d, { metrics });
+        const metrics = await this.captureMetrics(d, a);
+        this.update(this.get<Delivery>("delivery:", d.id), { metrics });
         return metrics;
       },
       publishing_pause: (i) => {
@@ -808,6 +805,20 @@ export class Engine {
         "Reviewed templates only; source change is evidence of a development update, not proof of deployed functionality.",
     };
   }
+  private async captureMetrics(delivery: Delivery, account: Account) {
+    const credential = await this.credential(account);
+    const demandBinding = () => {
+      const current = this.connected(delivery.account);
+      requireValue(current.provider === delivery.provider &&
+        current.version === delivery.binding &&
+        current.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT", "Account changed since publication.", 409);
+    };
+    demandBinding();
+    const metrics = await this.providers.metrics(delivery, credential);
+    demandBinding();
+    return metrics;
+  }
   private async captureScheduledMetrics(p: Profile) {
     const attemptAt = this.now();
     let failures = 0;
@@ -830,10 +841,7 @@ export class Engine {
           "Account changed since publication.",
           409,
         );
-        const metrics = await this.providers.metrics(
-          d,
-          await this.credential(a),
-        );
+        const metrics = await this.captureMetrics(d, a);
         const latest = this.get<Profile>("profile:", p.id);
         if (
           !latest.enabled ||
@@ -841,7 +849,8 @@ export class Engine {
           !this.paid()
         )
           return false;
-        this.update(d, { metrics });
+        this.update(this.get<Delivery>("delivery:", d.id), { metrics });
+        if ((metrics as { availability?: string } | null)?.availability !== "available") failures++;
       } catch {
         failures++;
       }
