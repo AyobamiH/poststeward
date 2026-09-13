@@ -1,0 +1,37 @@
+# Engineering gap reconciliation — 13 September 2026
+
+This records the implementation sequence following the owner's 12 September discovery. CI evidence is separate from live provider acceptance. No publication, payment, refund, subscription cancellation or agent-token revocation was repeated.
+
+| Gap | Implementation | Evidence and remaining boundary |
+| --- | --- | --- |
+| Connection concurrency | PR42: conditional commits for provider connect, refresh, disconnect and manual replacement | Exact-head CI passed; stale asynchronous work cannot overwrite a newer connection in covered races. |
+| Ordinary receipt readback | PR43: scoped receipt_recheck, bounded attempts and owner UI | Exact-head CI passed; recorded IDs are read without another publication. |
+| Billing-safe erasure | PR44: expire open Checkout, enumerate/cancel recurring subscriptions and verify cancellation before erasure | Exact-head CI passed with Workers/SQLite fixtures. Live paid disposable-workspace deletion still needs the runtime key's subscription list/read/cancel permissions. |
+| Billing reconstruction after restore | PR45: recover customer, Checkout and subscription relationships from bounded Stripe inventory | Exact-head CI passed. Incomplete inventory, multiple live subscriptions and machine-payment recovery fail closed. Live PITR remains unproven. |
+| Metrics capability and failures | PR46: optional Threads insights scope, unknown capability without granted-scope evidence, unavailable results count as failures, binding checks across reads | Exact-head CI passed. No live Threads insights grant claimed. |
+| Retention | PR47: fresh-owner export, digest-confirmed bounded cleanup, unused campaign deletion and compact operation fences | Exact-head CI passed, including Workers/SQLite routes. All receipts and uncertain outcomes remain. Legacy operation results without timestamps and permanent fences still consume capacity; this is not unlimited cold storage. |
+| Root replacement | PR48: complete supplied-inventory validation and rewrap rehearsal for account, OAuth and GitHub credentials | Tests cover partial inventories, leases, unknown families, context/key failures and empty inventories. Protected live enumeration, fenced rollout/CAS integration and actual root cutover remain unfinished. Rehearsal explicitly does not claim independently verified live inventory. |
+| Public owner authority | PR49: verified Google owner proof can serve public workspace controls while controlled acceptance remains restricted | Runtime test exercises real signed OIDC fixture, owner recovery status and pilot denial. Deployment signup mode remains restricted. |
+
+## Provider insight used
+
+- [Google Cloud Storage request preconditions](https://docs.cloud.google.com/storage/docs/request-preconditions): reject stale state changes.
+- [AWS idempotent API retries](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/): distinguish retrying observation from repeating external effects.
+- [Meta Threads insights](https://developers.facebook.com/documentation/threads/insights): insights require their own permission.
+- [AWS S3 lifecycle interaction](https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-and-other-bucket-config.html): unresolved external work must not be erased by ordinary retention.
+- [Google Cloud KMS key rotation](https://docs.cloud.google.com/kms/docs/key-rotation): rotation does not itself re-encrypt existing data.
+- [Google OIDC validation](https://developers.google.com/identity/openid-connect/openid-connect): validated issuer, client audience, signature and expiry precede owner authority.
+
+## Existing live acceptance evidence retained
+
+The owner supplied exact Threads publication/readback evidence for delivery f1d100ca-5ed3-4eb5-970b-d8a324204cf2, and HTTP plus remote MCP acceptance followed by denial of the same revoked Inspect token.
+
+Stripe sandbox evidence includes the completed subscription Checkout, application paid status, full refund with revoked entitlement, operator cancellation, and seven completed webhook ledger events including the previously incomplete event after resend. This does not additionally prove duplicate webhook handling or portal-initiated period-end cancellation.
+
+## Still requiring live service or browser evidence
+
+Threads OAuth callback completion; X application configuration, funded API authority and grant; LinkedIn application configuration, approved member-post readback and grant; private GitHub registration/credential/grant/read/revoke; disposable recovery/erasure; protected full root rollout; and authenticated native WebMCP remain distinct live gates.
+
+Stripe hosted Portal layout remains Stripe-controlled. The application billing receipt follows PostSteward's UI; a wholly custom billing management experience and account branding isolation are not claimed complete.
+
+The deployment request accompanying this note keeps public signup, Advanced execution and real-money billing disabled. Its smoke tests are non-destructive. Consult the deployment workflow result for the exact deployed revision. The request is included in PR49; passing implementation CI alone is not proof of deployment.
