@@ -176,6 +176,10 @@ export class Billing implements BillingPort {
     if (!this.recoveryRequired() || this.store.get("billing:attempt")) return;
     requireValue(this.env.MPP_ENABLED !== "true", "BILLING_RECOVERY_PENDING", "Machine-payment inventory requires separate recovery evidence before another purchase.", 409);
     requireValue(this.stripe && stripeCredentialAllowed(this.env), "BILLING_RECOVERY_PENDING", "Current Stripe evidence is required before another purchase.", 503);
+    const recoveryGeneration = JSON.stringify(this.store.get("recovery:authority-invalidated"));
+    const demandRecovery = () => requireValue(
+      !this.store.get("lifecycle:deleting") && JSON.stringify(this.store.get("recovery:authority-invalidated")) === recoveryGeneration,
+      "BILLING_RECOVERY_CHANGED", "Workspace recovery changed during Stripe inspection.", 409);
     const mapping = await this.env.IDENTITY.prepare("SELECT customer FROM stripe_customers WHERE workspace=?")
       .bind(this.workspace).first<{ customer: string }>();
     const stripe = this.stripe!;
@@ -194,6 +198,7 @@ export class Billing implements BillingPort {
     if (customer) {
       // D1 mapping survives the workspace restore; checked session evidence can
       // recover a mapping that was never committed before the interruption.
+      demandRecovery();
       this.store.put("billing:customer", customer);
       const subscriptions = await stripe.subscriptions.list({ customer, status: "all", limit: 100 });
       requireValue(subscriptions.has_more === false && subscriptions.data.every(sub => sub.livemode === livemode && sub.metadata?.workspace === this.workspace &&
@@ -211,7 +216,7 @@ export class Billing implements BillingPort {
       : open[0] || matches.filter(s => s.status === "complete").sort((a, b) => b.created - a.created)[0];
     requireValue(!activeSubscription || selected, "BILLING_RECOVERY_PENDING", "The current subscription has no matching Checkout receipt.", 409);
     this.store.tx(() => {
-      requireValue(!this.store.get("lifecycle:deleting"), "WORKSPACE_DELETION_IN_PROGRESS", "Deletion blocks billing reconstruction.", 410);
+      demandRecovery();
       if (this.store.get("billing:attempt")) return;
       if (selected) this.store.put("billing:attempt", {
         quote: selected.metadata!.quote, mode: "subscription", startedAt: selected.created * 1000,
