@@ -40,7 +40,13 @@ Use a dedicated staging GitHub App. Required registration contract:
 - Callback URL: `https://poststeward-staging.woeinvests.workers.dev/sources/github/callback`
 - No webhook and no write permission are needed for this acceptance path.
 
-Protected staging configuration is all-or-nothing: `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_SLUG`, and secret `GITHUB_APP_CLIENT_SECRET`.
+GitHub Actions reserves the `GITHUB_` prefix for its own names. Protected staging storage is therefore all-or-nothing under:
+
+- variable `POSTSTEWARD_GITHUB_APP_CLIENT_ID`
+- variable `POSTSTEWARD_GITHUB_APP_SLUG`
+- secret `POSTSTEWARD_GITHUB_APP_CLIENT_SECRET`
+
+The deployment workflow maps those protected names to the application's existing runtime `GITHUB_APP_*` contract. Do not create user-defined GitHub Actions variables or secrets whose names start with `GITHUB_`.
 
 Acceptance requires one deliberately small selected private repository: complete owner installation + user OAuth, verify only the intended repository is shown, run one harmless private-source probe, revoke/remove access, and prove the next probe fails closed without anonymous fallback.
 
