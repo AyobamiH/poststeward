@@ -1019,6 +1019,8 @@ async function route(
       );
     }
     if (path.startsWith("/api/pilot/")) {
+      requireValue(env.SIGNUP_MODE === "restricted", "PILOT_RESTRICTED_ONLY",
+        "Controlled acceptance is available only in restricted staging.", 403);
       const action = path.slice("/api/pilot/".length);
       requireValue(
         ["status", "prepare", "confirm", "cancel", "recheck"].includes(action),
