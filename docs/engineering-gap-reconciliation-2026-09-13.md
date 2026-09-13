@@ -34,4 +34,24 @@ Threads OAuth callback completion; X application configuration, funded API autho
 
 Stripe hosted Portal layout remains Stripe-controlled. The application billing receipt follows PostSteward's UI; a wholly custom billing management experience and account branding isolation are not claimed complete.
 
-The deployment request accompanying this note keeps public signup, Advanced execution and real-money billing disabled. Its smoke tests are non-destructive. Consult the deployment workflow result for the exact deployed revision. The request is included in PR49; passing implementation CI alone is not proof of deployment.
+## Deployment reconciliation
+
+The [failed run 34742154507](https://github.com/AyobamiH/poststeward/actions/runs/34742154507) deployed revision `a58826e0f48157a4890566ca34780ebba3060526`, then failed its catalogue smoke assertion: the assertion still expected 26 operations after receipt_recheck made the catalogue contain 27. A successful upload did not make that run an accepted deployment; subsequent smoke steps were skipped.
+
+[PR50](https://github.com/AyobamiH/poststeward/pull/50) corrected the stale catalogue contract. The [successful successor run 34742429407](https://github.com/AyobamiH/poststeward/actions/runs/34742429407) verified revision `14db538fd8774df93fc5ea5d0514ec5af06b7f13`: 261 tests and the deployment smoke steps passed. The earlier red run remains historical evidence, not an outstanding request to repeat deployment or live acceptance.
+
+At this revision, Stripe sandbox and Threads OAuth configuration are present; private GitHub, X OAuth and LinkedIn OAuth configuration remain absent. Configuration is not proof of a completed provider grant. Public signup, Advanced execution and real-money billing remain disabled.
+
+## Research before the next implementation
+
+Checked against primary documentation on 13 September 2026. These are implementation decisions and acceptance requirements, not claims that the remaining live gates have passed.
+
+| Area | Primary-source insight | Consequence for PostSteward |
+| --- | --- | --- |
+| Root replacement | [Google Cloud KMS](https://docs.cloud.google.com/kms/docs/key-rotation) separates creating a new key version from re-encrypting data and retiring old versions. | Current single-root decryption and supplied-inventory rehearsal are insufficient for a partial rollout. Implement explicit root identification and compatible decryption before migration; then protected complete enumeration, fenced conditional writes, resumable checkpoints and readback. Include recoverable historical data in retirement decisions. This sequence is our design inference, not a claim that PostSteward uses Google KMS. |
+| Recovery and erasure | [Cloudflare SQLite storage](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/) provides 30-day PITR, unavailable in local development. | Local fixtures cannot close the hosted restore gate. Use a disposable hosted workspace, record the recovery bookmark and verify restored authority and external-effect state before erasure. Preserve the existing acceptance workspace. |
+| Native WebMCP | The [10 September WebMCP draft](https://webmachinelearning.github.io/webmcp/) exposes `Document.modelContext` and `executeTool(tool, inputObject, options)`. It is a draft, not proof of installed browser support. | Existing `document.modelContext` and object arguments match this contract. Do not replace them with older navigator examples or label a shim native acceptance. The outstanding check is an authenticated supporting browser and agent observation. |
+| X OAuth | [X authorisation-code documentation](https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code) specifies PKCE and the offline.access scope for refresh tokens. | Verify the registered callback, configured client and granted scopes. Manual access-token publication cannot substitute for the callback and refresh proof. |
+| Private GitHub | [GitHub user-token documentation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app) limits access to the intersection of user and app authority; [app permissions](https://docs.github.com/en/apps/creating-github-apps/registering-github-apps/choosing-permissions-for-a-github-app) are explicit. | App installation alone does not establish the owner's repository authority. Retain selected-repository and current-user checks; close registration, private read and revoke with live receipts. |
+
+LinkedIn member-post readback approval and Meta's failing dashboard callback-save request remain unresolved; this research establishes no supported bypass. Stripe's completed sandbox evidence remains retained, and no new charge or publication is required by this reconciliation.
