@@ -1,8 +1,8 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-13-sequential-engineering-gap-fixes
+# Deployment request: 2026-09-13-engineering-gap-catalogue-contract
 # Updating this file on main is an explicit staging deployment request.
-# Deploy merged PRs #42–#49: concurrency, readback, billing lifecycle, metrics, retention, root rehearsal and owner authority.
+# Deploy PRs #42–#50: engineering fixes and catalogue-derived hosted acceptance.
 # Sandbox billing remains disabled unless the reviewed staging variables and protected secrets are deliberately configured.
 # Owner/provider consent, private GitHub grants, PITR, workspace erasure, Stripe settlement and root-secret replacement remain separate live acceptance gates.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
