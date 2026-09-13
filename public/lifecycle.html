@@ -19,6 +19,14 @@
     <p>Use the workspace export before deletion if you need a copy of project, campaign and receipt history. Provider credentials and payment tokens are never included in that export.</p>
     <a class="button" href="/app">Open workspace export</a>
   </section>
+  <section class="panel wide" aria-labelledby="retention-heading">
+    <h2 id="retention-heading">Archive old workspace data</h2>
+    <p>Download a private archive of up to 100 eligible records older than 30 days. Cleanup removes unused campaigns and compacts completed operation results. Publication receipts and duplicate-prevention records remain, including uncertain outcomes. Protected records still count toward workspace capacity.</p>
+    <button id="archive-export" type="button">Download retention archive</button>
+    <label>After saving the archive, type PRUNE followed by your workspace ID<input id="archive-confirmation" autocomplete="off" /></label>
+    <button id="archive-prune" type="button" disabled>Prune exported records</button>
+    <pre id="archive-result" class="preview" hidden></pre>
+  </section>
   <section class="panel wide" aria-labelledby="delete-heading">
     <h2 id="delete-heading">Delete this PostSteward workspace</h2>
     <p><strong>This is irreversible inside PostSteward.</strong> Deletion first installs a durable D1 tombstone and quarantines provider writes, then clears the workspace Durable Object and identity, grant, payment-mapping, recovery and external-effect records. The minimal workspace tombstone remains so stale restored state cannot be reactivated.</p>
