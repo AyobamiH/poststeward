@@ -89,6 +89,9 @@ export interface Delivery {
   postId?: string;
   url?: string;
   reason?: string;
+  readbackAttempts?: number;
+  nextReadbackAt?: number;
+  lastReadbackAt?: number;
   metrics?: unknown;
 }
 export interface Entitlement {
