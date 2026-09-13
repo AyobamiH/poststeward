@@ -7,6 +7,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const PITR_HISTORY_WARMUP_MS = 60000;
 export const PITR_TARGET_AGE_MS = 30000;
+export const PITR_PREPARE_SETTLE_TIMEOUT_MS = 8 * 60 * 1000;
+export const PITR_PREPARE_RETRY_MS = 15000;
 
 export function canonicalStringDigest(value) {
   return createHash("sha256").update(JSON.stringify(String(value))).digest("hex");
@@ -47,6 +49,29 @@ export function settledPitrTarget(now, initializedAt) {
     "Disposable PITR target is still on the newly-created object history edge.",
   );
   return target;
+}
+
+export function classifyRecoveryPreparationStatus(
+  status,
+  restoreTarget,
+  reason,
+) {
+  const plan = status?.plan;
+  if (
+    plan?.state === "prepared" &&
+    plan.targetTime === restoreTarget &&
+    plan.reason === reason &&
+    typeof plan.id === "string" &&
+    typeof plan.digest === "string"
+  )
+    return "prepared";
+  if (
+    plan &&
+    ["prepared", "armed", "reconciled"].includes(plan.state)
+  )
+    return "blocked";
+  if (status?.control?.quarantined === true) return "blocked";
+  return "retryable";
 }
 
 function d1(sql) {
@@ -135,6 +160,58 @@ async function poll(fn, accept, label, timeoutMs = 45000) {
       ? `${last.code || last.name}: ${last.message}`
       : JSON.stringify(last);
   throw new Error(`${label} did not settle before timeout. Last observation: ${detail}`);
+}
+
+async function prepareRecoveryWithDurableInspection({
+  origin,
+  session,
+  csrf,
+  restoreTarget,
+  reason,
+}) {
+  const deadline = Date.now() + PITR_PREPARE_SETTLE_TIMEOUT_MS;
+  let attempts = 0;
+  while (true) {
+    attempts += 1;
+    try {
+      const prepared = await request(origin, session, csrf, "/api/recovery/prepare", {
+        at: new Date(restoreTarget).toISOString(),
+        reason,
+      });
+      return { prepared, attempts };
+    } catch (error) {
+      if (error?.status && error.status < 500) throw error;
+
+      const status = await request(origin, session, csrf, "/api/recovery/status");
+      const state = classifyRecoveryPreparationStatus(
+        status,
+        restoreTarget,
+        reason,
+      );
+      if (state === "prepared") {
+        return {
+          prepared: { plan: status.plan, status },
+          attempts,
+        };
+      }
+      if (state === "blocked")
+        throw new Error(
+          "Recovery preparation entered durable state unexpectedly. Inspect it before any retry.",
+        );
+      if (Date.now() >= deadline) throw error;
+
+      console.warn(
+        "POSTSTEWARD_PITR_PREPARE_RETRY " +
+          JSON.stringify({
+            attempt: attempts,
+            code: error?.code || null,
+            status: error?.status || null,
+            retryInMs: PITR_PREPARE_RETRY_MS,
+          }),
+      );
+      await sleep(PITR_PREPARE_RETRY_MS);
+    }
+  }
 }
 
 function firstAllowedEmail() {
@@ -279,13 +356,18 @@ async function runAcceptance() {
 
   await sleep(3000);
 
-  const prepared = await request(origin, session, csrf, "/api/recovery/prepare", {
-    at: new Date(restoreTarget).toISOString(),
-    reason: "Disposable staging PITR acceptance",
-  });
+  const prepareReason = "Disposable staging PITR acceptance";
+  const { prepared, attempts: prepareAttempts } =
+    await prepareRecoveryWithDurableInspection({
+      origin,
+      session,
+      csrf,
+      restoreTarget,
+      reason: prepareReason,
+    });
   const plan = prepared?.plan;
   demand(
-    plan?.id && /^[a-f0-9]{64}$/.test(plan?.digest || "") && plan.state === "prepared",
+    plan?.id && /^[a-f0-9-]{36}$/.test(plan.id) && /^[a-f0-9]{64}$/.test(plan?.digest || "") && plan.state === "prepared",
     "Recovery prepare did not return an immutable prepared plan.",
   );
   demand(
@@ -398,6 +480,7 @@ async function runAcceptance() {
     workspaceFingerprint,
     pitr: {
       passed: true,
+      prepareAttempts,
       publishingPausedAfterMutation: true,
       publishingPausedAfterRestore: false,
       quarantineHeldUntilResume: true,
