@@ -1,11 +1,11 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-13-disposable-pitr-state-aware-prepare-retry
+# Deployment request: 2026-09-13-pitr-bookmark-primitive-diagnostic
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that keeps private GitHub acceptance evidence and uses
-# bounded durable-status inspection before any non-destructive PITR prepare retry.
-# This automatic deployment remains non-destructive. Real PITR/erasure occurs only through the separate
-# manual staging workflow against synthetic state after explicit confirmation.
+# Deploy the exact reviewed revision, then run one prepare-only synthetic PITR diagnostic that
+# classifies storage sync/current-bookmark/target-bookmark failures and erases its workspace.
+# The diagnostic never calls the restore primitive. Real PITR/erasure remains confined to the
+# separate manual staging workflow after explicit confirmation.
 # It must not publish social content, grant/revoke provider authority, settle/refund payment,
 # or touch the existing owner acceptance workspace.
 # Root cutover still runs only with ENCRYPTION_ROOT_WRITE=next and a distinct protected ENCRYPTION_KEY_NEXT.
@@ -23,6 +23,7 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: staging
+      run_pitr_diagnostic: true
     # Pass only explicitly named fallbacks, never every repository secret.
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

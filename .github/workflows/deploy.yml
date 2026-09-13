@@ -7,12 +7,21 @@ on:
         type: choice
         options: [staging, production]
         default: staging
+      run_pitr_diagnostic:
+        description: Run staging-only prepare diagnostic without executing a restore
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       environment:
         description: Configured GitHub environment
         required: true
         type: string
+      run_pitr_diagnostic:
+        description: Run staging-only prepare diagnostic without executing a restore
+        required: false
+        type: boolean
+        default: false
     # Explicit repository-level fallbacks only; the selected environment takes precedence.
     secrets:
       CLOUDFLARE_API_TOKEN:
@@ -135,3 +144,9 @@ jobs:
         run: node scripts/recovery-smoke.mjs
       - name: Verify non-destructive account lifecycle boundary
         run: node scripts/lifecycle-smoke.mjs
+      - name: Diagnose staging PITR prepare primitives without restoring
+        if: inputs.environment == 'staging' && inputs.run_pitr_diagnostic == true
+        run: node scripts/staging-pitr-prepare-diagnostic.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}

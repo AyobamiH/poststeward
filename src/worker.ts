@@ -36,6 +36,7 @@ import {
 import { demandFreshOwner, ownerAuthority } from "./owner-proof.ts";
 import { Pilot } from "./pilot.ts";
 import { invalidateRestoredAuthority } from "./recovery-local.ts";
+import { captureRecoveryBookmarks } from "./recovery-pitr.ts";
 import {
   armRecoveryPlan,
   assertRecoveryCanResume,
@@ -267,10 +268,8 @@ export class Workspace extends DurableObject<Env> {
           "Recovery target is invalid.",
         );
         const storage = this.pitr();
-        const [preRestoreBookmark, targetBookmark] = await Promise.all([
-          storage.getCurrentBookmark!(),
-          storage.getBookmarkForTime!(targetTime),
-        ]);
+        const { preRestoreBookmark, targetBookmark } =
+          await captureRecoveryBookmarks(storage, targetTime);
         return json({ preRestoreBookmark, targetBookmark });
       }
       if (path === "/recovery/restore") {
