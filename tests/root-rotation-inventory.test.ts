@@ -53,3 +53,14 @@ test("wrong context and unchanged root cannot produce a successful inventory", a
   snapshot.workspaces[0].records[0].value.secret = await seal({ accessToken: "secret" }, oldRoot, "wrong-context");
   await assert.rejects(rehearseRootInventory(snapshot, oldRoot, nextRoot));
 });
+
+test("an empty inventory still validates both protected roots", async () => {
+  const snapshot: RotationSnapshot = { release: "a".repeat(40), workspaceIds: [],
+    workspaces: [], githubInstallations: [],
+    complete: { workspaces: true, records: true, githubInstallations: true } };
+  await assert.rejects(rehearseRootInventory(snapshot, "invalid", nextRoot));
+  await assert.rejects(rehearseRootInventory(snapshot, oldRoot, "invalid"));
+  const result = await rehearseRootInventory(snapshot, oldRoot, nextRoot);
+  assert.equal(result.evidence.verifiedCount, 0);
+  assert.equal(result.evidence.liveCutoverPerformed, false);
+});
