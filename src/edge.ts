@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { exportRetention, commitRetention } from "./retention.ts";
 import { Billing } from "./billing.ts";
 import { SQLiteStore } from "./store.ts";
 import base, { Workspace as BaseWorkspace } from "./worker.ts";
@@ -73,7 +74,7 @@ export class Workspace extends BaseWorkspace {
     try {
       const path = new URL(request.url).pathname;
       const clone = request.clone();
-      let envelope: { workspace?: unknown; actor?: Actor } = {};
+      let envelope: { workspace?: unknown; actor?: Actor; input?: any } = {};
       try {
         envelope = (await clone.json()) as typeof envelope;
       } catch {
@@ -110,6 +111,15 @@ export class Workspace extends BaseWorkspace {
       }
       if (workspace)
         await assertWorkspaceNotDeleted(this.lifecycleEnv.IDENTITY, workspace);
+      if (path === "/lifecycle/retention/export" || path === "/lifecycle/retention/prune") {
+        requireValue(workspace && envelope.actor?.workspace === workspace &&
+          !envelope.actor.grant && envelope.actor.scopes?.includes("admin"),
+          "OWNER_SESSION_REQUIRED", "Retention requires the signed-in owner.", 403);
+        const store = new SQLiteStore(this.lifecycleCtx.storage);
+        requireValue(store.get("workspace") === workspace, "WORKSPACE_MISMATCH", "Open your workspace first.", 409);
+        return json(path.endsWith("/export") ? await exportRetention(store) :
+          await commitRetention(store, envelope.input));
+      }
       return super.fetch(request);
     } catch (error) {
       return errorResponse(error);
@@ -182,6 +192,23 @@ async function lifecycleRoute(request: Request, env: Env) {
           }
         : null,
     });
+  }
+
+  if ((path === "/api/lifecycle/retention/export" || path === "/api/lifecycle/retention/prune") && request.method === "POST") {
+    const authority = await ownerAuthority(request, env, auth);
+    demandFreshOwner(authority, Date.now());
+    await assertWorkspaceNotDeleted(env.IDENTITY, auth.actor.workspace);
+    const control = await workspaceQuarantined(env.IDENTITY, auth.actor.workspace);
+    requireValue(!control.quarantined, "RETENTION_FENCED", "Finish recovery before retention cleanup.", 409);
+    const input = path.endsWith("/prune") ? z.strictObject({
+      cutoff: z.number().finite(), digest: z.string().regex(/^[a-f0-9]{64}$/),
+      confirmation: z.string().max(200),
+    }).parse(await request.json()) : {};
+    return env.WORKSPACES.get(env.WORKSPACES.idFromName(auth.actor.workspace)).fetch(
+      "https://workspace.internal" + path.slice(4), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: auth.actor.workspace, actor: auth.actor, input }),
+      });
   }
 
   requireValue(
