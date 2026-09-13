@@ -2,8 +2,8 @@ import { Fault } from "./common.ts";
 
 export interface RecoveryPitrStorage {
   sync?: () => Promise<void>;
-  getCurrentBookmark: () => Promise<string>;
-  getBookmarkForTime: (timestamp: number | Date) => Promise<string>;
+  getCurrentBookmark?: () => Promise<string>;
+  getBookmarkForTime?: (timestamp: number | Date) => Promise<string>;
 }
 
 type PitrStage = "sync" | "current_bookmark" | "target_bookmark";
@@ -44,8 +44,9 @@ function pitrPrimitiveFailure(stage: PitrStage, error: unknown): never {
 }
 
 /**
- * Capture both PITR bookmarks without conflating platform failures. The sync is
- * a persistence barrier only; it does not retry or restore anything.
+ * Capture both PITR bookmarks without conflating platform failures. The caller
+ * has already checked that bookmark methods exist. The sync is a persistence
+ * barrier only; it does not retry or restore anything.
  */
 export async function captureRecoveryBookmarks(
   storage: RecoveryPitrStorage,
@@ -61,14 +62,14 @@ export async function captureRecoveryBookmarks(
 
   let preRestoreBookmark: string;
   try {
-    preRestoreBookmark = await storage.getCurrentBookmark();
+    preRestoreBookmark = await storage.getCurrentBookmark!();
   } catch (error) {
     pitrPrimitiveFailure("current_bookmark", error);
   }
 
   let targetBookmark: string;
   try {
-    targetBookmark = await storage.getBookmarkForTime(targetTime);
+    targetBookmark = await storage.getBookmarkForTime!(targetTime);
   } catch (error) {
     pitrPrimitiveFailure("target_bookmark", error);
   }
