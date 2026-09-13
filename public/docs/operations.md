@@ -249,6 +249,25 @@ Example:
 }
 ```
 
+## receipt_recheck
+
+Verify the recorded post ID, stable author and exact text without publishing again. At most eight recovery reads, at least sixty seconds apart. Already verified receipts return unchanged.
+
+- Tier: free
+- Required scope: read
+- Effects: STATE_WRITE
+- Inspect with: receipt_get
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "delivery": "delivery-id",
+  "idempotencyKey": "readback-001"
+}
+```
+
 ## receipts_list
 
 Read delivery history. An unverified ID and an ambiguous effect are distinct from verified publication.

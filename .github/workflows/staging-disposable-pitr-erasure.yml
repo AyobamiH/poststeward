@@ -1,0 +1,67 @@
+name: Staging disposable PITR and erasure acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Run real PITR and erasure only against a synthetic disposable staging workspace
+        required: true
+        type: choice
+        options:
+          - DO_NOT_RUN
+          - RUN_DISPOSABLE_PITR_ERASURE
+        default: DO_NOT_RUN
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-disposable-pitr-erasure
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'AyobamiH/poststeward' &&
+      github.actor == 'AyobamiH' &&
+      inputs.confirmation == 'RUN_DISPOSABLE_PITR_ERASURE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+    env:
+      DEPLOY_ENV: staging
+      ENCRYPTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
+      OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+      GITHUB_APP_CLIENT_ID: ${{ vars.GITHUB_APP_CLIENT_ID }}
+      GITHUB_APP_SLUG: ${{ vars.GITHUB_APP_SLUG }}
+      X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
+      THREADS_OAUTH_CLIENT_ID: ${{ vars.THREADS_OAUTH_CLIENT_ID }}
+      LINKEDIN_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
+      LINKEDIN_MEMBER_READBACK: ${{ vars.LINKEDIN_MEMBER_READBACK }}
+      STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
+      STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run verify
+      - name: Configure exact staging bindings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/configure-deploy.mjs
+      - name: Exercise real PITR and erasure on disposable state
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+        run: node scripts/staging-pitr-erasure-acceptance.mjs

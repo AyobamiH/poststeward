@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { sandboxBillingEnabled, stripeCredentialAllowed } from "./billing-mode.ts";
 import { Mppx, stripe as machineStripe } from "mppx/server";
 import { addMonth, digest, Fault, json, requireValue, uid } from "./common.ts";
 import type { Actor, Entitlement, Env, Store } from "./types.ts";
@@ -15,6 +16,8 @@ export interface Quote {
   end: number;
   expires: number;
   autoRenew: boolean;
+  // Persisted with new quotes so interrupted Checkout retries keep identical parameters.
+  integrationIdentifier?: string;
 }
 type Attempt = {
   quote: string;
@@ -44,7 +47,8 @@ export class Billing implements BillingPort {
   }
   private available() {
     return (
-      this.env.ADVANCED_ENABLED === "true" &&
+      (this.env.ADVANCED_ENABLED === "true" || sandboxBillingEnabled(this.env)) &&
+      stripeCredentialAllowed(this.env) &&
       !!this.stripe &&
       !!this.env.STRIPE_PRICE_ID
     );
@@ -58,12 +62,195 @@ export class Billing implements BillingPort {
     );
     return this.stripe!;
   }
+  private async sandboxPortalConfiguration(stripe: Stripe) {
+    if (!sandboxBillingEnabled(this.env)) return undefined;
+    const configurations = await stripe.billingPortal.configurations.list({
+      active: true,
+      limit: 100,
+    });
+    requireValue(
+      configurations.has_more !== true,
+      "PORTAL_CONFIGURATION_INVALID",
+      "Stripe portal inventory is incomplete; refuse selection until all configurations are reviewed.",
+      503,
+    );
+    const matches = configurations.data.filter(
+      (configuration: any) =>
+        configuration?.livemode === false &&
+        configuration?.metadata?.application === "poststeward" &&
+        configuration?.metadata?.environment === "staging",
+    );
+    requireValue(
+      matches.length === 1,
+      "PORTAL_CONFIGURATION_INVALID",
+      "Stripe staging must have exactly one active PostSteward Billing Portal configuration.",
+      503,
+    );
+    const configuration: any = matches[0];
+    const allowedUpdates = new Set(
+      configuration.features?.customer_update?.allowed_updates || [],
+    );
+    requireValue(
+      configuration.default_return_url === this.env.PUBLIC_ORIGIN + "/app" &&
+        configuration.features?.customer_update?.enabled === true &&
+        allowedUpdates.has("email") &&
+        allowedUpdates.has("name") &&
+        configuration.features?.invoice_history?.enabled === true &&
+        configuration.features?.payment_method_update?.enabled === true &&
+        configuration.features?.subscription_cancel?.enabled === true &&
+        configuration.features?.subscription_cancel?.mode === "at_period_end" &&
+        configuration.features?.subscription_cancel?.proration_behavior === "none" &&
+        configuration.features?.subscription_update?.enabled === false,
+      "PORTAL_CONFIGURATION_INVALID",
+      "Stripe staging Billing Portal configuration does not match the reviewed PostSteward contract.",
+      503,
+    );
+    return configuration.id as string;
+  }
+  async clearForDeletion() {
+    // This durable marker also fences a Checkout call already waiting on a price
+    // lookup. A claimed but unresolved provider request prevents erasure below.
+    this.store.put("lifecycle:deleting", true);
+    const attempt = this.store.get<Attempt>("billing:attempt");
+    const mapping = await this.env.IDENTITY.prepare(
+      "SELECT customer FROM stripe_customers WHERE workspace=?",
+    ).bind(this.workspace).first<{ customer: string }>();
+    let customer = mapping?.customer || this.store.get<string>("billing:customer");
+    const localCustomer = this.store.get<string>("billing:customer");
+    requireValue(!mapping || !localCustomer || mapping.customer === localCustomer,
+      "BILLING_MAPPING_MISMATCH", "Billing customer mapping requires reconciliation before erasure.", 409);
+    const entitlement = this.store.get<Entitlement>("entitlement");
+    let checkoutSubscription: string | undefined;
+    if (!attempt && !customer && !entitlement) return { cleared: true, subscriptions: 0 };
+    requireValue(this.stripe && stripeCredentialAllowed(this.env),
+      "BILLING_DELETE_PENDING", "Stripe verification is required before billing records can be erased.", 503);
+    const stripe = this.stripe!;
+    const livemode = !this.env.STRIPE_SECRET_KEY!.includes("_test_");
+    if (attempt?.mode === "subscription") {
+      requireValue(attempt.session, "BILLING_DELETE_PENDING", "Checkout creation is unresolved. Retain billing records and retry deletion after reconciliation.", 409);
+      let session = await stripe.checkout.sessions.retrieve(attempt.session!);
+      requireValue(session.client_reference_id === this.workspace && session.metadata?.quote === attempt.quote && session.livemode === livemode,
+        "BILLING_MAPPING_MISMATCH", "Checkout does not match this workspace and environment.", 409);
+      if (session.status === "open") {
+        await stripe.checkout.sessions.expire(session.id);
+        session = await stripe.checkout.sessions.retrieve(session.id);
+      }
+      requireValue(session.status === "expired" || session.status === "complete",
+        "BILLING_DELETE_PENDING", "Checkout can still accept payment; erasure is blocked.", 409);
+      const sessionCustomer = typeof session.customer === "string" ? session.customer : session.customer?.id;
+      requireValue(!customer || !sessionCustomer || customer === sessionCustomer,
+        "BILLING_MAPPING_MISMATCH", "Checkout customer differs from the retained billing mapping.", 409);
+      customer ||= sessionCustomer;
+      checkoutSubscription = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+      requireValue(session.status !== "complete" || (customer && checkoutSubscription),
+        "BILLING_DELETE_PENDING", "Completed Checkout requires a verified customer before erasure.", 409);
+    }
+    requireValue(attempt?.mode !== "pass" || attempt.status !== "pending",
+      "BILLING_DELETE_PENDING", "A machine payment remains unresolved; billing records must be retained.", 409);
+    requireValue(customer || entitlement?.kind !== "subscription",
+      "BILLING_DELETE_PENDING", "Subscription customer mapping is missing; erasure is blocked.", 409);
+    if (!customer) return { cleared: true, subscriptions: 0 };
+    const subscriptions = await stripe.subscriptions.list({ customer, status: "all", limit: 100 });
+    requireValue(subscriptions.has_more === false,
+      "BILLING_DELETE_PENDING", "Subscription inventory is incomplete; erasure is blocked.", 409);
+    requireValue(!checkoutSubscription || subscriptions.data.some(sub => sub.id === checkoutSubscription),
+      "BILLING_DELETE_PENDING", "Checkout subscription is absent from the current inventory; erasure is blocked.", 409);
+    for (const sub of subscriptions.data) {
+      requireValue(sub.livemode === livemode && sub.metadata?.workspace === this.workspace &&
+        (typeof sub.customer === "string" ? sub.customer : sub.customer.id) === customer,
+        "BILLING_MAPPING_MISMATCH", "Subscription inventory includes an unverified workspace association.", 409);
+    }
+    for (const sub of subscriptions.data) {
+      if (["canceled", "incomplete_expired"].includes(sub.status)) continue;
+      await stripe.subscriptions.cancel(sub.id, { invoice_now: false, prorate: false });
+      const confirmed = await stripe.subscriptions.retrieve(sub.id);
+      requireValue(confirmed.id === sub.id && confirmed.livemode === livemode && confirmed.metadata?.workspace === this.workspace && confirmed.status === "canceled",
+        "BILLING_DELETE_PENDING", "Subscription cancellation has not been confirmed; retry deletion.", 409);
+    }
+    return { cleared: true, subscriptions: subscriptions.data.length };
+  }
+  private recoveryRequired() {
+    return Boolean(this.store.get("recovery:authority-invalidated") && !this.store.get("billing:recovery-complete"));
+  }
+  private async recoverCheckout() {
+    if (!this.recoveryRequired() || this.store.get("billing:attempt")) return;
+    requireValue(this.env.MPP_ENABLED !== "true", "BILLING_RECOVERY_PENDING", "Machine-payment inventory requires separate recovery evidence before another purchase.", 409);
+    requireValue(this.stripe && stripeCredentialAllowed(this.env), "BILLING_RECOVERY_PENDING", "Current Stripe evidence is required before another purchase.", 503);
+    const recoveryGeneration = JSON.stringify(this.store.get("recovery:authority-invalidated"));
+    const demandRecovery = () => requireValue(
+      !this.store.get("lifecycle:deleting") && JSON.stringify(this.store.get("recovery:authority-invalidated")) === recoveryGeneration,
+      "BILLING_RECOVERY_CHANGED", "Workspace recovery changed during Stripe inspection.", 409);
+    const mapping = await this.env.IDENTITY.prepare("SELECT customer FROM stripe_customers WHERE workspace=?")
+      .bind(this.workspace).first<{ customer: string }>();
+    const stripe = this.stripe!;
+    const sessions = await stripe.checkout.sessions.list({ limit: 100, ...(mapping ? { customer: mapping.customer } : {}) });
+    requireValue(sessions.has_more === false, "BILLING_RECOVERY_PENDING", "Checkout inventory is incomplete. Billing recovery must finish before another purchase.", 409);
+    const livemode = !this.env.STRIPE_SECRET_KEY!.includes("_test_");
+    const matches = sessions.data.filter(s => s.client_reference_id === this.workspace);
+    requireValue(matches.every(s => s.livemode === livemode && s.mode === "subscription" && s.metadata?.workspace === this.workspace && s.metadata?.quote),
+      "BILLING_MAPPING_MISMATCH", "Recovered Checkout metadata does not match this workspace and environment.", 409);
+    let customer = mapping?.customer;
+    const customers = new Set(matches.map(s => typeof s.customer === "string" ? s.customer : s.customer?.id).filter(Boolean));
+    requireValue(customers.size <= 1 && (!customer || [...customers].every(id => id === customer)),
+      "BILLING_RECOVERY_PENDING", "Multiple billing customers require reconciliation before another purchase.", 409);
+    customer ||= [...customers][0];
+    let activeSubscription: string | undefined;
+    if (customer) {
+      // D1 mapping survives the workspace restore; checked session evidence can
+      // recover a mapping that was never committed before the interruption.
+      demandRecovery();
+      this.store.put("billing:customer", customer);
+      const subscriptions = await stripe.subscriptions.list({ customer, status: "all", limit: 100 });
+      requireValue(subscriptions.has_more === false && subscriptions.data.every(sub => sub.livemode === livemode && sub.metadata?.workspace === this.workspace &&
+        (typeof sub.customer === "string" ? sub.customer : sub.customer.id) === customer),
+        "BILLING_RECOVERY_PENDING", "Subscription inventory is incomplete or mismatched.", 409);
+      const active = subscriptions.data.filter(sub => !["canceled", "incomplete_expired"].includes(sub.status));
+      requireValue(active.length <= 1, "BILLING_RECOVERY_PENDING", "Multiple open subscriptions require owner reconciliation.", 409);
+      activeSubscription = active[0]?.id;
+    }
+    const subscriptionId = (s: Stripe.Checkout.Session) => typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
+    const open = matches.filter(s => s.status === "open");
+    requireValue(open.length <= 1 && !(open.length && activeSubscription), "BILLING_RECOVERY_PENDING", "An open Checkout overlaps existing subscription authority.", 409);
+    const selected = activeSubscription
+      ? matches.find(s => subscriptionId(s) === activeSubscription)
+      : open[0] || matches.filter(s => s.status === "complete").sort((a, b) => b.created - a.created)[0];
+    requireValue(!activeSubscription || selected, "BILLING_RECOVERY_PENDING", "The current subscription has no matching Checkout receipt.", 409);
+    this.store.tx(() => {
+      demandRecovery();
+      if (this.store.get("billing:attempt")) return;
+      if (selected) this.store.put("billing:attempt", {
+        quote: selected.metadata!.quote, mode: "subscription", startedAt: selected.created * 1000,
+        status: "pending", session: selected.id,
+      } satisfies Attempt);
+      this.store.put("billing:renewing", Boolean(activeSubscription));
+      this.store.put("billing:recovery-complete", { at: Date.now(), source: "stripe_inventory" });
+    });
+  }
   private covered() {
     const e = this.store.get<Entitlement>("entitlement");
     return e && !e.revoked && e.until > Date.now();
   }
   async status() {
-    if (this.stripe && this.store.get("billing:attempt")) {
+    // Capture persisted webhook completion before this status read can reconcile.
+    const webhookEvidence: {
+      available: boolean;
+      observedAt: number;
+      events: Array<{ id: string; receivedAt: number; completedAt: number | null }>;
+    } = { available: false, observedAt: Date.now(), events: [] };
+    try {
+      const rows = await this.env.IDENTITY.prepare(
+        "SELECT id, received_at, completed_at FROM stripe_events WHERE workspace=? ORDER BY received_at DESC, id DESC LIMIT 20",
+      ).bind(this.workspace).all<{ id: string; received_at: number; completed_at: number | null }>();
+      if (rows.success) {
+        webhookEvidence.available = true;
+        webhookEvidence.events = rows.results.map((row) => ({
+          id: row.id, receivedAt: row.received_at, completedAt: row.completed_at,
+        }));
+      }
+    } catch {
+      // A missing ledger is unavailable evidence, never evidence of zero events.
+    }
+    if (this.stripe && (this.store.get("billing:attempt") || this.recoveryRequired())) {
       try {
         await this.reconcile();
       } catch {
@@ -71,11 +258,15 @@ export class Billing implements BillingPort {
       }
     }
     return {
+      sandbox: sandboxBillingEnabled(this.env),
+      webhookEvidence,
+      recoveryPending: this.recoveryRequired(),
+      portalAvailable: this.available() && Boolean(this.store.get("billing:customer")),
       entitlement: this.store.get<Entitlement>("entitlement") || null,
       attempt: this.store.get<Attempt>("billing:attempt") || null,
       price: { amount: 500, currency: "usd", interval: "month" },
       methods: {
-        checkout: { available: this.available() },
+        checkout: { available: this.available() && !this.recoveryRequired() },
         mpp: {
           available:
             this.available() &&
@@ -93,6 +284,8 @@ export class Billing implements BillingPort {
   }
   async quote(input: any, actor: Actor) {
     this.requireAvailable();
+    if (this.recoveryRequired()) await this.reconcile();
+    requireValue(!this.recoveryRequired(), "BILLING_RECOVERY_PENDING", "Complete billing reconciliation before another purchase.", 409);
     requireValue(
       !this.covered(),
       "ALREADY_COVERED",
@@ -118,6 +311,15 @@ export class Billing implements BillingPort {
       end: addMonth(now),
       expires: now + 600000,
       autoRenew: input.mode === "subscription",
+      ...(input.mode === "subscription"
+        ? {
+            integrationIdentifier:
+              "poststeward_checkout_" +
+              Array.from(crypto.getRandomValues(new Uint8Array(8)), (value) =>
+                String.fromCharCode(97 + (value % 26)),
+              ).join(""),
+          }
+        : {}),
     };
     this.store.put("quote:" + quote.id, quote);
     return {
@@ -147,6 +349,8 @@ export class Billing implements BillingPort {
   }
   private claim(q: Quote) {
     return this.store.tx(() => {
+      requireValue(!this.store.get("lifecycle:deleting"), "WORKSPACE_DELETION_IN_PROGRESS", "Workspace deletion blocks new purchases.", 410);
+      requireValue(!this.recoveryRequired(), "BILLING_RECOVERY_PENDING", "Complete billing reconciliation before another purchase.", 409);
       requireValue(
         !this.covered(),
         "ALREADY_COVERED",
@@ -191,11 +395,11 @@ export class Billing implements BillingPort {
         session: existing.session,
         status: existing.status,
       };
-    const attempt = this.claim(q);
     // All callers, including interrupted retries, use the same Stripe key and parameters.
     const price = await stripe.prices.retrieve(this.env.STRIPE_PRICE_ID!);
     requireValue(
       price.active &&
+        price.livemode === !this.env.STRIPE_SECRET_KEY!.includes("_test_") &&
         price.currency === "usd" &&
         price.unit_amount === 500 &&
         price.recurring?.interval === "month" &&
@@ -204,11 +408,16 @@ export class Billing implements BillingPort {
       "Stripe Price must be active USD 5 per month.",
       503,
     );
+    const attempt = this.claim(q);
     const knownCustomer = this.store.get<string>("billing:customer");
     try {
       const session = await stripe.checkout.sessions.create(
         {
           mode: "subscription",
+          // Legacy quotes omit the new parameter, including retries of pre-upgrade requests.
+          ...(q.integrationIdentifier
+            ? { integration_identifier: q.integrationIdentifier }
+            : {}),
           line_items: [{ price: price.id, quantity: 1 }],
           ...(knownCustomer ? { customer: knownCustomer } : {}),
           client_reference_id: this.workspace,
@@ -223,6 +432,10 @@ export class Billing implements BillingPort {
         },
         { idempotencyKey: "checkout:" + this.workspace + ":" + q.id },
       );
+      requireValue(
+        session.livemode === !this.env.STRIPE_SECRET_KEY!.includes("_test_"),
+        "BILLING_MODE_MISMATCH", "Stripe Checkout environment mismatch.", 409,
+      );
       attempt.session = session.id;
       attempt.url = session.url || undefined;
       this.store.put("billing:attempt", attempt);
@@ -236,16 +449,22 @@ export class Billing implements BillingPort {
     }
   }
   async portal(input: any, actor: Actor) {
-    const stripe = this.requireAvailable(),
-      customer = this.store.get<string>("billing:customer");
+    const stripe = this.requireAvailable();
+    if (!this.store.get("billing:customer") && this.recoveryRequired()) await this.recoverCheckout();
+    const customer = this.store.get<string>("billing:customer");
     requireValue(
       customer,
       "NO_BILLING_CUSTOMER",
       "There is no Stripe customer for this workspace.",
       409,
     );
+    const configuration = await this.sandboxPortalConfiguration(stripe);
     const session = await stripe.billingPortal.sessions.create(
-      { customer, return_url: this.env.PUBLIC_ORIGIN + "/app" },
+      {
+        customer,
+        return_url: this.env.PUBLIC_ORIGIN + "/app",
+        ...(configuration ? { configuration } : {}),
+      },
       {
         idempotencyKey: "portal:" + this.workspace + ":" + input.idempotencyKey,
       },
@@ -254,6 +473,9 @@ export class Billing implements BillingPort {
   }
   async reconcile() {
     if (!this.stripe) return;
+    requireValue(stripeCredentialAllowed(this.env), "BILLING_MODE_MISMATCH",
+      "Stripe credentials do not match this deployment.", 409);
+    await this.recoverCheckout();
     const a = this.store.get<Attempt>("billing:attempt");
     if (!a) return;
     if (a.mode === "pass") {
@@ -320,7 +542,7 @@ export class Billing implements BillingPort {
         : session.subscription.id,
       {
         expand: [
-          "latest_invoice.payments.data.payment.payment_intent.latest_charge",
+          "latest_invoice.payments",
         ],
       },
     );
@@ -342,9 +564,21 @@ export class Billing implements BillingPort {
         i.quantity === 1,
     );
     const invoice = sub.latest_invoice;
-    const paymentIntents = (invoice?.payments?.data || [])
-      .map((p: any) => p.payment?.payment_intent)
-      .filter((p: any) => p && typeof p === "object");
+    const payments = invoice?.payments;
+    requireValue(payments && payments.has_more === false && payments.data.length > 0,
+      "BILLING_RECONCILIATION_PENDING", "Invoice payment evidence is incomplete.", 503);
+    const paymentIntents: any[] = [];
+    for (const payment of payments.data) {
+      const reference = payment.payment?.payment_intent;
+      const id = typeof reference === "string" ? reference : reference?.id;
+      requireValue(id, "BILLING_RECONCILIATION_PENDING", "Invoice payment requires verification.", 503);
+      const intent = await this.stripe.paymentIntents.retrieve(id, { expand: ["latest_charge"] });
+      requireValue(intent.id === id && intent.livemode === session.livemode &&
+        intent.status === "succeeded" && intent.currency === "usd" &&
+        intent.latest_charge && typeof intent.latest_charge === "object",
+        "BILLING_RECONCILIATION_PENDING", "Payment and charge evidence is incomplete.", 503);
+      paymentIntents.push(intent);
+    }
     const invalid = paymentIntents.some(
       (p: any) =>
         p.latest_charge?.refunded ||
@@ -530,7 +764,7 @@ export async function stripeWebhook(
   env: Env,
 ): Promise<Response> {
   requireValue(
-    env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET,
+    env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && stripeCredentialAllowed(env),
     "WEBHOOK_UNCONFIGURED",
     "Webhook is not configured.",
     503,
@@ -544,6 +778,8 @@ export async function stripeWebhook(
   );
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
     httpClient: Stripe.createFetchHttpClient(),
+    maxNetworkRetries: 0,
+    timeout: 15000,
   });
   let event: Stripe.Event;
   try {
@@ -569,12 +805,40 @@ export async function stripeWebhook(
   );
   const object = event.data.object as any;
   let workspace = object.metadata?.workspace || object.client_reference_id;
-  if (!workspace && typeof object.customer === "string")
+  let customer = typeof object.customer === "string" ? object.customer : undefined;
+  // Dispute/refund objects can carry only a charge ID, with no customer or workspace.
+  // Resolve that signed reference before acknowledging; a failed lookup must be retried.
+  if (
+    !workspace &&
+    !customer &&
+    ["dispute", "refund"].includes(object.object) &&
+    typeof object.charge === "string"
+  ) {
+    let charge: Stripe.Charge;
+    try {
+      charge = await stripe.charges.retrieve(object.charge);
+    } catch {
+      throw new Fault(
+        "BILLING_RECONCILIATION_PENDING",
+        "Stripe charge lookup awaits retry.",
+        503,
+      );
+    }
+    requireValue(
+      charge.id === object.charge && charge.livemode === event.livemode,
+      "BILLING_MODE_MISMATCH",
+      "Stripe charge does not match the signed event.",
+      400,
+    );
+    workspace = charge.metadata?.workspace;
+    customer = typeof charge.customer === "string" ? charge.customer : undefined;
+  }
+  if (!workspace && customer)
     workspace = (
       await env.IDENTITY.prepare(
         "SELECT workspace FROM stripe_customers WHERE customer=?",
       )
-        .bind(object.customer)
+        .bind(customer)
         .first<{ workspace: string }>()
     )?.workspace;
   if (!workspace) return json({ received: true, matched: false });

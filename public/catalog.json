@@ -558,6 +558,49 @@
     }
   },
   {
+    "name": "receipt_recheck",
+    "description": "Verify the recorded post ID, stable author and exact text without publishing again. At most eight recovery reads, at least sixty seconds apart. Already verified receipts return unchanged.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "delivery": "delivery-id",
+      "idempotencyKey": "readback-001"
+    },
+    "inspection": "receipt_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "delivery",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "receipts_list",
     "description": "Read delivery history. An unverified ID and an ambiguous effect are distinct from verified publication.",
     "scope": "read",

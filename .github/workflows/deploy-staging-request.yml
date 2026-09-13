@@ -1,8 +1,13 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-09-staging-secret-forwarding
+# Deployment request: 2026-09-13-disposable-pitr-erasure-acceptance
 # Updating this file on main is an explicit staging deployment request.
-# Ordinary source/doc changes do not request a deployment.
+# Deploy the exact reviewed revision that adds protected manual disposable PITR/erasure acceptance tooling.
+# This automatic deployment remains non-destructive. Real PITR/erasure occurs only through the separate
+# manual staging workflow against synthetic state after explicit confirmation.
+# It must not publish social content, grant/revoke provider authority, settle/refund payment,
+# or touch the existing owner acceptance workspace.
+# Root cutover still runs only with ENCRYPTION_ROOT_WRITE=next and a distinct protected ENCRYPTION_KEY_NEXT.
 on:
   push:
     branches: [main]
@@ -10,15 +15,23 @@ on:
       - .github/workflows/deploy-staging-request.yml
 permissions:
   contents: read
+  pull-requests: read
 jobs:
   staging:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
     uses: ./.github/workflows/deploy.yml
     with:
       environment: staging
-    # Pass only the existing named fallbacks, never all repository secrets.
+    # Pass only explicitly named fallbacks, never every repository secret.
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
       OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
       ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}
+      X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
+      THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+      STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}

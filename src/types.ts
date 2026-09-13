@@ -13,10 +13,19 @@ export interface Actor {
   id: string;
   scopes: Scope[];
   grant?: string;
+  /** Internal, only for a session-bound controlled publication. Never exported. */
+  ownerSession?: string;
 }
 export interface Identity {
   id: string;
   username: string;
+}
+export interface AccountCapabilities {
+  oauth: boolean;
+  refresh: boolean;
+  readback: boolean;
+  /** True only with granted scope evidence; absent means unknown. */
+  metrics?: boolean;
 }
 export interface Account {
   alias: string;
@@ -26,6 +35,7 @@ export interface Account {
   secret: string;
   active: boolean;
   verifiedAt: number;
+  capabilities?: AccountCapabilities;
 }
 export interface Project {
   id: string;
@@ -73,12 +83,17 @@ export interface Delivery {
   phase?:
     "identity" | "container_create" | "container_wait" | "publish" | "readback";
   claimUntil?: number;
+  claimId?: string;
+  reviewedRelease?: string;
   containerId?: string;
   containerChecks?: number;
   nextCheck?: number;
   postId?: string;
   url?: string;
   reason?: string;
+  readbackAttempts?: number;
+  nextReadbackAt?: number;
+  lastReadbackAt?: number;
   metrics?: unknown;
 }
 export interface Entitlement {
@@ -102,9 +117,12 @@ export interface Profile {
   enabled: boolean;
   sha?: string;
   lastCheck?: number;
-  error?: string;
   nextRun: number;
   nextMetrics: number;
+  lastMetricsAttempt?: number;
+  lastMetricsSuccess?: number;
+  metricsError?: string;
+  error?: string;
   authority: Actor;
 }
 export interface Store {
@@ -115,6 +133,7 @@ export interface Store {
   tx<T>(fn: () => T): T;
 }
 export interface Env {
+  DEPLOY_ENV?: string;
   EDGE_LIMITER: RateLimit;
   LOGIN_LIMITER: RateLimit;
   SIGNUP_MODE: "restricted" | "public";
@@ -126,10 +145,25 @@ export interface Env {
   PUBLIC_ORIGIN: string;
   RELEASE_SHA: string;
   ENCRYPTION_KEY: string;
+  ENCRYPTION_KEY_NEXT?: string;
+  ENCRYPTION_ROOT_WRITE?: "legacy" | "next";
+  ROOT_ROTATION_TOKEN?: string;
+  ROOT_ROTATION_EXPIRES_AT?: string;
   ENCRYPTION_KEY_VERSION?: string;
   OIDC_ISSUER: string;
   OIDC_CLIENT_ID: string;
   OIDC_CLIENT_SECRET: string;
+  GITHUB_APP_CLIENT_ID?: string;
+  GITHUB_APP_CLIENT_SECRET?: string;
+  GITHUB_APP_SLUG?: string;
+  X_OAUTH_CLIENT_ID?: string;
+  X_OAUTH_CLIENT_SECRET?: string;
+  THREADS_OAUTH_CLIENT_ID?: string;
+  THREADS_OAUTH_CLIENT_SECRET?: string;
+  LINKEDIN_OAUTH_CLIENT_ID?: string;
+  LINKEDIN_OAUTH_CLIENT_SECRET?: string;
+  LINKEDIN_MEMBER_READBACK?: string;
+  STRIPE_SANDBOX_ENABLED?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   Miniflare,
   convertV4MiniflareOptions,
@@ -14,7 +14,7 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
-      scriptPath: "dist/worker.js",
+      scriptPath: "dist/edge.js",
       compatibilityDate: "2026-09-09",
       compatibilityFlags: ["nodejs_compat"],
       bindings: {
@@ -77,11 +77,14 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
   );
   try {
     const db = await mf.getD1Database("IDENTITY");
-    for (const statement of readFileSync("migrations/0001_identity.sql", "utf8")
-      .split(";")
-      .map((x) => x.trim())
-      .filter(Boolean))
-      await db.prepare(statement).run();
+    for (const file of readdirSync("migrations")
+      .filter((name) => /^\d+.*\.sql$/.test(name))
+      .sort())
+      for (const statement of readFileSync("migrations/" + file, "utf8")
+        .split(";")
+        .map((x) => x.trim())
+        .filter(Boolean))
+        await db.prepare(statement).run();
     await db
       .prepare("INSERT INTO principals VALUES (?,?,?)")
       .bind(owner.id, owner.workspace, Date.now())
@@ -127,7 +130,9 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
       "https://publish.example/help.json",
     );
     assert.equal(discovery.status, 200);
-    assert.equal(((await discovery.json()) as any).operations.length, 26);
+    const operations = ((await discovery.json()) as any).operations;
+    assert.equal(operations.length, 27);
+    assert.ok(operations.some((operation: any) => operation.name === "receipt_recheck"));
     const unauth = await mf.dispatchFetch(
       "https://publish.example/api/operations/workspace_status",
       {

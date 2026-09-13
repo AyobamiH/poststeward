@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>PostSteward Advanced inventory</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/advanced-inventory.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="wordmark" href="/">PostSteward</a>
+      <nav><a href="/app">Workspace</a><a href="/pilot">Controlled acceptance</a></nav>
+    </header>
+    <main class="workspace">
+      <section class="summary">
+        <div>
+          <p class="eyebrow">ADVANCED CONTROL PLANE</p>
+          <h1>Inventory and categories</h1>
+          <p class="muted">
+            Categories are the reviewed profile family. Inventory is the current
+            source snapshot plus the automatic deliveries reserved from it. This
+            view is read-only; authority changes remain on the workspace page.
+          </p>
+          <p id="status" role="status">Loading…</p>
+        </div>
+        <a href="/app">Manage reviewed profiles</a>
+      </section>
+      <div class="workspace-grid">
+        <section class="panel">
+          <h2>Categories</h2>
+          <p class="muted">
+            Profiles in the same family share spacing pressure. Rename or move a
+            category only by pausing and reviewing the profile in the workspace.
+          </p>
+          <div id="categories" class="record-list"></div>
+        </section>
+        <section class="panel">
+          <h2>Source inventory</h2>
+          <p class="muted">
+            A source SHA is evidence of observed source state, not proof of a
+            deployment. Preview never publishes or reserves a delivery.
+          </p>
+          <div id="inventory" class="record-list"></div>
+        </section>
+        <section class="panel wide">
+          <h2>Allocation and metrics cycle</h2>
+          <p class="muted">
+            Pending automatic deliveries are shown separately from provider
+            receipts. Metrics presence is reported only when the provider
+            returned evidence.
+          </p>
+          <div id="deliveries" class="record-list"></div>
+        </section>
+      </div>
+      <pre id="result" role="status" aria-live="polite" hidden></pre>
+    </main>
+  </body>
+</html>

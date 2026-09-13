@@ -1,4 +1,5 @@
 import { byName, plans } from "./operations/catalog.ts";
+import { guardControlledPublication } from "./controlled.ts";
 import {
   active,
   digest,
@@ -8,7 +9,7 @@ import {
   uid,
   validZone,
 } from "./common.ts";
-import { seal, unseal } from "./crypto.ts";
+import { credentialRoots, seal, unseal } from "./crypto.ts";
 import {
   validateText,
   type Credential,
@@ -50,7 +51,9 @@ export class Engine {
   ) {
     this.now = options.now || Date.now;
     this.handlers = {
-      workspace_status: () => ({
+      workspace_status: (_input, actor) => ({
+        workspace: actor.workspace,
+        release: env.RELEASE_SHA,
         plan: this.paid() ? "advanced" : "free",
         entitlement: this.store.get("entitlement") || null,
         publishingPaused: this.paused(),
@@ -140,7 +143,7 @@ export class Engine {
           )
             return {
               cancelled: false,
-              delivery: d,
+              delivery: this.publicDelivery(d),
               reason: "already_executing",
             };
           if (["scheduled", "waiting_container"].includes(d.status)) {
@@ -148,11 +151,11 @@ export class Engine {
               status: "cancelled",
               reason: "Cancelled by authorised actor.",
             });
-            return { cancelled: true, delivery: d };
+            return { cancelled: true, delivery: this.publicDelivery(d) };
           }
           return {
             cancelled: d.status === "cancelled",
-            delivery: d,
+            delivery: this.publicDelivery(d),
             reason:
               d.status === "executing"
                 ? "already_executing"
@@ -202,6 +205,7 @@ export class Engine {
       },
       receipt_get: (i) =>
         this.publicDelivery(this.get<Delivery>("delivery:", i.delivery)),
+      receipt_recheck: (i) => this.recheckReceipt(i.delivery),
       receipts_list: (i) =>
         this.deliveries()
           .filter((d) => !i.before || d.createdAt < i.before)
@@ -222,11 +226,8 @@ export class Engine {
           "Account changed since publication.",
           409,
         );
-        const metrics = await this.providers.metrics(
-          d,
-          await this.credential(a),
-        );
-        this.update(d, { metrics });
+        const metrics = await this.captureMetrics(d, a);
+        this.update(this.get<Delivery>("delivery:", d.id), { metrics });
         return metrics;
       },
       publishing_pause: (i) => {
@@ -294,10 +295,10 @@ export class Engine {
       },
       automation_pause: (i) =>
         this.pauseProfile(i.id, "Paused by authorised actor."),
-      billing_status: () => options.billing.status(),
-      billing_quote: (i, a) => options.billing.quote(i, a),
-      billing_checkout: (i, a) => options.billing.checkout(i, a),
-      billing_portal: (i, a) => options.billing.portal(i, a),
+      billing_status: () => this.options.billing.status(),
+      billing_quote: (i, a) => this.options.billing.quote(i, a),
+      billing_checkout: (i, a) => this.options.billing.checkout(i, a),
+      billing_portal: (i, a) => this.options.billing.portal(i, a),
     };
   }
   get<T>(prefix: string, id: string): T {
@@ -338,7 +339,7 @@ export class Engine {
   private async credential(a: Account) {
     return unseal<Credential>(
       a.secret,
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       this.store.get<string>("workspace") + ":" + a.alias,
     );
   }
@@ -374,6 +375,10 @@ export class Engine {
       "X_FUNDING_REQUIRED",
       "Confirm these user credentials belong to your own funded X developer application.",
     );
+    const expected = JSON.stringify([
+      this.store.get("account:" + input.alias),
+      this.store.get("oauth:" + input.alias),
+    ]);
     const identity = await this.providers.identity(input.provider, input);
     const encrypted = await seal(
       {
@@ -381,11 +386,15 @@ export class Engine {
         expiresAt: input.expiresAt,
         funding: input.funding,
       },
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       actor.workspace + ":" + input.alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );
     return this.store.tx(() => {
+      requireValue(JSON.stringify([
+        this.store.get("account:" + input.alias),
+        this.store.get("oauth:" + input.alias),
+      ]) === expected, "CONNECTION_CHANGED", "Connection changed during identity verification. Review the current connection before reconnecting.", 409);
       const old = this.store.get<Account>("account:" + input.alias);
       const a: Account = {
         alias: input.alias,
@@ -397,6 +406,8 @@ export class Engine {
         verifiedAt: this.now(),
       };
       this.store.put("account:" + a.alias, a);
+      // Manual replacement must never inherit the previous OAuth refresh grant.
+      this.store.delete("oauth:" + a.alias);
       return {
         alias: a.alias,
         provider: a.provider,
@@ -434,6 +445,7 @@ export class Engine {
       402,
     );
     const data = parsed.data as any;
+    guardControlledPublication(this.store, name, data);
     if (!data.idempotencyKey) return this.handlers[name](data, actor);
     const hash = await digest({ name, data }),
       key =
@@ -454,6 +466,8 @@ export class Engine {
       return undefined;
     });
     if (prior) {
+      requireValue(prior.status !== "archived", "OPERATION_ARCHIVED",
+        "This completed operation was archived. Inspect the saved archive; it will not be executed again.", 409);
       if (prior.status === "failed")
         throw new Fault(prior.code, prior.message, prior.httpStatus);
       return prior.status === "complete"
@@ -466,7 +480,7 @@ export class Engine {
     }
     try {
       const result = await this.handlers[name](data, actor);
-      this.store.put(key, { hash, status: "complete", result });
+      this.store.put(key, { hash, status: "complete", result, completedAt: this.now() });
       return result;
     } catch (e) {
       if (e instanceof Fault)
@@ -479,6 +493,51 @@ export class Engine {
         });
       throw e;
     }
+  }
+  private async recheckReceipt(id: string) {
+    const delivery = this.get<Delivery>("delivery:", id);
+    requireValue(delivery.postId && ["published_unverified", "published_verified"].includes(delivery.status),
+      "NO_READBACK_TARGET", "Inspect the existing receipt. A recorded publication ID is required; never republish an uncertain write.", 409);
+    if (delivery.status === "published_verified") return this.publicDelivery(delivery);
+    const demandBinding = () => {
+      const account = this.connected(delivery.account);
+      requireValue(account.provider === delivery.provider && account.version === delivery.binding && account.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT", "The connection no longer matches the recorded publication.", 409);
+      requireValue(delivery.provider !== "linkedin" || account.capabilities?.readback === true,
+        "READBACK_AUTHORITY_CHANGED", "LinkedIn member readback authority is unavailable.", 409);
+      return account;
+    };
+    const account = demandBinding();
+    const attempt = this.store.tx(() => {
+      const current = this.get<Delivery>("delivery:", id);
+      requireValue((current.readbackAttempts || 0) < 8 && (current.nextReadbackAt || 0) <= this.now(),
+        "READBACK_LIMIT", "Readback recovery permits eight attempts, at least sixty seconds apart.", 429);
+      const attempt = (current.readbackAttempts || 0) + 1;
+      this.update(current, { readbackAttempts: attempt, nextReadbackAt: this.now() + 60000 });
+      return attempt;
+    });
+    let evidence: { verified: boolean; url?: string } = { verified: false };
+    try {
+      const credential = await this.credential(account);
+      demandBinding();
+      evidence = await this.providers.verify(delivery, credential);
+    } catch {
+      // A failed read cannot erase the durable creation ID or enable a write.
+    }
+    demandBinding();
+    return this.store.tx(() => {
+      const current = this.get<Delivery>("delivery:", id);
+      requireValue(current.postId === delivery.postId && current.fingerprint === delivery.fingerprint && current.readbackAttempts === attempt,
+        "READBACK_CHANGED", "A newer readback owns this receipt.", 409);
+      if (current.status !== "published_unverified") return this.publicDelivery(current);
+      this.update(current, {
+        status: evidence.verified ? "published_verified" : "published_unverified",
+        url: evidence.url || current.url,
+        lastReadbackAt: this.now(),
+        reason: evidence.verified ? undefined : "Provider creation ID retained; exact readback not confirmed.",
+      });
+      return this.publicDelivery(current);
+    });
   }
   private validate(c: Campaign) {
     const p = this.get<Project>("project:", c.project);
@@ -558,7 +617,10 @@ export class Engine {
       const previous = id
         ? this.store.get<Delivery>("delivery:" + id)
         : undefined;
-      return previous && previous.status !== "cancelled" ? previous : d;
+      return previous &&
+        (previous.status !== "cancelled" || previous.reviewedRelease)
+        ? previous
+        : d;
     });
     const fresh = resolved.filter(
       (d, index) =>
@@ -605,6 +667,56 @@ export class Engine {
       ),
       reused: prepared.length - fresh.length,
     };
+  }
+  /** Internal owner-pilot reservation. No I/O inside the atomic commit. */
+  reserveReviewed(delivery: Delivery, commitApproval: () => void) {
+    return this.store.tx(() => {
+      requireValue(
+        !this.paused(),
+        "PUBLISHING_PAUSED",
+        "Publishing is paused.",
+        409,
+      );
+      requireValue(
+        delivery.actor.workspace === this.store.get("workspace") &&
+          delivery.actor.scopes.includes("admin") &&
+          !delivery.actor.grant &&
+          delivery.actor.ownerSession &&
+          !delivery.automatic &&
+          delivery.reviewedRelease === this.env.RELEASE_SHA &&
+          delivery.dueAt >= this.now(),
+        "REVIEW_INVALID",
+        "A current session-bound owner review is required.",
+        409,
+      );
+      const account = this.connected(delivery.account);
+      requireValue(
+        account.version === delivery.binding &&
+          account.provider === delivery.provider &&
+          account.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT",
+        "The reviewed account binding changed.",
+        409,
+      );
+      validateText(delivery.provider, delivery.text);
+      requireValue(
+        !this.store.get("fingerprint:" + delivery.fingerprint),
+        "EXISTING_PUBLICATION",
+        "This exact account/content already has a delivery. Inspect it rather than creating a pilot duplicate.",
+        409,
+      );
+      const result = this.reservePrepared([delivery]);
+      requireValue(
+        result.reused === 0 &&
+          result.deliveries.length === 1 &&
+          result.deliveries[0].id === delivery.id,
+        "RESERVATION_CONFLICT",
+        "Controlled reservation did not allocate exactly its one delivery.",
+        409,
+      );
+      commitApproval();
+      return result;
+    });
   }
   async reserve(
     campaign: string,
@@ -695,6 +807,67 @@ export class Engine {
         "Reviewed templates only; source change is evidence of a development update, not proof of deployed functionality.",
     };
   }
+  private async captureMetrics(delivery: Delivery, account: Account) {
+    const credential = await this.credential(account);
+    const demandBinding = () => {
+      const current = this.connected(delivery.account);
+      requireValue(current.provider === delivery.provider &&
+        current.version === delivery.binding &&
+        current.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT", "Account changed since publication.", 409);
+    };
+    demandBinding();
+    const metrics = await this.providers.metrics(delivery, credential);
+    demandBinding();
+    return metrics;
+  }
+  private async captureScheduledMetrics(p: Profile) {
+    const attemptAt = this.now();
+    let failures = 0;
+    for (const d of this.deliveries()
+      .filter((d) => d.policy === p.id && d.postId)
+      .sort((a, b) => b.dueAt - a.dueAt)
+      .slice(0, 10)) {
+      const current = this.get<Profile>("profile:", p.id);
+      if (
+        !current.enabled ||
+        current.revision !== p.revision ||
+        !this.paid()
+      )
+        return false;
+      try {
+        const a = this.connected(d.account);
+        requireValue(
+          a.identity.id === d.identity.id,
+          "ACCOUNT_DRIFT",
+          "Account changed since publication.",
+          409,
+        );
+        const metrics = await this.captureMetrics(d, a);
+        const latest = this.get<Profile>("profile:", p.id);
+        if (
+          !latest.enabled ||
+          latest.revision !== p.revision ||
+          !this.paid()
+        )
+          return false;
+        this.update(this.get<Delivery>("delivery:", d.id), { metrics });
+        if ((metrics as { availability?: string } | null)?.availability !== "available") failures++;
+      } catch {
+        failures++;
+      }
+    }
+    p.lastMetricsAttempt = attemptAt;
+    if (failures) {
+      p.metricsError = "METRICS_UNAVAILABLE";
+      p.nextMetrics = attemptAt + 15 * 60000;
+    } else {
+      p.metricsError = undefined;
+      p.lastMetricsSuccess = attemptAt;
+      p.nextMetrics = attemptAt + 86400000;
+    }
+    return true;
+  }
   private async automationTick() {
     for (const p of this.store
       .list<Profile>("profile:")
@@ -707,130 +880,132 @@ export class Engine {
         );
         continue;
       }
-      if (p.nextRun > this.now()) continue;
-      try {
-        const source = await this.options.source(p),
-          decision = this.automationDecision(p, source.sha);
-        // Check authority again after network I/O, since pause/expiry can race a source read.
-        const current = this.get<Profile>("profile:", p.id);
-        if (!current.enabled || current.revision !== p.revision || !this.paid())
-          continue;
-        if (p.sha && p.sha !== source.sha) {
-          for (const d of this.deliveries().filter(
-            (d) =>
-              d.policy === p.id &&
-              ["scheduled", "waiting_container"].includes(d.status),
-          ))
-            this.update(d, {
-              status: "cancelled",
-              reason: "Source snapshot changed.",
-            });
-          const text = Object.fromEntries(
-            Object.entries(p.templates).map(([alias, template]) => [
-              alias,
-              template
-                .replaceAll("{repository}", p.repository)
-                .replaceAll("{commit}", source.sha)
-                .replaceAll(
-                  "{source_url}",
-                  `https://github.com/${p.repository}/blob/${source.sha}/${p.path}`,
-                ),
-            ]),
-          );
-          const c: Campaign = {
-            id: await digest({ profile: p.id, sha: source.sha }),
-            project: p.project,
-            text,
-            digest: await digest(text),
-            createdAt: this.now(),
-            source: { profile: p.id, sha: source.sha, family: p.family },
-          };
-          this.validate(c);
-          this.store.put("campaign:" + c.id, c);
-          this.store.put("inventory:" + p.id, {
-            campaign: c.id,
-            sha: source.sha,
-          });
-        }
-        p.sha = source.sha;
-        p.error = undefined;
-        p.lastCheck = this.now();
-        const inventory = this.store.get<{ campaign: string; sha: string }>(
-          "inventory:" + p.id,
-        );
-        if (
-          inventory &&
-          inventory.sha === source.sha &&
-          decision.withinHorizon
-        ) {
-          const c = this.get<Campaign>("campaign:", inventory.campaign);
-          let slot = Date.parse(decision.firstSlot);
-          let remaining = false;
-          for (const alias of Object.keys(c.text)) {
-            const account = this.connected(alias);
-            const fingerprint = await digest({
-              provider: account.provider,
-              identity: account.identity.id,
-              text: c.text[alias],
-            });
-            const existingId = this.store.get<string>(
-              "fingerprint:" + fingerprint,
-            );
-            const existing = existingId
-              ? this.store.get<Delivery>("delivery:" + existingId)
-              : undefined;
-            if (existing && existing.status !== "cancelled") continue;
-            if (slot > this.now() + 75 * 60000) {
-              remaining = true;
-              continue;
-            }
-            const prepared = await this.prepare(
-              c,
-              slot,
-              "UTC",
-              p.authority,
-              true,
-              p.id,
-              [alias],
-            );
-            this.store.tx(() => {
-              const latest = this.get<Profile>("profile:", p.id);
-              requireValue(
-                latest.enabled && latest.revision === p.revision && this.paid(),
-                "AUTOMATION_CHANGED",
-                "Automation authority changed during allocation.",
-                409,
-              );
-              return this.reservePrepared(prepared);
-            });
-            slot += Math.max(p.minSpacingMinutes, p.intervalMinutes) * 60000;
-          }
-          if (!remaining) this.store.delete("inventory:" + p.id);
-        }
-        if (p.nextMetrics <= this.now()) {
-          for (const d of this.deliveries()
-            .filter((d) => d.policy === p.id && d.postId)
-            .sort((a, b) => b.dueAt - a.dueAt)
-            .slice(0, 10)) {
-            const a = this.connected(d.account);
-            if (a.identity.id === d.identity.id)
+      const sourceDue = p.nextRun <= this.now();
+      const metricsDue = p.nextMetrics <= this.now();
+      if (!sourceDue && !metricsDue) continue;
+
+      if (sourceDue) {
+        try {
+          const source = await this.options.source(p),
+            decision = this.automationDecision(p, source.sha);
+          const current = this.get<Profile>("profile:", p.id);
+          if (
+            !current.enabled ||
+            current.revision !== p.revision ||
+            !this.paid()
+          )
+            continue;
+          if (p.sha && p.sha !== source.sha) {
+            for (const d of this.deliveries().filter(
+              (d) =>
+                d.policy === p.id &&
+                ["scheduled", "waiting_container"].includes(d.status),
+            ))
               this.update(d, {
-                metrics: await this.providers.metrics(
-                  d,
-                  await this.credential(a),
-                ),
+                status: "cancelled",
+                reason: "Source snapshot changed.",
               });
+            const text = Object.fromEntries(
+              Object.entries(p.templates).map(([alias, template]) => [
+                alias,
+                template
+                  .replaceAll("{repository}", p.repository)
+                  .replaceAll("{commit}", source.sha)
+                  .replaceAll(
+                    "{source_url}",
+                    `https://github.com/${p.repository}/blob/${source.sha}/${p.path}`,
+                  ),
+              ]),
+            );
+            const c: Campaign = {
+              id: await digest({ profile: p.id, sha: source.sha }),
+              project: p.project,
+              text,
+              digest: await digest(text),
+              createdAt: this.now(),
+              source: { profile: p.id, sha: source.sha, family: p.family },
+            };
+            this.validate(c);
+            this.store.put("campaign:" + c.id, c);
+            this.store.put("inventory:" + p.id, {
+              campaign: c.id,
+              sha: source.sha,
+            });
           }
-          p.nextMetrics = this.now() + 86400000;
+          p.sha = source.sha;
+          p.error = undefined;
+          p.lastCheck = this.now();
+          const inventory = this.store.get<{ campaign: string; sha: string }>(
+            "inventory:" + p.id,
+          );
+          if (
+            inventory &&
+            inventory.sha === source.sha &&
+            decision.withinHorizon
+          ) {
+            const c = this.get<Campaign>("campaign:", inventory.campaign);
+            let slot = Date.parse(decision.firstSlot);
+            let remaining = false;
+            for (const alias of Object.keys(c.text)) {
+              const account = this.connected(alias);
+              const fingerprint = await digest({
+                provider: account.provider,
+                identity: account.identity.id,
+                text: c.text[alias],
+              });
+              const existingId = this.store.get<string>(
+                "fingerprint:" + fingerprint,
+              );
+              const existing = existingId
+                ? this.store.get<Delivery>("delivery:" + existingId)
+                : undefined;
+              if (existing && existing.status !== "cancelled") continue;
+              if (slot > this.now() + 75 * 60000) {
+                remaining = true;
+                continue;
+              }
+              const prepared = await this.prepare(
+                c,
+                slot,
+                "UTC",
+                p.authority,
+                true,
+                p.id,
+                [alias],
+              );
+              this.store.tx(() => {
+                const latest = this.get<Profile>("profile:", p.id);
+                requireValue(
+                  latest.enabled &&
+                    latest.revision === p.revision &&
+                    this.paid(),
+                  "AUTOMATION_CHANGED",
+                  "Automation authority changed during allocation.",
+                  409,
+                );
+                return this.reservePrepared(prepared);
+              });
+              slot +=
+                Math.max(p.minSpacingMinutes, p.intervalMinutes) * 60000;
+            }
+            if (!remaining) this.store.delete("inventory:" + p.id);
+          }
+        } catch (e) {
+          p.error = e instanceof Fault ? e.code : "SOURCE_UNAVAILABLE";
         }
-      } catch (e) {
-        p.error = e instanceof Fault ? e.code : "SOURCE_UNAVAILABLE";
+        p.nextRun = this.now() + 15 * 60000;
       }
-      // Do not undo an explicit pause that arrived while a provider/source request was in flight.
-      const latestProfile = this.get<Profile>("profile:", p.id);
-      if (latestProfile.revision !== p.revision) continue;
-      p.enabled = latestProfile.enabled;
-      p.nextRun = this.now() + 15 * 60000;
+
+      let latestProfile = this.get<Profile>("profile:", p.id);
+      if (latestProfile.revision !== p.revision || !latestProfile.enabled)
+        continue;
+
+      if (metricsDue && !(await this.captureScheduledMetrics(p))) continue;
+
+      latestProfile = this.get<Profile>("profile:", p.id);
+      if (latestProfile.revision !== p.revision || !latestProfile.enabled)
+        continue;
+      p.enabled = true;
       this.store.put("profile:" + p.id, p);
     }
   }
@@ -867,15 +1042,16 @@ export class Engine {
       });
       return;
     }
-    if (!(await this.options.authorized(d.actor))) {
+    const initiallyAuthorized = await this.options.authorized(d.actor);
+    d = this.get<Delivery>("delivery:", id);
+    if (!["scheduled", "waiting_container"].includes(d.status)) return;
+    if (!initiallyAuthorized) {
       this.update(d, {
         status: "drift_blocked",
         reason: "Delegated publishing authority revoked or expired.",
       });
       return;
     }
-    d = this.get<Delivery>("delivery:", id);
-    if (!["scheduled", "waiting_container"].includes(d.status)) return;
     if (d.automatic) {
       const p = this.get<Profile>("profile:", d.policy!);
       try {
@@ -899,15 +1075,27 @@ export class Engine {
     d = this.get<Delivery>("delivery:", id);
     if (!["scheduled", "waiting_container"].includes(d.status)) return;
     const previousPhase = d.phase;
-    // Synchronous durable claim, before the first provider request.
+    const claimId = uid();
     this.store.tx(() =>
       this.update(d, {
         status: "executing",
         phase:
           previousPhase === "container_wait" ? "container_wait" : "identity",
+        claimId,
         claimUntil: this.now() + 60000,
       }),
     );
+    const demandClaim = () => {
+      const current = this.get<Delivery>("delivery:", id);
+      requireValue(
+        current.claimId === claimId &&
+          current.status === "executing" &&
+          (current.claimUntil || 0) > this.now(),
+        "CLAIM_LOST",
+        "The execution claim expired or was recovered. No further provider write is permitted.",
+        409,
+      );
+    };
     try {
       const a = this.connected(d.account);
       requireValue(
@@ -926,19 +1114,27 @@ export class Engine {
       );
       const credential = await this.credential(a),
         identity = await this.providers.identity(d.provider, credential);
+      demandClaim();
       requireValue(
         identity.id === d.identity.id,
         "ACCOUNT_DRIFT",
         "Provider identity no longer matches the authorised account.",
         409,
       );
+      requireValue(
+        !d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA,
+        "AUTHORITY_CHANGED",
+        "The runtime changed after owner approval.",
+        409,
+      );
       if (d.provider === "threads") {
         if (!d.containerId) {
-          this.update(d, { phase: "container_create" });
-          const containerId = await this.providers.createContainer(
-            d,
-            credential,
-          );
+          this.update(d, {
+            phase: "container_create",
+            claimUntil: this.now() + 60000,
+          });
+          const containerId = await this.providers.createContainer(d, credential);
+          demandClaim();
           this.update(d, {
             containerId,
             phase: "container_wait",
@@ -952,6 +1148,7 @@ export class Engine {
           d.containerId,
           credential,
         );
+        demandClaim();
         d.containerChecks = (d.containerChecks || 0) + 1;
         if (
           ["IN_PROGRESS", "NOT_VISIBLE"].includes(status) &&
@@ -980,9 +1177,13 @@ export class Engine {
         );
       }
       const authorized = await this.options.authorized(d.actor);
+      demandClaim();
       const latest = this.connected(d.account);
       requireValue(
-        latest.version === d.binding && !this.paused() && authorized,
+        latest.version === d.binding &&
+          !this.paused() &&
+          authorized &&
+          (!d.reviewedRelease || d.reviewedRelease === this.env.RELEASE_SHA),
         "AUTHORITY_CHANGED",
         "Publication authority changed before provider write.",
         409,
@@ -997,9 +1198,11 @@ export class Engine {
           "Continuing authority is inactive.",
           409,
         );
-      this.update(d, { phase: "publish" });
+      this.update(d, { phase: "publish", claimUntil: this.now() + 60000 });
       const published = await this.providers.publish(d, credential);
-      // Commit the provider ID before any optional readback request.
+      const current = this.get<Delivery>("delivery:", id);
+      if (current.claimId !== claimId) return;
+      d = current;
       this.update(d, {
         postId: published.id,
         url: published.url,
@@ -1024,6 +1227,13 @@ export class Engine {
       }
     } catch (e) {
       const code = e instanceof Fault ? e.code : "UNEXPECTED_FAILURE";
+      const latest = this.get<Delivery>("delivery:", id);
+      if (
+        code === "CLAIM_LOST" ||
+        latest.claimId !== claimId ||
+        latest.status !== "executing"
+      )
+        return;
       this.update(d, {
         status:
           code === "AMBIGUOUS_PROVIDER_WRITE" ||
@@ -1070,7 +1280,7 @@ export class Engine {
       ...this.store
         .list<Profile>("profile:")
         .filter((p) => p.enabled)
-        .map((p) => p.nextRun),
+        .flatMap((p) => [p.nextRun, p.nextMetrics]),
     );
     if (times.length)
       await this.options.wake(

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { registerWebMCP } from "../public/webmcp.js";
+import { registerWebMCP, checkNativeWebMCP } from "../public/webmcp.js";
 test("browser WebMCP delegates exact tool inputs and declares consequential actions", async () => {
   const registered = [],
     calls = [];
@@ -50,4 +50,47 @@ test("unsupported browser is reported without fabricating native WebMCP", async 
     available: false,
     count: 0,
   });
+});
+
+test("partial registration failure revokes every previously registered tool", async () => {
+  const signals = [];
+  const failure = new Error("Browser rejected tool registration");
+  await assert.rejects(registerWebMCP({
+    operations: ["first", "second"].map((name) => ({
+      name, scope: "read", effects: ["READ_ONLY"], description: name,
+      inputSchema: { type: "object" },
+    })),
+  }, () => {}, ["read"], {
+    registerTool: async (_tool, options) => {
+      signals.push(options.signal);
+      if (signals.length === 2) throw failure;
+    },
+  }), failure);
+  assert.equal(signals.length, 2);
+  assert.ok(signals.every((signal) => signal.aborted));
+});
+
+test("native check uses the current document tool and verifies its workspace result (simulated API contract)", async (t) => {
+  const beforeDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const beforeWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  t.after(() => {
+    if (beforeDocument) Object.defineProperty(globalThis, "document", beforeDocument);
+    else delete globalThis.document;
+    if (beforeWindow) Object.defineProperty(globalThis, "window", beforeWindow);
+    else delete globalThis.window;
+  });
+  const page = {};
+  globalThis.window = page;
+  const tool = { name: "workspace_status", window: page };
+  let workspace = "expected";
+  globalThis.document = { modelContext: {
+    getTools: async (options) => { assert.deepEqual(options, { fromOrigins: [] }); return [tool]; },
+    executeTool: async (selected, input) => {
+      assert.equal(selected, tool); assert.deepEqual(input, {});
+      return JSON.stringify({ workspace, release: "test" });
+    },
+  }};
+  assert.equal((await checkNativeWebMCP("expected")).workspace, "expected");
+  workspace = "other";
+  await assert.rejects(checkNativeWebMCP("expected"), /unexpected workspace/);
 });
