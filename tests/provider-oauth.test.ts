@@ -219,3 +219,135 @@ test("disconnect scrubs locally stored OAuth credentials even when provider revo
   );
   assert.deepEqual(tombstone, { accessToken: "disconnected", expiresAt: 0 });
 });
+
+function latch<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+function testToken(now: number, suffix = "001") {
+  return {
+    provider: "x" as const,
+    accessToken: "access-token-private-" + suffix,
+    refreshToken: "refresh-token-private-" + suffix,
+    expiresAt: now + 600000,
+    scopes: xScopes,
+    obtainedAt: now,
+  };
+}
+for (const outcome of ["success", "failure", "identity_drift"] as const) {
+  for (const change of ["disconnect", "reconnect"] as const) {
+    test(`late refresh ${outcome} cannot overwrite ${change}`, async () => {
+      const h = configuredHarness();
+      const started = latch<void>();
+      const response = latch<Response>();
+      const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now,
+        (async () => { started.resolve(); return response.promise; }) as typeof fetch);
+      await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+      h.advance(420000);
+      const pending = oauth.refreshDue();
+      await started.promise;
+      if (change === "disconnect") {
+        const account = h.store.get<Account>("account:social")!;
+        h.store.put("account:social", { ...account, active: false, version: account.version + 1 });
+        h.store.delete("oauth:social");
+      } else {
+        await oauth.connect(owner, { alias: "social", token: testToken(h.now(), "replacement") });
+      }
+      const expectedAccount = h.store.get("account:social");
+      const expectedMeta = h.store.get("oauth:social");
+      if (outcome === "identity_drift") h.provider.identity = async () => ({ id: "other", username: "other" });
+      response.resolve(outcome === "failure" ? new Response(null, { status: 503 }) : Response.json({
+        access_token: "late-refreshed-access", refresh_token: "late-refreshed-secret", expires_in: 7200, scope: xScopes.join(" "),
+      }));
+      await pending;
+      assert.deepEqual(h.store.get("account:social"), expectedAccount);
+      assert.deepEqual(h.store.get("oauth:social"), expectedMeta);
+    });
+  }
+}
+
+test("late provider revocation cleanup cannot erase a replacement connection", async () => {
+  const h = configuredHarness();
+  const started = latch<void>();
+  const response = latch<Response>();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now,
+    (async () => { started.resolve(); return response.promise; }) as typeof fetch);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  const account = h.store.get<Account>("account:social")!;
+  h.store.put("account:social", { ...account, active: false, version: account.version + 1 });
+  const pending = oauth.afterDisconnect("social");
+  await started.promise;
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now(), "replacement") });
+  const expectedAccount = h.store.get("account:social");
+  const expectedMeta = h.store.get("oauth:social");
+  response.resolve(Response.json({ revoked: true }));
+  await pending;
+  assert.deepEqual(h.store.get("account:social"), expectedAccount);
+  assert.deepEqual(h.store.get("oauth:social"), expectedMeta);
+});
+
+test("overlapping refresh callers send one provider request", async () => {
+  const h = configuredHarness();
+  const started = latch<void>();
+  const response = latch<Response>();
+  let calls = 0;
+  const http = (async () => { calls++; started.resolve(); return response.promise; }) as typeof fetch;
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now, http);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  h.advance(420000);
+  const pending = oauth.refreshDue();
+  await started.promise;
+  const another = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now, http);
+  await another.refreshDue();
+  assert.equal(calls, 1);
+  response.resolve(Response.json({ access_token: "refreshed-access-token", expires_in: 7200, scope: xScopes.join(" ") }));
+  await pending;
+  assert.equal(oauth.status()[0].status, "healthy");
+});
+
+test("connection verification cannot overwrite a disconnect while identity is pending", async () => {
+  const h = configuredHarness();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  const started = latch<void>();
+  const identity = latch<{ id: string; username: string }>();
+  h.provider.identity = async () => { started.resolve(); return identity.promise; };
+  const pending = oauth.connect(owner, { alias: "social", token: testToken(h.now(), "replacement") });
+  const rejection = assert.rejects(pending, /Connection changed/);
+  await started.promise;
+  const account = h.store.get<Account>("account:social")!;
+  const disconnected = { ...account, active: false, version: account.version + 1 };
+  h.store.put("account:social", disconnected);
+  identity.resolve(account.identity);
+  await rejection;
+  assert.deepEqual(h.store.get("account:social"), disconnected);
+});
+
+test("manual replacement removes the previous OAuth refresh grant", async () => {
+  const h = configuredHarness();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  await h.engine.connect(owner, { alias: "social", provider: "x", accessToken: "manual-replacement-token", funding: "customer_app" });
+  assert.equal(h.store.get("oauth:social"), undefined);
+  assert.equal(oauth.nextWake(), undefined);
+  assert.equal(h.store.get<Account>("account:social")!.active, true);
+});
+
+test("manual identity verification cannot overwrite an intervening disconnect", async () => {
+  const h = configuredHarness();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+  const started = latch<void>();
+  const identity = latch<{ id: string; username: string }>();
+  h.provider.identity = async () => { started.resolve(); return identity.promise; };
+  const pending = h.engine.connect(owner, { alias: "social", provider: "x", accessToken: "manual-replacement-token", funding: "customer_app" });
+  const rejection = assert.rejects(pending, /Connection changed/);
+  await started.promise;
+  const account = h.store.get<Account>("account:social")!;
+  const disconnected = { ...account, active: false, version: account.version + 1 };
+  h.store.put("account:social", disconnected);
+  identity.resolve(account.identity);
+  await rejection;
+  assert.deepEqual(h.store.get("account:social"), disconnected);
+});
