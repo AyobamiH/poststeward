@@ -50,8 +50,7 @@ export async function commitRetention(store: RetentionStore, input: {
       "RETENTION_CHANGED", "Workspace state changed after export.", 409);
     for (const record of records) {
       if (record.action === "delete") store.delete(record.key);
-      else store.put(record.key, { hash: record.value.hash, status: "archived",
-        archivedAt: now, archiveDigest: input.digest });
+      else store.put(record.key, { hash: record.value.hash, status: "archived" });
     }
     return { prunedCampaigns: records.filter((r) => r.action === "delete").length,
       compactedResults: records.filter((r) => r.action === "compact").length,
