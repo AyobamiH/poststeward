@@ -124,3 +124,33 @@ test("scheduled metrics isolate per-post failures and retry the profile in fifte
   assert.ok(h.store.get<Delivery>("delivery:" + published.id)?.metrics);
   assert.equal(h.store.get<Delivery>("delivery:" + second.id)?.metrics, undefined);
 });
+
+test("an unavailable provider result is a failed metrics cycle, not a successful capture", async () => {
+  const { h, profile, published } = await profileWithPublishedDelivery();
+  profile.nextRun = h.now() + 7 * 86400000;
+  profile.nextMetrics = h.now();
+  h.store.put("profile:" + profile.id, profile);
+  h.provider.metrics = async () => ({ availability: "unavailable", reason: "PROVIDER_PERMISSION_REQUIRED" });
+  await h.engine.tick();
+  const updated = h.store.get<Profile>("profile:profile")!;
+  assert.equal(updated.metricsError, "METRICS_UNAVAILABLE");
+  assert.equal(updated.lastMetricsSuccess, undefined);
+  assert.equal(updated.nextMetrics, h.now() + 15 * 60000);
+  assert.deepEqual(h.store.get<Delivery>("delivery:" + published.id)?.metrics,
+    { availability: "unavailable", reason: "PROVIDER_PERMISSION_REQUIRED" });
+});
+
+test("disconnect during metrics read cannot save a successful result", async () => {
+  const { h, profile, published } = await profileWithPublishedDelivery();
+  profile.nextRun = h.now() + 7 * 86400000;
+  profile.nextMetrics = h.now();
+  h.store.put("profile:" + profile.id, profile);
+  h.provider.metrics = async () => {
+    const account: any = h.store.get("account:" + published.account);
+    h.store.put("account:" + published.account, { ...account, active: false, version: account.version + 1 });
+    return { availability: "available", values: { likes: 1 } };
+  };
+  await h.engine.tick();
+  assert.equal(h.store.get<Profile>("profile:profile")!.metricsError, "METRICS_UNAVAILABLE");
+  assert.equal(h.store.get<Delivery>("delivery:" + published.id)?.metrics, undefined);
+});
