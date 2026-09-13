@@ -106,6 +106,7 @@ export async function invalidateRestoredAuthority(
     store.delete("billing:customer");
     store.delete("billing:renewing");
     store.delete("billing:next");
+    store.delete("billing:recovery-complete");
     store.put(marker, {
       at: now,
       accounts: accounts.sort(),

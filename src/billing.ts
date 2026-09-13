@@ -169,6 +169,63 @@ export class Billing implements BillingPort {
     }
     return { cleared: true, subscriptions: subscriptions.data.length };
   }
+  private recoveryRequired() {
+    return Boolean(this.store.get("recovery:authority-invalidated") && !this.store.get("billing:recovery-complete"));
+  }
+  private async recoverCheckout() {
+    if (!this.recoveryRequired() || this.store.get("billing:attempt")) return;
+    requireValue(this.env.MPP_ENABLED !== "true", "BILLING_RECOVERY_PENDING", "Machine-payment inventory requires separate recovery evidence before another purchase.", 409);
+    requireValue(this.stripe && stripeCredentialAllowed(this.env), "BILLING_RECOVERY_PENDING", "Current Stripe evidence is required before another purchase.", 503);
+    const recoveryGeneration = JSON.stringify(this.store.get("recovery:authority-invalidated"));
+    const demandRecovery = () => requireValue(
+      !this.store.get("lifecycle:deleting") && JSON.stringify(this.store.get("recovery:authority-invalidated")) === recoveryGeneration,
+      "BILLING_RECOVERY_CHANGED", "Workspace recovery changed during Stripe inspection.", 409);
+    const mapping = await this.env.IDENTITY.prepare("SELECT customer FROM stripe_customers WHERE workspace=?")
+      .bind(this.workspace).first<{ customer: string }>();
+    const stripe = this.stripe!;
+    const sessions = await stripe.checkout.sessions.list({ limit: 100, ...(mapping ? { customer: mapping.customer } : {}) });
+    requireValue(sessions.has_more === false, "BILLING_RECOVERY_PENDING", "Checkout inventory is incomplete. Billing recovery must finish before another purchase.", 409);
+    const livemode = !this.env.STRIPE_SECRET_KEY!.includes("_test_");
+    const matches = sessions.data.filter(s => s.client_reference_id === this.workspace);
+    requireValue(matches.every(s => s.livemode === livemode && s.mode === "subscription" && s.metadata?.workspace === this.workspace && s.metadata?.quote),
+      "BILLING_MAPPING_MISMATCH", "Recovered Checkout metadata does not match this workspace and environment.", 409);
+    let customer = mapping?.customer;
+    const customers = new Set(matches.map(s => typeof s.customer === "string" ? s.customer : s.customer?.id).filter(Boolean));
+    requireValue(customers.size <= 1 && (!customer || [...customers].every(id => id === customer)),
+      "BILLING_RECOVERY_PENDING", "Multiple billing customers require reconciliation before another purchase.", 409);
+    customer ||= [...customers][0];
+    let activeSubscription: string | undefined;
+    if (customer) {
+      // D1 mapping survives the workspace restore; checked session evidence can
+      // recover a mapping that was never committed before the interruption.
+      demandRecovery();
+      this.store.put("billing:customer", customer);
+      const subscriptions = await stripe.subscriptions.list({ customer, status: "all", limit: 100 });
+      requireValue(subscriptions.has_more === false && subscriptions.data.every(sub => sub.livemode === livemode && sub.metadata?.workspace === this.workspace &&
+        (typeof sub.customer === "string" ? sub.customer : sub.customer.id) === customer),
+        "BILLING_RECOVERY_PENDING", "Subscription inventory is incomplete or mismatched.", 409);
+      const active = subscriptions.data.filter(sub => !["canceled", "incomplete_expired"].includes(sub.status));
+      requireValue(active.length <= 1, "BILLING_RECOVERY_PENDING", "Multiple open subscriptions require owner reconciliation.", 409);
+      activeSubscription = active[0]?.id;
+    }
+    const subscriptionId = (s: Stripe.Checkout.Session) => typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
+    const open = matches.filter(s => s.status === "open");
+    requireValue(open.length <= 1 && !(open.length && activeSubscription), "BILLING_RECOVERY_PENDING", "An open Checkout overlaps existing subscription authority.", 409);
+    const selected = activeSubscription
+      ? matches.find(s => subscriptionId(s) === activeSubscription)
+      : open[0] || matches.filter(s => s.status === "complete").sort((a, b) => b.created - a.created)[0];
+    requireValue(!activeSubscription || selected, "BILLING_RECOVERY_PENDING", "The current subscription has no matching Checkout receipt.", 409);
+    this.store.tx(() => {
+      demandRecovery();
+      if (this.store.get("billing:attempt")) return;
+      if (selected) this.store.put("billing:attempt", {
+        quote: selected.metadata!.quote, mode: "subscription", startedAt: selected.created * 1000,
+        status: "pending", session: selected.id,
+      } satisfies Attempt);
+      this.store.put("billing:renewing", Boolean(activeSubscription));
+      this.store.put("billing:recovery-complete", { at: Date.now(), source: "stripe_inventory" });
+    });
+  }
   private covered() {
     const e = this.store.get<Entitlement>("entitlement");
     return e && !e.revoked && e.until > Date.now();
@@ -193,7 +250,7 @@ export class Billing implements BillingPort {
     } catch {
       // A missing ledger is unavailable evidence, never evidence of zero events.
     }
-    if (this.stripe && this.store.get("billing:attempt")) {
+    if (this.stripe && (this.store.get("billing:attempt") || this.recoveryRequired())) {
       try {
         await this.reconcile();
       } catch {
@@ -203,11 +260,13 @@ export class Billing implements BillingPort {
     return {
       sandbox: sandboxBillingEnabled(this.env),
       webhookEvidence,
+      recoveryPending: this.recoveryRequired(),
+      portalAvailable: this.available() && Boolean(this.store.get("billing:customer")),
       entitlement: this.store.get<Entitlement>("entitlement") || null,
       attempt: this.store.get<Attempt>("billing:attempt") || null,
       price: { amount: 500, currency: "usd", interval: "month" },
       methods: {
-        checkout: { available: this.available() },
+        checkout: { available: this.available() && !this.recoveryRequired() },
         mpp: {
           available:
             this.available() &&
@@ -225,6 +284,8 @@ export class Billing implements BillingPort {
   }
   async quote(input: any, actor: Actor) {
     this.requireAvailable();
+    if (this.recoveryRequired()) await this.reconcile();
+    requireValue(!this.recoveryRequired(), "BILLING_RECOVERY_PENDING", "Complete billing reconciliation before another purchase.", 409);
     requireValue(
       !this.covered(),
       "ALREADY_COVERED",
@@ -289,6 +350,7 @@ export class Billing implements BillingPort {
   private claim(q: Quote) {
     return this.store.tx(() => {
       requireValue(!this.store.get("lifecycle:deleting"), "WORKSPACE_DELETION_IN_PROGRESS", "Workspace deletion blocks new purchases.", 410);
+      requireValue(!this.recoveryRequired(), "BILLING_RECOVERY_PENDING", "Complete billing reconciliation before another purchase.", 409);
       requireValue(
         !this.covered(),
         "ALREADY_COVERED",
@@ -387,8 +449,9 @@ export class Billing implements BillingPort {
     }
   }
   async portal(input: any, actor: Actor) {
-    const stripe = this.requireAvailable(),
-      customer = this.store.get<string>("billing:customer");
+    const stripe = this.requireAvailable();
+    if (!this.store.get("billing:customer") && this.recoveryRequired()) await this.recoverCheckout();
+    const customer = this.store.get<string>("billing:customer");
     requireValue(
       customer,
       "NO_BILLING_CUSTOMER",
@@ -412,6 +475,7 @@ export class Billing implements BillingPort {
     if (!this.stripe) return;
     requireValue(stripeCredentialAllowed(this.env), "BILLING_MODE_MISMATCH",
       "Stripe credentials do not match this deployment.", 409);
+    await this.recoverCheckout();
     const a = this.store.get<Attempt>("billing:attempt");
     if (!a) return;
     if (a.mode === "pass") {

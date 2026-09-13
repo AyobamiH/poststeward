@@ -479,3 +479,65 @@ test("deletion expires pending Checkout before cancelling its subscription", asy
   assert.equal(expired, true);
   assert.equal(h.cancelCalls(), 1);
 });
+
+function recoverySetup() {
+  const h = setup();
+  h.env.MPP_ENABLED = "false";
+  h.env.IDENTITY = { prepare: () => ({ bind: () => ({ first: async () => ({ customer: "cus_recover" }), run: async () => ({ success: true }) }) }) } as any;
+  h.store.put("recovery:authority-invalidated", { at: Date.now() });
+  const session: any = { id: "cs_recover", created: Math.floor(Date.now() / 1000), client_reference_id: owner.workspace,
+    metadata: { workspace: owner.workspace, quote: "recovered-quote" }, livemode: false, mode: "subscription", status: "complete", customer: "cus_recover", subscription: "sub_recover" };
+  const sub: any = { id: "sub_recover", customer: "cus_recover", metadata: { workspace: owner.workspace }, livemode: false, status: "active",
+    items: { data: [{ quantity: 1, current_period_end: Math.floor(Date.now() / 1000) + 86400, price: { id: "price_test", unit_amount: 500, currency: "usd" } }] },
+    latest_invoice: { status: "paid", currency: "usd", amount_paid: 500, payments: { has_more: false, data: [{ payment: { payment_intent: "pi_recover" } }] } } };
+  h.client.checkout.sessions.list = async (params: any) => { assert.equal(params.customer, "cus_recover"); return { has_more: false, data: [session] }; };
+  h.client.checkout.sessions.retrieve = async () => session;
+  h.client.subscriptions = { list: async () => ({ has_more: false, data: [sub] }), retrieve: async () => sub };
+  h.client.paymentIntents.retrieve = async () => ({ id: "pi_recover", livemode: false, status: "succeeded", currency: "usd", latest_charge: { refunded: false, amount_refunded: 0, disputed: false } });
+  h.client.billingPortal = { sessions: { create: async (params: any) => { assert.equal(params.customer, "cus_recover"); return { url: "https://billing.stripe.com/test-recovery" }; } } };
+  return { ...h, session, sub };
+}
+
+test("restore recovers existing subscription, coverage and Portal without a new Checkout", async () => {
+  const h = recoverySetup();
+  await h.billing.reconcile();
+  assert.equal(h.store.get<any>("billing:attempt").session, "cs_recover");
+  assert.equal(h.store.get<Entitlement>("entitlement")?.reference, "sub_recover");
+  assert.equal(h.store.get("billing:customer"), "cus_recover");
+  const portal = await h.billing.portal({ idempotencyKey: "recovered-portal" }, owner);
+  assert.match(portal.url!, /^https:\/\/billing.stripe.com/);
+  await assert.rejects(h.billing.quote({ mode: "subscription" }, owner), { code: "ALREADY_COVERED" });
+  assert.equal(h.calls.length, 0);
+});
+
+test("incomplete recovery inventory blocks purchase and grants no access", async () => {
+  const h = recoverySetup();
+  h.client.checkout.sessions.list = async () => ({ has_more: true, data: [h.session] });
+  await assert.rejects(h.billing.quote({ mode: "subscription" }, owner), { code: "BILLING_RECOVERY_PENDING" });
+  assert.equal(h.store.get("entitlement"), undefined);
+  assert.equal(h.store.get("billing:attempt"), undefined);
+  assert.equal((await h.billing.status()).recoveryPending, true);
+  assert.equal(h.calls.length, 0);
+});
+
+test("recovery rejects mismatched sessions and multiple open subscriptions", async () => {
+  const h = recoverySetup();
+  h.session.metadata.workspace = "another-workspace";
+  await assert.rejects(h.billing.reconcile(), { code: "BILLING_MAPPING_MISMATCH" });
+  h.session.metadata.workspace = owner.workspace;
+  h.client.subscriptions.list = async () => ({ has_more: false, data: [h.sub, { ...h.sub, id: "sub_other" }] });
+  await assert.rejects(h.billing.reconcile(), { code: "BILLING_RECOVERY_PENDING" });
+  assert.equal(h.store.get("entitlement"), undefined);
+  assert.equal(h.calls.length, 0);
+});
+
+test("recovery still verifies refund evidence and never grants from a subscription label", async () => {
+  const h = recoverySetup();
+  h.client.paymentIntents.retrieve = async () => ({ id: "pi_recover", livemode: false, status: "succeeded", currency: "usd", latest_charge: { refunded: true, amount_refunded: 500, disputed: false } });
+  await h.billing.reconcile();
+  assert.equal(h.store.get("entitlement"), undefined);
+  assert.equal(h.store.get("billing:renewing"), true);
+  const q = await h.billing.quote({ mode: "subscription" }, owner);
+  await assert.rejects(h.billing.checkout({ quote: q.id }, owner), { code: "SUBSCRIPTION_STILL_OPEN" });
+  assert.equal(h.calls.length, 0);
+});
