@@ -30,9 +30,9 @@ jobs:
       - name: Inspect protected gate state and ensure dedicated Stripe test portal configuration
         env:
           POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN }}
-          GITHUB_APP_CLIENT_ID: ${{ vars.GITHUB_APP_CLIENT_ID }}
-          GITHUB_APP_SLUG: ${{ vars.GITHUB_APP_SLUG }}
-          HAS_GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET != '' }}
+          GITHUB_APP_CLIENT_ID: ${{ vars.POSTSTEWARD_GITHUB_APP_CLIENT_ID }}
+          GITHUB_APP_SLUG: ${{ vars.POSTSTEWARD_GITHUB_APP_SLUG }}
+          HAS_GITHUB_APP_CLIENT_SECRET: ${{ secrets.POSTSTEWARD_GITHUB_APP_CLIENT_SECRET != '' }}
           HAS_ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY != '' }}
           HAS_ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT != '' }}
           ENCRYPTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
