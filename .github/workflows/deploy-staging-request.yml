@@ -1,12 +1,13 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-13-engineering-gap-catalogue-contract
+# Deployment request: 2026-09-13-protected-root-cutover
 # Updating this file on main is an explicit staging deployment request.
-# Deploy PRs #42–#50: engineering fixes and catalogue-derived hosted acceptance.
+# Deploy root compatibility and bounded protected cutover integration.
 # Sandbox billing remains disabled unless the reviewed staging variables and protected secrets are deliberately configured.
 # Owner/provider consent, private GitHub grants, PITR, workspace erasure, Stripe settlement and root-secret replacement remain separate live acceptance gates.
 # Hosted acceptance remains non-effectful: it must not publish social content, erase a workspace,
-# invoke point-in-time restore, settle payment, rotate a protected root secret, or broaden owner authority.
+# invoke point-in-time restore, settle payment, or broaden owner authority.
+# Root cutover runs only with ENCRYPTION_ROOT_WRITE=next and a distinct protected ENCRYPTION_KEY_NEXT.
 on:
   push:
     branches: [main]
@@ -25,6 +26,7 @@ jobs:
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
       OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
       ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
       GITHUB_APP_CLIENT_SECRET: ${{ secrets.GITHUB_APP_CLIENT_SECRET }}

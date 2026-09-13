@@ -1,4 +1,4 @@
-import { seal } from "./crypto.ts";
+import { credentialRoots, seal } from "./crypto.ts";
 import type { Account, Delivery, Env, Profile, Store } from "./types.ts";
 
 export interface RecoveryLocalInvalidation {
@@ -43,7 +43,7 @@ export async function invalidateRestoredAuthority(
         account.alias,
         await seal(
           { accessToken: "recovery-invalidated", expiresAt: 0 },
-          env.ENCRYPTION_KEY,
+          credentialRoots(env),
           workspace + ":" + account.alias,
           env.ENCRYPTION_KEY_VERSION,
         ),

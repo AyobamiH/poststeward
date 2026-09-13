@@ -10,6 +10,7 @@ const deploy = readFileSync(".github/workflows/deploy.yml", "utf8");
 const secretNames = [
   "CLOUDFLARE_API_TOKEN",
   "ENCRYPTION_KEY",
+  "ENCRYPTION_KEY_NEXT",
   "OIDC_CLIENT_SECRET",
   "ALLOWED_OWNER_EMAILS",
   "GITHUB_APP_CLIENT_SECRET",

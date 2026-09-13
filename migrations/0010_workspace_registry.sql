@@ -1,0 +1,15 @@
+CREATE TABLE workspace_registry (workspace TEXT PRIMARY KEY);
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM principals;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM sessions;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM grants;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM stripe_customers;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM stripe_events;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM provider_oauth_states;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM external_effects;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM external_containers;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM workspace_controls;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM workspace_recovery_plans;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM workspace_deletions;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM github_installations;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM github_install_states;
+INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM github_repository_links;

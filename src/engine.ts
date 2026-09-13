@@ -9,7 +9,7 @@ import {
   uid,
   validZone,
 } from "./common.ts";
-import { seal, unseal } from "./crypto.ts";
+import { credentialRoots, seal, unseal } from "./crypto.ts";
 import {
   validateText,
   type Credential,
@@ -339,7 +339,7 @@ export class Engine {
   private async credential(a: Account) {
     return unseal<Credential>(
       a.secret,
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       this.store.get<string>("workspace") + ":" + a.alias,
     );
   }
@@ -386,7 +386,7 @@ export class Engine {
         expiresAt: input.expiresAt,
         funding: input.funding,
       },
-      this.env.ENCRYPTION_KEY,
+      credentialRoots(this.env),
       actor.workspace + ":" + input.alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );

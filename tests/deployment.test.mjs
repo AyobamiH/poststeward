@@ -17,6 +17,17 @@ const environment = {
   OIDC_ISSUER: "https://identity.example",
   OIDC_CLIENT_ID: "poststeward-staging",
 };
+test("next-root cutover is explicit, staging-only and requires a distinct canonical root", () => {
+  const secrets = { ...environment, ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    OIDC_CLIENT_SECRET: "test-owner-secret", ALLOWED_OWNER_EMAILS: "owner@example.com" };
+  assert.equal(buildConfiguration(base, environment).vars.ENCRYPTION_ROOT_WRITE, "legacy");
+  assert.throws(() => deploymentSecrets({ ...secrets, ENCRYPTION_ROOT_WRITE: "next" }), /Next-root/);
+  assert.throws(() => deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: secrets.ENCRYPTION_KEY }), /distinct/);
+  assert.throws(() => deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: "invalid" }), /32-byte/);
+  const next = Buffer.alloc(32, 23).toString("base64");
+  assert.equal(deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: next, ENCRYPTION_ROOT_WRITE: "next" }).ENCRYPTION_KEY_NEXT, next);
+  assert.throws(() => buildConfiguration(base, { ...environment, DEPLOY_ENV: "production", ENCRYPTION_ROOT_WRITE: "next" }), /staging/);
+});
 test("deployment environments have separate Worker names, D1 names, origins and rate namespaces", () => {
   const staging = buildConfiguration(base, environment);
   const production = buildConfiguration(base, {

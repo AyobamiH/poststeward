@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cutoverWorkspace, rootCutoverRoute } from "./root-cutover.ts";
 import { exportRetention, commitRetention } from "./retention.ts";
 import { Billing } from "./billing.ts";
 import { SQLiteStore } from "./store.ts";
@@ -74,7 +75,7 @@ export class Workspace extends BaseWorkspace {
     try {
       const path = new URL(request.url).pathname;
       const clone = request.clone();
-      let envelope: { workspace?: unknown; actor?: Actor; input?: any } = {};
+      let envelope: { workspace?: unknown; actor?: Actor; input?: any; release?: string } = {};
       try {
         envelope = (await clone.json()) as typeof envelope;
       } catch {
@@ -82,6 +83,16 @@ export class Workspace extends BaseWorkspace {
       }
       const workspace =
         typeof envelope.workspace === "string" ? envelope.workspace : "";
+      if (path === "/maintenance/root-cutover") {
+        requireValue(workspace && envelope.release === this.lifecycleEnv.RELEASE_SHA &&
+          ["inspect", "migrate"].includes(envelope.input?.action),
+          "ROOT_RELEASE_MISMATCH", "Root cutover requires the exact deployed workspace release.", 409);
+        return this.lifecycleCtx.blockConcurrencyWhile(async () => {
+          try {
+            return json(await cutoverWorkspace(new SQLiteStore(this.lifecycleCtx.storage), this.lifecycleEnv, workspace, envelope.input));
+          } catch (error) { return errorResponse(error); }
+        });
+      }
       if (path === "/lifecycle/delete") {
         requireValue(
           workspace &&
@@ -344,6 +355,14 @@ export default {
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const path = new URL(request.url).pathname;
+    if (path === "/internal/root-cutover") {
+      const requestId = crypto.randomUUID();
+      try {
+        await limitEdge(request, env);
+        const bounded = await boundedBody(request.clone() as unknown as Request, 2048);
+        return secure(await rootCutoverRoute(bounded, env), requestId);
+      } catch (error) { return secure(errorResponse(error), requestId); }
+    }
     if (!path.startsWith("/api/lifecycle/")) {
       const fenced = await fenceDeletedWorkspaceRequest(request, env);
       if (fenced) return fenced;

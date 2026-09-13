@@ -157,6 +157,7 @@ export function buildConfiguration(base, env) {
     OIDC_ISSUER: env.OIDC_ISSUER,
     OIDC_CLIENT_ID: env.OIDC_CLIENT_ID,
     DEPLOY_ENV: env.DEPLOY_ENV,
+    ENCRYPTION_ROOT_WRITE: env.ENCRYPTION_ROOT_WRITE || "legacy",
     SIGNUP_MODE: "restricted",
     STRIPE_SANDBOX_ENABLED: env.STRIPE_SANDBOX_ENABLED || "false",
     STRIPE_PRICE_ID: env.STRIPE_SANDBOX_ENABLED === "true" ? (env.STRIPE_SANDBOX_PRICE_ID || "") : "",
@@ -180,6 +181,8 @@ export function buildConfiguration(base, env) {
   return c;
 }
 export function validateConfiguration(c) {
+  demand(["legacy", "next"].includes(c.vars?.ENCRYPTION_ROOT_WRITE || "legacy"), "ENCRYPTION_ROOT_WRITE must be legacy or next.");
+  demand(c.vars?.ENCRYPTION_ROOT_WRITE !== "next" || c.vars?.DEPLOY_ENV === "staging", "Root cutover is currently restricted to staging.");
   httpsUrl(c.vars?.PUBLIC_ORIGIN, true);
   httpsUrl(c.vars?.OIDC_ISSUER);
   demand(
@@ -283,6 +286,15 @@ export function deploymentSecrets(env) {
       values.OIDC_CLIENT_SECRET.trim().length >= 8,
     "Set OIDC_CLIENT_SECRET in this GitHub environment.",
   );
+  const next = env.ENCRYPTION_KEY_NEXT;
+  if (next) {
+    demand(/^[A-Za-z0-9+/]{43}=$/.test(next) && Buffer.from(next, "base64").length === 32 &&
+      Buffer.from(next, "base64").toString("base64") === next && next !== key,
+      "ENCRYPTION_KEY_NEXT must be a distinct backed-up random 32-byte root.");
+    values.ENCRYPTION_KEY_NEXT = next;
+  }
+  demand(env.ENCRYPTION_ROOT_WRITE !== "next" || (env.DEPLOY_ENV === "staging" && next),
+    "Next-root writes require staging and ENCRYPTION_KEY_NEXT.");
   demand(
     typeof values.ALLOWED_OWNER_EMAILS === "string" &&
       values.ALLOWED_OWNER_EMAILS.split(",").every((v) =>

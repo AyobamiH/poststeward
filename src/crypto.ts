@@ -1,4 +1,28 @@
 import { requireValue } from "./common.ts";
+import type { Env } from "./types.ts";
+
+export type CredentialRoots = string | { legacy: string; next?: string; write: "legacy" | "next" };
+
+/** Both roots stay available through migration and the recovery retention window. */
+export function credentialRoots(env: Env): CredentialRoots {
+  const write = env.ENCRYPTION_ROOT_WRITE || "legacy";
+  requireValue(write === "legacy" || write === "next", "ENCRYPTION_ROOT_INVALID", "Invalid credential write root.", 503);
+  requireValue(write !== "next" || !!env.ENCRYPTION_KEY_NEXT,
+    "ENCRYPTION_ROOT_MISSING", "The next credential root is not configured.", 503);
+  return { legacy: env.ENCRYPTION_KEY, next: env.ENCRYPTION_KEY_NEXT, write };
+}
+
+export async function rootIdentifier(encoded: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", root(encoded));
+  return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function envelopeRoot(value: string): string | undefined {
+  const parsed = JSON.parse(value);
+  requireValue(parsed.root === undefined || (typeof parsed.root === "string" && /^[a-f0-9]{64}$/.test(parsed.root)),
+    "CREDENTIAL_ENVELOPE_INVALID", "Invalid credential root identifier.", 500);
+  return parsed.root;
+}
 
 const bytes = (text: string) =>
   Uint8Array.from(atob(text), (character) => character.charCodeAt(0));
@@ -71,10 +95,14 @@ export function envelopeVersion(value: string) {
 
 export async function seal(
   value: unknown,
-  encoded: string,
+  encoded: CredentialRoots,
   context: string,
   version = "1",
 ): Promise<string> {
+  const next = typeof encoded !== "string" && encoded.write === "next";
+  const selected = typeof encoded === "string" ? encoded : next ? encoded.next : encoded.legacy;
+  requireValue(selected, "ENCRYPTION_ROOT_MISSING", "Credential root is not configured.", 503);
+  const rootId = next ? await rootIdentifier(selected) : undefined;
   requireValue(
     versionPattern.test(version),
     "ENCRYPTION_VERSION_INVALID",
@@ -86,12 +114,13 @@ export async function seal(
     {
       name: "AES-GCM",
       iv,
-      additionalData: encoder.encode(context),
+      additionalData: encoder.encode(rootId ? JSON.stringify([context, rootId, version]) : context),
     },
-    await key(encoded, version),
+    await key(selected, version),
     encoder.encode(JSON.stringify(value)),
   );
   return JSON.stringify({
+    ...(rootId ? { root: rootId } : {}),
     version,
     iv: base64(iv),
     data: base64(new Uint8Array(result)),
@@ -100,9 +129,17 @@ export async function seal(
 
 export async function unseal<T>(
   value: string,
-  encoded: string,
+  encoded: CredentialRoots,
   context: string,
 ): Promise<T> {
+  const rootId = envelopeRoot(value);
+  let selected = typeof encoded === "string" ? encoded : encoded.legacy;
+  if (rootId) {
+    const candidates = typeof encoded === "string" ? [encoded] : [encoded.legacy, encoded.next].filter((v): v is string => !!v);
+    const matching = await Promise.all(candidates.map(async candidate => (await rootIdentifier(candidate)) === rootId ? candidate : undefined));
+    selected = matching.find((v): v is string => !!v) || "";
+    requireValue(selected, "ENCRYPTION_ROOT_UNKNOWN", "Credential root is unavailable.", 503);
+  }
   let parsed: { version?: unknown; iv?: unknown; data?: unknown };
   try {
     parsed = JSON.parse(value);
@@ -123,9 +160,9 @@ export async function unseal<T>(
     {
       name: "AES-GCM",
       iv: bytes(parsed.iv),
-      additionalData: encoder.encode(context),
+      additionalData: encoder.encode(rootId ? JSON.stringify([context, rootId, version]) : context),
     },
-    await key(encoded, version),
+    await key(selected, version),
     bytes(parsed.data),
   );
   return JSON.parse(new TextDecoder().decode(result));

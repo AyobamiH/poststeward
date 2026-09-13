@@ -1,6 +1,6 @@
 import * as oauth from "oauth4webapi";
 import { digest, Fault, json, requireValue } from "./common.ts";
-import { seal, unseal } from "./crypto.ts";
+import { credentialRoots, seal, unseal } from "./crypto.ts";
 import type { OwnerAuthority } from "./owner-proof.ts";
 import type { Env, Profile } from "./types.ts";
 
@@ -399,7 +399,7 @@ async function activeCredential(
   await refreshInProgress(env, row, now);
   const context = `${row.workspace}:github:${row.installation_id}`;
   const current = await unseal<GitHubCredential>(
-    row.credential, env.ENCRYPTION_KEY, context,
+    row.credential, credentialRoots(env), context,
   );
   if (current.expiresAt > now + REFRESH_SKEW) return current;
   if (current.refreshExpiresAt <= now + REFRESH_SKEW) {
@@ -424,7 +424,7 @@ async function activeCredential(
       "GITHUB_REFRESH_IN_PROGRESS",
       "GitHub credentials changed. Retry this source check shortly.", 503);
     Object.assign(row, latest);
-    return unseal<GitHubCredential>(latest.credential, env.ENCRYPTION_KEY, context);
+    return unseal<GitHubCredential>(latest.credential, credentialRoots(env), context);
   }
 
   // Only the lease holder may send this single-use refresh token.
@@ -432,7 +432,7 @@ async function activeCredential(
   let encrypted: string;
   try {
     refreshed = await refreshToken(env, current.refreshToken, send, now);
-    encrypted = await seal(refreshed, env.ENCRYPTION_KEY, context,
+    encrypted = await seal(refreshed, credentialRoots(env), context,
       env.ENCRYPTION_KEY_VERSION);
   } catch (error) {
     // An HTTP error/timeout can occur after token consumption. Do not replay it.
@@ -831,7 +831,7 @@ export async function completeGitHubSourceLink(
   );
   const encrypted = await seal(
     credential,
-    env.ENCRYPTION_KEY,
+    credentialRoots(env),
     `${owner.proof.workspace}:github:${pending.installation_id}`,
     env.ENCRYPTION_KEY_VERSION,
   );
