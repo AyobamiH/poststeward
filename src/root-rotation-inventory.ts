@@ -1,4 +1,5 @@
 import { digest, requireValue } from "./common.ts";
+import { seal } from "./crypto.ts";
 import { rewrapCredentialEnvelope, verifyRewrappedEnvelope } from "./root-rotation.ts";
 
 export interface CredentialInventoryEntry {
@@ -68,6 +69,11 @@ export async function rehearseRootInventory(snapshot: RotationSnapshot,
   oldRoot: string, newRoot: string, targetVersion = "2") {
   requireValue(oldRoot !== newRoot, "ROTATION_SAME_ROOT", "The next root must differ.", 409);
   const inventory = credentialInventory(snapshot);
+  // Validate both protected roots even when the inventory is empty.
+  const canaryContext = "poststeward:root-inventory-rehearsal";
+  const canary = await seal({ purpose: "root-rehearsal" }, oldRoot, canaryContext);
+  const nextCanary = await rewrapCredentialEnvelope(canary, oldRoot, newRoot, canaryContext, targetVersion);
+  await verifyRewrappedEnvelope(canary, nextCanary, oldRoot, newRoot, canaryContext);
   const replacements: { id: string; context: string; expectedDigest: string; replacement: string }[] = [];
   for (const entry of inventory) {
     const replacement = await rewrapCredentialEnvelope(entry.envelope, oldRoot, newRoot, entry.context, targetVersion);
