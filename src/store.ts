@@ -106,6 +106,13 @@ export class SQLiteStore implements Store {
       .map((row) => JSON.parse(row.value));
   }
 
+  entries(prefix: string): { key: string; value: any }[] {
+    return this.storage.sql.exec<{ key: string; value: string }>(
+      "SELECT key,value FROM records WHERE key>=? AND key<? ORDER BY key",
+      prefix, prefix + "\uffff",
+    ).toArray().map((row) => ({ key: row.key, value: JSON.parse(row.value) }));
+  }
+
   usage(): Usage {
     const row = this.storage.sql
       .exec<Usage>("SELECT records,bytes FROM record_usage WHERE id=1")
