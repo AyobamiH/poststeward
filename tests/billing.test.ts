@@ -417,3 +417,65 @@ test("unavailable webhook ledger is not reported as a successful empty inventory
   assert.equal(result.webhookEvidence.available, false);
   assert.deepEqual(result.webhookEvidence.events, []);
 });
+
+function deletionSetup(subscriptions: any[] = []) {
+  const h = setup();
+  h.env.IDENTITY = { prepare: () => ({ bind: () => ({ first: async () => ({ customer: "cus_delete" }) }) }) } as any;
+  let cancelCalls = 0;
+  h.client.subscriptions = {
+    list: async () => ({ has_more: false, data: subscriptions }),
+    cancel: async (id: string, params: any) => {
+      cancelCalls++;
+      assert.deepEqual(params, { invoice_now: false, prorate: false });
+      subscriptions.find(s => s.id === id).status = "canceled";
+    },
+    retrieve: async (id: string) => subscriptions.find(s => s.id === id),
+  };
+  return { ...h, cancelCalls: () => cancelCalls };
+}
+const deletionSubscription = () => ({ id: "sub_delete", customer: "cus_delete", livemode: false, metadata: { workspace: owner.workspace }, status: "active" });
+
+test("deletion confirms workspace subscription cancellation and retries without another cancellation", async () => {
+  const h = deletionSetup([deletionSubscription()]);
+  assert.equal((await h.billing.clearForDeletion()).cleared, true);
+  assert.equal(h.cancelCalls(), 1);
+  await h.billing.clearForDeletion();
+  assert.equal(h.cancelCalls(), 1);
+  assert.equal(h.store.get("lifecycle:deleting"), true);
+});
+
+test("deletion rejects incomplete or cross-workspace inventory before cancellation", async () => {
+  const h = deletionSetup([{ ...deletionSubscription(), metadata: { workspace: "another-workspace" } }]);
+  await assert.rejects(h.billing.clearForDeletion(), { code: "BILLING_MAPPING_MISMATCH" });
+  assert.equal(h.cancelCalls(), 0);
+  h.client.subscriptions.list = async () => ({ data: [deletionSubscription()], has_more: true });
+  await assert.rejects(h.billing.clearForDeletion(), { code: "BILLING_DELETE_PENDING" });
+  assert.equal(h.cancelCalls(), 0);
+});
+
+test("deletion retains an unresolved Checkout attempt and fences an overlapping purchase claim", async () => {
+  const h = deletionSetup();
+  const q = await h.billing.quote({ mode: "subscription" }, owner);
+  h.store.put("billing:attempt", { quote: q.id, mode: "subscription", status: "pending", startedAt: Date.now() });
+  await assert.rejects(h.billing.clearForDeletion(), { code: "BILLING_DELETE_PENDING" });
+  assert.equal(h.store.get<any>("billing:attempt")?.quote, q.id);
+  await assert.rejects(h.billing.checkout({ quote: q.id }, owner), { code: "WORKSPACE_DELETION_IN_PROGRESS" });
+  assert.equal(h.calls.length, 0);
+});
+
+test("deletion blocks erasure when cancellation readback is not terminal", async () => {
+  const h = deletionSetup([deletionSubscription()]);
+  h.client.subscriptions.cancel = async () => ({ status: "canceled" });
+  await assert.rejects(h.billing.clearForDeletion(), { code: "BILLING_DELETE_PENDING" });
+});
+
+test("deletion expires pending Checkout before cancelling its subscription", async () => {
+  const h = deletionSetup([deletionSubscription()]);
+  h.store.put("billing:attempt", { quote: "q_delete", mode: "subscription", status: "pending", session: "cs_delete" });
+  let expired = false;
+  h.client.checkout.sessions.retrieve = async () => ({ id: "cs_delete", status: expired ? "expired" : "open", client_reference_id: owner.workspace, metadata: { quote: "q_delete" }, livemode: false, customer: "cus_delete" });
+  h.client.checkout.sessions.expire = async () => { expired = true; };
+  await h.billing.clearForDeletion();
+  assert.equal(expired, true);
+  assert.equal(h.cancelCalls(), 1);
+});
