@@ -484,6 +484,18 @@ export class ProviderOAuthConnections {
   private account(alias: string) {
     return this.store.get<Account>("account:" + alias);
   }
+  // Snapshot both routing and credentials: a token rotation need not change the
+  // routing version, but must still invalidate older asynchronous work.
+  private snapshot(alias: string) {
+    return JSON.stringify([this.account(alias), this.store.get("oauth:" + alias)]);
+  }
+  private commitCurrent(alias: string, expected: string, commit: () => void) {
+    return this.store.tx(() => {
+      if (this.snapshot(alias) !== expected) return false;
+      commit();
+      return true;
+    });
+  }
   private async accountCredential(account: Account) {
     return unseal<Credential>(
       account.secret,
@@ -557,6 +569,7 @@ export class ProviderOAuthConnections {
       "Provider token expires too soon.",
       409,
     );
+    const expected = this.snapshot(input.alias);
     const identity = await this.api.identity(input.token.provider, {
       accessToken: input.token.accessToken,
       expiresAt: input.token.expiresAt,
@@ -592,10 +605,10 @@ export class ProviderOAuthConnections {
         meta.strategy !== "reauthorize",
       ),
     };
-    this.store.tx(() => {
+    requireValue(this.commitCurrent(input.alias, expected, () => {
       this.store.put("account:" + input.alias, account);
       this.store.put("oauth:" + input.alias, meta);
-    });
+    }), "OAUTH_CONNECTION_CHANGED", "Connection changed during verification. Review the current connection and reconnect if needed.", 409);
     return { account: publicAccount(account), oauth: this.publicMeta(meta) };
   }
   private publicMeta(meta: OAuthMeta) {
@@ -632,7 +645,9 @@ export class ProviderOAuthConnections {
     meta: OAuthMeta,
     status: OAuthMeta["status"],
     reason: string,
+    expected?: string,
   ) {
+    if (expected !== undefined && this.snapshot(meta.alias) !== expected) return;
     account.active = false;
     account.version++;
     meta.status = status;
@@ -656,7 +671,8 @@ export class ProviderOAuthConnections {
       )
       .slice(0, limit);
     for (const meta of due) {
-      const account = this.account(meta.alias)!;
+      const account = this.account(meta.alias);
+      if (!account?.active || JSON.stringify(this.store.get("oauth:" + meta.alias)) !== JSON.stringify(meta)) continue;
       if (meta.strategy === "reauthorize") {
         if (meta.accessExpiresAt <= now + 30000) {
           this.deactivate(
@@ -676,6 +692,12 @@ export class ProviderOAuthConnections {
         }
         continue;
       }
+      // Reserve the refresh before yielding. A second alarm/request must not
+      // send the same rotating refresh token concurrently. An interrupted claim
+      // becomes eligible again after the bounded lease.
+      meta.nextRefreshAt = now + 60000;
+      this.store.put("oauth:" + meta.alias, meta);
+      const expected = this.snapshot(meta.alias);
       try {
         const current = await this.accountCredential(account);
         const fresh = await refreshToken(
@@ -692,7 +714,7 @@ export class ProviderOAuthConnections {
           ...(meta.provider === "x" ? { funding: "service_app" as const } : {}),
         });
         if (identity.id !== account.identity.id) {
-          this.deactivate(account, meta, "identity_drift", "ACCOUNT_DRIFT");
+          this.deactivate(account, meta, "identity_drift", "ACCOUNT_DRIFT", expected);
           continue;
         }
         const updatedMeta = await this.metadata(meta.alias, fresh);
@@ -721,11 +743,12 @@ export class ProviderOAuthConnections {
         account.verifiedAt = now;
         account.capabilities = updatedCapabilities;
         if (capabilityChanged) account.version++;
-        this.store.tx(() => {
+        this.commitCurrent(meta.alias, expected, () => {
           this.store.put("account:" + account.alias, account);
           this.store.put("oauth:" + meta.alias, updatedMeta);
         });
       } catch (error) {
+        if (this.snapshot(meta.alias) !== expected) continue;
         meta.status = "refresh_failed";
         meta.lastError =
           error instanceof Fault ? error.code : "OAUTH_REFRESH_FAILED";
@@ -744,7 +767,8 @@ export class ProviderOAuthConnections {
   }
   async afterDisconnect(alias: string) {
     const account = this.account(alias);
-    if (!account) return;
+    if (!account || account.active) return;
+    const expected = this.snapshot(alias);
     const meta = this.store.get<OAuthMeta>("oauth:" + alias);
     if (meta?.provider === "x") {
       try {
@@ -783,7 +807,7 @@ export class ProviderOAuthConnections {
       this.workspace() + ":" + alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );
-    this.store.tx(() => {
+    this.commitCurrent(alias, expected, () => {
       this.store.put("account:" + alias, account);
       this.store.delete("oauth:" + alias);
     });
