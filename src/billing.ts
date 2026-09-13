@@ -107,6 +107,68 @@ export class Billing implements BillingPort {
     );
     return configuration.id as string;
   }
+  async clearForDeletion() {
+    // This durable marker also fences a Checkout call already waiting on a price
+    // lookup. A claimed but unresolved provider request prevents erasure below.
+    this.store.put("lifecycle:deleting", true);
+    const attempt = this.store.get<Attempt>("billing:attempt");
+    const mapping = await this.env.IDENTITY.prepare(
+      "SELECT customer FROM stripe_customers WHERE workspace=?",
+    ).bind(this.workspace).first<{ customer: string }>();
+    let customer = mapping?.customer || this.store.get<string>("billing:customer");
+    const localCustomer = this.store.get<string>("billing:customer");
+    requireValue(!mapping || !localCustomer || mapping.customer === localCustomer,
+      "BILLING_MAPPING_MISMATCH", "Billing customer mapping requires reconciliation before erasure.", 409);
+    const entitlement = this.store.get<Entitlement>("entitlement");
+    let checkoutSubscription: string | undefined;
+    if (!attempt && !customer && !entitlement) return { cleared: true, subscriptions: 0 };
+    requireValue(this.stripe && stripeCredentialAllowed(this.env),
+      "BILLING_DELETE_PENDING", "Stripe verification is required before billing records can be erased.", 503);
+    const stripe = this.stripe!;
+    const livemode = !this.env.STRIPE_SECRET_KEY!.includes("_test_");
+    if (attempt?.mode === "subscription") {
+      requireValue(attempt.session, "BILLING_DELETE_PENDING", "Checkout creation is unresolved. Retain billing records and retry deletion after reconciliation.", 409);
+      let session = await stripe.checkout.sessions.retrieve(attempt.session!);
+      requireValue(session.client_reference_id === this.workspace && session.metadata?.quote === attempt.quote && session.livemode === livemode,
+        "BILLING_MAPPING_MISMATCH", "Checkout does not match this workspace and environment.", 409);
+      if (session.status === "open") {
+        await stripe.checkout.sessions.expire(session.id);
+        session = await stripe.checkout.sessions.retrieve(session.id);
+      }
+      requireValue(session.status === "expired" || session.status === "complete",
+        "BILLING_DELETE_PENDING", "Checkout can still accept payment; erasure is blocked.", 409);
+      const sessionCustomer = typeof session.customer === "string" ? session.customer : session.customer?.id;
+      requireValue(!customer || !sessionCustomer || customer === sessionCustomer,
+        "BILLING_MAPPING_MISMATCH", "Checkout customer differs from the retained billing mapping.", 409);
+      customer ||= sessionCustomer;
+      checkoutSubscription = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+      requireValue(session.status !== "complete" || (customer && checkoutSubscription),
+        "BILLING_DELETE_PENDING", "Completed Checkout requires a verified customer before erasure.", 409);
+    }
+    requireValue(attempt?.mode !== "pass" || attempt.status !== "pending",
+      "BILLING_DELETE_PENDING", "A machine payment remains unresolved; billing records must be retained.", 409);
+    requireValue(customer || entitlement?.kind !== "subscription",
+      "BILLING_DELETE_PENDING", "Subscription customer mapping is missing; erasure is blocked.", 409);
+    if (!customer) return { cleared: true, subscriptions: 0 };
+    const subscriptions = await stripe.subscriptions.list({ customer, status: "all", limit: 100 });
+    requireValue(subscriptions.has_more === false,
+      "BILLING_DELETE_PENDING", "Subscription inventory is incomplete; erasure is blocked.", 409);
+    requireValue(!checkoutSubscription || subscriptions.data.some(sub => sub.id === checkoutSubscription),
+      "BILLING_DELETE_PENDING", "Checkout subscription is absent from the current inventory; erasure is blocked.", 409);
+    for (const sub of subscriptions.data) {
+      requireValue(sub.livemode === livemode && sub.metadata?.workspace === this.workspace &&
+        (typeof sub.customer === "string" ? sub.customer : sub.customer.id) === customer,
+        "BILLING_MAPPING_MISMATCH", "Subscription inventory includes an unverified workspace association.", 409);
+    }
+    for (const sub of subscriptions.data) {
+      if (["canceled", "incomplete_expired"].includes(sub.status)) continue;
+      await stripe.subscriptions.cancel(sub.id, { invoice_now: false, prorate: false });
+      const confirmed = await stripe.subscriptions.retrieve(sub.id);
+      requireValue(confirmed.id === sub.id && confirmed.livemode === livemode && confirmed.metadata?.workspace === this.workspace && confirmed.status === "canceled",
+        "BILLING_DELETE_PENDING", "Subscription cancellation has not been confirmed; retry deletion.", 409);
+    }
+    return { cleared: true, subscriptions: subscriptions.data.length };
+  }
   private covered() {
     const e = this.store.get<Entitlement>("entitlement");
     return e && !e.revoked && e.until > Date.now();
@@ -226,6 +288,7 @@ export class Billing implements BillingPort {
   }
   private claim(q: Quote) {
     return this.store.tx(() => {
+      requireValue(!this.store.get("lifecycle:deleting"), "WORKSPACE_DELETION_IN_PROGRESS", "Workspace deletion blocks new purchases.", 410);
       requireValue(
         !this.covered(),
         "ALREADY_COVERED",

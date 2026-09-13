@@ -22,6 +22,7 @@
   <section class="panel wide" aria-labelledby="delete-heading">
     <h2 id="delete-heading">Delete this PostSteward workspace</h2>
     <p><strong>This is irreversible inside PostSteward.</strong> Deletion first installs a durable D1 tombstone and quarantines provider writes, then clears the workspace Durable Object and identity, grant, payment-mapping, recovery and external-effect records. The minimal workspace tombstone remains so stale restored state cannot be reactivated.</p>
+    <p>Deletion expires open checkout sessions and cancels this workspace’s recurring subscriptions immediately, without a new invoice or automatic refund. Billing records remain until Stripe confirms cancellation. If verification fails, deletion stays pending and can be retried.</p>
     <p>Provider-side authorization grants may remain at the provider until revoked there, but PostSteward deletes its locally usable credential material and can no longer use this workspace. A later Google sign-in may create a new workspace; it does not reactivate this one.</p>
     <p id="instruction" class="muted"></p>
     <form id="delete-form" autocomplete="off">
