@@ -20,18 +20,27 @@ export function flattenD1Results(value) {
   );
 }
 
+export function configuredD1DatabaseName(config) {
+  const name = config?.d1_databases?.[0]?.database_name;
+  if (!/^poststeward-identity-(staging|production)$/.test(name || ""))
+    throw new Error("Use the configured environment D1 database name.");
+  return name;
+}
+
 function demand(condition, message) {
   if (!condition) throw new Error(message);
 }
 
 function d1(sql) {
+  const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+  const database = configuredD1DatabaseName(config);
   const output = execFileSync(
     process.platform === "win32" ? "npx.cmd" : "npx",
     [
       "wrangler",
       "d1",
       "execute",
-      "poststeward-identity",
+      database,
       "--remote",
       "--command",
       sql,
