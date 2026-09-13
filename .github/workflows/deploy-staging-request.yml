@@ -1,9 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-13-disposable-pitr-bookmark-settling
+# Deployment request: 2026-09-13-disposable-pitr-state-aware-prepare-retry
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that keeps private GitHub acceptance evidence and settles
-# synthetic Durable Object history before the protected disposable PITR/erasure acceptance run.
+# Deploy the exact reviewed revision that keeps private GitHub acceptance evidence and uses
+# bounded durable-status inspection before any non-destructive PITR prepare retry.
 # This automatic deployment remains non-destructive. Real PITR/erasure occurs only through the separate
 # manual staging workflow against synthetic state after explicit confirmation.
 # It must not publish social content, grant/revoke provider authority, settle/refund payment,
