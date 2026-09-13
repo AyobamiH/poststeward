@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import catalogue from "../public/catalog.json" with { type: "json" };
 import test from "node:test";
 import { waitForRevision, verifyHosted } from "../scripts/hosted-checks.mjs";
 const origin = "https://publish.example",
@@ -29,7 +30,7 @@ function service(appStatus = 200) {
       return Response.json(
         {
           release,
-          operations: Array(26).fill({}),
+          operations: catalogue.map(({ name }) => ({ name })),
           payment: { enabled: false },
         },
         { headers },
@@ -202,7 +203,7 @@ test("version-bound read-only surfaces converge independently during edge propag
         return Response.json(
           {
             release: "b".repeat(40),
-            operations: Array(26).fill({}),
+            operations: catalogue.map(({ name }) => ({ name })),
             payment: { enabled: false },
           },
           { headers },
@@ -246,4 +247,22 @@ test("a workspace self-redirect fails acceptance rather than being followed", as
     report.checks.filter((x) => !x.passed).map((x) => [x.name, x.status]),
     [["HTML serves without a redirect: /app", 307]],
   );
+});
+
+test("hosted catalogue follows the built operation contract and rejects missing or substituted names", async () => {
+  assert.ok(catalogue.some((operation) => operation.name === "receipt_recheck"));
+  for (const operations of [
+    catalogue.filter((operation) => operation.name !== "receipt_recheck"),
+    catalogue.map((operation) => operation.name === "receipt_recheck" ? { name: "unknown_replacement" } : operation),
+    catalogue.map((operation) => operation.name === "receipt_recheck" ? { name: "workspace_status" } : operation),
+  ]) {
+    const stable = service();
+    const report = await verifyHosted(c, { sleep,
+      send: (url, options) => new URL(url).pathname === "/help.json"
+        ? Promise.resolve(Response.json({ release, operations, payment: { enabled: false } }, { headers }))
+        : stable(url, options),
+    });
+    assert.equal(report.passed, false);
+    assert.equal(report.checks.find((check) => check.name.includes("catalogue")).passed, false);
+  }
 });
