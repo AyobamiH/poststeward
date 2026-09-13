@@ -1,11 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-13-pitr-bookmark-primitive-diagnostic
+# Deployment request: 2026-09-13-pitr-platform-boundary-recorded
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision, then run one prepare-only synthetic PITR diagnostic that
-# classifies storage sync/current-bookmark/target-bookmark failures and erases its workspace.
-# The diagnostic never calls the restore primitive. Real PITR/erasure remains confined to the
-# separate manual staging workflow after explicit confirmation.
+# Deploy the exact reviewed revision after the one-shot prepare-only PITR diagnostic completed.
+# Normal staging deployment is restored: no PITR diagnostic and no destructive recovery action.
 # It must not publish social content, grant/revoke provider authority, settle/refund payment,
 # or touch the existing owner acceptance workspace.
 # Root cutover still runs only with ENCRYPTION_ROOT_WRITE=next and a distinct protected ENCRYPTION_KEY_NEXT.
@@ -23,7 +21,7 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: staging
-      run_pitr_diagnostic: true
+      run_pitr_diagnostic: false
     # Pass only explicitly named fallbacks, never every repository secret.
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
