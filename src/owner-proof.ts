@@ -28,7 +28,7 @@ export async function ownerProofStatement(
 }
 
 export async function activeOwnerSession(actor: Actor, env: Env): Promise<OwnerAuthority | undefined> {
-  if (!actor.ownerSession || actor.grant || env.SIGNUP_MODE !== "restricted" || env.OIDC_ISSUER !== "https://accounts.google.com") return;
+  if (!actor.ownerSession || actor.grant || !["restricted", "public"].includes(env.SIGNUP_MODE) || env.OIDC_ISSUER !== "https://accounts.google.com") return;
   const row = await env.IDENTITY.prepare(
     "SELECT p.id,p.issuer,p.client_id,p.email_hash,p.email_verified,p.authenticated_at,p.release,s.expires_at FROM owner_proofs p JOIN sessions s ON s.token_hash=p.session_hash JOIN principals a ON a.subject=s.actor AND a.workspace=s.workspace WHERE s.token_hash=? AND s.actor=? AND s.workspace=? AND s.expires_at>?",
   ).bind(actor.ownerSession, actor.id, actor.workspace, Date.now()).first<{
@@ -37,7 +37,7 @@ export async function activeOwnerSession(actor: Actor, env: Env): Promise<OwnerA
   }>();
   if (!row || row.email_verified !== 1 || row.issuer !== env.OIDC_ISSUER || row.client_id !== env.OIDC_CLIENT_ID) return;
   const hashes = await Promise.all((env.ALLOWED_OWNER_EMAILS || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean).map(digest));
-  if (!hashes.includes(row.email_hash)) return;
+  if (env.SIGNUP_MODE === "restricted" && !hashes.includes(row.email_hash)) return;
   return {
     sessionHash: actor.ownerSession,
     proof: { id: row.id, issuer: row.issuer, subject: actor.id, workspace: actor.workspace,
@@ -55,7 +55,7 @@ export async function ownerAuthority(
     .find((part) => part.startsWith("__Host-session="))?.slice("__Host-session=".length);
   requireValue(session && session.length <= 512, "OWNER_SIGNIN_REQUIRED", "Complete Google sign-in to obtain an owner proof.", 409);
   const authority = await activeOwnerSession({ ...auth.actor, ownerSession: await digest(session) }, env);
-  requireValue(authority, "OWNER_SIGNIN_REQUIRED", "Complete Google sign-in with an invited verified identity. Older sessions need a new sign-in.", 409);
+  requireValue(authority, "OWNER_SIGNIN_REQUIRED", "Complete Google sign-in with a verified identity admitted by this deployment. Older sessions need a new sign-in.", 409);
   return authority;
 }
 
