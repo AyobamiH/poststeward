@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { Billing } from "./billing.ts";
+import { SQLiteStore } from "./store.ts";
 import base, { Workspace as BaseWorkspace } from "./worker.ts";
 import { authenticate } from "./auth.ts";
 import { errorResponse, json, requireValue } from "./common.ts";
@@ -99,6 +101,8 @@ export class Workspace extends BaseWorkspace {
           "Workspace deletion has not been durably started.",
           409,
         );
+        const billing = new Billing(new SQLiteStore(this.lifecycleCtx.storage), this.lifecycleEnv, workspace);
+        await billing.clearForDeletion();
         await this.lifecycleCtx.storage.deleteAlarm();
         this.lifecycleCtx.storage.sql.exec("DELETE FROM records");
         await this.lifecycleCtx.storage.deleteAll();
