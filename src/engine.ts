@@ -377,6 +377,10 @@ export class Engine {
       "X_FUNDING_REQUIRED",
       "Confirm these user credentials belong to your own funded X developer application.",
     );
+    const expected = JSON.stringify([
+      this.store.get("account:" + input.alias),
+      this.store.get("oauth:" + input.alias),
+    ]);
     const identity = await this.providers.identity(input.provider, input);
     const encrypted = await seal(
       {
@@ -389,6 +393,10 @@ export class Engine {
       this.env.ENCRYPTION_KEY_VERSION,
     );
     return this.store.tx(() => {
+      requireValue(JSON.stringify([
+        this.store.get("account:" + input.alias),
+        this.store.get("oauth:" + input.alias),
+      ]) === expected, "CONNECTION_CHANGED", "Connection changed during identity verification. Review the current connection before reconnecting.", 409);
       const old = this.store.get<Account>("account:" + input.alias);
       const a: Account = {
         alias: input.alias,
@@ -400,6 +408,8 @@ export class Engine {
         verifiedAt: this.now(),
       };
       this.store.put("account:" + a.alias, a);
+      // Manual replacement must never inherit the previous OAuth refresh grant.
+      this.store.delete("oauth:" + a.alias);
       return {
         alias: a.alias,
         provider: a.provider,
