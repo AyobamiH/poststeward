@@ -91,15 +91,23 @@ The permanent minimal workspace-deletion tombstone remains so restored Durable O
 
 ## Deployment configuration
 
-Private GitHub sources are optional. The deployment accepts the GitHub App configuration only as an all-or-nothing triple:
+Private GitHub sources are optional. The deployment accepts the GitHub App configuration only as an all-or-nothing triple.
 
-Environment variables:
+GitHub Actions reserves the `GITHUB_` prefix for its own names, so the protected environment stores this configuration under PostSteward-prefixed names:
+
+Protected environment variables:
+
+- `POSTSTEWARD_GITHUB_APP_CLIENT_ID`
+- `POSTSTEWARD_GITHUB_APP_SLUG`
+
+Protected environment secret:
+
+- `POSTSTEWARD_GITHUB_APP_CLIENT_SECRET`
+
+The deployment workflow maps those protected names to the application's existing runtime contract:
 
 - `GITHUB_APP_CLIENT_ID`
 - `GITHUB_APP_SLUG`
-
-Environment secret:
-
 - `GITHUB_APP_CLIENT_SECRET`
 
 If one member of the triple is present without the others, deployment fails before Cloudflare mutation. The client secret is supplied only to the deployment step and is never mapped into the verification job.
@@ -122,7 +130,7 @@ Hosted verification remains non-destructive. It checks the private-source static
 Remaining external acceptance is therefore:
 
 1. Create/configure the real staging GitHub App with the exact URLs, registration options and minimum permissions above.
-2. Save the staging client ID/slug/secret in the protected GitHub environment.
+2. Save the staging client ID/slug/secret in the protected GitHub environment using the `POSTSTEWARD_GITHUB_APP_*` storage names above.
 3. Deploy the reviewed main revision through the normal protected deployment workflow.
 4. As the invited owner, install the app for one selected private repository and complete the GitHub user OAuth flow.
 5. Verify the workspace status shows only the intended repository and no credential material.
