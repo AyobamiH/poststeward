@@ -1,3 +1,6 @@
+import catalogue from "../public/catalog.json" with { type: "json" };
+const expectedOperationNames = catalogue.map((operation) => operation.name).sort();
+
 import { setTimeout as delay } from "node:timers/promises";
 import { demand, httpsUrl } from "./deployment-config.mjs";
 
@@ -109,7 +112,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     true,
   );
   await check(
-    "exact catalogue revision; 26 operations; payments disabled",
+    "exact catalogue revision and operation names; payments disabled",
     "/help.json",
     200,
     {},
@@ -118,7 +121,8 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
       return (
         secure(r) &&
         b.release === release &&
-        b.operations?.length === 26 &&
+        Array.isArray(b.operations) &&
+        JSON.stringify(b.operations.map((operation) => operation.name).sort()) === JSON.stringify(expectedOperationNames) &&
         b.payment?.enabled === false
       );
     },
