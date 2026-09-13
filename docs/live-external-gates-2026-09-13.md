@@ -66,30 +66,38 @@ https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/ab
 
 ## Gate 3 — real Cloudflare PITR and disposable workspace erasure
 
-**State: protected manual acceptance operator added; gate remains open until its real staging run passes.**
+**State: PITR target resolution is blocked at Cloudflare's hosted `getBookmarkForTime()` primitive; restore has never been armed. The live synthetic erasure path executed successfully, but the full PITR-plus-erasure gate remains open.**
 
 Workflow: `.github/workflows/staging-disposable-pitr-erasure.yml`
 
-The workflow is manual, staging-only, restricted to `AyobamiH` on `main`, and requires the explicit confirmation `RUN_DISPOSABLE_PITR_ERASURE`. It first verifies the exact reviewed release and then creates a random synthetic owner/workspace in the protected staging environment. It does not use the existing acceptance workspace.
+The workflow is manual, staging-only, restricted to `AyobamiH` on `main`, and requires the explicit confirmation `RUN_DISPOSABLE_PITR_ERASURE`. It verifies the exact reviewed release and creates a random synthetic owner/workspace in the protected staging environment. It never uses the existing owner acceptance workspace.
 
-The operator:
+Three live manual runs failed closed during **recovery preparation**, before `/api/recovery/execute` could arm a restore:
 
-1. initialises the synthetic Durable Object;
-2. captures a pre-mutation recovery target;
-3. writes a local publication-pause canary with no provider call;
-4. prepares and executes Cloudflare Durable Object PITR;
-5. proves the canary reverted;
-6. reconciles restored authority while quarantine remains active;
-7. explicitly resumes;
-8. exports the disposable workspace;
-9. erases it through the normal lifecycle route;
-10. proves the old session is denied, the completed deletion tombstone remains, and the minimal registry entry is retained.
+1. The first run exposed an unsafe assumption around a newly-created synthetic object's very young PITR history. No recovery plan or restore was claimed.
+2. Run `34777210583` on release `d04bb4af81db7fa34b893921c78134c9c38769fe` still failed during `/api/recovery/prepare`; restore execution never started.
+3. Run `34779491079` on release `615894758934509b69d95353cb162f08e6524e01` used durable-status-aware preparation. It made 27 bounded attempts across the full eight-minute window. After every uncertain response, PostSteward independently verified that no recovery plan was active and quarantine had safely released before another non-destructive prepare attempt. No restore was armed.
 
-No provider credential is created, no social write is attempted, no payment is attempted, and Google OIDC is not repeated. The synthetic owner proof is inserted only inside the protected staging runner using the existing protected allowlist hash so this run isolates the Cloudflare/lifecycle gate from already-accepted Google login evidence.
+PR #57 then split the hosted PITR bookmark acquisition into individually classified primitives and added a one-shot, **prepare-only** staging diagnostic. The diagnostic is regression-fenced from `/api/recovery/execute`: it can only initialise a synthetic workspace, synchronise storage, test preparation, cancel a prepared plan if one exists, and erase its own synthetic workspace.
 
-If PITR becomes uncertain, the operator fails closed and prints only the random disposable workspace ID for operator inspection. It does not perform a blind rollback.
+Protected deployment `34780704136` on release `acd3e679a84a5dacf2d8a0bbfc944293de5a3fe5` passed its exact-revision deployment and hosted boundaries. Its automatic PITR diagnostic produced:
 
-Cloudflare's PITR contract explicitly requires a SQLite-backed Durable Object and is unavailable in local development:
+- `getCurrentBookmark()` succeeded.
+- `getBookmarkForTime()` failed with the bounded classification `RECOVERY_PITR_TARGET_BOOKMARK_FAILED`.
+- no restore was executed;
+- no provider effect or payment was attempted;
+- the synthetic workspace lifecycle deletion completed and the diagnostic reported `cleanupVerified: true`.
+
+This is now a hosted platform boundary, not a reason to keep blindly changing wait times or replaying the destructive workflow. Cloudflare's published SQLite-backed Durable Object contract documents `getBookmarkForTime(number | Date)` as the supported way to resolve an approximate point in the previous 30 days. PostSteward keeps the failure fail-closed and does not substitute a different recovery time silently.
+
+Do **not** ask the owner to run the manual PITR workflow again until either:
+
+- Cloudflare's target-bookmark primitive succeeds in the reviewed staging runtime; or
+- PostSteward deliberately implements and verifies an explicit recovery-checkpoint fallback whose semantics are visible to the owner rather than silently changing the requested restore point.
+
+The disposable-erasure execution is useful live evidence, but the original end-to-end gate also requires the restore/reconcile/resume journey and independent post-erasure assertions. Therefore do not mark the complete gate accepted yet.
+
+Primary Cloudflare PITR contract:
 https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/#pitr-point-in-time-recovery-api
 
 ## Gate 4 — authenticated native WebMCP
@@ -130,6 +138,6 @@ https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares
 
 ## Execution order and stop conditions
 
-Continue without reopening completed acceptance in this order: Threads callback when Meta unblocks it; disposable PITR/erasure manual run; authenticated native WebMCP; X application/grant; LinkedIn application/grant/readback approval. Private GitHub is complete and must not be repeated merely for evidence.
+Continue without reopening completed acceptance. Threads remains parked until Meta accepts the exact callback. PITR remains parked until the hosted target-bookmark primitive succeeds or a deliberate, owner-visible checkpoint fallback is implemented and verified. Continue now with authenticated native WebMCP, then X application/grant, then LinkedIn application/grant/readback approval. Private GitHub is complete and must not be repeated merely for evidence.
 
-Stop only for owner/provider actions that cannot be delegated safely: accepting provider terms, creating or revealing provider client secrets, approving OAuth consent, running the explicitly destructive disposable PITR workflow, or completing browser sign-in. Secrets must go directly to protected environment storage and must never be pasted into chat, source, logs or evidence documents.
+Stop only for owner/provider actions that cannot be delegated safely: accepting provider terms, creating or revealing provider client secrets, approving OAuth consent, running an explicitly destructive PITR workflow after its prerequisite becomes healthy, or completing browser sign-in. Secrets must go directly to protected environment storage and must never be pasted into chat, source, logs or evidence documents.

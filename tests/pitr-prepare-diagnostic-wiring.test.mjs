@@ -12,10 +12,10 @@ const diagnostic = readFileSync(
   "utf8",
 );
 
-test("automatic staging deploy opts into the prepare-only PITR diagnostic explicitly", () => {
+test("PITR diagnostic remains explicit opt-in and the normal staging request keeps it disabled", () => {
   assert.match(
     request,
-    /with:\n      environment: staging\n      run_pitr_diagnostic: true\n/,
+    /with:\n      environment: staging\n      run_pitr_diagnostic: false\n/,
   );
   assert.match(
     deploy,
