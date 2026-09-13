@@ -5,6 +5,9 @@ import { pathToFileURL } from "node:url";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+export const PITR_HISTORY_WARMUP_MS = 60000;
+export const PITR_TARGET_AGE_MS = 30000;
+
 export function canonicalStringDigest(value) {
   return createHash("sha256").update(JSON.stringify(String(value))).digest("hex");
 }
@@ -29,6 +32,21 @@ export function configuredD1DatabaseName(config) {
 
 function demand(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+export function settledPitrTarget(now, initializedAt) {
+  demand(
+    Number.isFinite(now) &&
+      Number.isFinite(initializedAt) &&
+      now >= initializedAt,
+    "Disposable PITR timing inputs are invalid.",
+  );
+  const target = now - PITR_TARGET_AGE_MS;
+  demand(
+    target > initializedAt,
+    "Disposable PITR target is still on the newly-created object history edge.",
+  );
+  return target;
 }
 
 function d1(sql) {
@@ -234,10 +252,14 @@ async function runAcceptance() {
   const initial = await request(origin, session, csrf, "/api/operations/workspace_status", {});
   demand(initial.publishingPaused === false, "Disposable workspace did not start unpaused.");
 
-  // The restore target is captured after the Durable Object exists but before
-  // the canary state mutation. Leave wall-clock separation for Cloudflare's
-  // approximate timestamp-to-bookmark mapping.
-  const restoreTarget = Date.now();
+  // Cloudflare maps a timestamp to an approximate PITR bookmark. A disposable
+  // Durable Object has only just acquired history, so do not select a target
+  // on either the object-creation edge or the newest-history edge. Warm the
+  // synthetic history first, then choose a target that is still after object
+  // initialisation and comfortably before the canary mutation.
+  const initializedAt = Date.now();
+  await sleep(PITR_HISTORY_WARMUP_MS);
+  const restoreTarget = settledPitrTarget(Date.now(), initializedAt);
   await sleep(4000);
 
   const canaryKey = `pitr-canary-${randomUUID()}`;
