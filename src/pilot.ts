@@ -45,6 +45,8 @@ export class Pilot {
     private authorized: (actor: Actor) => Promise<boolean>, now = Date.now) { this.now = now; }
 
   private checkOwner(actor: Actor, authority: OwnerAuthority) {
+    requireValue(this.env.SIGNUP_MODE === "restricted", "PILOT_RESTRICTED_ONLY",
+      "Controlled acceptance is available only in restricted staging.", 403);
     requireValue(!actor.grant && actor.scopes.includes("admin") && authority?.sessionHash &&
       authority.proof.workspace === actor.workspace && authority.proof.subject === actor.id &&
       this.store.get("workspace") === actor.workspace,
