@@ -3,7 +3,7 @@ import test from "node:test";
 import { digest } from "../src/common.ts";
 import { runtime } from "./runtime-fixture.ts";
 
-async function fixture() {
+async function fixture(billingCustomer = false) {
   const { mf, db } = await runtime(undefined, {
     OIDC_ISSUER: "https://accounts.google.com",
     OIDC_CLIENT_ID: "poststeward-test",
@@ -22,7 +22,7 @@ async function fixture() {
       "INSERT INTO owner_proofs(session_hash,id,issuer,client_id,email_hash,email_verified,authenticated_at,release) VALUES (?,?,?,?,?,?,?,?)",
     ).bind(tokenHash, crypto.randomUUID(), "https://accounts.google.com", "poststeward-test", await digest("owner@example.com"), 1, now, "test"),
     db.prepare("INSERT INTO grants VALUES (?,?,?,?,?,NULL)").bind("grant-hash", workspace, "agent", '["read"]', now + 3600000),
-    db.prepare("INSERT INTO stripe_customers VALUES (?,?)").bind("cus_fixture", workspace),
+    ...(billingCustomer ? [db.prepare("INSERT INTO stripe_customers VALUES (?,?)").bind("cus_fixture", workspace)] : []),
     db.prepare("INSERT INTO stripe_events VALUES (?,?,?,NULL)").bind("evt_fixture", workspace, now),
     db.prepare(
       "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,created_at,updated_at) VALUES (?,?,?,?,?,'uncertain',?,?)",
@@ -218,4 +218,20 @@ test("agent authority and active recovery cannot erase a workspace", async () =>
   } finally {
     await f.mf.dispose();
   }
+});
+
+
+test("unavailable Stripe clearance retains billing mapping and pending deletion", async () => {
+  const f = await fixture(true);
+  try {
+    const response = await f.mf.dispatchFetch("https://publish.example/api/lifecycle/delete", {
+      method: "POST", headers: f.headers,
+      body: JSON.stringify({ delete: true, confirmation: `DELETE ${f.workspace}` }),
+    });
+    assert.equal(response.status, 503);
+    assert.equal(await count(f.db, "stripe_customers", f.workspace), 1);
+    assert.equal(await count(f.db, "sessions", f.workspace), 1);
+    const row = await f.db.prepare("SELECT state FROM workspace_deletions WHERE workspace=?").bind(f.workspace).first<any>();
+    assert.equal(row.state, "pending");
+  } finally { await f.mf.dispose(); }
 });
