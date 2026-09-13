@@ -4,6 +4,9 @@ import {
   canonicalStringDigest,
   configuredD1DatabaseName,
   flattenD1Results,
+  PITR_HISTORY_WARMUP_MS,
+  PITR_TARGET_AGE_MS,
+  settledPitrTarget,
   sqlLiteral,
 } from "../scripts/staging-pitr-erasure-acceptance.mjs";
 
@@ -43,5 +46,24 @@ test("configuredD1DatabaseName uses the reviewed environment database", () => {
         d1_databases: [{ database_name: "poststeward-identity" }],
       }),
     /configured environment D1/,
+  );
+});
+
+test("disposable PITR chooses a settled target inside initialised history", () => {
+  assert.ok(PITR_HISTORY_WARMUP_MS > PITR_TARGET_AGE_MS);
+  const initializedAt = 100000;
+  const afterWarmup = initializedAt + PITR_HISTORY_WARMUP_MS;
+  assert.equal(
+    settledPitrTarget(afterWarmup, initializedAt),
+    afterWarmup - PITR_TARGET_AGE_MS,
+  );
+  assert.ok(settledPitrTarget(afterWarmup, initializedAt) > initializedAt);
+});
+
+test("disposable PITR refuses a target on the new-object history edge", () => {
+  const initializedAt = 100000;
+  assert.throws(
+    () => settledPitrTarget(initializedAt + PITR_TARGET_AGE_MS, initializedAt),
+    /newly-created object history edge/,
   );
 });

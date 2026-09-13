@@ -8,6 +8,8 @@ This ledger is the canonical continuation after the engineering-gap reconciliati
 - Threads controlled publication and independent provider readback are accepted from the existing owner receipt. Do not publish again merely to close OAuth.
 - Inspect-only agent authority over HTTP and remote MCP is accepted, including denial of the same token after owner revocation. Do not mint/revoke another token merely to repeat this proof.
 - Stripe sandbox acceptance already includes completed subscription Checkout, paid application state, full refund with revoked entitlement, operator cancellation, and the persisted completed webhook ledger evidence. Do not create another payment/refund/cancellation merely for acceptance.
+- Protected encryption-root cutover is accepted. The active writer remains `next`; the legacy root is retained for recovery and must not be retired merely to obtain another receipt.
+- Private GitHub source authority is accepted from the real staging App journey on release `074931bfab5cb492dc391e44347efca5bd949042`: selected-repository installation, owner OAuth, successful private probe, provider-side App uninstall, stale-authority detection, and a subsequent probe that failed closed without anonymous fallback.
 
 Automated tests, configured flags, redirects and screenshots remain supporting evidence only. A live gate closes only when the external system produced the relevant effect and PostSteward independently observed the required state.
 
@@ -28,9 +30,9 @@ Do not weaken redirect validation, reuse another product's credential, manufactu
 
 ## Gate 2 — private GitHub source authority
 
-**State: engineering deployed; real App configuration/grant/read/revoke still open.**
+**State: accepted on real staging provider journey.**
 
-Use a dedicated staging GitHub App. Required registration contract:
+The dedicated staging GitHub App is configured with the required contract:
 
 - Repository access: selected repositories only.
 - Repository permission: Contents read-only; Metadata read-only as supplied by GitHub.
@@ -38,7 +40,7 @@ Use a dedicated staging GitHub App. Required registration contract:
 - Request user authorization (OAuth) during installation: disabled.
 - Setup URL: `https://poststeward-staging.woeinvests.workers.dev/sources/github/setup`
 - Callback URL: `https://poststeward-staging.woeinvests.workers.dev/sources/github/callback`
-- No webhook and no write permission are needed for this acceptance path.
+- No webhook and no write permission.
 
 GitHub Actions reserves the `GITHUB_` prefix for its own names. Protected staging storage is therefore all-or-nothing under:
 
@@ -48,7 +50,16 @@ GitHub Actions reserves the `GITHUB_` prefix for its own names. Protected stagin
 
 The deployment workflow maps those protected names to the application's existing runtime `GITHUB_APP_*` contract. Do not create user-defined GitHub Actions variables or secrets whose names start with `GITHUB_`.
 
-Acceptance requires one deliberately small selected private repository: complete owner installation + user OAuth, verify only the intended repository is shown, run one harmless private-source probe, revoke/remove access, and prove the next probe fails closed without anonymous fallback.
+Accepted live evidence:
+
+1. PR #54 fixed the protected-environment naming incompatibility and was merged after exact-head verification.
+2. Protected staging deployment `34770161726` completed successfully on release `074931bfab5cb492dc391e44347efca5bd949042`; the hosted report showed `githubPrivateSources: true`.
+3. The owner installed `poststeward-staging-ayobamih` for selected private repository `AyobamiH/april-codewars` only and completed the GitHub user OAuth journey.
+4. A harmless owner probe of branch `master`, path `solution001.js`, returned private-repository metadata and commit SHA `e51cc5e66ab1dd6e18b2803f01a141c6c7609506` on the exact hosted release.
+5. The owner then uninstalled the GitHub App at GitHub, without first unlinking it in PostSteward.
+6. PostSteward independently detected the provider-side revocation as stale authority and the next private-source probe failed closed with `GitHub repository authorization is stale. Reconnect GitHub.` No anonymous fallback or stale private read occurred.
+
+Do not reconnect or repeat the private-read/revoke journey merely to obtain another receipt. Reconnection is only needed if staging later needs private-source functionality for another purpose.
 
 Primary GitHub contract:
 https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-user-authorization-callback-url
@@ -119,6 +130,6 @@ https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares
 
 ## Execution order and stop conditions
 
-Continue in this order without reopening completed acceptance: Threads callback when Meta unblocks it; private GitHub real App/grant; disposable PITR/erasure manual run; authenticated native WebMCP; X application/grant; LinkedIn application/grant/readback approval.
+Continue without reopening completed acceptance in this order: Threads callback when Meta unblocks it; disposable PITR/erasure manual run; authenticated native WebMCP; X application/grant; LinkedIn application/grant/readback approval. Private GitHub is complete and must not be repeated merely for evidence.
 
-Stop only for owner/provider actions that cannot be delegated safely: accepting provider terms, creating or revealing provider client secrets, choosing the private repository for a GitHub App installation, approving OAuth consent, running the explicitly destructive disposable PITR workflow, or completing browser sign-in. Secrets must go directly to protected environment storage and must never be pasted into chat, source, logs or evidence documents.
+Stop only for owner/provider actions that cannot be delegated safely: accepting provider terms, creating or revealing provider client secrets, approving OAuth consent, running the explicitly destructive disposable PITR workflow, or completing browser sign-in. Secrets must go directly to protected environment storage and must never be pasted into chat, source, logs or evidence documents.
