@@ -207,6 +207,15 @@ export const catalog: Operation[] = [
     "receipt_get",
   ),
   op(
+    "receipt_recheck",
+    "Verify the recorded post ID, stable author and exact text without publishing again. At most eight recovery reads, at least sixty seconds apart. Already verified receipts return unchanged.",
+    "read",
+    ["STATE_WRITE"],
+    z.strictObject({ delivery: id, idempotencyKey: key }),
+    { delivery: "delivery-id", idempotencyKey: "readback-001" },
+    "receipt_get",
+  ),
+  op(
     "receipts_list",
     "Read delivery history. An unverified ID and an ambiguous effect are distinct from verified publication.",
     "read",
