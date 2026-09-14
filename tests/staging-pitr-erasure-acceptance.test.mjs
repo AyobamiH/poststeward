@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   canonicalStringDigest,
-  classifyRecoveryPreparationStatus,
+  classifyExactRecoveryPreparationStatus,
   configuredD1DatabaseName,
   flattenD1Results,
-  PITR_HISTORY_WARMUP_MS,
   PITR_PREPARE_RETRY_MS,
   PITR_PREPARE_SETTLE_TIMEOUT_MS,
-  PITR_TARGET_AGE_MS,
-  settledPitrTarget,
   sqlLiteral,
 } from "../scripts/staging-pitr-erasure-acceptance.mjs";
 
@@ -52,102 +50,97 @@ test("configuredD1DatabaseName uses the reviewed environment database", () => {
   );
 });
 
-test("disposable PITR chooses a settled target inside initialised history", () => {
-  assert.ok(PITR_HISTORY_WARMUP_MS > PITR_TARGET_AGE_MS);
-  const initializedAt = 100000;
-  const afterWarmup = initializedAt + PITR_HISTORY_WARMUP_MS;
-  assert.equal(
-    settledPitrTarget(afterWarmup, initializedAt),
-    afterWarmup - PITR_TARGET_AGE_MS,
-  );
-  assert.ok(settledPitrTarget(afterWarmup, initializedAt) > initializedAt);
-});
-
-test("disposable PITR refuses a target on the new-object history edge", () => {
-  const initializedAt = 100000;
-  assert.throws(
-    () => settledPitrTarget(initializedAt + PITR_TARGET_AGE_MS, initializedAt),
-    /newly-created object history edge/,
-  );
-});
-
-test("prepare retry is bounded and slower than its retry interval", () => {
+test("exact recovery prepare retry is bounded", () => {
   assert.ok(PITR_PREPARE_RETRY_MS >= 1000);
   assert.ok(PITR_PREPARE_SETTLE_TIMEOUT_MS > PITR_PREPARE_RETRY_MS);
-  assert.ok(PITR_PREPARE_SETTLE_TIMEOUT_MS <= 10 * 60 * 1000);
+  assert.ok(PITR_PREPARE_SETTLE_TIMEOUT_MS <= 3 * 60 * 1000);
 });
 
-test("failed preparation retries only when durable status proves no recovery is active", () => {
-  const target = 123456;
-  const reason = "Disposable staging PITR acceptance";
+test("failed exact preparation retries only when durable status proves no recovery is active", () => {
+  const checkpoint = "00000000-0000-4000-8000-000000000010";
+  const reason = "Disposable exact checkpoint recovery acceptance";
   assert.equal(
-    classifyRecoveryPreparationStatus(
+    classifyExactRecoveryPreparationStatus(
       { control: { quarantined: false }, plan: null },
-      target,
+      checkpoint,
       reason,
     ),
     "retryable",
   );
   assert.equal(
-    classifyRecoveryPreparationStatus(
+    classifyExactRecoveryPreparationStatus(
       {
         control: { quarantined: true },
         plan: {
           id: "00000000-0000-4000-8000-000000000001",
           digest: "a".repeat(64),
           state: "prepared",
-          targetTime: target,
+          targetMode: "exact_checkpoint",
+          checkpointId: checkpoint,
           reason,
         },
       },
-      target,
+      checkpoint,
       reason,
     ),
     "prepared",
   );
   assert.equal(
-    classifyRecoveryPreparationStatus(
+    classifyExactRecoveryPreparationStatus(
       {
         control: { quarantined: true },
         plan: {
           id: "00000000-0000-4000-8000-000000000002",
           digest: "b".repeat(64),
           state: "armed",
-          targetTime: target,
+          targetMode: "exact_checkpoint",
+          checkpointId: checkpoint,
           reason,
         },
       },
-      target,
+      checkpoint,
       reason,
     ),
     "blocked",
   );
   assert.equal(
-    classifyRecoveryPreparationStatus(
+    classifyExactRecoveryPreparationStatus(
       { control: { quarantined: true }, plan: null },
-      target,
+      checkpoint,
       reason,
     ),
     "blocked",
   );
 });
 
-test("a different prepared plan is never adopted after an uncertain response", () => {
+test("a different exact checkpoint plan is never adopted after an uncertain response", () => {
   assert.equal(
-    classifyRecoveryPreparationStatus(
+    classifyExactRecoveryPreparationStatus(
       {
         control: { quarantined: true },
         plan: {
           id: "00000000-0000-4000-8000-000000000003",
           digest: "c".repeat(64),
           state: "prepared",
-          targetTime: 999999,
+          targetMode: "exact_checkpoint",
+          checkpointId: "00000000-0000-4000-8000-000000000099",
           reason: "different plan",
         },
       },
-      123456,
-      "Disposable staging PITR acceptance",
+      "00000000-0000-4000-8000-000000000010",
+      "Disposable exact checkpoint recovery acceptance",
     ),
     "blocked",
   );
+});
+
+test("destructive acceptance uses exact checkpoints and never calls timestamp resolution", () => {
+  const source = readFileSync(
+    "scripts/staging-pitr-erasure-acceptance.mjs",
+    "utf8",
+  );
+  assert.match(source, /\/api\/recovery\/checkpoints/);
+  assert.match(source, /targetMode: "exact_checkpoint"/);
+  assert.match(source, /timestampResolutionUsed: false/);
+  assert.doesNotMatch(source, /settledPitrTarget|getBookmarkForTime|restoreTarget/);
 });
