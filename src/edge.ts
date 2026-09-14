@@ -5,17 +5,35 @@ import { Billing } from "./billing.ts";
 import { SQLiteStore } from "./store.ts";
 import base, { Workspace as BaseWorkspace } from "./worker.ts";
 import { authenticate } from "./auth.ts";
-import { errorResponse, json, requireValue } from "./common.ts";
+import { errorResponse, Fault, json, requireValue } from "./common.ts";
 import {
   assertWorkspaceNotDeleted,
   beginWorkspaceDeletion,
   completeWorkspaceDeletion,
   workspaceDeletion,
 } from "./lifecycle.ts";
-import { workspaceQuarantined } from "./effects.ts";
+import {
+  setWorkspaceQuarantine,
+  workspaceQuarantined,
+} from "./effects.ts";
 import { githubSourceRoute, isGitHubSourcePath } from "./github-source-routes.ts";
 import { ownerAuthority, demandFreshOwner } from "./owner-proof.ts";
-import { assertRecoveryCanResume, recoveryStatus } from "./recovery.ts";
+import {
+  armRecoveryPlan,
+  assertRecoveryCanResume,
+  prepareRecoveryPlan,
+  recoveryStatus,
+  requireRecoveryPlan,
+} from "./recovery.ts";
+import {
+  captureWorkspaceRecoveryCheckpoint,
+  listRecoveryCheckpoints,
+  requireRecoveryCheckpoint,
+} from "./recovery-checkpoints.ts";
+import {
+  captureCurrentRecoveryBookmark,
+  type RecoveryPitrStorage,
+} from "./recovery-pitr.ts";
 import { boundedBody, limitEdge } from "./security.ts";
 import type { Actor, Env } from "./types.ts";
 
@@ -23,6 +41,15 @@ const deletionInput = z.strictObject({
   delete: z.literal(true),
   confirmation: z.string().min(1).max(200),
 });
+const exactRecoveryPrepareInput = z.strictObject({
+  checkpoint: z.uuid(),
+  reason: z.string().min(3).max(240),
+});
+const checkpointCaptureInput = z.strictObject({
+  capture: z.literal(true),
+});
+const automaticCheckpointMs = 6 * 60 * 60 * 1000;
+const checkpointRetryMs = 15 * 60 * 1000;
 
 function clearSessionCookie() {
   return "__Host-session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
@@ -44,6 +71,38 @@ function secure(response: Response, requestId: string) {
   if (response.status === 401)
     headers.set("WWW-Authenticate", 'Bearer realm="poststeward"');
   return new Response(response.body, { status: response.status, headers });
+}
+
+async function workspaceInvoke(
+  env: Env,
+  actor: Actor,
+  path: string,
+  input: unknown,
+) {
+  return env.WORKSPACES.get(env.WORKSPACES.idFromName(actor.workspace)).fetch(
+    "https://workspace.internal" + path,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workspace: actor.workspace,
+        actor,
+        name: "",
+        input,
+      }),
+    },
+  );
+}
+
+async function internalValue(response: Response) {
+  const value: any = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Fault(
+      value.error?.code || "RECOVERY_INTERNAL_FAILED",
+      value.error?.message || "Recovery coordination did not complete.",
+      response.status,
+    );
+  return value;
 }
 
 export class Workspace extends BaseWorkspace {
@@ -68,6 +127,75 @@ export class Workspace extends BaseWorkspace {
       return typeof value === "string" ? value : undefined;
     } catch {
       return undefined;
+    }
+  }
+
+  private checkpointStorage(requireRestore = false) {
+    const storage = this.lifecycleCtx.storage as DurableObjectStorage &
+      RecoveryPitrStorage & {
+        onNextSessionRestoreBookmark?: (bookmark: string) => Promise<string>;
+      };
+    requireValue(
+      typeof storage.getCurrentBookmark === "function" &&
+        (!requireRestore ||
+          typeof storage.onNextSessionRestoreBookmark === "function"),
+      "RECOVERY_PITR_UNAVAILABLE",
+      "Exact point-in-time recovery is unavailable in this Durable Object runtime.",
+      501,
+    );
+    return storage;
+  }
+
+  private ownerEnvelope(
+    workspace: string,
+    actor: Actor | undefined,
+    message = "Workspace recovery is restricted to the signed-in owner.",
+  ) {
+    requireValue(
+      workspace &&
+        actor?.workspace === workspace &&
+        !actor.grant &&
+        actor.scopes?.includes("admin"),
+      "OWNER_SESSION_REQUIRED",
+      message,
+      403,
+    );
+  }
+
+  private async maybeCaptureCheckpoint(workspace: string) {
+    const store = new SQLiteStore(this.lifecycleCtx.storage);
+    if (store.get<string>("workspace") !== workspace) return;
+    const now = Date.now();
+    const next = store.get<number>("recovery:checkpoint:next") || 0;
+    if (next > now) return;
+    const control = await workspaceQuarantined(this.lifecycleEnv.IDENTITY, workspace);
+    if (control.quarantined) {
+      store.put("recovery:checkpoint:next", now + checkpointRetryMs);
+      return;
+    }
+    try {
+      const previousRelease = store.get<string>("recovery:checkpoint:release");
+      await captureWorkspaceRecoveryCheckpoint(
+        this.lifecycleEnv.IDENTITY,
+        store,
+        this.checkpointStorage(),
+        this.lifecycleEnv,
+        workspace,
+        previousRelease === this.lifecycleEnv.RELEASE_SHA ? "automatic" : "release",
+        now,
+      );
+      store.put("recovery:checkpoint:release", this.lifecycleEnv.RELEASE_SHA);
+      store.put("recovery:checkpoint:next", now + automaticCheckpointMs);
+    } catch (error) {
+      store.put("recovery:checkpoint:next", now + checkpointRetryMs);
+      console.warn(
+        JSON.stringify({
+          event: "workspace_recovery_checkpoint_deferred",
+          workspace,
+          code: error instanceof Fault ? error.code : "CHECKPOINT_CAPTURE_FAILED",
+          at: now,
+        }),
+      );
     }
   }
 
@@ -131,7 +259,93 @@ export class Workspace extends BaseWorkspace {
         return json(path.endsWith("/export") ? await exportRetention(store) :
           await commitRetention(store, envelope.input));
       }
-      return super.fetch(request);
+      if (path === "/recovery/checkpoint") {
+        this.ownerEnvelope(workspace, envelope.actor);
+        const store = new SQLiteStore(this.lifecycleCtx.storage);
+        requireValue(
+          store.get<string>("workspace") === workspace,
+          "RECOVERY_WORKSPACE_UNINITIALIZED",
+          "Recovery requires an existing initialized workspace.",
+          409,
+        );
+        const control = await workspaceQuarantined(this.lifecycleEnv.IDENTITY, workspace);
+        requireValue(
+          !control.quarantined,
+          "RECOVERY_QUARANTINED",
+          "Finish or cancel active recovery before capturing another checkpoint.",
+          409,
+        );
+        return json(
+          await captureWorkspaceRecoveryCheckpoint(
+            this.lifecycleEnv.IDENTITY,
+            store,
+            this.checkpointStorage(),
+            this.lifecycleEnv,
+            workspace,
+            "owner",
+          ),
+        );
+      }
+      if (path === "/recovery/current-bookmark") {
+        this.ownerEnvelope(workspace, envelope.actor);
+        const store = new SQLiteStore(this.lifecycleCtx.storage);
+        requireValue(
+          store.get<string>("workspace") === workspace,
+          "RECOVERY_WORKSPACE_UNINITIALIZED",
+          "Recovery requires an existing initialized workspace.",
+          409,
+        );
+        const control = await workspaceQuarantined(this.lifecycleEnv.IDENTITY, workspace);
+        requireValue(
+          control.quarantined,
+          "RECOVERY_NOT_QUARANTINED",
+          "Quarantine the workspace before preparing an exact restore.",
+          409,
+        );
+        return json({
+          currentBookmark: await captureCurrentRecoveryBookmark(
+            this.checkpointStorage(),
+          ),
+        });
+      }
+      if (path === "/recovery/restore") {
+        const input = envelope.input as { id?: string; digest?: string };
+        if (workspace && envelope.actor && input?.id && input?.digest) {
+          const plan = await requireRecoveryPlan(this.lifecycleEnv.IDENTITY, {
+            id: input.id,
+            digest: input.digest,
+            workspace,
+            actor: envelope.actor.id,
+            states: ["prepared"],
+          });
+          if ((plan.target_mode || "approximate_time") === "exact_checkpoint") {
+            this.ownerEnvelope(workspace, envelope.actor);
+            const control = await workspaceQuarantined(this.lifecycleEnv.IDENTITY, workspace);
+            requireValue(
+              control.quarantined,
+              "RECOVERY_NOT_QUARANTINED",
+              "Recovery quarantine changed before restore.",
+              409,
+            );
+            const storage = this.checkpointStorage(true);
+            const undoBookmark = await storage.onNextSessionRestoreBookmark!(
+              plan.target_bookmark,
+            );
+            await armRecoveryPlan(this.lifecycleEnv.IDENTITY, plan, undoBookmark);
+            this.lifecycleCtx.abort("Workspace exact checkpoint recovery armed", {
+              retryAlarm: false,
+            });
+          }
+        }
+      }
+      const response = await super.fetch(request);
+      if (
+        workspace &&
+        response.ok &&
+        ["/operation", "/connect", "/oauth/connect", "/payment", "/billing/reconcile"].includes(path)
+      )
+        await this.maybeCaptureCheckpoint(workspace);
+      return response;
     } catch (error) {
       return errorResponse(error);
     }
@@ -152,7 +366,9 @@ export class Workspace extends BaseWorkspace {
       );
       return;
     }
-    return super.alarm();
+    const result = await super.alarm();
+    if (workspace) await this.maybeCaptureCheckpoint(workspace);
+    return result;
   }
 }
 
@@ -307,6 +523,130 @@ async function lifecycleRoute(request: Request, env: Env) {
   );
 }
 
+async function exactRecoveryRoute(request: Request, env: Env) {
+  const url = new URL(request.url);
+  requireValue(
+    url.origin === env.PUBLIC_ORIGIN && !env.PUBLIC_ORIGIN.includes(".invalid"),
+    "HOST_REJECTED",
+    "This hostname is not configured.",
+    403,
+  );
+  if (request.headers.has("origin"))
+    requireValue(
+      request.headers.get("origin") === env.PUBLIC_ORIGIN,
+      "ORIGIN_REJECTED",
+      "Cross-origin requests are not allowed.",
+      403,
+    );
+  await limitEdge(request, env);
+  if (request.body)
+    requireValue(
+      /^application\/json(?:\s*;|$)/i.test(
+        request.headers.get("content-type") || "",
+      ),
+      "JSON_REQUIRED",
+      "Use application/json.",
+      415,
+    );
+  request = await boundedBody(request, 32768);
+  const auth = await authenticate(request, env);
+  requireValue(
+    auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+    "OWNER_SESSION_REQUIRED",
+    "Workspace recovery is available only in the signed-in owner browser.",
+    403,
+  );
+  const owner = await ownerAuthority(request, env, auth);
+  const path = url.pathname;
+
+  if (path === "/api/recovery/checkpoints" && request.method === "GET")
+    return json({
+      checkpoints: await listRecoveryCheckpoints(env.IDENTITY, auth.actor.workspace),
+    });
+
+  if (path === "/api/recovery/checkpoints" && request.method === "POST") {
+    demandFreshOwner(owner, Date.now());
+    const parsed = checkpointCaptureInput.safeParse(await request.json());
+    requireValue(
+      parsed.success,
+      "INVALID_INPUT",
+      "Checkpoint capture requires explicit confirmation.",
+      400,
+    );
+    return workspaceInvoke(
+      env,
+      auth.actor,
+      "/recovery/checkpoint",
+      parsed.data,
+    );
+  }
+
+  requireValue(
+    path === "/api/recovery/prepare" && request.method === "POST",
+    "NOT_FOUND",
+    "Unknown exact recovery route or HTTP method.",
+    404,
+  );
+  demandFreshOwner(owner, Date.now());
+  const parsed = exactRecoveryPrepareInput.safeParse(await request.json());
+  requireValue(
+    parsed.success,
+    "INVALID_INPUT",
+    "Choose one exact recovery checkpoint and a recovery reason.",
+    400,
+  );
+  const checkpoint = await requireRecoveryCheckpoint(
+    env.IDENTITY,
+    auth.actor.workspace,
+    parsed.data.checkpoint,
+  );
+  await setWorkspaceQuarantine(
+    env.IDENTITY,
+    auth.actor.workspace,
+    true,
+    parsed.data.reason,
+  );
+  try {
+    const current = await internalValue(
+      await workspaceInvoke(
+        env,
+        auth.actor,
+        "/recovery/current-bookmark",
+        {},
+      ),
+    );
+    const plan = await prepareRecoveryPlan(env.IDENTITY, {
+      workspace: auth.actor.workspace,
+      actor: auth.actor.id,
+      targetTime: checkpoint.captured_at,
+      targetBookmark: checkpoint.bookmark,
+      preRestoreBookmark: current.currentBookmark,
+      reason: parsed.data.reason,
+      targetMode: "exact_checkpoint",
+      checkpointId: checkpoint.id,
+    });
+    return json({
+      plan,
+      status: await recoveryStatus(env.IDENTITY, auth.actor.workspace),
+    });
+  } catch (error) {
+    try {
+      await assertRecoveryCanResume(env.IDENTITY, auth.actor.workspace);
+      const status = await recoveryStatus(env.IDENTITY, auth.actor.workspace);
+      if (!status.plan || !["prepared", "armed"].includes(status.plan.state))
+        await setWorkspaceQuarantine(
+          env.IDENTITY,
+          auth.actor.workspace,
+          false,
+          "Exact recovery preparation failed before restore was armed.",
+        );
+    } catch {
+      // Fail closed: preserve quarantine if safety cannot be proven.
+    }
+    throw error;
+  }
+}
+
 function authenticatedProductPath(path: string) {
   return (
     path.startsWith("/api/") ||
@@ -372,6 +712,31 @@ export default {
           return secure(await githubSourceRoute(request, env), requestId);
         } catch (error) {
           return secure(errorResponse(error), requestId);
+        }
+      }
+      if (path === "/api/recovery/checkpoints") {
+        const requestId = crypto.randomUUID();
+        try {
+          return secure(await exactRecoveryRoute(request, env), requestId);
+        } catch (error) {
+          return secure(errorResponse(error), requestId);
+        }
+      }
+      if (path === "/api/recovery/prepare" && request.method === "POST") {
+        const probe = request.clone();
+        let value: any;
+        try {
+          value = await probe.json();
+        } catch {
+          value = undefined;
+        }
+        if (value && typeof value.checkpoint === "string") {
+          const requestId = crypto.randomUUID();
+          try {
+            return secure(await exactRecoveryRoute(request, env), requestId);
+          } catch (error) {
+            return secure(errorResponse(error), requestId);
+          }
         }
       }
       return base.fetch(request, env, ctx);
