@@ -21,6 +21,40 @@ UI should repeatedly expose those concepts through destinations, schedules, auth
 5. **Consequences stay visible.** Destructive, financial, authority-changing and external-effect actions must remain visually distinct and cannot be hidden behind decorative treatments.
 6. **Light and dark are modes of one system.** Components use semantic tokens so hierarchy and meaning survive both colour modes.
 7. **No AI clichés.** Avoid robot heads, glowing cubes, neural-network wallpaper, glassmorphism and arbitrary neon gradients. Agent-native means exposing the operation model clearly.
+8. **One dominant story per viewport.** Do not solve complexity by placing every capability in an equal-weight card. A page should tell the user what to understand next.
+9. **Product evidence sits beside the claim it proves.** Use real operation, route, receipt, authority and provider-state representations instead of decorative graphics.
+10. **Everything aligns deliberately.** Text, controls and product visuals align to a shared grid, baseline or edge. Accidental offsets and floating blocks are design defects.
+
+## Composition system
+
+The public website follows one ordered narrative:
+
+1. **What PostSteward is** — one concise hero and one control-plane visual.
+2. **The operating contract** — exact intent, bounded authority and inspectable evidence.
+3. **How work moves** — capture intent, route the external effect, inspect evidence.
+4. **The agent surface** — machine interfaces and operation catalogue.
+5. **Pricing** — after the product model is understood, not before it.
+
+The public page uses a consistent maximum content width and large section rhythm. Major feature sections are split compositions rather than a field of small cards. Product visuals use the lowest amount of chrome required to read as product evidence.
+
+The owner workspace follows an operator sequence:
+
+`destinations -> publishing -> evidence -> agent access -> sources -> Advanced -> recovery`
+
+On large screens the workspace exposes a compact section index so long operational pages do not become an undifferentiated vertical form wall. On smaller screens that index becomes a horizontal jump rail.
+
+### Graphics rule
+
+Graphics are allowed only when they reduce explanation cost. Preferred graphics are:
+
+- execution/control-plane diagrams built from real product concepts;
+- exact-intent review frames;
+- route timelines;
+- receipt-state ledgers;
+- destination identity marks;
+- product screenshots when the live interface is mature enough to communicate the same idea more clearly.
+
+Avoid generic illustrations, 3D AI objects, abstract network wallpaper, stock imagery and graphics that cannot be mapped back to a real PostSteward operation or state.
 
 ## Colour roles
 
@@ -54,9 +88,9 @@ Mono is semantic, not decorative. It is for operations, evidence, IDs, timestamp
 
 A compact PostSteward mark plus wordmark, quiet text navigation and one clear workspace action. The mark is a routed `P` with a verified terminal: publish path plus evidence, not mail.
 
-### Execution rail
+### Control map
 
-Used on the marketing surface to explain the real contract without an architecture diagram: agent operation -> destination routing -> provider effect -> receipt/readback.
+The public hero uses a bounded product diagram rather than a generic architecture illustration. It shows an agent intent entering PostSteward, passing identity/scope/duplicate fences, reaching a named social destination and ending in an evidence state.
 
 ### Operational panel
 
@@ -81,6 +115,8 @@ Deletion, recovery and irreversible authority transitions use danger tokens, exp
 - Hover/pressed states change surface or border, not layout.
 - Motion is optional and should explain state progression; respect `prefers-reduced-motion`.
 - Disabled states remain legible and do not masquerade as available operations.
+- Mobile navigation must collapse deliberately rather than wrapping arbitrary desktop links into multiple rows.
+- Empty, sparse, dense, loading, error and ambiguous states all need designed treatments.
 
 ## Repository boundary
 
