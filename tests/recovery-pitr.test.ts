@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Fault } from "../src/common.ts";
-import { captureRecoveryBookmarks } from "../src/recovery-pitr.ts";
+import {
+  captureCurrentRecoveryBookmark,
+  captureRecoveryBookmarks,
+} from "../src/recovery-pitr.ts";
 
 function assertFault(error: unknown, code: string) {
   assert.ok(error instanceof Fault);
@@ -9,6 +12,25 @@ function assertFault(error: unknown, code: string) {
   assert.equal(error.status, 502);
   return true;
 }
+
+test("exact checkpoint capture synchronises and reads only the current bookmark", async () => {
+  const calls: string[] = [];
+  const bookmark = await captureCurrentRecoveryBookmark({
+    async sync() {
+      calls.push("sync");
+    },
+    async getCurrentBookmark() {
+      calls.push("current");
+      return "current-bookmark-exact-0001";
+    },
+    async getBookmarkForTime() {
+      calls.push("target");
+      throw new Error("time lookup must not run");
+    },
+  });
+  assert.equal(bookmark, "current-bookmark-exact-0001");
+  assert.deepEqual(calls, ["sync", "current"]);
+});
 
 test("PITR bookmark capture synchronises then reads current and target sequentially", async () => {
   const calls: string[] = [];
