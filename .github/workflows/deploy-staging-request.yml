@@ -1,15 +1,14 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-14-owner-product-shell
+# Deployment request: 2026-09-14-advanced-canary-control
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision containing the shared PostSteward owner/operator
-# product shell from PR #71: Workspace, Acceptance, Inventory, Data and Recovery now use
-# one coherent navigation and page hierarchy while preserving all operational bindings.
+# Deploy the exact reviewed revision containing the Advanced rollout control plane.
+# The committed/default rollout remains fully disabled: master false, mode disabled,
+# zero basis points. Protected staging may later opt into only a bounded deterministic
+# canary after separate review; global Advanced remains rejected by deployment policy.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
-# schedule, make a payment, execute recovery, erase a workspace or broaden agent authority.
-# Existing provider, billing, signup, recovery and external-effect boundaries are unchanged.
-# The prepare-only PITR diagnostic remains disabled. Root cutover remains on the already
-# accepted next writer and the legacy root is intentionally retained.
+# schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
+# Existing accepted evidence is not repeated. The timestamp PITR diagnostic remains disabled.
 on:
   push:
     branches: [main]
