@@ -1,6 +1,12 @@
 import { digest, Fault, json, requireValue, uid } from "./common.ts";
 import { credentialRoots, seal, unseal } from "./crypto.ts";
 import {
+  booleanCapabilities,
+  negotiatedProviderCapabilities,
+  providerApplicationCapabilities,
+  type ProviderCapabilitySet,
+} from "./provider-capabilities.ts";
+import {
   readProviderBody,
   type Credential,
   type ProviderAPI,
@@ -10,6 +16,7 @@ import type { Account, Actor, Env, Provider, Store } from "./types.ts";
 const providerNames = ["x", "threads", "linkedin"] as const;
 type OAuthProvider = (typeof providerNames)[number];
 type OAuthReturnPath = "/pilot" | "/app";
+type ScopeEvidence = "provider" | "request_assumed";
 const aliasPattern = /^[A-Za-z0-9_-]{1,100}$/;
 const tokenLimit = 8192;
 const stateCookieName = "__Host-provider-oauth";
@@ -21,12 +28,15 @@ export interface OAuthTokenSet {
   refreshToken?: string;
   refreshExpiresAt?: number;
   scopes: string[];
+  scopeEvidence?: ScopeEvidence;
   obtainedAt: number;
 }
 interface OAuthMeta {
   alias: string;
   provider: OAuthProvider;
   scopes: string[];
+  scopeEvidence: ScopeEvidence;
+  capabilities: ProviderCapabilitySet;
   strategy: "refresh_token" | "threads_long_lived" | "reauthorize";
   accessExpiresAt: number;
   refreshExpiresAt?: number;
@@ -61,6 +71,8 @@ interface ProviderConfig {
   clientSecret: string;
   callback: string;
   scopes: string[];
+  requiredScopes: string[];
+  optionalScopes: string[];
   authorizationEndpoint: string;
 }
 
@@ -157,29 +169,34 @@ function config(env: Env, provider: OAuthProvider): ProviderConfig {
       clientId: env.X_OAUTH_CLIENT_ID || "",
       clientSecret: env.X_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://x.com/i/oauth2/authorize",
-      scopes: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+      requiredScopes: [
+        "tweet.read",
+        "tweet.write",
+        "users.read",
+        "offline.access",
+      ],
+      optionalScopes: [],
     },
     threads: {
       clientId: env.THREADS_OAUTH_CLIENT_ID || "",
       clientSecret: env.THREADS_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://threads.net/oauth/authorize",
-      scopes: ["threads_basic", "threads_content_publish", "threads_manage_insights"],
+      requiredScopes: ["threads_basic", "threads_content_publish"],
+      optionalScopes: ["threads_manage_insights"],
     },
     linkedin: {
       clientId: env.LINKEDIN_OAUTH_CLIENT_ID || "",
       clientSecret: env.LINKEDIN_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://www.linkedin.com/oauth/v2/authorization",
-      scopes: [
-        "openid",
-        "profile",
-        "w_member_social",
-        ...(env.LINKEDIN_MEMBER_READBACK === "true" ? ["r_member_social"] : []),
-      ],
+      requiredScopes: ["openid", "profile", "w_member_social"],
+      optionalScopes:
+        env.LINKEDIN_MEMBER_READBACK === "true" ? ["r_member_social"] : [],
     },
   }[provider];
   return {
     provider,
     ...values,
+    scopes: [...values.requiredScopes, ...values.optionalScopes],
     callback: `${env.PUBLIC_ORIGIN}/connections/oauth/${provider}/callback`,
   };
 }
@@ -190,15 +207,23 @@ export function oauthConfiguration(env: Env) {
   return Object.fromEntries(
     providerNames.map((provider) => {
       const c = config(env, provider);
+      const available = configured(c);
       return [
         provider,
         {
-          available: configured(c),
+          available,
           callback: c.callback,
           scopes: c.scopes,
+          requiredScopes: c.requiredScopes,
+          optionalScopes: c.optionalScopes,
           readback:
-            provider !== "linkedin" || c.scopes.includes("r_member_social"),
-          reason: configured(c) ? undefined : "provider_app_not_configured",
+            provider !== "linkedin" ||
+            c.optionalScopes.includes("r_member_social"),
+          capabilities: providerApplicationCapabilities(provider, available, {
+            linkedinMemberReadbackApproved:
+              c.optionalScopes.includes("r_member_social"),
+          }),
+          reason: available ? undefined : "provider_app_not_configured",
         },
       ];
     }),
@@ -297,13 +322,14 @@ async function exchangeCode(
       http,
     );
     const actualScopes = parseScopes(data.scope);
-    requireScopes(actualScopes, c.scopes);
+    requireScopes(actualScopes, c.requiredScopes);
     return {
       provider,
       accessToken: demandToken(data.access_token),
       refreshToken: demandToken(data.refresh_token, "refresh token"),
       expiresAt: demandExpiry(data.expires_in, now),
       scopes: actualScopes,
+      scopeEvidence: "provider",
       obtainedAt: now,
     };
   }
@@ -325,14 +351,19 @@ async function exchangeCode(
       access_token: shortToken,
     }).toString();
     const data = await providerJson(long.href, {}, http);
+    const scopeValue = data.scope || short.scope;
+    const actualScopes = scopeValue
+      ? parseScopes(scopeValue)
+      : [...c.requiredScopes];
+    requireScopes(actualScopes, c.requiredScopes);
     return {
       provider,
       accessToken: demandToken(data.access_token),
       expiresAt: demandExpiry(data.expires_in, now),
-      // Token responses may omit scopes. Never infer insights access from the request.
-      scopes: data.scope || short.scope
-        ? parseScopes(data.scope || short.scope)
-        : ["threads_basic", "threads_content_publish"],
+      // Never infer optional insights authority when the provider omits scope
+      // echoing. Required publishing scopes remain requested but unconfirmed.
+      scopes: actualScopes,
+      scopeEvidence: scopeValue ? "provider" : "request_assumed",
       obtainedAt: now,
     };
   }
@@ -352,8 +383,11 @@ async function exchangeCode(
     },
     http,
   );
-  const actualScopes = parseScopes(data.scope || c.scopes);
-  requireScopes(actualScopes, c.scopes);
+  const scopeValue = data.scope;
+  const actualScopes = scopeValue
+    ? parseScopes(scopeValue)
+    : [...c.requiredScopes];
+  requireScopes(actualScopes, c.requiredScopes);
   return {
     provider,
     accessToken: demandToken(data.access_token),
@@ -364,7 +398,10 @@ async function exchangeCode(
     ...(data.refresh_token_expires_in
       ? { refreshExpiresAt: demandExpiry(data.refresh_token_expires_in, now) }
       : {}),
+    // Optional r_member_social is never inferred from the request. It becomes
+    // readback authority only when LinkedIn explicitly echoes the grant.
     scopes: actualScopes,
+    scopeEvidence: scopeValue ? "provider" : "request_assumed",
     obtainedAt: now,
   };
 }
@@ -395,6 +432,7 @@ async function refreshToken(
       accessToken: demandToken(data.access_token),
       expiresAt: demandExpiry(data.expires_in, now),
       scopes: meta.scopes,
+      scopeEvidence: meta.scopeEvidence,
       obtainedAt: now,
     };
   }
@@ -428,8 +466,9 @@ async function refreshToken(
     { method: "POST", headers, body },
     http,
   );
-  const actualScopes = parseScopes(data.scope || meta.scopes);
-  requireScopes(actualScopes, c.scopes);
+  const scopeValue = data.scope;
+  const actualScopes = scopeValue ? parseScopes(scopeValue) : meta.scopes;
+  requireScopes(actualScopes, c.requiredScopes);
   return {
     provider: meta.provider,
     accessToken: demandToken(data.access_token),
@@ -443,6 +482,7 @@ async function refreshToken(
         ? { refreshExpiresAt: meta.refreshExpiresAt }
         : {}),
     scopes: actualScopes,
+    scopeEvidence: scopeValue ? "provider" : meta.scopeEvidence,
     obtainedAt: now,
   };
 }
@@ -456,19 +496,6 @@ function nextRefresh(token: OAuthTokenSet) {
   if (token.provider === "linkedin" && !token.refreshToken)
     return token.expiresAt - 7 * 86400000;
   return token.obtainedAt + Math.max(5 * 60000, Math.floor(ttl * 0.7));
-}
-function capabilities(
-  provider: Provider,
-  granted: string[],
-  refreshable: boolean,
-) {
-  return {
-    oauth: true,
-    refresh: refreshable,
-    readback: provider !== "linkedin" || granted.includes("r_member_social"),
-    ...(provider === "threads" && granted.includes("threads_manage_insights")
-      ? { metrics: true } : {}),
-  };
 }
 function publicAccount(account: Account) {
   const { secret, ...result } = account;
@@ -492,7 +519,10 @@ export class ProviderOAuthConnections {
   // Snapshot both routing and credentials: a token rotation need not change the
   // routing version, but must still invalidate older asynchronous work.
   private snapshot(alias: string) {
-    return JSON.stringify([this.account(alias), this.store.get("oauth:" + alias)]);
+    return JSON.stringify([
+      this.account(alias),
+      this.store.get("oauth:" + alias),
+    ]);
   }
   private commitCurrent(alias: string, expected: string, commit: () => void) {
     return this.store.tx(() => {
@@ -527,10 +557,21 @@ export class ProviderOAuthConnections {
         : token.refreshToken
           ? "refresh_token"
           : "reauthorize";
+    const scopeEvidence = token.scopeEvidence || "provider";
     return {
       alias,
       provider: token.provider,
       scopes: token.scopes,
+      scopeEvidence,
+      capabilities: negotiatedProviderCapabilities(
+        token.provider,
+        token.scopes,
+        {
+          refreshable: strategy !== "reauthorize",
+          scopeEvidence,
+          identityVerified: true,
+        },
+      ),
       strategy,
       accessExpiresAt: token.expiresAt,
       ...(token.refreshExpiresAt
@@ -567,7 +608,7 @@ export class ProviderOAuthConnections {
       "Provider OAuth is unavailable.",
       503,
     );
-    requireScopes(input.token.scopes, c.scopes.filter((scope) => scope !== "threads_manage_insights"));
+    requireScopes(input.token.scopes, c.requiredScopes);
     requireValue(
       input.token.expiresAt > this.now() + 30000,
       "OAUTH_TOKEN_INVALID",
@@ -604,16 +645,17 @@ export class ProviderOAuthConnections {
       secret: encrypted,
       active: true,
       verifiedAt: this.now(),
-      capabilities: capabilities(
-        input.token.provider,
-        input.token.scopes,
-        meta.strategy !== "reauthorize",
-      ),
+      capabilities: booleanCapabilities(input.token.provider, meta.capabilities),
     };
-    requireValue(this.commitCurrent(input.alias, expected, () => {
-      this.store.put("account:" + input.alias, account);
-      this.store.put("oauth:" + input.alias, meta);
-    }), "OAUTH_CONNECTION_CHANGED", "Connection changed during verification. Review the current connection and reconnect if needed.", 409);
+    requireValue(
+      this.commitCurrent(input.alias, expected, () => {
+        this.store.put("account:" + input.alias, account);
+        this.store.put("oauth:" + input.alias, meta);
+      }),
+      "OAUTH_CONNECTION_CHANGED",
+      "Connection changed during verification. Review the current connection and reconnect if needed.",
+      409,
+    );
     return { account: publicAccount(account), oauth: this.publicMeta(meta) };
   }
   private publicMeta(meta: OAuthMeta) {
@@ -677,7 +719,12 @@ export class ProviderOAuthConnections {
       .slice(0, limit);
     for (const meta of due) {
       const account = this.account(meta.alias);
-      if (!account?.active || JSON.stringify(this.store.get("oauth:" + meta.alias)) !== JSON.stringify(meta)) continue;
+      if (
+        !account?.active ||
+        JSON.stringify(this.store.get("oauth:" + meta.alias)) !==
+          JSON.stringify(meta)
+      )
+        continue;
       if (meta.strategy === "reauthorize") {
         if (meta.accessExpiresAt <= now + 30000) {
           this.deactivate(
@@ -689,17 +736,11 @@ export class ProviderOAuthConnections {
         } else {
           meta.status = "reauthorization_required";
           meta.lastError = "OAUTH_REAUTHORIZE_REQUIRED";
-          // Re-arm exactly at access expiry so the durable alarm deactivates the
-          // credential if the owner never reauthorizes. Leaving this unset would
-          // make nextWake repeatedly schedule an already-expired instant.
           meta.nextRefreshAt = meta.accessExpiresAt;
           this.store.put("oauth:" + meta.alias, meta);
         }
         continue;
       }
-      // Reserve the refresh before yielding. A second alarm/request must not
-      // send the same rotating refresh token concurrently. An interrupted claim
-      // becomes eligible again after the bounded lease.
       meta.nextRefreshAt = now + 60000;
       this.store.put("oauth:" + meta.alias, meta);
       const expected = this.snapshot(meta.alias);
@@ -716,23 +757,31 @@ export class ProviderOAuthConnections {
         const identity = await this.api.identity(meta.provider, {
           accessToken: fresh.accessToken,
           expiresAt: fresh.expiresAt,
-          ...(meta.provider === "x" ? { funding: "service_app" as const } : {}),
+          ...(meta.provider === "x"
+            ? { funding: "service_app" as const }
+            : {}),
         });
         if (identity.id !== account.identity.id) {
-          this.deactivate(account, meta, "identity_drift", "ACCOUNT_DRIFT", expected);
+          this.deactivate(
+            account,
+            meta,
+            "identity_drift",
+            "ACCOUNT_DRIFT",
+            expected,
+          );
           continue;
         }
         const updatedMeta = await this.metadata(meta.alias, fresh);
         updatedMeta.lastRefreshAt = now;
-        const updatedCapabilities = capabilities(
+        const updatedCapabilities = booleanCapabilities(
           meta.provider,
-          fresh.scopes,
-          updatedMeta.strategy !== "reauthorize",
+          updatedMeta.capabilities,
         );
         const capabilityChanged =
           account.capabilities?.readback !== updatedCapabilities.readback ||
           account.capabilities?.refresh !== updatedCapabilities.refresh ||
-          account.capabilities?.oauth !== updatedCapabilities.oauth;
+          account.capabilities?.oauth !== updatedCapabilities.oauth ||
+          account.capabilities?.metrics !== updatedCapabilities.metrics;
         account.secret = await seal(
           {
             accessToken: fresh.accessToken,
@@ -901,6 +950,12 @@ export async function startProviderOAuth(
       authorizationUrl: url.href,
       callback: c.callback,
       scopes: c.scopes,
+      requiredScopes: c.requiredScopes,
+      optionalScopes: c.optionalScopes,
+      capabilities: providerApplicationCapabilities(provider, true, {
+        linkedinMemberReadbackApproved:
+          c.optionalScopes.includes("r_member_social"),
+      }),
       returnPath: destination,
     },
     200,
