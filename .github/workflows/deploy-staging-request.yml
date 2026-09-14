@@ -1,13 +1,12 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-14-release-capability-control-plane
+# Deployment request: 2026-09-14-provider-capability-negotiation
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that makes the typed release/capability gate model
-# authoritative for runtime readiness and generated current-readiness documentation.
-# This is an ordinary non-destructive staging deployment. It changes no provider authority,
-# payment, recovery plan, signup policy, Advanced execution or external effect.
-# The PITR diagnostic remains disabled and exact checkpoint recovery remains owner-only.
-# Root cutover remains on the already accepted next writer; the legacy root is intentionally retained.
+# Deploy the exact reviewed revision that separates configured provider applications,
+# provider-echoed OAuth grants and per-connection operational capabilities.
+# This is a non-destructive staging deployment: no provider consent, publication,
+# payment, recovery restore, root migration or workspace erasure is requested.
+# Existing accepted provider/publication evidence must not be repeated merely for proof.
 on:
   push:
     branches: [main]
