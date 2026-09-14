@@ -1,12 +1,21 @@
 import { sandboxBillingEnabled } from "./billing-mode.ts";
 import { githubSourceConfiguration } from "./github-sources.ts";
 import { oauthConfiguration } from "./provider-oauth.ts";
+import {
+  externalEvidenceGateIds,
+  releaseGateMap,
+  releasePolicyViolations,
+  runtimeCapabilitySnapshot,
+} from "./release-gates.ts";
 import type { Env } from "./types.ts";
 
 export function releaseReadiness(env: Env) {
   const providers = oauthConfiguration(env);
   const github = githubSourceConfiguration(env);
+  const runtime = runtimeCapabilitySnapshot(env);
+  const violations = releasePolicyViolations(env);
   return {
+    schemaVersion: 2,
     release: env.RELEASE_SHA,
     environment: env.DEPLOY_ENV || "unknown",
     access: {
@@ -37,16 +46,18 @@ export function releaseReadiness(env: Env) {
     recovery: {
       externalEffectLedger: true,
       ownerPitr: true,
+      exactCheckpoints: true,
+      approximateTimestampPath: true,
       destructiveActions: "owner_only",
     },
-    evidenceStillExternal: [
-      "real_owner_consent",
-      "real_provider_grant",
-      "controlled_live_publication",
-      "native_browser_webmcp",
-      "real_pitr_rehearsal",
-      "payment_settlement",
-      "public_release",
-    ],
+    runtimeCapabilities: runtime,
+    gates: releaseGateMap(),
+    policy: {
+      healthy: violations.length === 0,
+      violations,
+    },
+    // Kept for backwards-compatible clients, but now derived from the same
+    // typed gate model rather than independently maintained prose.
+    evidenceStillExternal: externalEvidenceGateIds(),
   };
 }
