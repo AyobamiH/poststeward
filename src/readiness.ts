@@ -25,7 +25,13 @@ export function releaseReadiness(env: Env) {
     providers: Object.fromEntries(
       Object.entries(providers).map(([provider, value]) => [
         provider,
-        { oauth: value.available, readback: value.readback },
+        {
+          oauth: value.available,
+          readback: value.readback,
+          requiredScopes: value.requiredScopes,
+          optionalScopes: value.optionalScopes,
+          capabilities: value.capabilities,
+        },
       ]),
     ),
     sources: {
