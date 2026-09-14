@@ -1,12 +1,13 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-14-readiness-and-webmcp-reconciliation
+# Deployment request: 2026-09-14-exact-recovery-checkpoints
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that reconciles current acceptance truth and tightens native
-# WebMCP lifecycle/release fencing. This is an ordinary non-destructive staging deployment.
-# The one-shot PITR diagnostic remains disabled and no destructive recovery action is requested.
+# Deploy the exact reviewed revision that makes exact Durable Object checkpoints the primary
+# recovery target while retaining approximate timestamp PITR as an explicit compatibility path.
+# This is an ordinary non-destructive staging deployment: migration + static/rejection/runtime checks only.
+# The one-shot PITR diagnostic remains disabled and no restore, undo or workspace erasure is requested.
 # It must not publish social content, grant/revoke provider authority, settle/refund payment,
-# or touch the existing owner acceptance workspace.
+# or touch the existing owner acceptance workspace through an authenticated mutation.
 # Root cutover remains on the already accepted next writer; the legacy root is intentionally retained.
 on:
   push:

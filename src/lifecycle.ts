@@ -97,6 +97,7 @@ export async function completeWorkspaceDeletion(
     db.prepare("DELETE FROM stripe_customers WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM external_effects WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM external_containers WHERE workspace=?").bind(workspace),
+    db.prepare("DELETE FROM workspace_recovery_checkpoints WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM workspace_recovery_plans WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM workspace_controls WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM provider_oauth_states WHERE workspace=?").bind(workspace),
