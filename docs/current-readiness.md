@@ -10,7 +10,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `stripe_sandbox_lifecycle` | `live_verified` | `restricted_staging` | no | Sandbox Checkout, paid state, refund/revocation, cancellation and webhook ledger accepted. |
 | `protected_root_cutover` | `live_verified` | `restricted_staging` | no | Protected next-root writer and complete readback traversal accepted; legacy root intentionally retained. |
 | `private_github_authority` | `live_verified` | `restricted_staging` | no | Selected private repository read and provider-side revoke/fail-closed proof accepted. |
-| `exact_recovery_checkpoints` | `deployed` | `restricted_staging` | no | Exact server-side recovery checkpoints are deployed; a real exact restore remains an explicit owner rehearsal. |
+| `exact_recovery_checkpoints` | `live_verified` | `restricted_staging` | no | Exact checkpoint capture, real restore, reconciliation, resume and disposable erasure are accepted on restricted staging. |
 | `approximate_timestamp_pitr` | `blocked_external` | `restricted_staging` | no | Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it. |
 | `threads_oauth_callback` | `blocked_external` | `restricted_staging` | no | Meta currently rejects persistence of the exact Threads callback allowlist. |
 | `native_webmcp` | `unavailable_capability` | `restricted_staging` | no | PostSteward native WebMCP is deployed; the owner's ordinary browser does not expose the native API. |
@@ -34,7 +34,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `stripe_sandbox_lifecycle`: `docs/live-external-gates-2026-09-13.md`
 - `protected_root_cutover`: `docs/protected-root-cutover.md`, `docs/live-external-gates-2026-09-13.md`
 - `private_github_authority`: `docs/live-external-gates-2026-09-13.md`
-- `exact_recovery_checkpoints`: `docs/recovery.md`, `pull/61`, `actions/34875620811`
+- `exact_recovery_checkpoints`: `docs/recovery.md`, `docs/exact-recovery-live-evidence-2026-09-14.md`, `actions/34890295276`
 - `approximate_timestamp_pitr`: `docs/live-external-gates-2026-09-13.md`
 - `threads_oauth_callback`: `docs/live-external-gates-2026-09-13.md`
 - `native_webmcp`: `docs/live-external-gates-2026-09-13.md`; owner action: Use one authenticated supporting browser for the read-only workspace_status proof when available.
