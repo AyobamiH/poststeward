@@ -1,16 +1,16 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-14-agent-native-visual-system
+# Deployment request: 2026-09-14-visual-organisation-pass
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that contains the merged PostSteward visual-system
-# redesign from PR #63: semantic light/dark tokens, route-and-proof brand mark, and the
-# redesigned public, workspace, controlled-acceptance, lifecycle, inventory and recovery
-# surfaces. Existing operation bindings, provider authority, payment state and recovery
-# behaviour are unchanged. This is an ordinary non-destructive staging deployment.
-# It changes no provider authority, payment, recovery plan, signup policy, Advanced
-# execution or external effect. The PITR diagnostic remains disabled and exact checkpoint
-# recovery remains owner-only. Root cutover remains on the already accepted next writer;
-# the legacy root is intentionally retained.
+# Deploy the exact reviewed revision containing PR #65, which reorganises the PostSteward
+# public site and owner workspace around deliberate product/operator sequences, adds
+# product-grounded control-plane and receipt-state visuals, responsive navigation and
+# final horizontal logo variants. Existing operation bindings, provider authority,
+# payment state and recovery behaviour are unchanged. This is an ordinary non-destructive
+# staging deployment. It changes no provider authority, payment, recovery plan, signup
+# policy, Advanced execution or external effect. The PITR diagnostic remains disabled and
+# exact checkpoint recovery remains owner-only. Root cutover remains on the already
+# accepted next writer; the legacy root is intentionally retained.
 on:
   push:
     branches: [main]
