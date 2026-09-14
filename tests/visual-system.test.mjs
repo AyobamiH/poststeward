@@ -6,6 +6,7 @@ const read = (path) => readFileSync(path, "utf8");
 
 test("PostSteward visual shell is local, semantic and shared across product surfaces", () => {
   const css = read("public/style.css");
+  const composition = read("public/composition.css");
   const favicon = read("public/favicon.svg");
   const pages = [
     "public/index.html",
@@ -22,7 +23,10 @@ test("PostSteward visual shell is local, semantic and shared across product surf
   assert.match(css, /--warning:/);
   assert.match(css, /--danger:/);
   assert.match(css, /prefers-color-scheme: dark/);
-  assert.doesNotMatch(css, /@import|fonts\.googleapis\.com|use\.typekit\.net/);
+  assert.match(composition, /--page-max:/);
+  assert.match(composition, /\.workspace-index/);
+  assert.match(composition, /\.feature-story/);
+  assert.doesNotMatch(css + composition, /@import|fonts\.googleapis\.com|use\.typekit\.net/);
 
   for (const html of pages) {
     assert.match(html, /href="\/favicon\.svg"/);
@@ -31,11 +35,47 @@ test("PostSteward visual shell is local, semantic and shared across product surf
   }
 });
 
-test("redesign preserves consequential owner and publishing controls", () => {
+test("public composition follows the product execution narrative", () => {
+  const home = read("public/index.html");
+
+  assert.match(home, /href="\/composition\.css"/);
+  assert.match(home, /class="control-map"/);
+  assert.match(home, /id="how-it-works"/);
+  assert.match(home, /id="evidence"/);
+  assert.match(home, /id="agents"/);
+  assert.match(home, /id="pricing"/);
+
+  const intent = home.indexOf("01 · CAPTURE INTENT");
+  const effect = home.indexOf("02 · ROUTE THE EFFECT");
+  const evidence = home.indexOf("03 · INSPECT EVIDENCE");
+  const agents = home.indexOf('id="agents"');
+  const pricing = home.indexOf('id="pricing"');
+
+  assert.ok(intent > -1 && intent < effect);
+  assert.ok(effect < evidence);
+  assert.ok(evidence < agents);
+  assert.ok(agents < pricing);
+});
+
+test("workspace composition preserves orientation and consequential controls", () => {
   const app = read("public/app.html");
   const pilot = read("public/pilot.html");
   const lifecycle = read("public/lifecycle.html");
   const recovery = read("public/recovery.html");
+
+  assert.match(app, /href="\/composition\.css"/);
+  assert.match(app, /class="workspace-index"/);
+  for (const section of [
+    "destinations",
+    "publishing",
+    "evidence-panel",
+    "agent-access",
+    "sources",
+    "advanced",
+    "recovery-safety",
+  ]) {
+    assert.match(app, new RegExp(`id="${section}"`));
+  }
 
   for (const id of [
     "oauth",

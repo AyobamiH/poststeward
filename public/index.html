@@ -12,6 +12,7 @@
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/composition.css" />
     <link
       rel="alternate"
       type="application/json"
@@ -20,21 +21,36 @@
     />
   </head>
   <body>
-    <header>
-      <a class="wordmark" href="/" aria-label="PostSteward home">
-        <img class="brand-mark" src="/favicon.svg" alt="" />
-        <span>PostSteward</span>
-      </a>
-      <nav aria-label="Primary navigation">
-        <a href="/docs/agent-guide.md">Agent guide</a>
-        <a href="/docs/operations.md">Operations</a>
-        <a href="/help.json">Machine help</a>
-        <a class="button primary" href="/auth/login">Open workspace</a>
-      </nav>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="wordmark" href="/" aria-label="PostSteward home">
+          <img class="brand-mark" src="/favicon.svg" alt="" />
+          <span>PostSteward</span>
+        </a>
+        <nav aria-label="Primary navigation">
+          <a href="#how-it-works">How it works</a>
+          <a href="#evidence">Evidence</a>
+          <a href="#agents">For agents</a>
+          <a href="#pricing">Pricing</a>
+          <a href="/docs/agent-guide.md">Docs</a>
+          <a class="button primary" href="/auth/login">Open workspace</a>
+        </nav>
+        <details class="site-menu">
+          <summary>Menu</summary>
+          <div class="site-menu-panel">
+            <a href="#how-it-works">How it works</a>
+            <a href="#evidence">Evidence</a>
+            <a href="#agents">For agents</a>
+            <a href="#pricing">Pricing</a>
+            <a href="/docs/agent-guide.md">Agent guide</a>
+            <a href="/auth/login">Open workspace</a>
+          </div>
+        </details>
+      </div>
     </header>
 
-    <main class="home">
-      <section class="hero" aria-labelledby="hero-title">
+    <main class="home home-organised">
+      <section class="hero hero-organised" aria-labelledby="hero-title">
         <div class="hero-copy">
           <p class="eyebrow">SOCIAL PUBLISHING INFRASTRUCTURE FOR AGENTS</p>
           <h1 id="hero-title">
@@ -42,9 +58,9 @@
             <span class="hero-accent">Keep proof of what happened.</span>
           </h1>
           <p class="lead">
-            PostSteward gives an agent a controlled way to route exact approved
-            copy, publish now or later, and return durable evidence from the
-            destination instead of assuming the write worked.
+            PostSteward sits between an agent's approved intent and the social provider.
+            It keeps destination, authority, timing and evidence explicit around every
+            consequential write.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="/auth/login">Start with Free</a>
@@ -55,193 +71,230 @@
           </p>
         </div>
 
-        <div class="execution-visual" aria-label="Example PostSteward agent execution">
-          <div class="operation-head">
+        <div class="control-map" aria-label="PostSteward publishing control-plane example">
+          <div class="control-map-head">
             <div>
-              <p class="machine-label">AGENT OPERATION</p>
+              <p class="machine-label">LIVE CONTRACT</p>
               <p class="operation-name">publish_now</p>
             </div>
             <span class="scope-pill">publish</span>
           </div>
-
-          <pre class="execution-payload">{
-  "campaign": "launch-update",
-  "idempotencyKey": "publish-2026-0914"
-}</pre>
-
-          <div class="execution-rail" aria-hidden="true">
-            <div class="execution-step">
-              <span class="step-index">01 · INTENT</span>
-              <strong>Exact copy captured</strong>
-              <p>No rewriting at dispatch.</p>
-            </div>
-            <div class="execution-step">
-              <span class="step-index">02 · ROUTE</span>
-              <strong>Authority checked</strong>
-              <p>Account, scope and duplicate fences.</p>
-            </div>
-            <div class="execution-step">
-              <span class="step-index">03 · EFFECT</span>
-              <strong>Provider dispatch</strong>
-              <p>Uncertain writes are not blindly repeated.</p>
-            </div>
-          </div>
-
-          <div class="route-line" aria-hidden="true"></div>
-          <div class="provider-row" aria-label="Supported provider destinations">
-            <span class="provider-pill">X</span>
-            <span class="provider-pill">Threads</span>
-            <span class="provider-pill">LinkedIn</span>
-          </div>
-
-          <div class="receipt-card">
-            <div class="receipt-head">
-              <div>
-                <p class="machine-label">EXAMPLE RECEIPT</p>
-                <p class="operation-name">delivery_01J…</p>
+          <div class="control-map-body">
+            <div class="flow-node">
+              <div class="node-title">
+                <strong>Agent intent</strong>
+                <code>campaign_01J…</code>
               </div>
-              <span class="status-pill">published_verified</span>
+              <p>Exact reviewed copy plus an explicit destination and idempotency key.</p>
             </div>
-            <p class="receipt-meta">
-              recorded post id · stable author matched · exact text read back
-            </p>
+            <div class="flow-node control">
+              <div class="node-title">
+                <strong>PostSteward control plane</strong>
+                <span class="machine-label">FENCED</span>
+              </div>
+              <div class="control-gates" aria-label="Publishing gates">
+                <span class="control-gate">identity</span>
+                <span class="control-gate">scope</span>
+                <span class="control-gate">duplicate fence</span>
+              </div>
+            </div>
+            <div class="flow-node">
+              <div class="node-title">
+                <strong>Provider destination</strong>
+                <span class="machine-label">EXPLICIT</span>
+              </div>
+              <div class="destination-set" aria-label="Supported social destinations">
+                <span class="destination"><span class="destination-mark">X</span>X</span>
+                <span class="destination"><span class="destination-mark threads">@</span>Threads</span>
+                <span class="destination"><span class="destination-mark linkedin">in</span>LinkedIn</span>
+              </div>
+            </div>
+          </div>
+          <div class="control-map-foot">
+            <p>post id recorded · stable author matched · exact text read back</p>
+            <span class="status-pill">published_verified</span>
           </div>
         </div>
       </section>
 
-      <section class="signal-strip" aria-label="PostSteward product contract">
-        <div class="signal-item">
-          <span class="machine-label">TRANSPORT</span>
-          <strong>HTTP · remote MCP · WebMCP</strong>
-          <span>One operation catalogue across agent surfaces.</span>
-        </div>
-        <div class="signal-item">
-          <span class="machine-label">CONTENT</span>
+      <section class="contract-rail" aria-label="PostSteward operating contract">
+        <div class="contract-item">
+          <span class="machine-label">INTENT</span>
           <strong>Exact approved copy</strong>
-          <span>Campaign text is immutable at the dispatch boundary.</span>
+          <p>Dispatch never silently rewrites the campaign.</p>
         </div>
-        <div class="signal-item">
-          <span class="machine-label">EXECUTION</span>
-          <strong>Durable schedules</strong>
-          <span>Reserved work survives the agent disconnecting.</span>
+        <div class="contract-item">
+          <span class="machine-label">AUTHORITY</span>
+          <strong>Scoped, revocable agent access</strong>
+          <p>Publishing, scheduling, automation and billing stay separate.</p>
         </div>
-        <div class="signal-item">
+        <div class="contract-item">
           <span class="machine-label">EVIDENCE</span>
           <strong>Receipts, not assumptions</strong>
-          <span>Verified, unverified and ambiguous outcomes stay distinct.</span>
+          <p>Verified, unverified and ambiguous effects remain distinct.</p>
         </div>
       </section>
 
-      <section class="home-section" aria-labelledby="control-title">
-        <div class="section-heading">
+      <section class="story" id="how-it-works" aria-labelledby="story-title">
+        <div class="story-intro">
           <div>
-            <p class="eyebrow">THE CONTROL PLANE</p>
-            <h2 id="control-title">Automation with an explicit consequence model.</h2>
+            <p class="eyebrow">ONE PUBLISHING PATH</p>
+            <h2 id="story-title">A post moves through one deliberate sequence.</h2>
           </div>
           <p>
-            PostSteward is not a content generator. It sits between approved intent
-            and social-provider effects, preserving identity, authority, timing and
-            evidence around every consequential operation.
+            The interface mirrors the execution model: capture intent, route it through
+            bounded authority, then inspect what the provider actually did.
           </p>
         </div>
-        <div class="principles">
-          <article class="principle">
-            <span class="step-index">AUTHORITY</span>
-            <h3>Give an agent only the operations it needs.</h3>
-            <p>
-              Owner-issued grants are scoped, expiring and revocable. Publishing,
-              scheduling, automation and billing remain separate capabilities.
-            </p>
-          </article>
-          <article class="principle">
-            <span class="step-index">EFFECTS</span>
-            <h3>Uncertainty does not become a duplicate post.</h3>
-            <p>
-              Idempotency, durable claims and ambiguous-effect preservation stop a
-              transport failure from silently becoming a second provider write.
-            </p>
-          </article>
-          <article class="principle">
-            <span class="step-index">EVIDENCE</span>
-            <h3>Inspect what the provider actually returned.</h3>
-            <p>
-              Receipt states keep reservations, creation IDs, exact readback,
-              failures and drift separate so operators can reason from evidence.
-            </p>
-          </article>
-        </div>
-      </section>
 
-      <section class="home-section" aria-labelledby="plans-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">FREE AND ADVANCED</p>
-            <h2 id="plans-title">Direct publishing is free. Continuing operation is separate.</h2>
+        <article class="feature-story">
+          <div class="feature-copy">
+            <span class="feature-number">01 · CAPTURE INTENT</span>
+            <h2>Make the consequential details explicit before dispatch.</h2>
+            <p>
+              Campaign text, destination and project routing become a durable claim
+              boundary before any social provider is touched.
+            </p>
+            <ul>
+              <li>Exact copy remains exact at dispatch.</li>
+              <li>Destination identity is resolved before the write.</li>
+              <li>An idempotency key belongs to the operation, not the transport attempt.</li>
+            </ul>
           </div>
-          <p>
-            Paying never silently grants posting authority. Advanced adds continuing
-            source monitoring and allocation only after the profile itself is reviewed
-            and enabled.
-          </p>
-        </div>
-        <div class="plans">
-          <article data-plan="free">
-            <span class="plan-chip">FREE · HOSTED</span>
-            <h2>Direct the work</h2>
-            <p class="plan-price">$0 <span>service subscription</span></p>
-            <p class="plan-copy">
-              Publish approved campaigns, create explicit schedules and keep the
-              resulting history available to both humans and agents.
+          <div class="product-frame" aria-label="Example exact-intent review">
+            <div class="product-frame-head">
+              <div class="frame-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span class="machine-label">CAMPAIGN REVIEW</span>
+            </div>
+            <div class="product-frame-body intent-fields">
+              <div class="mock-field">
+                <span>Project</span>
+                <strong>proof-and-state</strong>
+              </div>
+              <div class="mock-field">
+                <span>Destination</span>
+                <strong>@proofandstate · Threads</strong>
+              </div>
+              <div class="mock-field wide mock-copy">
+                <span>Approved text</span>
+                <strong>Agents can publish autonomously without making the outcome unknowable. PostSteward keeps the intent and receipt together.</strong>
+              </div>
+              <div class="mock-field wide">
+                <span>Claim boundary</span>
+                <strong>text hash · account id · operation idempotency key</strong>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-story reverse">
+          <div class="feature-copy">
+            <span class="feature-number">02 · ROUTE THE EFFECT</span>
+            <h2>Separate provider execution from transport noise.</h2>
+            <p>
+              A timeout is not permission to publish twice. PostSteward preserves the
+              state of the external effect and makes an uncertain outcome inspectable.
             </p>
-            <ul class="plan-list">
-              <li>Verified account routing</li>
-              <li>Publish now and explicit scheduling</li>
-              <li>Cancellation and reviewed replacement</li>
-              <li>Durable receipts and export</li>
-              <li>Available on-demand metrics</li>
-              <li>All supported agent transports</li>
+            <ul>
+              <li>Durable schedules survive the agent disconnecting.</li>
+              <li>Provider writes are fenced against blind duplicate retries.</li>
+              <li>Cancellation and replacement remain explicit operations.</li>
             </ul>
-          </article>
-          <article data-plan="advanced">
-            <span class="plan-chip">ADVANCED · $5 / MONTH</span>
-            <h2>Keep reviewed work moving</h2>
-            <p class="plan-price">$5 <span>per workspace / month</span></p>
-            <p class="plan-copy">
-              Add bounded continuing operation around reviewed sources and templates,
-              without turning source material into instructions.
+          </div>
+          <div class="product-frame" aria-label="Example publishing execution timeline">
+            <div class="product-frame-head">
+              <span class="machine-label">DELIVERY · delivery_01J…</span>
+              <span class="scope-pill">schedule</span>
+            </div>
+            <div class="product-frame-body route-timeline">
+              <div class="route-event">
+                <time>12:00:00</time>
+                <div><strong>Reservation claimed</strong><p>Bound to the reviewed campaign and destination.</p></div>
+                <span class="machine-label">DURABLE</span>
+              </div>
+              <div class="route-event">
+                <time>12:00:02</time>
+                <div><strong>Provider request started</strong><p>External effect fence recorded before dispatch.</p></div>
+                <span class="machine-label">EFFECT</span>
+              </div>
+              <div class="route-event">
+                <time>12:00:03</time>
+                <div><strong>Provider creation ID captured</strong><p>Creation is evidence, but not yet exact readback proof.</p></div>
+                <span class="machine-label">OBSERVED</span>
+              </div>
+              <div class="route-event">
+                <time>12:00:04</time>
+                <div><strong>Exact post read back</strong><p>Stable author and exact text matched.</p></div>
+                <span class="status-pill">verified</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="feature-story" id="evidence">
+          <div class="feature-copy">
+            <span class="feature-number">03 · INSPECT EVIDENCE</span>
+            <h2>Success is one state. Uncertainty gets its own state too.</h2>
+            <p>
+              The receipt model is designed for operators and agents to reason from the
+              same evidence instead of compressing every outcome into green or red.
             </p>
-            <ul class="plan-list">
-              <li>Source monitoring and replenishment</li>
-              <li>Rolling allocation and spacing controls</li>
-              <li>Scheduled metrics collection</li>
-              <li>Inspectable inventory and category state</li>
+            <ul>
+              <li>Verified means the recorded post was independently read back.</li>
+              <li>Ambiguous means the write may have happened and should not be repeated blindly.</li>
+              <li>Blocked and failed states remain distinct from provider uncertainty.</li>
             </ul>
-            <p id="advanced-state" class="muted">
-              Execution remains gated until the Advanced path completes live validation.
-            </p>
-            <a href="/plans.json">Inspect the plan contract →</a>
-          </article>
-        </div>
+          </div>
+          <div class="product-frame" aria-label="Example PostSteward receipt states">
+            <div class="product-frame-head">
+              <span class="machine-label">RECEIPT LEDGER</span>
+              <span class="machine-label">LATEST FIRST</span>
+            </div>
+            <div class="product-frame-body state-ledger">
+              <div class="state-row verified">
+                <div class="state-name"><span class="state-dot"></span>published_verified</div>
+                <p>Post ID, stable author and exact text independently matched.</p>
+                <code>receipt_get</code>
+              </div>
+              <div class="state-row ambiguous">
+                <div class="state-name"><span class="state-dot"></span>ambiguous_effect</div>
+                <p>Provider outcome is uncertain. Hold the fence and inspect before retry.</p>
+                <code>receipt_recheck</code>
+              </div>
+              <div class="state-row blocked">
+                <div class="state-name"><span class="state-dot"></span>drift_blocked</div>
+                <p>Current authority or reviewed intent no longer matches the claim.</p>
+                <code>review</code>
+              </div>
+              <div class="state-row failed">
+                <div class="state-name"><span class="state-dot"></span>failed</div>
+                <p>No acceptable provider effect was established.</p>
+                <code>inspect</code>
+              </div>
+            </div>
+          </div>
+        </article>
       </section>
 
-      <section class="home-section guide" aria-labelledby="agent-surface-title">
-        <div class="machine-surface">
+      <section class="agent-surface" id="agents" aria-labelledby="agent-surface-title">
+        <div class="agent-surface-inner">
           <div>
             <p class="eyebrow">BUILT TO BE DISCOVERED BY SOFTWARE</p>
-            <h2 id="agent-surface-title">The website is not the only interface.</h2>
+            <h2 id="agent-surface-title">The website is the owner surface. The operation catalogue is the agent surface.</h2>
             <p class="lead">
-              Remote MCP, HTTP and supported browser WebMCP use the same generated
-              operation catalogue and workspace authority checks.
+              HTTP, remote MCP and supported browser WebMCP use the same generated
+              operation catalogue and the same workspace authority checks.
             </p>
             <div class="protocol-row">
               <a class="protocol" href="/openapi.json">OpenAPI</a>
               <a class="protocol" href="/help.json">help.json</a>
               <a class="protocol" href="/llms.txt">llms.txt</a>
-              <a class="protocol" href="/docs/operations.md">operation reference</a>
+              <a class="protocol" href="/docs/operations.md">operations</a>
             </div>
             <p class="muted">
-              Provider charges are separate. Runtime availability is authoritative;
-              X and LinkedIn provider application acceptance remain deployment gates.
+              X and LinkedIn become available when their provider applications are
+              accepted and verified in the deployed runtime. Provider API fees, if any,
+              are separate from PostSteward.
             </p>
           </div>
           <pre class="machine-example">POST /api/operations/schedule_create
@@ -259,11 +312,67 @@ Authorization: Bearer &lt;scoped-agent-token&gt;
 → receipt_get for evidence</pre>
         </div>
       </section>
+
+      <section class="pricing-organised" id="pricing" aria-labelledby="plans-title">
+        <div class="pricing-head">
+          <div>
+            <p class="eyebrow">FREE AND ADVANCED</p>
+            <h2 id="plans-title">Pay for continuing operation, not permission to publish.</h2>
+          </div>
+          <p>
+            Direct reviewed publishing stays free. Advanced adds bounded monitoring and
+            replenishment; payment never silently expands posting authority.
+          </p>
+        </div>
+        <div class="plans organised">
+          <article data-plan="free">
+            <span class="plan-chip">FREE · HOSTED</span>
+            <h2>Direct the work</h2>
+            <p class="plan-price">$0 <span>service subscription</span></p>
+            <p class="plan-copy">
+              Publish approved campaigns, create explicit schedules and preserve the
+              resulting evidence for both humans and agents.
+            </p>
+            <ul class="plan-list organised">
+              <li>Verified account routing</li>
+              <li>Publish now and explicit scheduling</li>
+              <li>Cancellation and reviewed replacement</li>
+              <li>Durable receipts and export</li>
+              <li>All supported agent transports</li>
+            </ul>
+          </article>
+          <article data-plan="advanced">
+            <span class="plan-chip">ADVANCED · $5 / MONTH</span>
+            <h2>Keep reviewed work moving</h2>
+            <p class="plan-price">$5 <span>per workspace / month</span></p>
+            <p class="plan-copy">
+              Add bounded continuing operation around reviewed sources and templates
+              without turning source material into instructions.
+            </p>
+            <ul class="plan-list organised">
+              <li>Source monitoring and replenishment</li>
+              <li>Rolling allocation and spacing controls</li>
+              <li>Scheduled metrics collection</li>
+              <li>Inspectable inventory and category state</li>
+            </ul>
+            <p id="advanced-state" class="muted">
+              Execution remains gated until the Advanced path completes live validation.
+            </p>
+            <a href="/plans.json">Inspect the plan contract →</a>
+          </article>
+        </div>
+      </section>
     </main>
 
-    <footer>
-      <span>PostSteward · Reliable social publishing for AI agents.</span>
-      <span><a href="/docs/agent-guide.md">Agent guide</a> · <a href="/help.json">Machine help</a></span>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <span>© 2026 PostSteward · Reliable social publishing for AI agents.</span>
+        <span class="site-footer-links">
+          <a href="/docs/agent-guide.md">Agent guide</a>
+          <a href="/docs/operations.md">Operations</a>
+          <a href="/help.json">Machine help</a>
+        </span>
+      </div>
     </footer>
   </body>
 </html>
