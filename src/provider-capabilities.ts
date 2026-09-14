@@ -22,23 +22,35 @@ export interface ProviderCapabilitySet {
 }
 
 function available(requiredScopes: string[] = []): ProviderCapability {
-  return { state: "available", ...(requiredScopes.length ? { requiredScopes } : {}) };
+  return {
+    state: "available",
+    ...(requiredScopes.length ? { requiredScopes } : {}),
+  };
 }
-function unavailable(reason: string, requiredScopes: string[] = []): ProviderCapability {
+function unavailable(
+  reason: string,
+  requiredScopes: string[] = [],
+): ProviderCapability {
   return {
     state: "unavailable",
     reason,
     ...(requiredScopes.length ? { requiredScopes } : {}),
   };
 }
-function unknown(reason: string, requiredScopes: string[] = []): ProviderCapability {
+function unknown(
+  reason: string,
+  requiredScopes: string[] = [],
+): ProviderCapability {
   return {
     state: "unknown",
     reason,
     ...(requiredScopes.length ? { requiredScopes } : {}),
   };
 }
-function required(reason: string, requiredScopes: string[] = []): ProviderCapability {
+function required(
+  reason: string,
+  requiredScopes: string[] = [],
+): ProviderCapability {
   return {
     state: "external_approval_required",
     reason,
@@ -73,7 +85,7 @@ export function providerApplicationCapabilities(
       publish: connected(["tweet.write"]),
       readback: connected(["tweet.read", "users.read"]),
       refresh: connected(["offline.access"]),
-      metrics: unavailable("metrics_not_implemented"),
+      metrics: connected(["tweet.read"]),
     };
   if (provider === "threads")
     return {
@@ -88,9 +100,11 @@ export function providerApplicationCapabilities(
     publish: connected(["w_member_social"]),
     readback: options.linkedinMemberReadbackApproved
       ? connected(["r_member_social"])
-      : required("r_member_social_closed_to_new_requests", ["r_member_social"]),
+      : required("r_member_social_closed_to_new_requests", [
+          "r_member_social",
+        ]),
     refresh: connected(),
-    metrics: unavailable("metrics_not_implemented"),
+    metrics: unavailable("member_analytics_not_enabled"),
   };
 }
 
@@ -120,20 +134,28 @@ export function negotiatedProviderCapabilities(
     return {
       identity,
       publish: scoped(["tweet.write"], "tweet_write_not_granted"),
-      readback: scoped(["tweet.read", "users.read"], "tweet_read_not_granted"),
+      readback: scoped(
+        ["tweet.read", "users.read"],
+        "tweet_read_not_granted",
+      ),
       refresh:
         scopes.has("offline.access") && options.refreshable
           ? proven
             ? available(["offline.access"])
             : unknown("scope_response_absent", ["offline.access"])
-          : unavailable("offline_access_or_refresh_token_missing", ["offline.access"]),
-      metrics: unavailable("metrics_not_implemented"),
+          : unavailable("offline_access_or_refresh_token_missing", [
+              "offline.access",
+            ]),
+      metrics: scoped(["tweet.read"], "tweet_read_not_granted"),
     };
 
   if (provider === "threads")
     return {
       identity,
-      publish: scoped(["threads_content_publish"], "threads_publish_not_granted"),
+      publish: scoped(
+        ["threads_content_publish"],
+        "threads_publish_not_granted",
+      ),
       readback: scoped(["threads_basic"], "threads_basic_not_granted"),
       refresh: options.refreshable
         ? available()
@@ -142,7 +164,9 @@ export function negotiatedProviderCapabilities(
         ? proven
           ? available(["threads_manage_insights"])
           : unknown("scope_response_absent", ["threads_manage_insights"])
-        : unavailable("threads_manage_insights_not_granted", ["threads_manage_insights"]),
+        : unavailable("threads_manage_insights_not_granted", [
+            "threads_manage_insights",
+          ]),
     };
 
   return {
@@ -152,22 +176,36 @@ export function negotiatedProviderCapabilities(
       ? proven
         ? available(["r_member_social"])
         : unknown("r_member_social_not_proven", ["r_member_social"])
-      : required("r_member_social_closed_to_new_requests", ["r_member_social"]),
+      : required("r_member_social_closed_to_new_requests", [
+          "r_member_social",
+        ]),
     refresh: options.refreshable
       ? available()
       : unavailable("provider_refresh_token_not_issued"),
-    metrics: unavailable("metrics_not_implemented"),
+    metrics: unavailable("member_analytics_not_enabled"),
   };
 }
 
-export function booleanCapabilities(capabilities: ProviderCapabilitySet) {
+/**
+ * Compatibility projection for the existing account record. Detailed evidence
+ * stays on OAuth metadata so callers can distinguish provider-confirmed scope
+ * from a provider that simply omitted scope echoing.
+ */
+export function booleanCapabilities(
+  provider: Provider,
+  capabilities: ProviderCapabilitySet,
+) {
+  const assumedBaseline = (capability: ProviderCapability) =>
+    capability.state === "unknown" &&
+    capability.reason === "scope_response_absent";
   return {
     oauth: true,
     refresh: capabilities.refresh.state === "available",
-    readback: capabilities.readback.state === "available",
-    publish: capabilities.publish.state === "available",
-    identity: capabilities.identity.state === "available",
-    ...(capabilities.metrics.state === "available" ? { metrics: true } : {}),
-    negotiated: capabilities,
+    readback:
+      capabilities.readback.state === "available" ||
+      (provider === "threads" && assumedBaseline(capabilities.readback)),
+    ...(provider === "threads" && capabilities.metrics.state === "available"
+      ? { metrics: true }
+      : {}),
   };
 }
