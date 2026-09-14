@@ -2,6 +2,8 @@
 
 This ledger is the canonical continuation after the engineering-gap reconciliation and protected root-cutover integration. It separates evidence already accepted from live provider/browser/service gates that still require the external system itself. Do not recreate completed effects merely to obtain another receipt.
 
+Last reconciled restricted-staging release: `93b526bb31f6de39c2386b51063532e2bf4282b9`, deployed successfully on 14 September 2026. Exact current runtime identity must still be read from `/readiness.json` rather than inferred from this document.
+
 ## Evidence that is already accepted and must be preserved
 
 - Owner Google sign-in has already been accepted from the owner's real browser journey.
@@ -102,11 +104,19 @@ https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/#pitr-p
 
 ## Gate 4 — authenticated native WebMCP
 
-**State: native capability observed; authenticated invocation still open.**
+**State: PostSteward engineering and hardened staging deployment are complete; authenticated native invocation remains open because the owner's ordinary browser does not expose the native API.**
 
-The supporting cloud browser reported native WebMCP availability on the PostSteward page, superseding the earlier unsupported-browser observation. The remaining evidence is a real authenticated owner session in a supporting browser followed by native tool discovery and one harmless read-only invocation such as `workspace_status`.
+Evidence on 14 September 2026:
 
-Do not substitute the HTTP/MCP proof, a JavaScript shim, or the signed-out capability observation. HTTP and remote MCP have already been accepted separately and must not be repeated merely to close this gate.
+- the owner was authenticated in the real staging workspace and saw restricted signup, Free publishing and the expected current workspace state;
+- that browser explicitly reported `Remote MCP and HTTP are available. Native WebMCP is not available in this browser.`;
+- this is a browser-capability result, not a PostSteward registration failure;
+- PR #59 hardened the native path so registered tools abort on page teardown and the read-only native `workspace_status` check must match both the authenticated workspace and the exact current `/readiness.json` release;
+- protected deployment `34851168519` successfully deployed release `93b526bb31f6de39c2386b51063532e2bf4282b9`, including the updated `/webmcp.js`; hosted smoke remained green and did not manufacture an owner session or native invocation.
+
+The earlier supporting cloud browser observation showed that native WebMCP can be exposed by a suitable browser. The remaining evidence is therefore one real authenticated owner session **in a supporting browser**, followed by native discovery and one harmless read-only `workspace_status` invocation. Preserve the returned JSON receipt.
+
+Do not substitute the already accepted HTTP/remote-MCP proof, a JavaScript shim, a signed-out capability observation or another browser that explicitly reports native WebMCP unavailable.
 
 ## Gate 5 — X provider application and grant
 
@@ -138,6 +148,8 @@ https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares
 
 ## Execution order and stop conditions
 
-Continue without reopening completed acceptance. Threads remains parked until Meta accepts the exact callback. PITR remains parked until the hosted target-bookmark primitive succeeds or a deliberate, owner-visible checkpoint fallback is implemented and verified. Continue now with authenticated native WebMCP, then X application/grant, then LinkedIn application/grant/readback approval. Private GitHub is complete and must not be repeated merely for evidence.
+Continue without reopening completed acceptance. Threads remains parked until Meta accepts the exact callback. PITR remains parked until the hosted target-bookmark primitive succeeds or a deliberate, owner-visible checkpoint fallback is implemented and verified. Continue now with authenticated native WebMCP in a supporting browser, then X application/grant, then LinkedIn application/grant/readback approval. Private GitHub is complete and must not be repeated merely for evidence.
+
+Advanced live product-path acceptance and production/public readiness remain separate from these external gates. Stripe sandbox and protected root cutover are already accepted and are not reasons to replay payment or cryptographic effects.
 
 Stop only for owner/provider actions that cannot be delegated safely: accepting provider terms, creating or revealing provider client secrets, approving OAuth consent, running an explicitly destructive PITR workflow after its prerequisite becomes healthy, or completing browser sign-in. Secrets must go directly to protected environment storage and must never be pasted into chat, source, logs or evidence documents.
