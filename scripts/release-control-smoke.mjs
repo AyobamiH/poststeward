@@ -39,20 +39,23 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
     value.gates?.private_github_authority?.state === "live_verified" &&
     value.gates?.stripe_sandbox_lifecycle?.state === "live_verified" &&
     value.gates?.protected_root_cutover?.state === "live_verified" &&
-    value.gates?.exact_recovery_checkpoints?.state === "deployed" &&
+    value.gates?.exact_recovery_checkpoints?.state === "live_verified" &&
     value.gates?.threads_oauth_callback?.state === "blocked_external" &&
     value.gates?.advanced_rollout?.state === "disabled_policy" &&
     value.runtimeCapabilities?.policies?.advancedEnabled === false &&
+    value.runtimeCapabilities?.policies?.advancedRolloutMode === "disabled" &&
+    value.runtimeCapabilities?.policies?.advancedCanaryBps === 0 &&
     value.runtimeCapabilities?.policies?.signupMode === "restricted" &&
     Array.isArray(value.evidenceStillExternal) &&
-    !value.evidenceStillExternal.includes("private_github_authority")
+    !value.evidenceStillExternal.includes("private_github_authority") &&
+    !value.evidenceStillExternal.includes("exact_recovery_checkpoints")
   );
 
   await check("generated public release gate ledger matches reviewed evidence", "/release-gates.json", (value) => {
     const gates = Object.fromEntries((value.gates || []).map((gate) => [gate.id, gate]));
     return value.schemaVersion === 1 &&
       gates.owner_google_signin?.state === "live_verified" &&
-      gates.exact_recovery_checkpoints?.state === "deployed" &&
+      gates.exact_recovery_checkpoints?.state === "live_verified" &&
       gates.approximate_timestamp_pitr?.state === "blocked_external" &&
       gates.native_webmcp?.state === "unavailable_capability" &&
       gates.github_main_ruleset?.blocking === true;
