@@ -37,12 +37,6 @@ The public website follows one ordered narrative:
 
 The public page uses a consistent maximum content width and large section rhythm. Major feature sections are split compositions rather than a field of small cards. Product visuals use the lowest amount of chrome required to read as product evidence.
 
-The owner workspace follows an operator sequence:
-
-`destinations -> publishing -> evidence -> agent access -> sources -> Advanced -> recovery`
-
-On large screens the workspace exposes a compact section index so long operational pages do not become an undifferentiated vertical form wall. On smaller screens that index becomes a horizontal jump rail.
-
 ### Graphics rule
 
 Graphics are allowed only when they reduce explanation cost. Preferred graphics are:
@@ -55,6 +49,40 @@ Graphics are allowed only when they reduce explanation cost. Preferred graphics 
 - product screenshots when the live interface is mature enough to communicate the same idea more clearly.
 
 Avoid generic illustrations, 3D AI objects, abstract network wallpaper, stock imagery and graphics that cannot be mapped back to a real PostSteward operation or state.
+
+## Application shell
+
+Owner and operator pages use one shared shell rather than independent website-style headers. The shell consists of:
+
+- a compact global top bar for product identity, environment and small global actions;
+- a persistent desktop sidebar with short noun-based destinations;
+- a deliberately collapsed mobile navigation rather than wrapped desktop links;
+- a page header with one page purpose, current state and page-specific actions;
+- a content body whose layout matches the task rather than forcing every page into the same card grid.
+
+The top-level owner navigation is intentionally small:
+
+`Workspace -> Acceptance -> Inventory -> Data -> Recovery`
+
+The Agent guide and machine help are support surfaces, not peer operational destinations.
+
+Each page has one role:
+
+- **Workspace:** home/control plane. Configure destinations, capture exact intent, inspect evidence, delegate authority and configure continuing operation.
+- **Acceptance:** focused journey. One controlled publication proceeds through owner, destination, intent, approval and evidence stages.
+- **Inventory:** resource index. Categories provide context while source inventory and future allocation occupy the primary resource area.
+- **Data:** settings/lifecycle page. Export and retention precede irreversible erasure in a single top-to-bottom flow.
+- **Recovery:** owner-only safety workflow. Exact checkpoint controls remain primary; approximate recovery is subordinate and the quarantine/restore/reconcile/resume sequence stays visible beside the controls.
+
+### Workspace composition
+
+The workspace follows the operator sequence:
+
+`destination -> intent -> external effect -> evidence -> delegated authority -> sources -> Advanced -> recovery`
+
+Destination setup and publishing share one large work zone because they form one routing task. Receipts are a dedicated evidence surface. Agent access and sources sit together as secondary operations. Advanced and recovery each have their own visually separated zones because they change ongoing behaviour or authority.
+
+The workspace should not re-create the global product navigation inside the content body. Page-local jump links are appropriate only when the page becomes too long to scan without them.
 
 ## Colour roles
 
@@ -92,13 +120,21 @@ A compact PostSteward mark plus wordmark, quiet text navigation and one clear wo
 
 The public hero uses a bounded product diagram rather than a generic architecture illustration. It shows an agent intent entering PostSteward, passing identity/scope/duplicate fences, reaching a named social destination and ending in an evidence state.
 
-### Operational panel
+### Product sidebar
 
-A neutral bordered surface with a concise title, optional machine label, explanatory copy and controls. Panels group one authority or task domain rather than simply decorating forms.
+Desktop owner pages use a persistent left navigation with one current-page marker. The sidebar is orientation, not a second dashboard. It should remain quiet and avoid badges, charts or promotional content unless status materially changes navigation.
+
+### Page header
+
+Every owner page starts with one clear title, a short purpose statement and only page-level actions. Do not mix section actions into the page header.
+
+### Work zone
+
+Related operational steps share one large bounded surface instead of becoming separate equal-weight cards. A work zone may split into primary and secondary panes, but its purpose must remain singular.
 
 ### Record
 
-Accounts, projects, grants, profiles and receipts use compact record cards with strong primary text and quieter evidence below. Actions sit after evidence rather than competing with it.
+Accounts, projects, grants, profiles and receipts use compact record treatments with strong primary text and quieter evidence below. Actions sit after evidence rather than competing with it.
 
 ### Receipt/evidence
 
@@ -117,6 +153,7 @@ Deletion, recovery and irreversible authority transitions use danger tokens, exp
 - Disabled states remain legible and do not masquerade as available operations.
 - Mobile navigation must collapse deliberately rather than wrapping arbitrary desktop links into multiple rows.
 - Empty, sparse, dense, loading, error and ambiguous states all need designed treatments.
+- A page should retain the same logical order on narrow viewports even when multi-column layouts collapse.
 
 ## Repository boundary
 
