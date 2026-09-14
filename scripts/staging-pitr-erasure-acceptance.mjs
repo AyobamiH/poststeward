@@ -5,10 +5,8 @@ import { pathToFileURL } from "node:url";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const PITR_HISTORY_WARMUP_MS = 60000;
-export const PITR_TARGET_AGE_MS = 30000;
-export const PITR_PREPARE_SETTLE_TIMEOUT_MS = 8 * 60 * 1000;
-export const PITR_PREPARE_RETRY_MS = 15000;
+export const PITR_PREPARE_SETTLE_TIMEOUT_MS = 2 * 60 * 1000;
+export const PITR_PREPARE_RETRY_MS = 5000;
 
 export function canonicalStringDigest(value) {
   return createHash("sha256").update(JSON.stringify(String(value))).digest("hex");
@@ -36,30 +34,16 @@ function demand(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-export function settledPitrTarget(now, initializedAt) {
-  demand(
-    Number.isFinite(now) &&
-      Number.isFinite(initializedAt) &&
-      now >= initializedAt,
-    "Disposable PITR timing inputs are invalid.",
-  );
-  const target = now - PITR_TARGET_AGE_MS;
-  demand(
-    target > initializedAt,
-    "Disposable PITR target is still on the newly-created object history edge.",
-  );
-  return target;
-}
-
-export function classifyRecoveryPreparationStatus(
+export function classifyExactRecoveryPreparationStatus(
   status,
-  restoreTarget,
+  checkpointId,
   reason,
 ) {
   const plan = status?.plan;
   if (
     plan?.state === "prepared" &&
-    plan.targetTime === restoreTarget &&
+    plan.targetMode === "exact_checkpoint" &&
+    plan.checkpointId === checkpointId &&
     plan.reason === reason &&
     typeof plan.id === "string" &&
     typeof plan.digest === "string"
@@ -162,11 +146,11 @@ async function poll(fn, accept, label, timeoutMs = 45000) {
   throw new Error(`${label} did not settle before timeout. Last observation: ${detail}`);
 }
 
-async function prepareRecoveryWithDurableInspection({
+async function prepareExactRecoveryWithDurableInspection({
   origin,
   session,
   csrf,
-  restoreTarget,
+  checkpointId,
   reason,
 }) {
   const deadline = Date.now() + PITR_PREPARE_SETTLE_TIMEOUT_MS;
@@ -175,7 +159,7 @@ async function prepareRecoveryWithDurableInspection({
     attempts += 1;
     try {
       const prepared = await request(origin, session, csrf, "/api/recovery/prepare", {
-        at: new Date(restoreTarget).toISOString(),
+        checkpoint: checkpointId,
         reason,
       });
       return { prepared, attempts };
@@ -183,25 +167,21 @@ async function prepareRecoveryWithDurableInspection({
       if (error?.status && error.status < 500) throw error;
 
       const status = await request(origin, session, csrf, "/api/recovery/status");
-      const state = classifyRecoveryPreparationStatus(
+      const state = classifyExactRecoveryPreparationStatus(
         status,
-        restoreTarget,
+        checkpointId,
         reason,
       );
-      if (state === "prepared") {
-        return {
-          prepared: { plan: status.plan, status },
-          attempts,
-        };
-      }
+      if (state === "prepared")
+        return { prepared: { plan: status.plan, status }, attempts };
       if (state === "blocked")
         throw new Error(
-          "Recovery preparation entered durable state unexpectedly. Inspect it before any retry.",
+          "Exact recovery preparation entered durable state unexpectedly. Inspect it before any retry.",
         );
       if (Date.now() >= deadline) throw error;
 
       console.warn(
-        "POSTSTEWARD_PITR_PREPARE_RETRY " +
+        "POSTSTEWARD_EXACT_RECOVERY_PREPARE_RETRY " +
           JSON.stringify({
             attempt: attempts,
             code: error?.code || null,
@@ -326,25 +306,52 @@ async function runAcceptance() {
     release,
   });
 
-  const initial = await request(origin, session, csrf, "/api/operations/workspace_status", {});
+  const initial = await request(
+    origin,
+    session,
+    csrf,
+    "/api/operations/workspace_status",
+    {},
+  );
   demand(initial.publishingPaused === false, "Disposable workspace did not start unpaused.");
 
-  // Cloudflare maps a timestamp to an approximate PITR bookmark. A disposable
-  // Durable Object has only just acquired history, so do not select a target
-  // on either the object-creation edge or the newest-history edge. Warm the
-  // synthetic history first, then choose a target that is still after object
-  // initialisation and comfortably before the canary mutation.
-  const initializedAt = Date.now();
-  await sleep(PITR_HISTORY_WARMUP_MS);
-  const restoreTarget = settledPitrTarget(Date.now(), initializedAt);
-  await sleep(4000);
+  // Capture the exact pre-canary Durable Object bookmark. The checkpoint ID is
+  // public evidence; the raw bookmark remains server-side in D1.
+  const checkpoint = await request(
+    origin,
+    session,
+    csrf,
+    "/api/recovery/checkpoints",
+    { capture: true },
+  );
+  demand(
+    checkpoint?.id &&
+      /^[a-f0-9-]{36}$/.test(checkpoint.id) &&
+      Number.isFinite(checkpoint.capturedAt) &&
+      checkpoint.release === release &&
+      checkpoint.source === "owner",
+    "Exact checkpoint capture did not return reviewed metadata.",
+  );
+  const inventory = await request(
+    origin,
+    session,
+    csrf,
+    "/api/recovery/checkpoints",
+  );
+  demand(
+    inventory?.checkpoints?.some((entry) => entry.id === checkpoint.id),
+    "Exact checkpoint was not independently visible in the owner inventory.",
+  );
 
   const canaryKey = `pitr-canary-${randomUUID()}`;
-  const mutated = await request(origin, session, csrf, "/api/operations/publishing_pause", {
-    paused: true,
-    idempotencyKey: canaryKey,
-  });
-  demand(mutated, "Could not write the disposable PITR canary.");
+  const mutated = await request(
+    origin,
+    session,
+    csrf,
+    "/api/operations/publishing_pause",
+    { paused: true, idempotencyKey: canaryKey },
+  );
+  demand(mutated, "Could not write the disposable recovery canary.");
   const afterMutation = await request(
     origin,
     session,
@@ -352,23 +359,27 @@ async function runAcceptance() {
     "/api/operations/workspace_status",
     {},
   );
-  demand(afterMutation.publishingPaused === true, "PITR canary was not observable.");
+  demand(afterMutation.publishingPaused === true, "Recovery canary was not observable.");
 
-  await sleep(3000);
-
-  const prepareReason = "Disposable staging PITR acceptance";
+  const prepareReason = "Disposable exact checkpoint recovery acceptance";
   const { prepared, attempts: prepareAttempts } =
-    await prepareRecoveryWithDurableInspection({
+    await prepareExactRecoveryWithDurableInspection({
       origin,
       session,
       csrf,
-      restoreTarget,
+      checkpointId: checkpoint.id,
       reason: prepareReason,
     });
   const plan = prepared?.plan;
   demand(
-    plan?.id && /^[a-f0-9-]{36}$/.test(plan.id) && /^[a-f0-9]{64}$/.test(plan?.digest || "") && plan.state === "prepared",
-    "Recovery prepare did not return an immutable prepared plan.",
+    plan?.id &&
+      /^[a-f0-9-]{36}$/.test(plan.id) &&
+      /^[a-f0-9]{64}$/.test(plan?.digest || "") &&
+      plan.state === "prepared" &&
+      plan.targetMode === "exact_checkpoint" &&
+      plan.checkpointId === checkpoint.id &&
+      plan.targetTime === checkpoint.capturedAt,
+    "Recovery prepare did not bind the exact checkpoint into an immutable prepared plan.",
   );
   demand(
     prepared?.status?.control?.quarantined === true,
@@ -392,7 +403,7 @@ async function runAcceptance() {
   const armed = await poll(
     () => request(origin, session, csrf, "/api/recovery/status"),
     (value) => value?.plan?.id === plan.id && value?.plan?.state === "armed",
-    "PITR arm",
+    "Exact recovery arm",
   );
   demand(armed.control?.quarantined === true, "Recovery lost quarantine after arming.");
 
@@ -406,7 +417,7 @@ async function runAcceptance() {
     (value) =>
       value?.status?.plan?.id === plan.id &&
       value?.status?.plan?.state === "reconciled",
-    "PITR reconciliation",
+    "Exact recovery reconciliation",
   );
   demand(
     reconciled.status?.control?.quarantined === true,
@@ -422,7 +433,7 @@ async function runAcceptance() {
   );
   demand(
     restored.publishingPaused === false,
-    "Real PITR did not restore the pre-canary workspace state.",
+    "Exact recovery did not restore the pre-canary workspace state.",
   );
 
   const resumed = await request(origin, session, csrf, "/api/recovery/resume", {
@@ -472,19 +483,26 @@ async function runAcceptance() {
     tombstone?.state === "completed" && Number(tombstone.completed_at) > 0,
     "D1 did not retain the completed deletion tombstone.",
   );
-  demand(queryRegistry(workspace) === 1, "Minimal workspace registry entry was not retained.");
+  demand(
+    queryRegistry(workspace) === 1,
+    "Minimal workspace registry entry was not retained.",
+  );
 
   const report = {
     release,
     observedAt: new Date().toISOString(),
     workspaceFingerprint,
-    pitr: {
+    recovery: {
       passed: true,
+      targetMode: "exact_checkpoint",
+      checkpointCapturedAt: checkpoint.capturedAt,
+      checkpointRelease: checkpoint.release,
       prepareAttempts,
       publishingPausedAfterMutation: true,
       publishingPausedAfterRestore: false,
       quarantineHeldUntilResume: true,
       realCloudflarePitr: true,
+      timestampResolutionUsed: false,
     },
     erasure: {
       passed: true,
@@ -500,9 +518,12 @@ async function runAcceptance() {
       paymentAttempted: false,
       googleOidcRepeated: false,
       acceptedSocialEvidenceRepeated: false,
+      rawBookmarkExposed: false,
     },
   };
-  console.log("POSTSTEWARD_PITR_ERASURE_ACCEPTANCE " + JSON.stringify(report));
+  console.log(
+    "POSTSTEWARD_PITR_ERASURE_ACCEPTANCE " + JSON.stringify(report),
+  );
   return report;
 }
 
@@ -511,7 +532,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await runAcceptance();
   } catch (error) {
     if (disposableWorkspace)
-      console.error(`POSTSTEWARD_DISPOSABLE_ACCEPTANCE_FAILED workspace=${disposableWorkspace}`);
+      console.error(
+        `POSTSTEWARD_DISPOSABLE_ACCEPTANCE_FAILED workspace=${disposableWorkspace}`,
+      );
     throw error;
   }
 }
