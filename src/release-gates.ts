@@ -80,11 +80,15 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "exact_recovery_checkpoints",
-    state: "deployed",
+    state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Exact server-side recovery checkpoints are deployed; a real exact restore remains an explicit owner rehearsal.",
-    evidence: ["docs/recovery.md", "pull/61", "actions/34875620811"],
+    summary: "Exact checkpoint capture, real restore, reconciliation, resume and disposable erasure are accepted on restricted staging.",
+    evidence: [
+      "docs/recovery.md",
+      "docs/exact-recovery-live-evidence-2026-09-14.md",
+      "actions/34890295276",
+    ],
   },
   {
     id: "approximate_timestamp_pitr",

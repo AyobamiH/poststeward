@@ -83,7 +83,7 @@ test("readiness keeps legacy fields while exposing the typed control plane", () 
   assert.equal(readiness.schemaVersion, 2);
   assert.equal(readiness.policy.healthy, true);
   assert.equal(readiness.recovery.exactCheckpoints, true);
-  assert.equal(readiness.gates.exact_recovery_checkpoints.state, "deployed");
+  assert.equal(readiness.gates.exact_recovery_checkpoints.state, "live_verified");
   assert.ok(readiness.evidenceStillExternal.includes("native_webmcp"));
   assert.ok(!readiness.evidenceStillExternal.includes("stripe_sandbox_lifecycle"));
 });
