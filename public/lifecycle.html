@@ -9,113 +9,141 @@
     <title>Data & account · PostSteward</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/product-shell.css" />
     <script type="module" src="/lifecycle.js"></script>
   </head>
-  <body>
-    <header>
-      <a class="wordmark" href="/" aria-label="PostSteward home">
-        <img class="brand-mark" src="/favicon.svg" alt="" />
-        <span>PostSteward</span>
-      </a>
-      <nav aria-label="Data controls navigation">
-        <a href="/app">Workspace</a>
-        <a href="/pilot">Controlled acceptance</a>
-        <a href="/recovery">Recovery</a>
-      </nav>
+  <body class="product-app">
+    <header class="product-topbar">
+      <div class="product-topbar-inner">
+        <div class="product-brand-cluster">
+          <a class="wordmark" href="/" aria-label="PostSteward home">
+            <img class="brand-mark" src="/favicon.svg" alt="" />
+            <span>PostSteward</span>
+          </a>
+          <span class="environment-badge">staging</span>
+        </div>
+        <div class="product-topbar-actions">
+          <a href="/docs/agent-guide.md">Agent guide</a>
+          <details class="product-menu">
+            <summary>Navigate</summary>
+            <nav class="product-menu-panel" aria-label="Mobile product navigation">
+              <a href="/app">Workspace</a>
+              <a href="/pilot">Acceptance</a>
+              <a href="/advanced-inventory.html">Inventory</a>
+              <a href="/lifecycle" aria-current="page">Data</a>
+              <a href="/recovery">Recovery</a>
+              <a href="/docs/agent-guide.md">Agent guide</a>
+            </nav>
+          </details>
+        </div>
+      </div>
     </header>
 
-    <main class="workspace">
-      <section class="summary">
-        <div>
-          <p class="eyebrow">OWNER DATA LIFECYCLE</p>
-          <h1>Export before erasure.</h1>
-          <p class="muted">
-            Retention, pruning and deletion are owner controls. Publication receipts and
-            uncertainty fences are deliberately treated differently from disposable
-            workspace data.
-          </p>
-          <p id="status" role="status">Checking your owner session…</p>
+    <div class="product-frame-shell">
+      <aside class="product-sidebar" aria-label="Product navigation">
+        <p class="product-sidebar-label">Control plane</p>
+        <nav class="product-nav">
+          <a href="/app">Workspace</a>
+          <a href="/pilot">Acceptance</a>
+          <a href="/advanced-inventory.html">Inventory</a>
+          <a href="/lifecycle" aria-current="page">Data</a>
+          <a href="/recovery">Recovery</a>
+        </nav>
+        <div class="product-sidebar-foot">
+          Owner lifecycle controls stay separate from routine publishing.<br />
+          <a href="/docs/data-lifecycle.md">Lifecycle notes</a>
         </div>
-      </section>
+      </aside>
 
-      <section class="panel wide" aria-labelledby="workspace-data-heading">
-        <p class="eyebrow">EXPORT</p>
-        <h2 id="workspace-data-heading">Workspace data</h2>
-        <p>
-          Use the workspace export before deletion if you need a copy of project,
-          campaign and receipt history. Provider credentials and payment tokens are
-          never included in that export.
-        </p>
-        <a class="button" href="/app">Open workspace export</a>
-      </section>
+      <main class="product-main">
+        <div class="product-page compact">
+          <section class="product-page-header">
+            <div>
+              <p class="eyebrow">OWNER DATA LIFECYCLE</p>
+              <h1>Data and account</h1>
+              <p class="page-description">
+                Export what you need, prune only eligible old workspace data, and keep irreversible
+                deletion visibly separate from routine housekeeping.
+              </p>
+              <div class="page-state-row"><p id="status" role="status">Checking your owner session…</p></div>
+            </div>
+            <div class="product-page-actions"><a class="button" href="/app">Back to workspace</a></div>
+          </section>
 
-      <section class="panel wide" aria-labelledby="retention-heading">
-        <p class="eyebrow">RETENTION</p>
-        <h2 id="retention-heading">Archive old workspace data</h2>
-        <p>
-          Download a private archive of up to 100 eligible records older than 30 days.
-          Cleanup removes unused campaigns and compacts completed operation results.
-          Publication receipts and duplicate-prevention records remain, including
-          uncertain outcomes. Protected records still count toward workspace capacity.
-        </p>
-        <button id="archive-export" type="button">Download retention archive</button>
-        <label
-          >After saving the archive, type PRUNE followed by your workspace ID<input
-            id="archive-confirmation"
-            autocomplete="off"
-        /></label>
-        <button id="archive-prune" type="button" disabled>
-          Prune exported records
-        </button>
-        <pre id="archive-result" class="preview" hidden></pre>
-      </section>
+          <div class="settings-flow">
+            <div class="settings-sequence" aria-label="Data lifecycle sequence">
+              <div class="settings-step"><span>01 · EXPORT</span><strong>Keep the history you need</strong></div>
+              <div class="settings-step"><span>02 · RETENTION</span><strong>Prune eligible old data</strong></div>
+              <div class="settings-step"><span>03 · ERASURE</span><strong>Delete the workspace deliberately</strong></div>
+            </div>
 
-      <section class="panel wide danger-zone" aria-labelledby="delete-heading">
-        <p class="eyebrow">IRREVERSIBLE OWNER ACTION</p>
-        <h2 id="delete-heading">Delete this PostSteward workspace</h2>
-        <p>
-          <strong>This is irreversible inside PostSteward.</strong> Deletion first
-          installs a durable D1 tombstone and quarantines provider writes, then clears
-          the workspace Durable Object and identity, grant, payment-mapping, recovery
-          and external-effect records. The minimal workspace tombstone remains so stale
-          restored state cannot be reactivated.
-        </p>
-        <p>
-          Deletion expires open checkout sessions and cancels this workspace’s recurring
-          subscriptions immediately, without a new invoice or automatic refund. Billing
-          records remain until Stripe confirms cancellation. If verification fails,
-          deletion stays pending and can be retried.
-        </p>
-        <p>
-          Provider-side authorization grants may remain at the provider until revoked
-          there, but PostSteward deletes its locally usable credential material and can
-          no longer use this workspace. A later Google sign-in may create a new
-          workspace; it does not reactivate this one.
-        </p>
-        <p id="instruction" class="muted"></p>
-        <form id="delete-form" autocomplete="off">
-          <label
-            >Exact confirmation<input
-              id="confirmation"
-              required
-              autocomplete="off"
-              spellcheck="false"
-          /></label>
-          <label class="check"
-            ><input id="understand" type="checkbox" required />I understand this
-            erases the PostSteward workspace and there is no in-product undo.</label
-          >
-          <button id="delete" class="danger" type="submit" disabled>
-            Delete workspace
-          </button>
-        </form>
-        <pre id="result" class="preview" hidden></pre>
-      </section>
-    </main>
+            <section class="settings-section" aria-labelledby="workspace-data-heading">
+              <p class="eyebrow">EXPORT</p>
+              <h2 id="workspace-data-heading">Workspace data</h2>
+              <p>
+                Export project, campaign and receipt history before deletion if you need a private
+                copy. Provider credentials and payment tokens are never included.
+              </p>
+              <a class="button" href="/app">Open workspace export</a>
+            </section>
 
-    <footer>
-      <span>PostSteward · Owner data lifecycle controls.</span>
-      <a href="/app">Back to workspace</a>
-    </footer>
+            <section class="settings-section" aria-labelledby="retention-heading">
+              <p class="eyebrow">RETENTION</p>
+              <h2 id="retention-heading">Archive old workspace data</h2>
+              <p>
+                Download a private archive of up to 100 eligible records older than 30 days.
+                Cleanup removes unused campaigns and compacts completed operation results.
+                Publication receipts, duplicate-prevention records and uncertain outcomes remain.
+              </p>
+              <div class="row">
+                <button id="archive-export" type="button">Download retention archive</button>
+              </div>
+              <label
+                >After saving the archive, type PRUNE followed by your workspace ID<input
+                  id="archive-confirmation"
+                  autocomplete="off"
+              /></label>
+              <button id="archive-prune" type="button" disabled>Prune exported records</button>
+              <pre id="archive-result" class="preview" hidden></pre>
+            </section>
+
+            <section class="settings-section danger-zone" aria-labelledby="delete-heading">
+              <p class="eyebrow">IRREVERSIBLE OWNER ACTION</p>
+              <h2 id="delete-heading">Delete this PostSteward workspace</h2>
+              <p>
+                <strong>This is irreversible inside PostSteward.</strong> Deletion first installs a
+                durable D1 tombstone and quarantines provider writes, then clears locally usable
+                workspace, identity, grant, recovery and external-effect state.
+              </p>
+              <p>
+                Recurring subscriptions are cancelled without a new invoice or automatic refund.
+                Provider-side authorization may remain at the provider until revoked there, but
+                PostSteward deletes its locally usable credential material.
+              </p>
+              <p id="instruction" class="muted"></p>
+              <form id="delete-form" autocomplete="off">
+                <label
+                  >Exact confirmation<input
+                    id="confirmation"
+                    required
+                    autocomplete="off"
+                    spellcheck="false"
+                /></label>
+                <label class="check"><input id="understand" type="checkbox" required />I understand this erases the PostSteward workspace and there is no in-product undo.</label>
+                <button id="delete" class="danger" type="submit" disabled>Delete workspace</button>
+              </form>
+              <pre id="result" class="preview" hidden></pre>
+            </section>
+          </div>
+        </div>
+
+        <footer class="product-footer">
+          <div class="product-footer-inner">
+            <span>PostSteward · Owner data lifecycle controls.</span>
+            <a href="/app">Back to workspace</a>
+          </div>
+        </footer>
+      </main>
+    </div>
   </body>
 </html>

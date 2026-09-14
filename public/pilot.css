@@ -1,59 +1,18 @@
-.pilot {
-  max-width: 980px;
-  margin: 0 auto;
-  padding-top: clamp(48px, 7vw, 84px);
-  padding-bottom: 72px;
-}
-
-.pilot > .eyebrow + h1 {
-  max-width: 760px;
-  margin-top: 14px;
-}
-
-.pilot > .lead {
-  max-width: 760px;
-  margin-bottom: 28px;
-}
-
-.pilot section {
-  margin: 14px 0;
-  padding: 24px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-}
-
-.pilot section h2 {
-  margin: 0 0 12px;
-  font-size: 22px;
-}
-
-.pilot section h3 {
-  margin: 24px 0 10px;
-}
-
-.pilot section > p {
-  color: var(--text-secondary);
+.pilot [hidden] {
+  display: none !important;
 }
 
 .pilot form {
-  margin: 18px 0 0;
+  margin-top: 18px;
 }
 
-.pilot pre {
-  max-width: 100%;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+.pilot form h3 {
+  margin: 24px 0 10px;
 }
 
-.pilot button {
+.pilot button,
+.pilot .button {
   width: fit-content;
-  min-height: 42px;
-}
-
-.pilot summary {
-  min-height: 32px;
 }
 
 .pilot-actions {
@@ -63,12 +22,8 @@
   margin-top: 14px;
 }
 
-.pilot [hidden] {
-  display: none !important;
-}
-
 #notice {
-  margin: 0 0 20px;
+  margin: 0 0 26px;
   overflow-wrap: anywhere;
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--brand);
@@ -86,19 +41,12 @@
   color: var(--danger);
 }
 
-#review-panel {
-  border-color: color-mix(in srgb, var(--brand) 30%, var(--border-default));
-  background:
-    linear-gradient(var(--brand-soft), var(--brand-soft)) top / 100% 3px no-repeat,
-    var(--bg-surface);
-}
-
 #receipt-status {
   border-radius: var(--radius-sm);
   padding: 12px 13px;
-  background: var(--bg-elevated);
-  font-family: var(--font-mono);
-  font-size: 13px;
+  background: color-mix(in srgb, var(--success-soft) 64%, var(--bg-surface));
+  color: var(--text-secondary);
+  font: 560 13px/1.5 var(--font-mono);
 }
 
 #destination,
@@ -108,17 +56,17 @@
   overflow-wrap: anywhere;
 }
 
+.pilot pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media (max-width: 600px) {
-  .pilot {
-    padding-top: 38px;
-  }
-
-  .pilot section {
-    padding: 18px;
-  }
-
   .pilot-actions button,
-  .pilot form button {
+  .pilot form button,
+  .pilot .pilot-actions .button {
     width: 100%;
   }
 }

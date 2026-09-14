@@ -9,76 +9,114 @@
     <title>PostSteward Advanced inventory</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/product-shell.css" />
     <script type="module" src="/advanced-inventory.js"></script>
   </head>
-  <body>
-    <header>
-      <a class="wordmark" href="/" aria-label="PostSteward home">
-        <img class="brand-mark" src="/favicon.svg" alt="" />
-        <span>PostSteward</span>
-      </a>
-      <nav aria-label="Advanced inventory navigation">
-        <a href="/app">Workspace</a>
-        <a href="/pilot">Controlled acceptance</a>
-        <a href="/docs/agent-guide.md">Agent guide</a>
-      </nav>
+  <body class="product-app">
+    <header class="product-topbar">
+      <div class="product-topbar-inner">
+        <div class="product-brand-cluster">
+          <a class="wordmark" href="/" aria-label="PostSteward home">
+            <img class="brand-mark" src="/favicon.svg" alt="" />
+            <span>PostSteward</span>
+          </a>
+          <span class="environment-badge">staging</span>
+        </div>
+        <div class="product-topbar-actions">
+          <a href="/docs/agent-guide.md">Agent guide</a>
+          <details class="product-menu">
+            <summary>Navigate</summary>
+            <nav class="product-menu-panel" aria-label="Mobile product navigation">
+              <a href="/app">Workspace</a>
+              <a href="/pilot">Acceptance</a>
+              <a href="/advanced-inventory.html" aria-current="page">Inventory</a>
+              <a href="/lifecycle">Data</a>
+              <a href="/recovery">Recovery</a>
+              <a href="/docs/agent-guide.md">Agent guide</a>
+            </nav>
+          </details>
+        </div>
+      </div>
     </header>
 
-    <main class="workspace">
-      <section class="summary">
-        <div>
-          <p class="eyebrow">ADVANCED CONTROL PLANE</p>
-          <h1>Inventory and categories</h1>
-          <p class="muted">
-            See the reviewed source state, category pressure and reserved automatic
-            deliveries without granting new authority. Changes to a profile still happen
-            in the main workspace.
-          </p>
-          <p id="status" role="status">Loading…</p>
+    <div class="product-frame-shell">
+      <aside class="product-sidebar" aria-label="Product navigation">
+        <p class="product-sidebar-label">Control plane</p>
+        <nav class="product-nav">
+          <a href="/app">Workspace</a>
+          <a href="/pilot">Acceptance</a>
+          <a href="/advanced-inventory.html" aria-current="page">Inventory</a>
+          <a href="/lifecycle">Data</a>
+          <a href="/recovery">Recovery</a>
+        </nav>
+        <div class="product-sidebar-foot">
+          Inventory is observed state, not publication authority.<br />
+          <a href="/plans.json">Plan contract</a>
         </div>
-        <a class="button" href="/app">Manage reviewed profiles</a>
-      </section>
+      </aside>
 
-      <div class="workspace-grid">
-        <section class="panel" aria-labelledby="categories-heading">
-          <p class="eyebrow">REVIEWED GROUPING</p>
-          <h2 id="categories-heading">Categories</h2>
-          <p class="muted">
-            The profile family is the category identity. Profiles in the same family
-            share spacing pressure; there is no second drifting category store.
-          </p>
-          <div id="categories" class="record-list"></div>
-        </section>
+      <main class="product-main">
+        <div class="product-page">
+          <section class="product-page-header">
+            <div>
+              <p class="eyebrow">ADVANCED CONTROL PLANE</p>
+              <h1>Inventory</h1>
+              <p class="page-description">
+                Inspect reviewed source state, category pressure and reserved future work without
+                changing profile authority from this page.
+              </p>
+              <div class="page-state-row"><p id="status" role="status">Loading…</p></div>
+            </div>
+            <div class="product-page-actions">
+              <a class="button" href="/app">Manage reviewed profiles</a>
+            </div>
+          </section>
 
-        <section class="panel" aria-labelledby="inventory-heading">
-          <p class="eyebrow">OBSERVED SOURCE STATE</p>
-          <h2 id="inventory-heading">Source inventory</h2>
-          <p class="muted">
-            A source SHA records what PostSteward observed. It is evidence of source
-            state, not proof of a deployment, and preview does not publish or reserve a
-            delivery.
-          </p>
-          <div id="inventory" class="record-list"></div>
-        </section>
+          <div class="resource-grid">
+            <aside class="resource-aside" aria-labelledby="categories-heading">
+              <p class="eyebrow">REVIEWED GROUPING</p>
+              <h2 id="categories-heading">Categories</h2>
+              <p class="muted">
+                Profile family is the category identity. Profiles in the same family share spacing
+                pressure; there is no second drifting category store.
+              </p>
+              <div id="categories" class="record-list"></div>
+            </aside>
 
-        <section class="panel wide" aria-labelledby="allocation-heading">
-          <p class="eyebrow">FUTURE WORK → PROVIDER EVIDENCE</p>
-          <h2 id="allocation-heading">Allocation and metrics cycle</h2>
-          <p class="muted">
-            Pending automatic deliveries remain distinct from provider receipts.
-            Metrics are shown only when the provider returned evidence; unavailable data
-            is never represented as a fabricated zero.
-          </p>
-          <div id="deliveries" class="record-list"></div>
-        </section>
-      </div>
+            <div class="resource-main">
+              <section class="resource-section" aria-labelledby="inventory-heading">
+                <p class="eyebrow">OBSERVED SOURCE STATE</p>
+                <h2 id="inventory-heading">Source inventory</h2>
+                <p class="muted">
+                  A source SHA records what PostSteward observed. It is evidence of source state,
+                  not proof of deployment, and preview does not publish or reserve a delivery.
+                </p>
+                <div id="inventory" class="record-list"></div>
+              </section>
 
-      <pre id="result" role="status" aria-live="polite" hidden></pre>
-    </main>
+              <section class="resource-section" aria-labelledby="allocation-heading">
+                <p class="eyebrow">FUTURE WORK → PROVIDER EVIDENCE</p>
+                <h2 id="allocation-heading">Allocation and metrics cycle</h2>
+                <p class="muted">
+                  Pending automatic deliveries remain distinct from provider receipts. Metrics are
+                  shown only when the provider returned evidence; unavailable data is never
+                  represented as a fabricated zero.
+                </p>
+                <div id="deliveries" class="record-list"></div>
+              </section>
+            </div>
+          </div>
 
-    <footer>
-      <span>PostSteward · Reviewed source inventory and allocation evidence.</span>
-      <a href="/app">Back to workspace</a>
-    </footer>
+          <pre id="result" role="status" aria-live="polite" hidden></pre>
+        </div>
+
+        <footer class="product-footer">
+          <div class="product-footer-inner">
+            <span>PostSteward · Reviewed source inventory and allocation evidence.</span>
+            <a href="/app">Back to workspace</a>
+          </div>
+        </footer>
+      </main>
+    </div>
   </body>
 </html>

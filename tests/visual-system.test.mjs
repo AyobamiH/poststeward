@@ -4,9 +4,10 @@ import test from "node:test";
 
 const read = (path) => readFileSync(path, "utf8");
 
-test("PostSteward visual shell is local, semantic and shared across product surfaces", () => {
+test("PostSteward visual system is local, semantic and shared across surfaces", () => {
   const css = read("public/style.css");
   const composition = read("public/composition.css");
+  const productShell = read("public/product-shell.css");
   const favicon = read("public/favicon.svg");
   const pages = [
     "public/index.html",
@@ -24,9 +25,12 @@ test("PostSteward visual shell is local, semantic and shared across product surf
   assert.match(css, /--danger:/);
   assert.match(css, /prefers-color-scheme: dark/);
   assert.match(composition, /--page-max:/);
-  assert.match(composition, /\.workspace-index/);
   assert.match(composition, /\.feature-story/);
-  assert.doesNotMatch(css + composition, /@import|fonts\.googleapis\.com|use\.typekit\.net/);
+  assert.match(productShell, /--app-nav-width:/);
+  assert.match(productShell, /\.product-sidebar/);
+  assert.match(productShell, /\.product-page-header/);
+  assert.match(productShell, /\.product-menu/);
+  assert.doesNotMatch(css + composition + productShell, /@import|fonts\.googleapis\.com|use\.typekit\.net/);
 
   for (const html of pages) {
     assert.match(html, /href="\/favicon\.svg"/);
@@ -57,14 +61,39 @@ test("public composition follows the product execution narrative", () => {
   assert.ok(agents < pricing);
 });
 
-test("workspace composition preserves orientation and consequential controls", () => {
+test("owner surfaces share one application shell with distinct page roles", () => {
   const app = read("public/app.html");
   const pilot = read("public/pilot.html");
   const lifecycle = read("public/lifecycle.html");
+  const inventory = read("public/advanced-inventory.html");
+  const recovery = read("public/recovery.html");
+  const ownerPages = [app, pilot, lifecycle, inventory, recovery];
+
+  for (const html of ownerPages) {
+    assert.match(html, /class="product-app"/);
+    assert.match(html, /href="\/product-shell\.css"/);
+    assert.match(html, /class="product-frame-shell"/);
+    assert.match(html, /class="product-sidebar"/);
+    assert.match(html, /class="product-page-header"/);
+    assert.match(html, /class="product-menu"/);
+  }
+
+  assert.match(app, /class="work-zone-grid"/);
+  assert.match(app, /class="evidence-zone"/);
+  assert.match(pilot, /class="journey-layout"/);
+  assert.match(pilot, /class="journey-progress"/);
+  assert.match(lifecycle, /class="settings-sequence"/);
+  assert.match(inventory, /class="resource-grid"/);
+  assert.match(recovery, /class="recovery-contract"/);
+});
+
+test("redesign preserves consequential owner and publishing controls", () => {
+  const app = read("public/app.html");
+  const pilot = read("public/pilot.html");
+  const lifecycle = read("public/lifecycle.html");
+  const inventory = read("public/advanced-inventory.html");
   const recovery = read("public/recovery.html");
 
-  assert.match(app, /href="\/composition\.css"/);
-  assert.match(app, /class="workspace-index"/);
   for (const section of [
     "destinations",
     "publishing",
@@ -96,6 +125,9 @@ test("workspace composition preserves orientation and consequential controls", (
 
   assert.match(lifecycle, /id="delete-form"/);
   assert.match(lifecycle, /id="confirmation"/);
+  assert.match(inventory, /id="categories"/);
+  assert.match(inventory, /id="inventory"/);
+  assert.match(inventory, /id="deliveries"/);
   assert.match(recovery, /id="checkpoint-prepare"/);
   assert.match(recovery, /id="approximate-prepare"/);
 });
