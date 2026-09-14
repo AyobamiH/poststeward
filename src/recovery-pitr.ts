@@ -43,29 +43,41 @@ function pitrPrimitiveFailure(stage: PitrStage, error: unknown): never {
   );
 }
 
+async function syncRecoveryStorage(storage: RecoveryPitrStorage) {
+  if (!storage.sync) return;
+  try {
+    await storage.sync();
+  } catch (error) {
+    pitrPrimitiveFailure("sync", error);
+  }
+}
+
 /**
- * Capture both PITR bookmarks without conflating platform failures. The caller
- * has already checked that bookmark methods exist. The sync is a persistence
- * barrier only; it does not retry or restore anything.
+ * Capture an exact bookmark for the current durable state. This primitive is
+ * the basis for durable recovery checkpoints and does not depend on Cloudflare's
+ * approximate timestamp-to-bookmark lookup.
+ */
+export async function captureCurrentRecoveryBookmark(
+  storage: RecoveryPitrStorage,
+) {
+  await syncRecoveryStorage(storage);
+  try {
+    return await storage.getCurrentBookmark!();
+  } catch (error) {
+    pitrPrimitiveFailure("current_bookmark", error);
+  }
+}
+
+/**
+ * Capture both bookmarks for the legacy approximate timestamp path without
+ * conflating platform failures. Timestamp recovery remains an optional
+ * convenience; exact checkpoints should be preferred when available.
  */
 export async function captureRecoveryBookmarks(
   storage: RecoveryPitrStorage,
   targetTime: number,
 ) {
-  if (storage.sync) {
-    try {
-      await storage.sync();
-    } catch (error) {
-      pitrPrimitiveFailure("sync", error);
-    }
-  }
-
-  let preRestoreBookmark: string;
-  try {
-    preRestoreBookmark = await storage.getCurrentBookmark!();
-  } catch (error) {
-    pitrPrimitiveFailure("current_bookmark", error);
-  }
+  const preRestoreBookmark = await captureCurrentRecoveryBookmark(storage);
 
   let targetBookmark: string;
   try {
