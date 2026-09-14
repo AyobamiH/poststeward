@@ -15,6 +15,7 @@
     "verify": "npm run check && npm run docs:check && npm run build && npm test",
     "deploy": "npm run deploy:check && node scripts/deploy-environment.mjs",
     "deploy:check": "node scripts/deploy-check.mjs",
+    "slo:evaluate": "node scripts/slo-evaluate.mjs",
     "format": "prettier --write src scripts tests public/*.js public/*.html public/*.css package.json tsconfig.json wrangler.jsonc .github"
   },
   "dependencies": {
