@@ -167,8 +167,14 @@ export async function captureWorkspaceRecoveryCheckpoint(
   source: RecoveryCheckpointSource,
   now = Date.now(),
 ) {
-  const bookmark = await captureCurrentRecoveryBookmark(storage);
   const effects = await effectSummary(db, workspace);
+  requireValue(
+    effects.intent === 0 && effects.containerIntent === 0,
+    "RECOVERY_CHECKPOINT_EFFECTS_IN_FLIGHT",
+    "Wait for in-flight provider writes to settle before capturing a recovery checkpoint.",
+    409,
+  );
+  const bookmark = await captureCurrentRecoveryBookmark(storage);
   const stateDigest = await checkpointStateDigest({
     release: env.RELEASE_SHA,
     rootWrite: env.ENCRYPTION_ROOT_WRITE === "next" ? "next" : "legacy",
