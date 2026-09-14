@@ -4,51 +4,120 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#f4f4f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f110f" media="(prefers-color-scheme: dark)" />
     <title>PostSteward recovery</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/recovery-checkpoints.js"></script>
   </head>
   <body>
     <header>
-      <a class="wordmark" href="/">PostSteward</a>
-      <nav><a href="/app">Workspace</a><a href="/lifecycle">Data controls</a></nav>
+      <a class="wordmark" href="/" aria-label="PostSteward home">
+        <img class="brand-mark" src="/favicon.svg" alt="" />
+        <span>PostSteward</span>
+      </a>
+      <nav aria-label="Recovery navigation">
+        <a href="/app">Workspace</a>
+        <a href="/lifecycle">Data controls</a>
+        <a href="/docs/agent-guide.md">Agent guide</a>
+      </nav>
     </header>
+
     <main class="workspace">
       <div id="recovery-session" role="status">Loading recovery controls…</div>
-      <section class="panel wide">
-        <p class="eyebrow">RECOVERY</p>
-        <h1>Exact recovery checkpoints</h1>
+
+      <section class="summary">
+        <div>
+          <p class="eyebrow">OWNER-ONLY RECOVERY</p>
+          <h1>Recover state without forgetting external effects.</h1>
+          <p class="muted">
+            Exact checkpoints restore PostSteward state. They do not erase what may have
+            already happened at a social provider, so publication stays quarantined
+            until restored authority is reconciled.
+          </p>
+        </div>
+        <a class="button" href="/app">Open workspace recovery</a>
+      </section>
+
+      <section class="panel wide danger-zone" aria-labelledby="checkpoint-heading">
+        <p class="eyebrow">EXACT CHECKPOINT CONTRACT</p>
+        <h2 id="checkpoint-heading">Exact recovery checkpoints</h2>
         <p class="muted">
-          Checkpoints capture an exact Cloudflare Durable Object bookmark plus non-secret release and state-summary metadata. Raw bookmarks stay on the server and are never shown in the browser.
+          A checkpoint captures an exact Cloudflare Durable Object bookmark plus
+          non-secret release and state-summary metadata. Raw bookmarks stay server-side
+          and are never exposed in the browser.
         </p>
         <p class="muted">
-          Preparing a restore quarantines publication. It does not execute the restore. Execution still requires the exact typed workspace confirmation in the main workspace.
+          Preparing a restore quarantines publication. It does not execute the restore.
+          Execution still requires the exact typed workspace confirmation in the main
+          workspace.
         </p>
         <div class="row">
-          <button id="checkpoint-capture" type="button" disabled>Capture checkpoint</button>
+          <button id="checkpoint-capture" type="button" disabled>
+            Capture checkpoint
+          </button>
           <button id="checkpoint-refresh" type="button" disabled>Refresh list</button>
         </div>
         <div id="checkpoint-list" class="record-list"></div>
         <form id="checkpoint-prepare" autocomplete="off">
-          <label>Exact checkpoint<select id="checkpoint-select" name="checkpoint" required></select></label>
-          <label>Recovery reason<input name="reason" required minlength="3" maxlength="240" /></label>
-          <button id="checkpoint-prepare-submit" class="primary" disabled>Prepare exact restore</button>
+          <label
+            >Exact checkpoint<select
+              id="checkpoint-select"
+              name="checkpoint"
+              required
+            ></select></label
+          >
+          <label
+            >Recovery reason<input
+              name="reason"
+              required
+              minlength="3"
+              maxlength="240"
+          /></label>
+          <button id="checkpoint-prepare-submit" class="danger" disabled>
+            Prepare exact restore
+          </button>
         </form>
         <pre id="checkpoint-result" class="preview" role="status" hidden></pre>
       </section>
-      <section class="panel wide">
+
+      <section class="panel wide" aria-labelledby="approximate-heading">
+        <p class="eyebrow">COMPATIBILITY PATH</p>
+        <h2 id="approximate-heading">Approximate timestamp recovery</h2>
+        <p class="muted">
+          Use this only when deliberately choosing Cloudflare's timestamp-to-bookmark
+          compatibility path. It is not silently substituted for an exact checkpoint.
+        </p>
         <details>
-          <summary>Approximate timestamp recovery</summary>
+          <summary>Prepare an approximate restore</summary>
           <p class="muted">
-            Compatibility path only. Cloudflare maps a requested time to an approximate bookmark. It is not silently substituted for an exact checkpoint and may be unavailable even when exact checkpoint restore is healthy.
+            Cloudflare maps a requested time to an approximate bookmark. This path may
+            be unavailable even when exact checkpoint restore is healthy.
           </p>
           <form id="approximate-prepare" autocomplete="off">
-            <label>Approximate restore target<input name="at" type="datetime-local" required /></label>
-            <label>Recovery reason<input name="reason" required minlength="3" maxlength="240" /></label>
+            <label
+              >Approximate restore target<input
+                name="at"
+                type="datetime-local"
+                required
+            /></label>
+            <label
+              >Recovery reason<input
+                name="reason"
+                required
+                minlength="3"
+                maxlength="240"
+            /></label>
             <button>Prepare approximate restore</button>
           </form>
         </details>
       </section>
     </main>
+
+    <footer>
+      <span>PostSteward · Restore state, then reconcile external evidence.</span>
+      <a href="/app">Back to workspace</a>
+    </footer>
   </body>
 </html>
