@@ -21,12 +21,17 @@ function readiness(overrides = {}) {
       private_github_authority: { state: "live_verified" },
       stripe_sandbox_lifecycle: { state: "live_verified" },
       protected_root_cutover: { state: "live_verified" },
-      exact_recovery_checkpoints: { state: "deployed" },
+      exact_recovery_checkpoints: { state: "live_verified" },
       threads_oauth_callback: { state: "blocked_external" },
       advanced_rollout: { state: "disabled_policy" },
     },
     runtimeCapabilities: {
-      policies: { advancedEnabled: false, signupMode: "restricted" },
+      policies: {
+        advancedEnabled: false,
+        advancedRolloutMode: "disabled",
+        advancedCanaryBps: 0,
+        signupMode: "restricted",
+      },
     },
     evidenceStillExternal: ["threads_oauth_callback", "native_webmcp"],
     ...overrides,
@@ -36,7 +41,7 @@ function readiness(overrides = {}) {
 function gates(overrides = {}) {
   const rows = [
     ["owner_google_signin", "live_verified", false],
-    ["exact_recovery_checkpoints", "deployed", false],
+    ["exact_recovery_checkpoints", "live_verified", false],
     ["approximate_timestamp_pitr", "blocked_external", false],
     ["native_webmcp", "unavailable_capability", false],
     ["github_main_ruleset", "external_setup_required", true],
@@ -78,11 +83,34 @@ test("hosted release control fails when the public ledger contradicts reviewed e
     const value = gates();
     value.gates = value.gates.map((gate) =>
       gate.id === "exact_recovery_checkpoints"
-        ? { ...gate, state: "live_verified" }
+        ? { ...gate, state: "deployed" }
         : gate,
     );
     return Response.json(value, { headers: secureHeaders });
   });
   assert.equal(report.passed, false);
   assert.equal(report.checks[1].passed, false);
+});
+
+test("hosted release control fails when rollout policy fields drift", async () => {
+  const report = await verifyReleaseControl(origin, release, async (url) => {
+    const path = new URL(url).pathname;
+    return Response.json(
+      path === "/readiness.json"
+        ? readiness({
+            runtimeCapabilities: {
+              policies: {
+                advancedEnabled: false,
+                advancedRolloutMode: "canary",
+                advancedCanaryBps: 100,
+                signupMode: "restricted",
+              },
+            },
+          })
+        : gates(),
+      { headers: secureHeaders },
+    );
+  });
+  assert.equal(report.passed, false);
+  assert.equal(report.checks[0].passed, false);
 });
