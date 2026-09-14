@@ -1,133 +1,111 @@
 # Live acceptance plan
 
-## Current baseline
+> **Current control plane:** this plan is reconciled to the 14 September 2026 state. The detailed evidence ledger is [live external gates](live-external-gates-2026-09-13.md). Older procedures are evidence/history, not instructions to repeat already accepted external effects.
 
-The latest owner-observed restricted-staging release is `ae4831ef368c5e3361f053e4ea28f4b2faa0a4f8`, also recorded by successful [deployment run 34679445845](https://github.com/AyobamiH/poststeward/actions/runs/34679445845). See [P0 live evidence](p0-live-evidence-2026-09-12.md) for the owner-executed token proof and the Meta callback-save blocker. The earlier PR #31/#32 deployment and its 58 hosted checks remain historical evidence in [the deployment receipt](hosted-completion-deployment-2026-09-12.md).
+## Preserve completed evidence
 
-Current facts:
+The following are accepted and must not be repeated merely for a fresher receipt:
 
-- Owner Google sign-in has been accepted live in the owner's normal browser from the earlier owner journey; the latest deployment deliberately did not manufacture another owner session.
-- Threads app credentials are configured in staging; Meta redirect-allowlist saving is blocked by a dashboard POST returning 404.
-- A manually imported authorised Threads token has verified the owner identity; PostSteward OAuth callback/code exchange remains open.
-- The owner receipt records a completed, verified Threads publication and two exact readback observations. Do not repeat those phases.
-- X and LinkedIn provider applications remain unconfigured.
-- Private GitHub engineering is deployed; staging App configuration and real grant/read/revoke are open.
-- Stripe engineering is deployed; protected sandbox configuration and payment lifecycle acceptance are open.
-- Advanced, MPP and public signup are disabled.
-- The owner Advanced inventory assets are deployed; repository review also runs a read-only hosted marker/security-header check for those assets.
+- real owner Google sign-in;
+- one controlled Threads publication and independent exact provider readback;
+- Inspect-only owner-to-agent grant over HTTP and remote MCP plus denial after owner revocation;
+- Stripe sandbox subscription Checkout, paid state, refund/revoked entitlement, operator cancellation and completed webhook ledger;
+- protected encryption-root cutover with `next` as the active writer and the legacy root intentionally retained;
+- private GitHub selected-repository installation/OAuth/read, provider-side uninstall and fail-closed subsequent private read.
 
-Do not recreate working Google or Threads application credentials. Do not broaden to X or LinkedIn until the single Threads path is complete.
+A dated document that still describes any of those as pending is historical, not a request to recreate it.
 
-## Phase 1: close the hosted product loop
+## Current execution order
 
-### 1. Readiness
+### 1. Authenticated native WebMCP
 
-Run the repository's read-only verifiers against staging:
+This is the first actionable browser gate while Threads and PITR are parked.
 
-```sh
-POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
-  node scripts/hosted-acceptance.mjs readiness
-POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
-  node scripts/staging-assets-check.mjs
-```
+The owner has already authenticated successfully in an ordinary browser on staging, but that browser reported:
 
-The first must report Threads OAuth configured, X/LinkedIn unavailable, restricted signup and Advanced/MPP disabled. The second must confirm the deployed Advanced inventory HTML/JS markers with hardened response headers. Neither performs a sign-in, provider grant or write.
+`Remote MCP and HTTP are available. Native WebMCP is not available in this browser.`
 
-### 2. Threads owner grant
+That result is not a PostSteward failure and must not be substituted with another HTTP/remote-MCP token proof. Use a browser that genuinely exposes `document.modelContext`, sign in as the existing owner, allow the page to register its authorised tools, then run **Check native WebMCP** once.
 
-From the owner's normal browser:
+Acceptance requires:
 
-1. open the hosted workspace or `/pilot`;
-2. choose the intended Threads alias;
-3. start Threads OAuth;
-4. approve the requested Threads permissions;
-5. return to PostSteward and verify the stable provider identity shown by the service.
+- `workspace_status` is discovered as a tool belonging to the current window;
+- native execution returns the authenticated workspace;
+- the returned release equals the exact current `/readiness.json` release;
+- the observation is read-only;
+- browser tools are revoked on page teardown/sign-out lifecycle rather than being treated as durable authority.
 
-Acceptance requires the code exchange to complete and the verified stable Threads identity/capabilities to be stored. A provider success screen without PostSteward's stored identity is not acceptance. Never copy the provider token into chat, source, logs or an evidence document.
+No publication, payment, provider connection or new agent token is required.
 
-### 3. Exact controlled publication — completed; historical procedure
+### 2. X provider application and grant
 
-1. In `/pilot`, select the verified Threads destination.
-2. Enter the exact text intended for the one acceptance post.
-3. Review the destination, stable identity, text, digest and current release.
-4. Approve that exact immutable review.
-5. Preserve the resulting PostSteward delivery ID and provider creation ID.
+Staging has no X application client/secret yet. Register the real provider application with exact callback:
 
-The existing owner-pilot path supplies a 30-second cancellation boundary before the claimed external effect. If the request disconnects or the provider response becomes uncertain, inspect the existing delivery. Do not create a fresh campaign/review/key to bypass uncertainty.
+`https://poststeward-staging.woeinvests.workers.dev/connections/oauth/x/callback`
 
-### 4. Independent readback — completed; historical procedure
+Store `X_OAUTH_CLIENT_ID` as protected configuration and `X_OAUTH_CLIENT_SECRET` as a protected secret. Never paste either secret into chat, source, logs or evidence documents.
 
-The controlled path must perform a separate provider GET after the creation result. Acceptance requires the same provider post ID, stable owner ID and exact text. `published_verified` is the successful terminal state. `published_unverified` and `ambiguous_effect` are not substitutes.
+Acceptance requires the real owner consent path, OAuth 2.0 Authorization Code + PKCE, the required read/write/user/offline scopes, stable identity persistence and refresh authority. A manually imported token is not a substitute for this OAuth grant.
 
-## Phase 2: agent delegation accepted
+### 3. LinkedIn provider application and grant
 
-**Completed for Inspect-only HTTP/remote MCP, based on the owner-supplied live transcript on 12 September 2026.** Preserve [the evidence record](p0-live-evidence-2026-09-12.md); do not issue another token to repeat this checklist. The procedure below is reference material for a deliberately requested future run. It does not establish delegated publishing.
+Staging has no LinkedIn application client/secret yet. Register the real app with exact callback:
 
-Create a least-privilege agent grant from the owner workspace. A `read`-only grant is sufficient for the first transport proof; add another scope only if a separately reviewed workflow requires it.
+`https://poststeward-staging.woeinvests.workers.dev/connections/oauth/linkedin/callback`
 
-Put the shown-once token directly into the agent secret environment, not a shell history file or acceptance document, then run:
+Base acceptance uses the application's supported `openid`, `profile` and `w_member_social` path. `r_member_social` and `LINKEDIN_MEMBER_READBACK=true` must remain absent until LinkedIn actually approves that restricted capability. Do not turn a configuration flag into a false provider-permission claim.
 
-```sh
-POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
-POSTSTEWARD_AGENT_TOKEN='...' \
-  node scripts/hosted-acceptance.mjs agent
-```
+### 4. Threads OAuth callback — parked upstream
 
-The harness calls `workspace_status` through HTTP and remote MCP and requires both to resolve to the same release/workspace. It emits only a workspace fingerprint.
+The Threads application credentials are already in protected staging. The remaining callback is:
 
-Revoke that grant in the owner UI. With the same token, run:
+`https://poststeward-staging.woeinvests.workers.dev/connections/oauth/threads/callback`
 
-```sh
-POSTSTEWARD_ORIGIN=https://poststeward-staging.woeinvests.workers.dev \
-POSTSTEWARD_AGENT_TOKEN='...' \
-  node scripts/hosted-acceptance.mjs revoked
-```
+Meta currently rejects saving the callback allowlist in its own dashboard. Do not change PostSteward's redirect validation, use another product's credentials or publish again. Resume only when Meta accepts the exact callback and PostSteward can complete its own code exchange/stable-identity persistence.
 
-Both HTTP and remote MCP must return denial. This closes agent delegation acceptance only when the real grant was issued and revoked; a unit test does not.
+### 5. Cloudflare PITR — parked at hosted platform boundary
 
-## Phase 3: safety and recovery
+Do not run the destructive disposable PITR workflow again merely to see the same failure.
 
-### Private GitHub, when in release scope
+Live staging evidence has already narrowed the blocker:
 
-Configure the dedicated staging GitHub App with the existing setup/callback contract, selected repositories only and read-only Contents/Metadata. The invited owner selects one deliberately small private repository set. Prove only the selected repository is visible, perform one harmless path probe, revoke/remove access and prove the next private read fails closed without anonymous fallback.
+- `getCurrentBookmark()` succeeds;
+- `getBookmarkForTime()` fails as `RECOVERY_PITR_TARGET_BOOKMARK_FAILED`;
+- no restore has ever been armed by the failed acceptance runs;
+- the prepare-only diagnostic erased its own synthetic workspace successfully and attempted no provider effect or payment.
 
-### Durable Object PITR
+Resume the full prepare -> execute -> reconcile -> resume rehearsal only when Cloudflare target-bookmark resolution succeeds in the reviewed runtime, or after a deliberate owner-visible recovery-checkpoint fallback is designed and independently verified. Never silently change the requested restore point.
 
-Use a disposable/non-production workspace with an explicit restore target. Record a pre-rehearsal canary, authority inventory and effect state without credentials. Execute the existing prepare -> execute -> reconcile -> resume state machine using one immutable plan/digest. Verify restored authority is invalidated and no external effect replays. Treat undo as a separate exact-plan action.
+## Advanced product acceptance
 
-### Workspace erasure
+Advanced remains disabled even though the Stripe sandbox lifecycle is already accepted. Before enabling paid automation, prove the **product path**, not another payment:
 
-Use a disposable staging workspace. Export it, delete it through the owner lifecycle UI, prove the tombstone prevents resurrection, then sign in again and prove a new workspace is created. Do not erase the primary owner acceptance workspace simply to close the checklist.
+1. a reviewed source changes;
+2. the change becomes the current source snapshot/inventory;
+3. deterministic reviewed content is allocated with the configured family/spacing rules;
+4. one authorised provider effect reaches a receipt/readback outcome without bypassing idempotency/effect fences;
+5. the independent scheduled-metrics clock captures or honestly records unavailable evidence;
+6. pause/expiry still prevents new automatic authority while inspection remains available.
 
-### Root-key replacement
+Use a deliberately controlled test target. Do not repeat the already accepted Stripe refund/cancellation lifecycle merely because Advanced is still disabled.
 
-Follow `docs/production-readiness-acceptance.md`. Key-schedule version rotation is already implemented; root-secret replacement must enumerate and rewrap real encrypted state. `src/root-rotation.ts` provides the narrow per-envelope primitive and tests, but only an actual staging rewrap/restart/rollback rehearsal closes the gate.
+MPP remains separate and optional.
 
-## Phase 4: Advanced and Stripe
+## Production readiness after restricted-staging acceptance
 
-The Advanced product boundary remains disabled until both product and payment acceptance are complete.
+Public/production launch requires its own evidence from [production readiness acceptance](production-readiness-acceptance.md):
 
-Advanced inventory/category decision: the reviewed profile `family` is the category identity. The owner can inspect grouped categories, current source snapshots, reserved automatic deliveries and metrics evidence at `/advanced-inventory.html`. A second category store is intentionally not introduced. Profile changes still use the existing paused/reviewed configuration path.
+- representative capacity/cost observations and retention/limit calibration;
+- operational alert delivery plus a failed-notification escalation path;
+- hosted two-workspace cross-tenant checks;
+- custom production origin, DNS/TLS, WAF and rate-limit policy evidence;
+- real GitHub main protection/required checks;
+- public-signup support, abuse, privacy/deletion and incident ownership if unrestricted admission is chosen.
 
-Before enabling Advanced, validate a real source change -> source snapshot -> deterministic campaign inventory -> spaced reservation -> provider effect/readback -> scheduled metrics cycle.
-
-For Stripe, use the already created USD 5 monthly test Product/Price. Do not create a webhook until its one-time signing secret can be stored directly in protected staging secret storage. Configure a restricted test API key, signed webhook and Billing Portal, then perform one quote -> Checkout -> test payment -> webhook reconciliation -> entitlement journey. Replay the same quote/event and prove no duplicate charge or entitlement. Separately exercise renewal/payment-method change, cancellation/expiry, refund and dispute, then clean up the sandbox subscriptions and disable sandbox access.
-
-MPP remains a separate acceptance stream and must not block the Free Threads launch.
-
-## Phase 5: productionise
-
-Use `docs/production-readiness-acceptance.md` for:
-
-- real capacity/cost observations and customer-facing retention/limit calibration;
-- operational alert delivery and escalation ownership;
-- hosted cross-tenant attack checks;
-- custom production origin, DNS/TLS, WAF and rate-policy evidence;
-- GitHub main ruleset activation/verification;
-- public signup, abuse, support, deletion/revocation and incident ownership.
-
-Production and public signup are separate gates. A successful production deployment does not imply unrestricted admission.
+The 14 September repository ruleset inventory is empty, so automatic merged-PR provenance must not be confused with server-side main protection.
 
 ## Evidence rule
 
-Mark a live gate passed only when the external system itself produced the required effect and PostSteward independently observed the required evidence. Configuration flags, fixtures, source assertions, screenshots of a setup form and successful redirects may support diagnosis, but they do not replace provider readback, restore state, payment reconciliation, browser-agent invocation or post-revocation denial.
+A live gate passes only when the external system itself produced the required effect and PostSteward independently observed the required state. Code, CI, a configuration flag, setup screenshot or success redirect can support diagnosis but does not substitute for a provider grant, browser-native invocation, PITR restore, admin rule or delivered operational alert.
+
+Equally important: once a high-consequence live effect is accepted, do not recreate it merely because an older checklist still calls it pending.

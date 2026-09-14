@@ -1,12 +1,13 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-13-pitr-platform-boundary-recorded
+# Deployment request: 2026-09-14-readiness-and-webmcp-reconciliation
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision after the one-shot prepare-only PITR diagnostic completed.
-# Normal staging deployment is restored: no PITR diagnostic and no destructive recovery action.
+# Deploy the exact reviewed revision that reconciles current acceptance truth and tightens native
+# WebMCP lifecycle/release fencing. This is an ordinary non-destructive staging deployment.
+# The one-shot PITR diagnostic remains disabled and no destructive recovery action is requested.
 # It must not publish social content, grant/revoke provider authority, settle/refund payment,
 # or touch the existing owner acceptance workspace.
-# Root cutover still runs only with ENCRYPTION_ROOT_WRITE=next and a distinct protected ENCRYPTION_KEY_NEXT.
+# Root cutover remains on the already accepted next writer; the legacy root is intentionally retained.
 on:
   push:
     branches: [main]
