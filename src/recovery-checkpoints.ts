@@ -1,4 +1,11 @@
 import { digest, requireValue, uid } from "./common.ts";
+import { effectSummary } from "./effects.ts";
+import {
+  captureCurrentRecoveryBookmark,
+  type RecoveryPitrStorage,
+} from "./recovery-pitr.ts";
+import { SQLiteStore } from "./store.ts";
+import type { Env } from "./types.ts";
 
 export type RecoveryCheckpointSource = "automatic" | "owner" | "release";
 
@@ -47,6 +54,9 @@ export async function checkpointStateDigest(input: {
   deliveryCount: number;
   effects: Record<string, number>;
 }) {
+  // This intentionally hashes a non-secret operational summary, not encrypted
+  // credential values. It is evidence for checkpoint selection/reconciliation,
+  // not a claim that the digest authenticates the entire Durable Object image.
   return digest({ version: 1, ...input });
 }
 
@@ -146,6 +156,43 @@ export async function createRecoveryCheckpoint(
     source: input.source,
     created_at: now,
   });
+}
+
+export async function captureWorkspaceRecoveryCheckpoint(
+  db: D1Database,
+  store: SQLiteStore,
+  storage: RecoveryPitrStorage,
+  env: Env,
+  workspace: string,
+  source: RecoveryCheckpointSource,
+  now = Date.now(),
+) {
+  const bookmark = await captureCurrentRecoveryBookmark(storage);
+  const effects = await effectSummary(db, workspace);
+  const stateDigest = await checkpointStateDigest({
+    release: env.RELEASE_SHA,
+    rootWrite: env.ENCRYPTION_ROOT_WRITE === "next" ? "next" : "legacy",
+    usage: store.usage(),
+    publishingPaused:
+      env.PUBLISHING_PAUSED === "true" || store.get<boolean>("paused") === true,
+    accountCount: store.list("account:").length,
+    profileCount: store.list("profile:").length,
+    deliveryCount: store.list("delivery:").length,
+    effects,
+  });
+  return createRecoveryCheckpoint(
+    db,
+    {
+      workspace,
+      bookmark,
+      capturedAt: now,
+      release: env.RELEASE_SHA,
+      rootWrite: env.ENCRYPTION_ROOT_WRITE === "next" ? "next" : "legacy",
+      stateDigest,
+      source,
+    },
+    now,
+  );
 }
 
 export async function listRecoveryCheckpoints(
