@@ -2,6 +2,7 @@ import { digest, requireValue, uid } from "./common.ts";
 import { effectSummary, workspaceQuarantined } from "./effects.ts";
 
 export type RecoveryState = "prepared" | "armed" | "reconciled" | "cancelled";
+export type RecoveryTargetMode = "exact_checkpoint" | "approximate_time";
 
 export interface RecoveryPlanRow {
   id: string;
@@ -11,6 +12,8 @@ export interface RecoveryPlanRow {
   target_bookmark: string;
   pre_restore_bookmark: string;
   undo_bookmark?: string;
+  checkpoint_id?: string;
+  target_mode?: RecoveryTargetMode;
   reason: string;
   digest: string;
   state: RecoveryState;
@@ -23,10 +26,13 @@ const externalEffectSettleMs = 120000;
 
 function publicPlan(plan?: RecoveryPlanRow | null) {
   if (!plan) return null;
+  const targetMode = plan.target_mode || "approximate_time";
   return {
     id: plan.id,
     actor: plan.actor,
     targetTime: plan.target_time,
+    targetMode,
+    checkpointId: targetMode === "exact_checkpoint" ? plan.checkpoint_id || null : null,
     reason: plan.reason,
     digest: plan.digest,
     state: plan.state,
@@ -60,12 +66,28 @@ export async function prepareRecoveryPlan(
     targetBookmark: string;
     preRestoreBookmark: string;
     reason: string;
+    targetMode?: RecoveryTargetMode;
+    checkpointId?: string;
   },
   now = Date.now(),
 ) {
+  const targetMode = input.targetMode || "approximate_time";
+  requireValue(
+    targetMode === "exact_checkpoint" || targetMode === "approximate_time",
+    "RECOVERY_TARGET_MODE_INVALID",
+    "Recovery target mode is invalid.",
+    400,
+  );
+  requireValue(
+    targetMode !== "exact_checkpoint" ||
+      (typeof input.checkpointId === "string" && input.checkpointId.length >= 16),
+    "RECOVERY_CHECKPOINT_REQUIRED",
+    "Exact recovery requires an immutable checkpoint identifier.",
+    400,
+  );
   requireValue(
     Number.isFinite(input.targetTime) &&
-      input.targetTime <= now &&
+      input.targetTime <= now + 60000 &&
       input.targetTime >= now - 30 * 86400000,
     "RECOVERY_TARGET_INVALID",
     "Recovery target must be within the previous 30 days.",
@@ -94,6 +116,8 @@ export async function prepareRecoveryPlan(
     workspace: input.workspace,
     actor: input.actor,
     targetTime: input.targetTime,
+    targetMode,
+    checkpointId: targetMode === "exact_checkpoint" ? input.checkpointId : undefined,
     targetBookmark: input.targetBookmark,
     preRestoreBookmark: input.preRestoreBookmark,
     reason: input.reason.trim(),
@@ -109,7 +133,7 @@ export async function prepareRecoveryPlan(
       .bind(now, input.workspace),
     db
       .prepare(
-        "INSERT INTO workspace_recovery_plans(id,workspace,actor,target_time,target_bookmark,pre_restore_bookmark,reason,digest,state,created_at,expires_at,updated_at) VALUES (?,?,?,?,?,?,?,?, 'prepared',?,?,?)",
+        "INSERT INTO workspace_recovery_plans(id,workspace,actor,target_time,target_bookmark,pre_restore_bookmark,checkpoint_id,target_mode,reason,digest,state,created_at,expires_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?, 'prepared',?,?,?)",
       )
       .bind(
         id,
@@ -118,6 +142,8 @@ export async function prepareRecoveryPlan(
         input.targetTime,
         input.targetBookmark,
         input.preRestoreBookmark,
+        targetMode === "exact_checkpoint" ? input.checkpointId : null,
+        targetMode,
         immutable.reason,
         planDigest,
         now,
@@ -131,6 +157,8 @@ export async function prepareRecoveryPlan(
       workspace: input.workspace,
       plan: id,
       targetTime: input.targetTime,
+      targetMode,
+      checkpoint: targetMode === "exact_checkpoint" ? input.checkpointId : undefined,
       at: now,
     }),
   );
@@ -142,6 +170,8 @@ export async function prepareRecoveryPlan(
       target_time: input.targetTime,
       target_bookmark: input.targetBookmark,
       pre_restore_bookmark: input.preRestoreBookmark,
+      checkpoint_id: targetMode === "exact_checkpoint" ? input.checkpointId : undefined,
+      target_mode: targetMode,
       reason: immutable.reason,
       digest: planDigest,
       state: "prepared",
