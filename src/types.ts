@@ -170,6 +170,9 @@ export interface Env {
   STRIPE_PROFILE_ID?: string;
   MPP_SECRET?: string;
   ADVANCED_ENABLED: string;
+  ADVANCED_ROLLOUT_MODE?: "disabled" | "canary" | "global";
+  ADVANCED_CANARY_BPS?: string;
+  ADVANCED_CANARY_SEED?: string;
   MPP_ENABLED: string;
   PUBLISHING_PAUSED: string;
   DAILY_DELIVERY_LIMIT: string;

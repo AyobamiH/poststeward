@@ -8,20 +8,27 @@ import {
 } from "miniflare";
 import { digest } from "../src/common.ts";
 import { environment, owner } from "./helpers.ts";
+import { builtWorkerScriptPath } from "./runtime-fixture.ts";
 test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP against SQLite objects", async () => {
   const outbound: string[] = [];
   let writes = 0;
   const mf = new Miniflare(
     convertV4MiniflareOptions({
       modules: true,
-      scriptPath: "dist/edge.js",
+      scriptPath: builtWorkerScriptPath(),
       compatibilityDate: "2026-09-09",
       compatibilityFlags: ["nodejs_compat"],
       bindings: {
         ...(Object.fromEntries(
           Object.entries(environment).filter(([, v]) => typeof v === "string"),
         ) as Record<string, string>),
+        // This local runtime test intentionally exercises the pre-existing
+        // Advanced path. Global mode exists in runtime semantics but production
+        // deployment policy rejects it until canary + SLO acceptance.
         ADVANCED_ENABLED: "true",
+        ADVANCED_ROLLOUT_MODE: "global",
+        ADVANCED_CANARY_BPS: "0",
+        ADVANCED_CANARY_SEED: "",
         MPP_ENABLED: "true",
         STRIPE_SECRET_KEY: "sk_test_not_real",
         STRIPE_PRICE_ID: "price_test",

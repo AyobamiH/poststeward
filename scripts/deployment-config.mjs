@@ -100,6 +100,14 @@ function githubAppPublic(clientIdValue, slugValue) {
   );
   return { clientId, slug };
 }
+function advancedRolloutValues(env) {
+  return {
+    enabled: env.ADVANCED_ENABLED === "true" ? "true" : "false",
+    mode: env.ADVANCED_ROLLOUT_MODE || "disabled",
+    bps: String(env.ADVANCED_CANARY_BPS || "0"),
+    seed: env.ADVANCED_CANARY_SEED || "",
+  };
+}
 export function buildConfiguration(base, env) {
   demand(
     ["staging", "production"].includes(env.DEPLOY_ENV),
@@ -131,6 +139,7 @@ export function buildConfiguration(base, env) {
     env.GITHUB_APP_CLIENT_ID,
     env.GITHUB_APP_SLUG,
   );
+  const advanced = advancedRolloutValues(env);
   const c = structuredClone(base);
   c.name = env.DEPLOY_ENV === "staging" ? "poststeward-staging" : "poststeward";
   c.account_id = env.CLOUDFLARE_ACCOUNT_ID;
@@ -161,7 +170,10 @@ export function buildConfiguration(base, env) {
     SIGNUP_MODE: "restricted",
     STRIPE_SANDBOX_ENABLED: env.STRIPE_SANDBOX_ENABLED || "false",
     STRIPE_PRICE_ID: env.STRIPE_SANDBOX_ENABLED === "true" ? (env.STRIPE_SANDBOX_PRICE_ID || "") : "",
-    ADVANCED_ENABLED: "false",
+    ADVANCED_ENABLED: advanced.enabled,
+    ADVANCED_ROLLOUT_MODE: advanced.mode,
+    ADVANCED_CANARY_BPS: advanced.bps,
+    ADVANCED_CANARY_SEED: advanced.seed,
     MPP_ENABLED: "false",
     GITHUB_APP_CLIENT_ID: github.clientId,
     GITHUB_APP_SLUG: github.slug,
@@ -246,8 +258,41 @@ export function validateConfiguration(c) {
     c.vars.SIGNUP_MODE === "restricted",
     "Initial deployment requires restricted owner access.",
   );
+  const advancedEnabled = c.vars.ADVANCED_ENABLED === "true";
+  const rolloutMode = c.vars.ADVANCED_ROLLOUT_MODE;
+  const canaryBps = Number(c.vars.ADVANCED_CANARY_BPS);
+  const canarySeed = c.vars.ADVANCED_CANARY_SEED || "";
   demand(
-    c.vars.ADVANCED_ENABLED === "false" && c.vars.MPP_ENABLED === "false",
+    ["true", "false"].includes(c.vars.ADVANCED_ENABLED) &&
+      ["disabled", "canary", "global"].includes(rolloutMode) &&
+      Number.isInteger(canaryBps) &&
+      canaryBps >= 0 &&
+      canaryBps <= 10000 &&
+      typeof canarySeed === "string" &&
+      canarySeed.length <= 128 &&
+      !/[\s\x00-\x1f]/.test(canarySeed),
+    "Advanced rollout configuration is invalid.",
+  );
+  if (!advancedEnabled)
+    demand(
+      rolloutMode === "disabled" && canaryBps === 0,
+      "Disabled Advanced must have a zero, disabled rollout.",
+    );
+  else
+    demand(
+      environment === "staging" &&
+        rolloutMode === "canary" &&
+        canaryBps >= 1 &&
+        canaryBps <= 1000 &&
+        canarySeed.length >= 8,
+      "Advanced may currently be enabled only as a bounded staging canary of at most ten percent.",
+    );
+  demand(
+    rolloutMode !== "global",
+    "Global Advanced rollout is forbidden until canary and SLO acceptance are reviewed.",
+  );
+  demand(
+    c.vars.MPP_ENABLED === "false",
     "Purchases remain disabled pending product and payment acceptance.",
   );
   demand(

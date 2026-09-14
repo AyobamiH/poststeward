@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "poststeward",
-  "main": "src/edge.ts",
+  "main": "src/canary-edge.ts",
   "compatibility_date": "2026-09-09",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
@@ -36,6 +36,9 @@
     "PUBLIC_ORIGIN": "https://configure-before-deployment.invalid",
     "RELEASE_SHA": "development",
     "ADVANCED_ENABLED": "false",
+    "ADVANCED_ROLLOUT_MODE": "disabled",
+    "ADVANCED_CANARY_BPS": "0",
+    "ADVANCED_CANARY_SEED": "",
     "MPP_ENABLED": "false",
     "PUBLISHING_PAUSED": "false",
     "DAILY_DELIVERY_LIMIT": "20",
