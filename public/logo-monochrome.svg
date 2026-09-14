@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 238 48" role="img" aria-labelledby="title desc">
+  <title id="title">PostSteward</title>
+  <desc id="desc">Monochrome PostSteward publishing-route mark and wordmark.</desc>
+  <rect x="0" y="8" width="32" height="32" rx="8" fill="currentColor" />
+  <path d="M9 32V16h7.25c4.58 0 7.25 2.16 7.25 5.75s-2.67 5.75-7.25 5.75H9" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="m18.4 31 2.15 2.15L25 28.2" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="46" y="31" fill="currentColor" font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22" font-weight="700" letter-spacing="-0.6">PostSteward</text>
+</svg>
