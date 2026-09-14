@@ -1,11 +1,11 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-14-advanced-canary-control
+# Deployment request: 2026-09-14-release-control-reconciliation
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision containing the Advanced rollout control plane.
-# The committed/default rollout remains fully disabled: master false, mode disabled,
-# zero basis points. Protected staging may later opt into only a bounded deterministic
-# canary after separate review; global Advanced remains rejected by deployment policy.
+# Deploy the exact reviewed revision correcting the read-only release-control verifier
+# after exact recovery legitimately advanced from deployed to live_verified.
+# Advanced rollout machinery remains fully disabled by the current protected staging
+# variables: master false, mode disabled, zero basis points. No canary is activated.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
 # Existing accepted evidence is not repeated. The timestamp PITR diagnostic remains disabled.
