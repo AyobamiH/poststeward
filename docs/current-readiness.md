@@ -1,0 +1,51 @@
+# Current release gates
+
+Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuration is reported separately by `/readiness.json`; these rows record reviewed evidence/policy state and never infer live acceptance from code alone.
+
+| Gate | State | Scope | Production blocker | Summary |
+| --- | --- | --- | --- | --- |
+| `owner_google_signin` | `live_verified` | `restricted_staging` | no | Real owner Google sign-in accepted in the owner browser. |
+| `threads_publication_readback` | `live_verified` | `restricted_staging` | no | Controlled Threads publication and independent provider readback accepted. |
+| `inspect_http_remote_mcp` | `live_verified` | `restricted_staging` | no | Inspect-only HTTP and remote MCP accepted before revoke and denied after revoke. |
+| `stripe_sandbox_lifecycle` | `live_verified` | `restricted_staging` | no | Sandbox Checkout, paid state, refund/revocation, cancellation and webhook ledger accepted. |
+| `protected_root_cutover` | `live_verified` | `restricted_staging` | no | Protected next-root writer and complete readback traversal accepted; legacy root intentionally retained. |
+| `private_github_authority` | `live_verified` | `restricted_staging` | no | Selected private repository read and provider-side revoke/fail-closed proof accepted. |
+| `exact_recovery_checkpoints` | `deployed` | `restricted_staging` | no | Exact server-side recovery checkpoints are deployed; a real exact restore remains an explicit owner rehearsal. |
+| `approximate_timestamp_pitr` | `blocked_external` | `restricted_staging` | no | Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it. |
+| `threads_oauth_callback` | `blocked_external` | `restricted_staging` | no | Meta currently rejects persistence of the exact Threads callback allowlist. |
+| `native_webmcp` | `unavailable_capability` | `restricted_staging` | no | PostSteward native WebMCP is deployed; the owner's ordinary browser does not expose the native API. |
+| `x_oauth` | `external_setup_required` | `provider_optional` | no | X OAuth implementation is present; the real application/client authority is not configured in staging. |
+| `linkedin_oauth` | `external_setup_required` | `provider_optional` | no | LinkedIn OAuth implementation is present; the real application/client authority is not configured in staging. |
+| `linkedin_member_readback` | `external_setup_required` | `provider_optional` | no | Independent member-post readback remains unavailable until the actual LinkedIn application receives the restricted permission. |
+| `advanced_rollout` | `disabled_policy` | `advanced` | no | Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass. |
+| `mpp` | `disabled_policy` | `advanced` | no | MPP is a separate optional settlement stream and remains disabled. |
+| `public_signup` | `disabled_policy` | `production` | yes | Public signup remains restricted until production/support/abuse controls are accepted. |
+| `production_edge` | `external_setup_required` | `production` | yes | Custom production origin, DNS/TLS, WAF and rate-policy evidence remain open. |
+| `github_main_ruleset` | `external_setup_required` | `production` | yes | Required server-side main ruleset is not yet evidenced; merged-PR provenance is not a substitute. |
+| `operational_alert_delivery` | `external_setup_required` | `production` | yes | Production alert delivery and escalation evidence remain open. |
+| `capacity_cost_calibration` | `external_setup_required` | `production` | yes | Representative capacity/cost observations with required headroom remain open. |
+| `hosted_cross_tenant` | `external_setup_required` | `production` | yes | Two-workspace hosted isolation acceptance remains open. |
+
+## Evidence references
+
+- `owner_google_signin`: `docs/p0-live-evidence-2026-09-12.md`
+- `threads_publication_readback`: `docs/p0-live-evidence-2026-09-12.md`
+- `inspect_http_remote_mcp`: `docs/p0-live-evidence-2026-09-12.md`
+- `stripe_sandbox_lifecycle`: `docs/live-external-gates-2026-09-13.md`
+- `protected_root_cutover`: `docs/protected-root-cutover.md`, `docs/live-external-gates-2026-09-13.md`
+- `private_github_authority`: `docs/live-external-gates-2026-09-13.md`
+- `exact_recovery_checkpoints`: `docs/recovery.md`, `pull/61`, `actions/34875620811`
+- `approximate_timestamp_pitr`: `docs/live-external-gates-2026-09-13.md`
+- `threads_oauth_callback`: `docs/live-external-gates-2026-09-13.md`
+- `native_webmcp`: `docs/live-external-gates-2026-09-13.md`; owner action: Use one authenticated supporting browser for the read-only workspace_status proof when available.
+- `x_oauth`: `docs/live-external-gates-2026-09-13.md`
+- `linkedin_oauth`: `docs/live-external-gates-2026-09-13.md`
+- `linkedin_member_readback`: `docs/live-external-gates-2026-09-13.md`
+- `advanced_rollout`: `docs/production-readiness-acceptance.md`
+- `mpp`: `docs/production-readiness-acceptance.md`
+- `public_signup`: `docs/production-readiness-acceptance.md`
+- `production_edge`: `docs/production-readiness-acceptance.md`
+- `github_main_ruleset`: `docs/production-readiness-acceptance.md`
+- `operational_alert_delivery`: `docs/production-readiness-acceptance.md`
+- `capacity_cost_calibration`: `docs/production-readiness-acceptance.md`
+- `hosted_cross_tenant`: `docs/production-readiness-acceptance.md`
