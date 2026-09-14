@@ -124,8 +124,8 @@ try {
 } catch (error) {
   $("recovery-session").replaceChildren();
   const link = document.createElement("a");
-  link.href = "/auth/login?return=%2Frecovery";
-  link.textContent = "Sign in to open recovery controls";
+  link.href = "/auth/login?return=%2Fapp";
+  link.textContent = "Sign in, then reopen recovery controls";
   $("recovery-session").append(link);
   show(error.message, true);
 }
