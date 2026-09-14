@@ -46,6 +46,20 @@ export async function inspectRecoveryBoundary(origin, expectedRelease, send = fe
     },
   );
   await check(
+    "exact recovery checkpoint page is deployed",
+    "/recovery",
+    200,
+    {},
+    async (response) => (await response.text()).includes("Exact recovery checkpoints"),
+  );
+  await check(
+    "exact recovery checkpoint client is deployed",
+    "/recovery-checkpoints.js",
+    200,
+    {},
+    async (response) => (await response.text()).includes("/api/recovery/checkpoints"),
+  );
+  await check(
     "unauthenticated recovery status rejected",
     "/api/recovery/status",
     401,
@@ -57,6 +71,21 @@ export async function inspectRecoveryBoundary(origin, expectedRelease, send = fe
     "/api/recovery/status",
     403,
     { headers: { Origin: "https://untrusted.example" } },
+  );
+  await check(
+    "unauthenticated checkpoint inventory rejected",
+    "/api/recovery/checkpoints",
+    401,
+  );
+  await check(
+    "unauthenticated checkpoint capture rejected",
+    "/api/recovery/checkpoints",
+    401,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: origin },
+      body: '{"capture":true}',
+    },
   );
   for (const action of [
     "prepare",
@@ -100,10 +129,11 @@ export async function inspectRecoveryBoundary(origin, expectedRelease, send = fe
     checks,
     passed: checks.every((item) => item.passed),
     destructiveRecoveryAttempted: false,
+    checkpointCaptureAttempted: false,
     ownerSessionCreated: false,
     providerAuthorizationAttempted: false,
     boundary:
-      "Hosted checks exercise rejection and runtime identity only. They never prepare or execute an authenticated restore, provider consent, publication or payment.",
+      "Hosted checks exercise static checkpoint surfaces, rejection and runtime identity only. They never capture a real checkpoint, prepare/execute a restore, provider consent, publication or payment.",
   };
 }
 
