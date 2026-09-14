@@ -1,15 +1,16 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-14-provider-capability-negotiation
+# Deployment request: 2026-09-14-exact-recovery-acceptance
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that separates configured provider applications,
-# requested OAuth scopes, provider-echoed grants and per-connection operational capabilities.
+# Deploy the exact reviewed revision containing provider capability negotiation and the
+# exact-checkpoint disposable recovery/erasure acceptance harness from PR #69.
 # Preserve the organised visual/product surfaces already deployed from PRs #63-#66.
-# This is an ordinary non-destructive staging deployment. It changes no provider authority,
-# payment, recovery plan, signup policy, Advanced execution or external effect. No consent,
-# publication, payment, restore, root migration or workspace erasure is requested.
-# The PITR diagnostic remains disabled. Root cutover remains on the already accepted next
-# writer and the legacy root is intentionally retained.
+# This deployment is non-destructive: it does not run the manual recovery workflow,
+# restore or erase a workspace, initiate provider consent, publish, make a payment,
+# or repeat accepted external evidence. The destructive exact-recovery acceptance remains
+# a separate explicit owner-triggered manual workflow after this exact revision is healthy.
+# The prepare-only timestamp diagnostic remains disabled. Root cutover remains on the
+# already accepted next writer and the legacy root is intentionally retained.
 on:
   push:
     branches: [main]
