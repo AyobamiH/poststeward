@@ -70,27 +70,72 @@ test("partial registration failure revokes every previously registered tool", as
   assert.ok(signals.every((signal) => signal.aborted));
 });
 
-test("native check uses the current document tool and verifies its workspace result (simulated API contract)", async (t) => {
+test("page hide explicitly revokes registered browser tools", async (t) => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, "addEventListener");
+  t.after(() => {
+    if (before) Object.defineProperty(globalThis, "addEventListener", before);
+    else delete globalThis.addEventListener;
+  });
+  let pagehide;
+  globalThis.addEventListener = (name, listener, options) => {
+    assert.equal(name, "pagehide");
+    assert.equal(options.once, true);
+    assert.ok(options.signal instanceof AbortSignal);
+    pagehide = listener;
+  };
+  let toolSignal;
+  const result = await registerWebMCP({
+    operations: [{
+      name: "workspace_status", scope: "read", effects: ["READ_ONLY"],
+      description: "status", inputSchema: { type: "object" },
+    }],
+  }, () => {}, ["read"], {
+    registerTool: async (_tool, options) => { toolSignal = options.signal; },
+  });
+  assert.equal(result.available, true);
+  assert.equal(toolSignal.aborted, false);
+  pagehide();
+  assert.equal(toolSignal.aborted, true);
+});
+
+test("native check uses the current document tool and verifies workspace plus exact release", async (t) => {
   const beforeDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
   const beforeWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const beforeFetch = Object.getOwnPropertyDescriptor(globalThis, "fetch");
   t.after(() => {
     if (beforeDocument) Object.defineProperty(globalThis, "document", beforeDocument);
     else delete globalThis.document;
     if (beforeWindow) Object.defineProperty(globalThis, "window", beforeWindow);
     else delete globalThis.window;
+    if (beforeFetch) Object.defineProperty(globalThis, "fetch", beforeFetch);
+    else delete globalThis.fetch;
   });
   const page = {};
+  const release = "a".repeat(40);
   globalThis.window = page;
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, "/readiness.json");
+    assert.equal(options.credentials, "same-origin");
+    assert.equal(options.cache, "no-store");
+    assert.equal(options.redirect, "error");
+    return Response.json({ release });
+  };
   const tool = { name: "workspace_status", window: page };
   let workspace = "expected";
+  let toolRelease = release;
   globalThis.document = { modelContext: {
     getTools: async (options) => { assert.deepEqual(options, { fromOrigins: [] }); return [tool]; },
     executeTool: async (selected, input) => {
       assert.equal(selected, tool); assert.deepEqual(input, {});
-      return JSON.stringify({ workspace, release: "test" });
+      return JSON.stringify({ workspace, release: toolRelease });
     },
   }};
-  assert.equal((await checkNativeWebMCP("expected")).workspace, "expected");
+  const observation = await checkNativeWebMCP("expected");
+  assert.equal(observation.workspace, "expected");
+  assert.equal(observation.release, release);
   workspace = "other";
   await assert.rejects(checkNativeWebMCP("expected"), /unexpected workspace/);
+  workspace = "expected";
+  toolRelease = "b".repeat(40);
+  await assert.rejects(checkNativeWebMCP("expected"), /unexpected PostSteward release/);
 });
