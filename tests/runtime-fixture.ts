@@ -1,11 +1,25 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { basename, extname, join } from "node:path";
 import { Miniflare, convertV4MiniflareOptions, Response as RuntimeResponse } from "miniflare";
 import { environment } from "./helpers.ts";
+
+export function builtWorkerScriptPath(
+  configPath = "wrangler.jsonc",
+  outdir = "dist",
+) {
+  const config = JSON.parse(readFileSync(configPath, "utf8")) as { main?: unknown };
+  if (typeof config.main !== "string" || !config.main.trim())
+    throw new Error("Wrangler configuration must declare one Worker entrypoint.");
+  const entry = basename(config.main);
+  const extension = extname(entry);
+  const output = extension ? entry.slice(0, -extension.length) + ".js" : entry + ".js";
+  return join(outdir, output);
+}
 
 /** Actual Workers/D1/SQLite runtime. Outbound identity/provider responses are test fixtures, never live evidence. */
 export async function runtime(outboundService?: (request: Request) => Promise<any>, bindings: Record<string, string> = {}, loginLimit = 10) {
   const options = {
-    modules: true, scriptPath: "dist/edge.js", compatibilityDate: "2026-09-09", compatibilityFlags: ["nodejs_compat"],
+    modules: true, scriptPath: builtWorkerScriptPath(), compatibilityDate: "2026-09-09", compatibilityFlags: ["nodejs_compat"],
     bindings: {
       ...Object.fromEntries(Object.entries(environment).filter(([, value]) => typeof value === "string")),
       OIDC_ISSUER: "https://identity.example", OIDC_CLIENT_ID: "poststeward-test", OIDC_CLIENT_SECRET: "not-a-real-secret",
