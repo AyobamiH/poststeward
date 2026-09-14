@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>PostSteward recovery</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/recovery-checkpoints.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="wordmark" href="/">PostSteward</a>
+      <nav><a href="/app">Workspace</a><a href="/lifecycle">Data controls</a></nav>
+    </header>
+    <main class="workspace">
+      <div id="recovery-session" role="status">Loading recovery controls…</div>
+      <section class="panel wide">
+        <p class="eyebrow">RECOVERY</p>
+        <h1>Exact recovery checkpoints</h1>
+        <p class="muted">
+          Checkpoints capture an exact Cloudflare Durable Object bookmark plus non-secret release and state-summary metadata. Raw bookmarks stay on the server and are never shown in the browser.
+        </p>
+        <p class="muted">
+          Preparing a restore quarantines publication. It does not execute the restore. Execution still requires the exact typed workspace confirmation in the main workspace.
+        </p>
+        <div class="row">
+          <button id="checkpoint-capture" type="button" disabled>Capture checkpoint</button>
+          <button id="checkpoint-refresh" type="button" disabled>Refresh list</button>
+        </div>
+        <div id="checkpoint-list" class="record-list"></div>
+        <form id="checkpoint-prepare" autocomplete="off">
+          <label>Exact checkpoint<select id="checkpoint-select" name="checkpoint" required></select></label>
+          <label>Recovery reason<input name="reason" required minlength="3" maxlength="240" /></label>
+          <button id="checkpoint-prepare-submit" class="primary" disabled>Prepare exact restore</button>
+        </form>
+        <pre id="checkpoint-result" class="preview" role="status" hidden></pre>
+      </section>
+      <section class="panel wide">
+        <details>
+          <summary>Approximate timestamp recovery</summary>
+          <p class="muted">
+            Compatibility path only. Cloudflare maps a requested time to an approximate bookmark. It is not silently substituted for an exact checkpoint and may be unavailable even when exact checkpoint restore is healthy.
+          </p>
+          <form id="approximate-prepare" autocomplete="off">
+            <label>Approximate restore target<input name="at" type="datetime-local" required /></label>
+            <label>Recovery reason<input name="reason" required minlength="3" maxlength="240" /></label>
+            <button>Prepare approximate restore</button>
+          </form>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>
