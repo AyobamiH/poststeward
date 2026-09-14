@@ -1,1 +1,124 @@
-.pilot{max-width:900px;margin:0 auto;padding:3rem 1.25rem}.pilot h1{font-size:clamp(2.2rem,6vw,4rem);line-height:1.08}.pilot section{margin:2rem 0;padding:1.5rem;border:1px solid #354257;border-radius:12px}.pilot h2{margin-top:0}.pilot form{display:grid;gap:.8rem;margin:1.25rem 0}.pilot label{font-weight:600}.pilot input,.pilot textarea,.pilot select{width:100%;box-sizing:border-box;font:inherit;padding:.75rem;border:1px solid #67768d;border-radius:6px;background:#101b2d;color:#f3f6fc}.pilot .check{display:flex;align-items:flex-start;gap:.7rem;font-weight:400;line-height:1.5}.pilot .check input{width:auto;flex:none;margin-top:.35rem}.pilot pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;max-width:100%;padding:1rem;background:#101b2d;border-radius:6px;color:#f3f6fc}.pilot button{width:fit-content;min-height:44px;cursor:pointer}.pilot button:disabled{opacity:.55;cursor:not-allowed}.pilot summary{cursor:pointer;min-height:32px}.pilot details{margin-top:1rem}.pilot-actions{display:flex;gap:.7rem;flex-wrap:wrap}.pilot [hidden]{display:none!important}.pilot :focus-visible{outline:3px solid #7db6ff;outline-offset:3px}#notice{padding:1rem;border-left:4px solid #7db6ff;background:#132239;color:#f3f6fc;overflow-wrap:anywhere}#notice.error{border-color:#ffacac;color:#ffacac}#destination,#owner-status,#review-meta{overflow-wrap:anywhere}@media(max-width:600px){.pilot section{padding:1rem}.pilot-actions button,.pilot form button{width:100%}}
+.pilot {
+  max-width: 980px;
+  margin: 0 auto;
+  padding-top: clamp(48px, 7vw, 84px);
+  padding-bottom: 72px;
+}
+
+.pilot > .eyebrow + h1 {
+  max-width: 760px;
+  margin-top: 14px;
+}
+
+.pilot > .lead {
+  max-width: 760px;
+  margin-bottom: 28px;
+}
+
+.pilot section {
+  margin: 14px 0;
+  padding: 24px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.pilot section h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.pilot section h3 {
+  margin: 24px 0 10px;
+}
+
+.pilot section > p {
+  color: var(--text-secondary);
+}
+
+.pilot form {
+  margin: 18px 0 0;
+}
+
+.pilot pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.pilot button {
+  width: fit-content;
+  min-height: 42px;
+}
+
+.pilot summary {
+  min-height: 32px;
+}
+
+.pilot-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.pilot [hidden] {
+  display: none !important;
+}
+
+#notice {
+  margin: 0 0 20px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius-sm);
+  padding: 13px 14px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font: 560 12.5px/1.5 var(--font-mono);
+}
+
+#notice.error {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border-default));
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+#review-panel {
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--border-default));
+  background:
+    linear-gradient(var(--brand-soft), var(--brand-soft)) top / 100% 3px no-repeat,
+    var(--bg-surface);
+}
+
+#receipt-status {
+  border-radius: var(--radius-sm);
+  padding: 12px 13px;
+  background: var(--bg-elevated);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+#destination,
+#owner-status,
+#review-meta,
+#post-link {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .pilot {
+    padding-top: 38px;
+  }
+
+  .pilot section {
+    padding: 18px;
+  }
+
+  .pilot-actions button,
+  .pilot form button {
+    width: 100%;
+  }
+}
