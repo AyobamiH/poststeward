@@ -1,27 +1,33 @@
-# PostSteward implementation status: 12 September 2026
+# PostSteward implementation status — 14 September 2026
 
 ## Executive state
 
-PostSteward is substantially implemented. The remaining work is primarily live external acceptance and productionisation, not another product rewrite.
+PostSteward's restricted-staging product is substantially implemented. The remaining work is no longer a general product rewrite: it is a small set of genuine browser/provider/platform gates plus a separate production/paid-launch acceptance layer.
 
-The latest owner-observed restricted-staging release is `ae4831ef368c5e3361f053e4ea28f4b2faa0a4f8`, also recorded by successful [deployment run 34679445845](https://github.com/AyobamiH/poststeward/actions/runs/34679445845). See [P0 live evidence](p0-live-evidence-2026-09-12.md) for the owner-executed token proof and the Meta callback-save blocker. The earlier PR #31/#32 deployment and its 58 hosted checks remain historical evidence in [the deployment receipt](hosted-completion-deployment-2026-09-12.md).
+The repository audit on 14 September found no open pull requests or open issues. The protected staging release immediately before this reconciliation was `5abe810b86d0fc4984c2b2ceed6ab4d5c70a6b42`; deployment run `34781441361` completed successfully with the normal PITR diagnostic disabled. Exact current runtime identity should always be read from `/readiness.json` rather than inferred from this document.
 
-The prior PR #30 revision `e8a95086548a23541e89e2f33d56c0abd274d9cc` remains historical evidence for the owner Google sign-in acceptance and the first deployed Threads configuration. It is no longer the current deployed revision.
+The authoritative live-gate ledger is [live external gates](live-external-gates-2026-09-13.md). Dated completion documents remain historical evidence and must not reopen accepted effects.
 
-Current hosted truth:
+## Live evidence already accepted
 
-- Owner Google sign-in: **live accepted** from the earlier owner journey. The latest deployment deliberately did not manufacture or repeat owner consent.
-- Threads provider application: **configured**. PostSteward OAuth consent/callback remains open. The manual-token publication and independent readback are accepted from the owner receipt.
-- X and LinkedIn applications: **not configured** and outside the Threads-first P0 path.
-- Scoped agent grants + HTTP/remote MCP: **live accepted for Inspect-only scope from owner-supplied transcript**. Both transports accepted the same workspace/release, then denied the same token after owner revocation. See [P0 evidence and limits](p0-live-evidence-2026-09-12.md); delegated publishing remains unproven.
-- Private GitHub sources: **engineered and deployed**. Staging App configuration and real grant/read/revoke acceptance are still open.
-- Durable Object PITR: recovery/quarantine/effect fencing is **implemented**. A real restore/reconcile/resume rehearsal remains open.
-- Native browser WebMCP: registration and native round-trip engineering is **implemented**. Authenticated browser-agent invocation remains open.
-- Stripe subscription billing: **implemented**. The test Product/Price exists; protected sandbox webhook/key/Portal configuration and the test lifecycle remain open.
-- Advanced, MPP and public signup: **disabled**.
-- GitHub main protection: deploy provenance exists, but server-side ruleset protection was still absent when this completion pass began and has not been claimed as activated.
+Do not repeat any of these merely to create a newer receipt:
 
-See [hosted completion deployment receipt](hosted-completion-deployment-2026-09-12.md) for historical staging evidence, [private hosted completion gap closure](completion-gap-closure-2026-09-12.md) for the gap-by-gap disposition and [production readiness acceptance](production-readiness-acceptance.md) for the remaining production evidence contract.
+- **Owner Google sign-in:** accepted from the real owner browser journey.
+- **Threads controlled publication and independent readback:** accepted from the existing owner receipt. The remaining Threads problem is OAuth callback completion, not publication proof.
+- **Inspect-only agent authority:** accepted over HTTP and remote MCP, including denial of the same token after owner revocation.
+- **Stripe sandbox lifecycle:** accepted for subscription Checkout, paid application state, full refund with entitlement revocation, operator cancellation and completed signed-webhook ledger evidence.
+- **Protected root cutover:** accepted. The active writer is `next`; the legacy root remains intentionally retained for recovery and is not to be retired merely for another receipt.
+- **Private GitHub sources:** accepted from a real selected-repository staging App journey: owner OAuth, harmless private read, provider-side App uninstall, stale-authority detection and fail-closed follow-up read without anonymous fallback.
+
+## Live gates still open
+
+| Gate | Current state | Correct next action |
+| --- | --- | --- |
+| Threads OAuth callback | **Blocked upstream.** Meta still rejects saving the exact callback allowlist. | Park it. Do not weaken redirect validation or publish again. Resume only when Meta accepts the exact callback. |
+| Cloudflare PITR | **Blocked at hosted target-bookmark resolution.** `getCurrentBookmark()` succeeds; `getBookmarkForTime()` returns the bounded `RECOVERY_PITR_TARGET_BOOKMARK_FAILED`. No restore has been armed. | Park destructive rehearsal. Retry only after the hosted primitive works, or after an explicit owner-visible fallback is deliberately designed and verified. |
+| Native WebMCP | **Engineering complete; live browser invocation open.** The owner's authenticated ordinary browser reports native WebMCP unavailable. | Use a supporting authenticated browser and perform one read-only `workspace_status` native round trip. Do not substitute HTTP/remote MCP. |
+| X provider application/grant | Client/secret and real owner grant absent. | Register the real X app, exact callback and funded authority as required; store secrets only in protected staging; complete OAuth/identity/refresh proof. |
+| LinkedIn provider application/grant | Client/secret absent; restricted member-readback approval absent. | Register app and complete base grant; request/use member readback only after LinkedIn actually grants the capability. |
 
 ## Implemented product foundation
 
@@ -32,67 +38,47 @@ See [hosted completion deployment receipt](hosted-completion-deployment-2026-09-
 | Agent authority | Scoped, expiring, revocable Bearer grants with admin non-delegation and workspace isolation |
 | Controlled publication | Owner-only `/pilot`, stable provider identity, immutable expiring review, explicit approval, one-shot reservation and 30-second cancellation boundary |
 | Effect safety | Idempotency, fingerprint dedupe, claim fencing, ambiguous-effect preservation, known creation-ID retention and no blind retry across the write boundary |
-| Readback | Separate bounded provider GET with exact post ID, stable author ID and exact text verification |
+| Readback | Separate bounded provider GET with exact post ID, stable author ID and exact text verification, plus ordinary `receipt_recheck` recovery without republishing |
 | Provider OAuth | X PKCE, Threads long-lived/refresh flow and LinkedIn OAuth with capability-gated member readback |
 | Free publishing | Explicit project routing, immutable campaigns, publish now, explicit schedules, cancel/replace, receipts, export and on-demand metrics |
-| Agent transports | 26 shared operations over HTTP, remote MCP and browser WebMCP; generated help/OpenAPI/reference/discovery |
-| Private GitHub | Owner-only selected-repository authority, read-only Contents/Metadata, encrypted rotating user credential, per-read revalidation, unlink/revoke/lifecycle cleanup and fail-closed private reads |
-| Recovery | Owner-only PITR plan, quarantine, restore/reconcile/resume/undo state machine, restored-authority invalidation and external-effect fences |
-| Advanced foundation | Source monitoring, reviewed deterministic templates, baseline/change detection, stale-work withdrawal, bounded replenishment/spacing and scheduled metrics |
-| Advanced management model | `Profile.family` is the category identity. `/advanced-inventory.html` provides an owner view of category groups, source snapshots, reserved automatic deliveries and metric evidence without introducing a second drifting category store |
-| Billing | Staging-only Stripe sandbox gate, USD 5 monthly Checkout/Portal, signed webhook reconciliation, entitlement logic and separately disabled MPP foundation |
-| Root-rotation support | Narrow old-root -> new-root envelope rewrap/verification primitive with adversarial tests. Real storage enumeration and staging replacement rehearsal remain external |
-| Acceptance tooling | Read-only Threads-first readiness, Advanced inventory asset verification, HTTP/MCP grant, revoked-grant, cross-tenant, capacity, Cloudflare edge and GitHub ruleset verification harnesses |
+| Agent transports | One generated operation catalogue shared by HTTP, remote MCP and browser WebMCP, with generated help/OpenAPI/reference/discovery |
+| Private GitHub | Owner-only selected-repository authority, read-only Contents/Metadata, encrypted rotating user credential, per-read revalidation, unlink/revoke/lifecycle cleanup and fail-closed private reads; live acceptance preserved |
+| Recovery | Owner-only PITR plan, quarantine, restore/reconcile/resume/undo state machine, restored-authority invalidation and external-effect fences; hosted target resolution currently blocked upstream |
+| Advanced foundation | Source monitoring, reviewed deterministic templates, baseline/change detection, stale-work withdrawal, bounded replenishment/spacing and independently scheduled metrics |
+| Advanced management model | `Profile.family` is the category identity. `/advanced-inventory.html` groups source snapshots, reserved automatic deliveries and metric evidence without a second drifting category store |
+| Billing | USD 5 monthly Stripe Checkout/Portal, signed-webhook reconciliation, entitlement/refund/dispute/cancellation logic and separately disabled MPP foundation; staging sandbox lifecycle accepted |
+| Root replacement | Mixed-root reads, authenticated root IDs, complete protected inventory traversal, bounded conditional rewrap/cutover and readback; staging cutover accepted with old root intentionally retained |
+| Acceptance tooling | Readiness, agent/revocation, private-source, recovery, lifecycle, Advanced inventory, capacity, cross-tenant, Cloudflare edge and GitHub main-protection verifiers |
 
 ## Explicit product decisions
 
 ### CLI
 
-PostSteward's supported command-line contract is shell/cURL over the documented HTTP operations. There is no promise of a separately packaged PostSteward binary, updater or package distribution channel. Do not add a CLI package merely to satisfy old wording.
+PostSteward's supported command-line contract is shell/cURL over the documented HTTP operations. There is no separately packaged PostSteward binary/update channel promise.
 
 ### Remote MCP authorization
 
-Remote MCP uses owner-issued, scoped, expiring, revocable Bearer tokens. Standards-based OAuth-compatible MCP authorization discovery/bootstrap is not part of the current release contract. Discovery may describe tools and consequence classes, but it must not mint or broaden authority.
+Remote MCP uses owner-issued, scoped, expiring, revocable Bearer tokens. Standards-based OAuth-compatible MCP authorization bootstrap is not part of the current release contract. Discovery must never mint or broaden authority.
 
 ### Advanced categories and inventory
 
-The existing reviewed profile `family` is the category boundary used by spacing decisions. A second category entity would create drift without additional authority value. Inventory is represented by the profile's current observed source snapshot and any automatic deliveries reserved from that snapshot. The owner-facing Advanced inventory view groups and exposes that state while profile changes continue to require the existing reviewed, paused configuration path.
+The reviewed profile `family` remains the category boundary used by spacing decisions. A second category entity would create drift without additional authority value.
 
-## Evidence interpretation
+## Paid-product and production layer still separate
 
-Automated tests and Miniflare runtime scenarios exercise real Worker/D1/SQLite/Assets code, tenant isolation, Bearer/CSRF rejection, idempotency, effect fencing, provider OAuth, private GitHub authority, recovery coordination, billing reconciliation and browser registration logic. Provider/Google/GitHub/Stripe responses in CI are fixtures unless a receipt explicitly says otherwise.
+Restricted staging being healthy does **not** mean public/paid production is complete.
 
-The following cannot be inferred from code or CI and remain separate evidence classes:
+- **Advanced execution remains disabled.** Before enabling it, prove one live source change -> snapshot/inventory -> spaced automatic allocation -> provider effect/readback -> scheduled metrics cycle. Stripe sandbox does not need to be repeated for this.
+- **MPP remains disabled and optional.** It does not block Free or subscription-based Advanced unless deliberately added to launch scope.
+- **GitHub main protection remains open.** The 14 September repository ruleset read returned an empty inventory, so merged-PR deployment provenance is not yet equivalent to server-side main protection.
+- **Production edge remains open:** custom production origin, DNS/TLS, WAF and rate-policy evidence.
+- **Operational acceptance remains open:** capacity/cost calibration, alert delivery/escalation and hosted two-workspace cross-tenant evidence.
+- **Public signup remains a separate decision:** support, abuse, privacy/deletion, provider outage and incident ownership must be exercised before unrestricted admission.
 
-- real provider consent;
-- a real public provider write;
-- independent provider readback;
-- a real private-repository grant/read/revoke;
-- a Cloudflare PITR restore;
-- workspace deletion against real staging state;
-- native browser-agent WebMCP invocation;
-- Stripe test payment lifecycle or MPP settlement;
-- root-secret replacement across real encrypted state;
-- alert delivery, Cloudflare WAF/rate policy configuration or GitHub ruleset activation.
+See [production readiness acceptance](production-readiness-acceptance.md).
 
-A success redirect, configured flag, screenshot, fixture or HTTP 2xx alone does not close those gates.
+## Evidence rule
 
-## Immediate P0 sequence
+Automated tests and Miniflare scenarios can prove PostSteward code paths; they cannot manufacture a real provider grant, browser capability, Cloudflare PITR restore, repository-admin rule or delivered operational alert. Conversely, already accepted external effects must not be repeated merely because an older document still describes them as pending.
 
-1. Preserve the completed manual-token publication/readback and Inspect-only revoke proof.
-2. Finish PostSteward OAuth callback/code exchange when Meta allows the exact callback to persist.
-3. Execute remaining external gates only with the required protected configuration and disposable targets.
-
-See [P0 evidence](p0-live-evidence-2026-09-12.md). The offline receipt checker performs no network operation.
-
-## Next safety/production milestones
-
-After P0:
-
-1. Private GitHub staging App/grant/read/revoke, if private sources are in release scope.
-2. PITR rehearsal, disposable workspace erasure and root-key replacement/rewrap rehearsal.
-3. Advanced source-to-inventory-to-spaced-allocation-to-metrics live acceptance before paid automation is enabled.
-4. Stripe webhook/Portal/Checkout/settlement/renewal/cancel/refund/dispute sandbox lifecycle. Keep MPP separate unless launch requires it.
-5. Capacity/cost calibration, operational alert delivery, hosted cross-tenant attack run, custom production domain/DNS/TLS/WAF/rate policies, GitHub main ruleset and public signup/support/abuse controls.
-
-Automatic CI/deploy must remain non-destructive throughout: it must not sign in, publish, grant/revoke owner authority, restore, delete a workspace, rotate a real secret or settle a payment.
+Automatic CI/deploy remains non-destructive: it must not sign in, publish, grant/revoke owner authority, execute PITR, erase a customer workspace, rotate a protected root secret or settle a payment.
