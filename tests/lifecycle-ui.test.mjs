@@ -7,7 +7,7 @@ test("owner workspace exposes lifecycle controls and pending erasure is never de
   const html = readFileSync("public/lifecycle.html", "utf8");
   const js = readFileSync("public/lifecycle.js", "utf8");
 
-  assert.match(app, /href="\/lifecycle">Data controls<\/a/);
+  assert.match(app, /href="\/lifecycle">Data<\/a/);
   assert.match(html, /DELETE this PostSteward workspace|Delete this PostSteward workspace/);
   assert.match(js, /lifecycle\.deletion\?\.state === "pending"/);
   assert.match(js, /Deletion has started and this workspace is durably fenced/);
