@@ -4,57 +4,81 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#f4f4f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f110f" media="(prefers-color-scheme: dark)" />
     <title>PostSteward Advanced inventory</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/advanced-inventory.js"></script>
   </head>
   <body>
     <header>
-      <a class="wordmark" href="/">PostSteward</a>
-      <nav><a href="/app">Workspace</a><a href="/pilot">Controlled acceptance</a></nav>
+      <a class="wordmark" href="/" aria-label="PostSteward home">
+        <img class="brand-mark" src="/favicon.svg" alt="" />
+        <span>PostSteward</span>
+      </a>
+      <nav aria-label="Advanced inventory navigation">
+        <a href="/app">Workspace</a>
+        <a href="/pilot">Controlled acceptance</a>
+        <a href="/docs/agent-guide.md">Agent guide</a>
+      </nav>
     </header>
+
     <main class="workspace">
       <section class="summary">
         <div>
           <p class="eyebrow">ADVANCED CONTROL PLANE</p>
           <h1>Inventory and categories</h1>
           <p class="muted">
-            Categories are the reviewed profile family. Inventory is the current
-            source snapshot plus the automatic deliveries reserved from it. This
-            view is read-only; authority changes remain on the workspace page.
+            See the reviewed source state, category pressure and reserved automatic
+            deliveries without granting new authority. Changes to a profile still happen
+            in the main workspace.
           </p>
           <p id="status" role="status">Loading…</p>
         </div>
-        <a href="/app">Manage reviewed profiles</a>
+        <a class="button" href="/app">Manage reviewed profiles</a>
       </section>
+
       <div class="workspace-grid">
-        <section class="panel">
-          <h2>Categories</h2>
+        <section class="panel" aria-labelledby="categories-heading">
+          <p class="eyebrow">REVIEWED GROUPING</p>
+          <h2 id="categories-heading">Categories</h2>
           <p class="muted">
-            Profiles in the same family share spacing pressure. Rename or move a
-            category only by pausing and reviewing the profile in the workspace.
+            The profile family is the category identity. Profiles in the same family
+            share spacing pressure; there is no second drifting category store.
           </p>
           <div id="categories" class="record-list"></div>
         </section>
-        <section class="panel">
-          <h2>Source inventory</h2>
+
+        <section class="panel" aria-labelledby="inventory-heading">
+          <p class="eyebrow">OBSERVED SOURCE STATE</p>
+          <h2 id="inventory-heading">Source inventory</h2>
           <p class="muted">
-            A source SHA is evidence of observed source state, not proof of a
-            deployment. Preview never publishes or reserves a delivery.
+            A source SHA records what PostSteward observed. It is evidence of source
+            state, not proof of a deployment, and preview does not publish or reserve a
+            delivery.
           </p>
           <div id="inventory" class="record-list"></div>
         </section>
-        <section class="panel wide">
-          <h2>Allocation and metrics cycle</h2>
+
+        <section class="panel wide" aria-labelledby="allocation-heading">
+          <p class="eyebrow">FUTURE WORK → PROVIDER EVIDENCE</p>
+          <h2 id="allocation-heading">Allocation and metrics cycle</h2>
           <p class="muted">
-            Pending automatic deliveries are shown separately from provider
-            receipts. Metrics presence is reported only when the provider
-            returned evidence.
+            Pending automatic deliveries remain distinct from provider receipts.
+            Metrics are shown only when the provider returned evidence; unavailable data
+            is never represented as a fabricated zero.
           </p>
           <div id="deliveries" class="record-list"></div>
         </section>
       </div>
+
       <pre id="result" role="status" aria-live="polite" hidden></pre>
     </main>
+
+    <footer>
+      <span>PostSteward · Reviewed source inventory and allocation evidence.</span>
+      <a href="/app">Back to workspace</a>
+    </footer>
   </body>
 </html>
