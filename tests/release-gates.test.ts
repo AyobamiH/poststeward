@@ -14,6 +14,9 @@ function env(overrides: Record<string, string | undefined> = {}) {
     DEPLOY_ENV: "staging",
     SIGNUP_MODE: "restricted",
     ADVANCED_ENABLED: "false",
+    ADVANCED_ROLLOUT_MODE: "disabled",
+    ADVANCED_CANARY_BPS: "0",
+    ADVANCED_CANARY_SEED: "",
     MPP_ENABLED: "false",
     ENCRYPTION_ROOT_WRITE: "next",
     X_OAUTH_CLIENT_ID: "",
@@ -56,13 +59,34 @@ test("runtime capabilities remain distinct from reviewed live evidence", () => {
   assert.equal(runtime.privateGitHubConfigured, true);
   assert.equal(runtime.stripeSandboxConfigured, true);
   assert.equal(runtime.policies.advancedEnabled, false);
+  assert.equal(runtime.policies.advancedRolloutMode, "disabled");
+  assert.equal(runtime.policies.advancedCanaryBps, 0);
+  assert.equal(runtime.policies.advancedCanarySeedConfigured, false);
   assert.equal(releasePolicyViolations(env()).length, 0);
+});
+
+test("bounded staging canary is a permitted evidence mode, not a global rollout", () => {
+  const canary = env({
+    ADVANCED_ENABLED: "true",
+    ADVANCED_ROLLOUT_MODE: "canary",
+    ADVANCED_CANARY_BPS: "500",
+    ADVANCED_CANARY_SEED: "reviewed-canary-seed",
+  });
+  assert.deepEqual(releasePolicyViolations(canary), []);
+  const readiness = releaseReadiness(canary);
+  assert.equal(readiness.policy.healthy, true);
+  assert.equal(readiness.runtimeCapabilities.policies.advancedEnabled, true);
+  assert.equal(readiness.runtimeCapabilities.policies.advancedRolloutMode, "canary");
+  assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 500);
 });
 
 test("policy contradictions are visible instead of silently broadening claims", () => {
   const unsafe = env({
     SIGNUP_MODE: "public",
     ADVANCED_ENABLED: "true",
+    ADVANCED_ROLLOUT_MODE: "global",
+    ADVANCED_CANARY_BPS: "10000",
+    ADVANCED_CANARY_SEED: "unsafe-global-seed",
     MPP_ENABLED: "true",
     LINKEDIN_MEMBER_READBACK: "true",
   });
@@ -78,12 +102,34 @@ test("policy contradictions are visible instead of silently broadening claims", 
   assert.equal(readiness.gates.advanced_rollout.state, "disabled_policy");
 });
 
+test("malformed or contradictory rollout state fails closed in readiness", () => {
+  assert.deepEqual(
+    releasePolicyViolations(
+      env({ ADVANCED_ROLLOUT_MODE: "canary", ADVANCED_CANARY_BPS: "100" }),
+    ),
+    ["advanced_disabled_policy_drift"],
+  );
+  assert.deepEqual(
+    releasePolicyViolations(
+      env({
+        ADVANCED_ENABLED: "true",
+        ADVANCED_ROLLOUT_MODE: "canary",
+        ADVANCED_CANARY_BPS: "2000",
+        ADVANCED_CANARY_SEED: "reviewed-canary-seed",
+      }),
+    ),
+    ["advanced_canary_policy_invalid"],
+  );
+});
+
 test("readiness keeps legacy fields while exposing the typed control plane", () => {
   const readiness = releaseReadiness(env());
   assert.equal(readiness.schemaVersion, 2);
   assert.equal(readiness.policy.healthy, true);
   assert.equal(readiness.recovery.exactCheckpoints, true);
   assert.equal(readiness.gates.exact_recovery_checkpoints.state, "live_verified");
+  assert.equal(readiness.runtimeCapabilities.policies.advancedRolloutMode, "disabled");
+  assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 0);
   assert.ok(readiness.evidenceStillExternal.includes("native_webmcp"));
   assert.ok(!readiness.evidenceStillExternal.includes("stripe_sandbox_lifecycle"));
 });
