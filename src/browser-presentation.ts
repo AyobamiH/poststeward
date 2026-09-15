@@ -72,6 +72,7 @@ export function browserErrorDocument(path: string, status: number, value: any) {
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
     <link rel="stylesheet" href="/production-ux.css" />
+    <link rel="stylesheet" href="/accessibility.css" />
   </head>
   <body class="browser-error-page">
     <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -118,7 +119,8 @@ function appLinks() {
   return `<link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
 <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
-<link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />`;
+<link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512" />
+<link rel="stylesheet" href="/accessibility.css" />`;
 }
 
 function socialMetadata(env: Env) {
