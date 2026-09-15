@@ -18,11 +18,22 @@ on:
           - DO_NOT_APPLY
           - APPLY_POSTSTEWARD_PRODUCTION_EDGE
         default: DO_NOT_APPLY
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/production-edge-reconcile.yml
 permissions:
   contents: read
+concurrency:
+  group: production-edge-reconciliation
+  cancel-in-progress: false
 jobs:
   reconcile:
-    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main' && github.actor == 'AyobamiH'
+    if: >-
+      github.repository == 'AyobamiH/poststeward' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'AyobamiH' &&
+      (github.event_name == 'push' || inputs.confirmation == 'APPLY_POSTSTEWARD_PRODUCTION_EDGE')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -37,7 +48,7 @@ jobs:
       - name: Reconcile canonical Cloudflare zone controls
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          POSTSTEWARD_PRODUCTION_ORIGIN: ${{ inputs.origin }}
-          CLOUDFLARE_ZONE_NAME: ${{ inputs.zone }}
-          POSTSTEWARD_APPLY_PRODUCTION_EDGE: ${{ inputs.confirmation }}
+          POSTSTEWARD_PRODUCTION_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.origin || 'https://poststeward.com' }}
+          CLOUDFLARE_ZONE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.zone || 'poststeward.com' }}
+          POSTSTEWARD_APPLY_PRODUCTION_EDGE: ${{ github.event_name == 'push' && 'APPLY_POSTSTEWARD_PRODUCTION_EDGE' || inputs.confirmation }}
         run: node scripts/production-edge-apply.mjs
