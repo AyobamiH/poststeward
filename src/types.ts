@@ -91,10 +91,6 @@ export interface Delivery {
   postId?: string;
   url?: string;
   reason?: string;
-  /** Immutable first provider creation time; later metrics updates never rewrite it. */
-  publishedAt?: number;
-  /** First completed provider readback observation, verified or unverified. */
-  readbackAt?: number;
   readbackAttempts?: number;
   nextReadbackAt?: number;
   lastReadbackAt?: number;
