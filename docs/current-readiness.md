@@ -19,7 +19,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `linkedin_member_readback` | `external_setup_required` | `provider_optional` | no | Independent member-post readback remains unavailable until the actual LinkedIn application receives the restricted permission. |
 | `advanced_rollout` | `disabled_policy` | `advanced` | no | Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass. |
 | `mpp` | `disabled_policy` | `advanced` | no | MPP is a separate optional settlement stream and remains disabled. |
-| `public_signup` | `disabled_policy` | `production` | yes | Public signup remains restricted until production/support/abuse controls are accepted. |
+| `public_signup` | `disabled_policy` | `public_launch` | yes | Public signup remains restricted until production/support/abuse controls are accepted. |
 | `production_edge` | `external_setup_required` | `production` | yes | Custom production origin, DNS/TLS, WAF and rate-policy evidence remain open. |
 | `github_main_ruleset` | `live_verified` | `production` | no | Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy. |
 | `operational_alert_delivery` | `external_setup_required` | `production` | yes | Production alert delivery and escalation evidence remain open. |
