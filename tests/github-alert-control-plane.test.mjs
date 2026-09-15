@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { alertOutputDocument } from "../scripts/github-alert-control-plane.mjs";
 const script = readFileSync("scripts/github-alert-control-plane.mjs", "utf8");
 const workflow = readFileSync(".github/workflows/operational-alert-control-plane.yml", "utf8");
 test("GitHub issue fallback emits only bounded durable alert metadata", () => {
@@ -16,6 +17,21 @@ test("fire drill exercises all reviewed classes and a distinct failed-path fallb
   assert.match(script, /fallbackPath: "github_issue"/);
   assert.match(script, /evaluateAlertEvidence\(observation\)/);
   assert.match(script, /closeIssue/);
+});
+test("fire drill writes the raw hosted observation for independent re-evaluation", () => {
+  const observation = {
+    schemaVersion: 1,
+    evidenceClass: "hosted_observation",
+    environment: "staging",
+    release: "a".repeat(40),
+    deliveries: [],
+    configuredPaths: [],
+    failedPath: {},
+  };
+  const result = { report: { ready: true }, observation };
+  assert.equal(alertOutputDocument("fire-drill", result), observation);
+  assert.deepEqual(alertOutputDocument("surface", { observed: 0 }), { observed: 0 });
+  assert.match(script, /writeFileSync\(process\.env\.POSTSTEWARD_ALERT_OUTPUT, output/);
 });
 test("workflow is out-of-band, staging protected, issue-write only and never deploys", () => {
   assert.match(workflow, /contents: read/);
