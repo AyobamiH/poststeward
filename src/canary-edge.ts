@@ -1,6 +1,13 @@
 import edge, { Workspace as BaseWorkspace } from "./edge.ts";
 import { advancedRolloutDecision } from "./advanced-rollout.ts";
 import {
+  initialiseCapacityTelemetry,
+  recordAlarmCycle,
+  recordWorkspaceRequest,
+  sweepWorkspaceCapacityObservations,
+  workspaceCapacitySnapshot,
+} from "./capacity-observation.ts";
+import {
   enqueueOperationalAlert,
   flushOperationalAlerts,
   sweepOperationalConditions,
@@ -122,11 +129,6 @@ async function observeWorkspaceOperationalState(
     );
 }
 
-/**
- * Keep ADVANCED_ENABLED as a global emergency kill switch while presenting it
- * as enabled only to a deterministically selected workspace. The underlying
- * environment object is never mutated or shared with another tenant.
- */
 function workspaceEnvironment(ctx: DurableObjectState, env: Env): Env {
   return new Proxy(env, {
     get(target, property, receiver) {
@@ -143,24 +145,52 @@ function workspaceEnvironment(ctx: DurableObjectState, env: Env): Env {
 }
 
 export class Workspace extends BaseWorkspace {
-  private alertCtx: DurableObjectState;
-  private alertEnv: Env;
+  private operationalCtx: DurableObjectState;
+  private operationalEnv: Env;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, workspaceEnvironment(ctx, env));
-    this.alertCtx = ctx;
-    this.alertEnv = env;
+    this.operationalCtx = ctx;
+    this.operationalEnv = env;
+    initialiseCapacityTelemetry(ctx);
+  }
+
+  async fetch(request: Request) {
+    const path = new URL(request.url).pathname;
+    if (path === "/capacity/snapshot") {
+      let input: { workspace?: unknown } = {};
+      try {
+        input = (await request.json()) as { workspace?: unknown };
+      } catch {
+        return Response.json({ error: "invalid_request" }, { status: 400 });
+      }
+      const workspace = storedWorkspace(this.operationalCtx);
+      if (!workspace || input.workspace !== workspace)
+        return Response.json({ error: "workspace_mismatch" }, { status: 403 });
+      return Response.json(
+        workspaceCapacitySnapshot(
+          this.operationalCtx,
+          this.operationalEnv.RELEASE_SHA,
+        ),
+      );
+    }
+    recordWorkspaceRequest(this.operationalCtx);
+    return super.fetch(request);
   }
 
   async alarm() {
+    recordAlarmCycle(this.operationalCtx);
     const result = await super.alarm();
     try {
-      await observeWorkspaceOperationalState(this.alertCtx, this.alertEnv);
+      await observeWorkspaceOperationalState(
+        this.operationalCtx,
+        this.operationalEnv,
+      );
     } catch (error) {
       console.error(
         JSON.stringify({
           event: "workspace_operational_alert_observation_failed",
-          release: this.alertEnv.RELEASE_SHA,
+          release: this.operationalEnv.RELEASE_SHA,
           code: error instanceof Error ? error.name : "UnknownError",
         }),
       );
@@ -178,10 +208,31 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ) {
-    // Identity expiry remains on its established hourly cadence. The five-minute
-    // trigger only sweeps and delivers the durable alert outbox.
-    if (controller.cron === "17 * * * *")
+    if (controller.cron === "17 * * * *") {
       await edge.scheduled(controller, env);
+      try {
+        const result = await sweepWorkspaceCapacityObservations(env);
+        if (!result.complete || result.failed > 0)
+          console.warn(
+            JSON.stringify({
+              event: "workspace_capacity_observation_incomplete",
+              release: env.RELEASE_SHA,
+              totalRegistered: result.totalRegistered,
+              considered: result.considered,
+              observed: result.observed,
+              failed: result.failed,
+            }),
+          );
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "workspace_capacity_observation_failed",
+            release: env.RELEASE_SHA,
+            code: error instanceof Error ? error.name : "UnknownError",
+          }),
+        );
+      }
+    }
 
     try {
       await sweepOperationalConditions(env);
