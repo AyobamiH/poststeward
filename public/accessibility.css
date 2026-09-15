@@ -1,0 +1,32 @@
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  left: 16px;
+  top: 12px;
+  transform: translateY(-180%);
+  border: 2px solid var(--focus);
+  border-radius: 8px;
+  padding: 10px 13px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 650;
+  text-decoration: none;
+  box-shadow: var(--shadow-float);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+:target {
+  scroll-margin-top: 88px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
