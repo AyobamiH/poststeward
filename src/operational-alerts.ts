@@ -93,14 +93,16 @@ function retryDelayMs(attempt: number, retryAfterSeconds?: number) {
   return Math.min(maxRetryMs, base + ((attempt * 7919) % 30_000));
 }
 
-function retryAfter(response: AlertHttpResponse) {
-  const raw = response.headers.get("retry-after");
+function retryAfter(response: AlertHttpResponse, now: number) {
+  const raw = response.headers.get("retry-after")?.trim();
   if (!raw) return undefined;
-  const seconds = Number(raw);
-  if (Number.isFinite(seconds)) return seconds;
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const seconds = Number(raw);
+    return Number.isFinite(seconds) ? seconds : undefined;
+  }
   const date = Date.parse(raw);
   if (!Number.isFinite(date)) return undefined;
-  return Math.max(1, Math.ceil((date - Date.now()) / 1000));
+  return Math.max(1, Math.ceil((date - now) / 1000));
 }
 
 export async function enqueueOperationalAlert(
@@ -354,7 +356,8 @@ export async function flushOperationalAlerts(
               ? "WEBHOOK_RETRYABLE_HTTP"
               : "WEBHOOK_PERMANENT_HTTP",
             retryable,
-            retryAfterSeconds: status === 429 ? retryAfter(response) : undefined,
+            retryAfterSeconds:
+              status === 429 ? retryAfter(response, now) : undefined,
           },
           now,
         );
