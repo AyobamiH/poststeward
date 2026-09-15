@@ -144,8 +144,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "disabled_policy",
     scope: "advanced",
     blocking: false,
-    summary: "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+    summary: "Global Advanced rollout remains disabled; only a bounded restricted-staging canary may be enabled to gather acceptance and SLO evidence.",
+    evidence: ["docs/production-readiness-acceptance.md", "docs/advanced-canary-rollout.md"],
   },
   {
     id: "mpp",
@@ -211,6 +211,19 @@ export function releaseGateMap() {
   );
 }
 
+function rolloutMode(env: Env) {
+  return ["disabled", "canary", "global"].includes(
+    env.ADVANCED_ROLLOUT_MODE || "disabled",
+  )
+    ? (env.ADVANCED_ROLLOUT_MODE || "disabled")
+    : "invalid";
+}
+
+function rolloutBps(env: Env) {
+  const value = Number(env.ADVANCED_CANARY_BPS || "0");
+  return Number.isInteger(value) && value >= 0 && value <= 10000 ? value : -1;
+}
+
 export function runtimeCapabilitySnapshot(env: Env) {
   return {
     providerApplications: {
@@ -231,6 +244,11 @@ export function runtimeCapabilitySnapshot(env: Env) {
     policies: {
       signupMode: env.SIGNUP_MODE,
       advancedEnabled: env.ADVANCED_ENABLED === "true",
+      advancedRolloutMode: rolloutMode(env),
+      advancedCanaryBps: rolloutBps(env),
+      advancedCanarySeedConfigured: Boolean(
+        env.ADVANCED_CANARY_SEED && env.ADVANCED_CANARY_SEED.length >= 8,
+      ),
       mppEnabled: env.MPP_ENABLED === "true",
       encryptionRootWrite: env.ENCRYPTION_ROOT_WRITE === "next" ? "next" : "legacy",
     },
@@ -242,8 +260,25 @@ export function releasePolicyViolations(env: Env) {
   const violations: string[] = [];
   if (runtime.policies.signupMode === "public")
     violations.push("public_signup_enabled_before_production_gate");
-  if (runtime.policies.advancedEnabled)
+
+  const advanced = runtime.policies.advancedEnabled;
+  const mode = runtime.policies.advancedRolloutMode;
+  const bps = runtime.policies.advancedCanaryBps;
+  if (!advanced) {
+    if (mode !== "disabled" || bps !== 0)
+      violations.push("advanced_disabled_policy_drift");
+  } else if (mode === "global") {
     violations.push("advanced_globally_enabled_before_canary_gate");
+  } else if (
+    env.DEPLOY_ENV !== "staging" ||
+    mode !== "canary" ||
+    bps < 1 ||
+    bps > 1000 ||
+    !runtime.policies.advancedCanarySeedConfigured
+  ) {
+    violations.push("advanced_canary_policy_invalid");
+  }
+
   if (runtime.policies.mppEnabled)
     violations.push("mpp_enabled_before_settlement_gate");
   if (
