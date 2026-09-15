@@ -1,5 +1,5 @@
 name: Release promotion controller
-run-name: Promotion status — ${{ inputs.target || 'production' }} — ${{ github.sha }}
+run-name: Promotion status — ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'restricted_staging' }} — ${{ github.sha }}
 
 on:
   workflow_dispatch:
@@ -14,6 +14,11 @@ on:
           - advanced_canary
           - production
           - public_launch
+      origin:
+        description: Exact HTTPS origin that corresponds to the selected promotion stage
+        type: string
+        required: true
+        default: https://poststeward-staging.woeinvests.workers.dev
   schedule:
     - cron: "23 6 * * *"
   push:
@@ -34,7 +39,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-promotion-controller-${{ inputs.target || 'production' }}
+  group: release-promotion-controller-${{ github.event_name == 'workflow_dispatch' && inputs.target || 'restricted_staging' }}
   cancel-in-progress: true
 
 jobs:
@@ -51,8 +56,8 @@ jobs:
           node-version: 24
       - name: Evaluate reviewed gates against hosted runtime
         env:
-          POSTSTEWARD_PROMOTION_TARGET: ${{ inputs.target || 'production' }}
+          POSTSTEWARD_PROMOTION_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'restricted_staging' }}
           POSTSTEWARD_PROMOTION_MODE: report
           POSTSTEWARD_EXPECTED_RELEASE: ${{ github.sha }}
-          POSTSTEWARD_ORIGIN: https://poststeward-staging.woeinvests.workers.dev
+          POSTSTEWARD_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.origin || 'https://poststeward-staging.woeinvests.workers.dev' }}
         run: node scripts/release-promotion-controller.mjs
