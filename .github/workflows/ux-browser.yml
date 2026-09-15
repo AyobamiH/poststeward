@@ -1,0 +1,43 @@
+name: UX browser verification
+on:
+  pull_request:
+  push:
+    branches: [main, feat/public-docs-trust-closure]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ux-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Package exact source for review
+        run: |
+          mkdir -p ux-evidence
+          git archive --format=tar HEAD > ux-evidence/source.tar
+          git rev-parse HEAD > ux-evidence/revision.txt
+      - name: Install isolated browser tooling
+        run: |
+          npm install --prefix tools/browser --ignore-scripts
+          cp tools/browser/package-lock.json ux-evidence/browser-package-lock.json
+          npm audit --prefix tools/browser --audit-level=high
+          cd tools/browser
+          npx --no-install playwright install --with-deps chromium
+      - name: Browser accessibility and interaction acceptance
+        run: node tools/browser/verify.mjs
+      - name: Preserve bounded synthetic review evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ux-evidence-${{ github.run_id }}
+          path: ux-evidence/
+          retention-days: 7
