@@ -1,9 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-promotion-evidence-binding
+# Deployment request: 2026-09-15-ux-closure
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision with release/environment-bound evidence adapters
-# and the read-only enforced staging promotion check after hosted smoke checks.
+# Deploy the exact reviewed revision containing the completed human UX/docs/trust layer,
+# deterministic brand assets and browser-response presentation wrapper from PR #93.
 # Alert delivery remains inert unless a protected webhook destination is configured.
 # Protected staging retains its existing disabled Advanced policy; no canary start is requested.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
