@@ -150,6 +150,12 @@ export async function readCapacityRuntime(origin, expectedRelease, send = fetch)
     policy: value.policy, gates: value.gates, runtimeCapabilities: value.runtimeCapabilities };
 }
 
+export function capacityWorkerName(environment) {
+  demand(["staging", "production"].includes(environment), "Capacity environment is invalid.");
+  // Keep the established deployment-config.mjs names, not an invented suffix.
+  return environment === "staging" ? "poststeward-staging" : "poststeward";
+}
+
 export function bindCapacityObservation(report, context, highWater, collectedAt = Date.now()) {
   const first = Number(highWater.firstObservedAt);
   const last = Number(highWater.lastObservedAt);
@@ -186,7 +192,7 @@ async function main() {
   const origin = process.env.POSTSTEWARD_ORIGIN || "https://poststeward-staging.woeinvests.workers.dev";
   const expectedRelease = process.env.POSTSTEWARD_EXPECTED_RELEASE ?? process.env.GITHUB_SHA;
   const context = await readCapacityRuntime(origin, expectedRelease);
-  demand(scriptName === `poststeward-${context.environment}`, "Capacity Worker name and runtime environment differ.");
+  demand(scriptName === capacityWorkerName(context.environment), "Capacity Worker name and runtime environment differ.");
 
   const end = new Date();
   const start = new Date(end.getTime() - windowDays * 86400000);
