@@ -10,6 +10,10 @@ on:
           - DO_NOT_RUN
           - RUN_CROSS_TENANT_ACCEPTANCE
         default: DO_NOT_RUN
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/staging-cross-tenant-acceptance.yml
 
 permissions:
   contents: read
@@ -24,7 +28,7 @@ jobs:
       github.ref == 'refs/heads/main' &&
       github.repository == 'AyobamiH/poststeward' &&
       github.actor == 'AyobamiH' &&
-      inputs.confirmation == 'RUN_CROSS_TENANT_ACCEPTANCE'
+      (github.event_name == 'push' || inputs.confirmation == 'RUN_CROSS_TENANT_ACCEPTANCE')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
