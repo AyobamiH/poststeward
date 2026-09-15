@@ -102,6 +102,14 @@ function capacityObservation(observation) {
     ready: result.verdict === "calibrated_with_30pct_headroom" && Object.values(costEvidence).every(Boolean) };
 }
 
+export function resolveExpectedRelease({ mode, explicitExpectedRelease, githubSha, hostedRelease }) {
+  const explicit = explicitExpectedRelease || "";
+  const resolved = explicit || (mode === "report" ? hostedRelease : githubSha || "");
+  demand(/^[a-f0-9]{40}$/.test(resolved || ""),
+    "Promotion evaluation requires an exact 40-character release SHA.");
+  return resolved;
+}
+
 export function evaluatePromotion({ target, ledger, readiness, expectedRelease, observations = {}, now = Date.now() }) {
   demand(targets.has(target), `Unknown promotion target ${target}.`);
   const gates = validateReviewedLedger(ledger);
@@ -184,7 +192,7 @@ export async function collectObservations(env) {
     const raw = readJson(path, gate);
     observations[gate] = evaluatedObservation(gate, raw, evaluate(raw));
   }
-  const expectedRelease = env.POSTSTEWARD_EXPECTED_RELEASE ?? env.GITHUB_SHA;
+  const expectedRelease = env.POSTSTEWARD_EXPECTED_RELEASE || env.GITHUB_SHA;
   if (env.POSTSTEWARD_PRODUCTION_ORIGIN || env.CLOUDFLARE_ZONE_NAME) {
     demand(env.POSTSTEWARD_PRODUCTION_ORIGIN && env.CLOUDFLARE_ZONE_NAME && env.CLOUDFLARE_API_TOKEN,
       "Production edge observation configuration is incomplete.");
@@ -217,7 +225,12 @@ async function main() {
   let readiness = await fetchReadiness(origin);
   readiness.origin = origin;
   const ledger = readJson("public/release-gates.json", "reviewed gate ledger");
-  const expectedRelease = env.POSTSTEWARD_EXPECTED_RELEASE ?? env.GITHUB_SHA ?? "";
+  const expectedRelease = resolveExpectedRelease({
+    mode,
+    explicitExpectedRelease: env.POSTSTEWARD_EXPECTED_RELEASE,
+    githubSha: env.GITHUB_SHA,
+    hostedRelease: readiness.release,
+  });
   const initial = evaluatePromotion({ target, ledger, readiness, expectedRelease });
   const observations = initial.releaseBinding.ready && initial.runtimePolicy.healthy
     ? await collectObservations({ ...env, POSTSTEWARD_ORIGIN: origin, POSTSTEWARD_EXPECTED_RELEASE: expectedRelease }) : {};
