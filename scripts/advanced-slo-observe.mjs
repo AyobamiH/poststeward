@@ -263,9 +263,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.log("POSTSTEWARD_ADVANCED_SLO_OBSERVATION " + serialized);
     })
     .catch((error) => {
+      const message = error instanceof Error ? error.message : "Unknown failure.";
+      if (
+        process.env.POSTSTEWARD_SLO_OPTIONAL === "true" &&
+        message === "No hosted Advanced canary run boundary exists yet."
+      ) {
+        console.log(
+          "POSTSTEWARD_ADVANCED_SLO_IDLE " +
+            JSON.stringify({ state: "no_canary_run" }),
+        );
+        return;
+      }
       console.error(
         "POSTSTEWARD_ADVANCED_SLO_OBSERVATION_FAILED " +
-          JSON.stringify({ message: error instanceof Error ? error.message : "Unknown failure." }),
+          JSON.stringify({ message }),
       );
       process.exitCode = 1;
     });
