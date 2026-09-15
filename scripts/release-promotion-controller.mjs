@@ -184,15 +184,26 @@ export async function collectObservations(env) {
     const raw = readJson(path, gate);
     observations[gate] = evaluatedObservation(gate, raw, evaluate(raw));
   }
-  if (env.POSTSTEWARD_PRODUCTION_ORIGIN && env.CLOUDFLARE_ZONE_NAME && env.CLOUDFLARE_API_TOKEN)
+  const expectedRelease = env.POSTSTEWARD_EXPECTED_RELEASE ?? env.GITHUB_SHA;
+  if (env.POSTSTEWARD_PRODUCTION_ORIGIN || env.CLOUDFLARE_ZONE_NAME) {
+    demand(env.POSTSTEWARD_PRODUCTION_ORIGIN && env.CLOUDFLARE_ZONE_NAME && env.CLOUDFLARE_API_TOKEN,
+      "Production edge observation configuration is incomplete.");
+    demand(env.POSTSTEWARD_PRODUCTION_ORIGIN === env.POSTSTEWARD_ORIGIN,
+      "Production edge observation must use the selected runtime origin.");
     observations.production_edge = await inspectProductionEdge({
       origin: env.POSTSTEWARD_PRODUCTION_ORIGIN,
       zoneName: env.CLOUDFLARE_ZONE_NAME,
       cloudflareToken: env.CLOUDFLARE_API_TOKEN,
+      expectedRelease,
     });
-  if (env.POSTSTEWARD_AGENT_TOKEN_A && env.POSTSTEWARD_AGENT_TOKEN_B && env.POSTSTEWARD_FOREIGN_DELIVERY_ID) {
+  }
+  if (env.POSTSTEWARD_AGENT_TOKEN_A || env.POSTSTEWARD_AGENT_TOKEN_B || env.POSTSTEWARD_FOREIGN_DELIVERY_ID) {
+    demand(env.POSTSTEWARD_AGENT_TOKEN_A && env.POSTSTEWARD_AGENT_TOKEN_B && env.POSTSTEWARD_FOREIGN_DELIVERY_ID,
+      "Cross-tenant observation configuration is incomplete.");
+    demand(/^[a-f0-9]{40}$/.test(expectedRelease || ""), "Cross-tenant observation needs the exact expected release.");
     const crossTenant = await checkCrossTenantIsolation(env.POSTSTEWARD_ORIGIN,
-      env.POSTSTEWARD_AGENT_TOKEN_A, env.POSTSTEWARD_AGENT_TOKEN_B, env.POSTSTEWARD_FOREIGN_DELIVERY_ID);
+      env.POSTSTEWARD_AGENT_TOKEN_A, env.POSTSTEWARD_AGENT_TOKEN_B,
+      env.POSTSTEWARD_FOREIGN_DELIVERY_ID, undefined, expectedRelease);
     observations.hosted_cross_tenant = { ...crossTenant, ready: true };
   }
   return observations;
@@ -203,13 +214,17 @@ async function main() {
   const mode = env.POSTSTEWARD_PROMOTION_MODE ?? "report";
   demand(["report", "enforce"].includes(mode), "Promotion mode must be report or enforce.");
   const origin = exactOrigin(env.POSTSTEWARD_ORIGIN || "https://poststeward-staging.woeinvests.workers.dev");
-  const readiness = await fetchReadiness(origin);
+  let readiness = await fetchReadiness(origin);
   readiness.origin = origin;
   const ledger = readJson("public/release-gates.json", "reviewed gate ledger");
   const expectedRelease = env.POSTSTEWARD_EXPECTED_RELEASE ?? env.GITHUB_SHA ?? "";
   const initial = evaluatePromotion({ target, ledger, readiness, expectedRelease });
   const observations = initial.releaseBinding.ready && initial.runtimePolicy.healthy
-    ? await collectObservations({ ...env, POSTSTEWARD_ORIGIN: origin }) : {};
+    ? await collectObservations({ ...env, POSTSTEWARD_ORIGIN: origin, POSTSTEWARD_EXPECTED_RELEASE: expectedRelease }) : {};
+  if (Object.keys(observations).length) {
+    readiness = await fetchReadiness(origin);
+    readiness.origin = origin;
+  }
   const report = evaluatePromotion({ target, ledger, readiness, expectedRelease, observations });
   const serialized = JSON.stringify({ ...report, mode });
   for (const secret of [env.CLOUDFLARE_API_TOKEN, env.POSTSTEWARD_AGENT_TOKEN_A, env.POSTSTEWARD_AGENT_TOKEN_B].filter(Boolean))
