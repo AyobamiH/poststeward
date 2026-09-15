@@ -21,7 +21,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `mpp` | `disabled_policy` | `advanced` | no | MPP is a separate optional settlement stream and remains disabled. |
 | `public_signup` | `disabled_policy` | `production` | yes | Public signup remains restricted until production/support/abuse controls are accepted. |
 | `production_edge` | `external_setup_required` | `production` | yes | Custom production origin, DNS/TLS, WAF and rate-policy evidence remain open. |
-| `github_main_ruleset` | `external_setup_required` | `production` | yes | Required server-side main ruleset is not yet evidenced; merged-PR provenance is not a substitute. |
+| `github_main_ruleset` | `live_verified` | `production` | no | Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy. |
 | `operational_alert_delivery` | `external_setup_required` | `production` | yes | Production alert delivery and escalation evidence remain open. |
 | `capacity_cost_calibration` | `external_setup_required` | `production` | yes | Representative capacity/cost observations with required headroom remain open. |
 | `hosted_cross_tenant` | `external_setup_required` | `production` | yes | Two-workspace hosted isolation acceptance remains open. |
@@ -45,7 +45,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `mpp`: `docs/production-readiness-acceptance.md`
 - `public_signup`: `docs/production-readiness-acceptance.md`
 - `production_edge`: `docs/production-readiness-acceptance.md`
-- `github_main_ruleset`: `docs/production-readiness-acceptance.md`
+- `github_main_ruleset`: `docs/github-main-ruleset-live-evidence-2026-09-15.md`, `ruleset/23461973`
 - `operational_alert_delivery`: `docs/production-readiness-acceptance.md`
 - `capacity_cost_calibration`: `docs/production-readiness-acceptance.md`
 - `hosted_cross_tenant`: `docs/production-readiness-acceptance.md`
