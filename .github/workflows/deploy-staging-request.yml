@@ -1,13 +1,14 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-ux-closure
+# Deployment request: 2026-09-15-promotion-evidence-automation
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision containing the completed human UX/docs/trust layer,
-# deterministic brand assets and browser-response presentation wrapper from PR #93.
+# Deploy the exact reviewed revision containing the self-contained hosted tenant-isolation
+# acceptance harness and promotion-controller evidence wiring.
 # Alert delivery remains inert unless a protected webhook destination is configured.
-# Protected staging retains its existing disabled Advanced policy; no canary start is requested.
+# Protected staging retains its existing Advanced environment policy; no canary start is requested.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
+# Disposable tenant workspaces are created only by the separate confirmation-gated acceptance run.
 # Existing accepted evidence is not repeated. The timestamp PITR diagnostic remains disabled.
 on:
   push:
