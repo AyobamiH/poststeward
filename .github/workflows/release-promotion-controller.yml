@@ -58,6 +58,5 @@ jobs:
         env:
           POSTSTEWARD_PROMOTION_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'restricted_staging' }}
           POSTSTEWARD_PROMOTION_MODE: report
-          POSTSTEWARD_EXPECTED_RELEASE: ${{ github.sha }}
           POSTSTEWARD_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.origin || 'https://poststeward-staging.woeinvests.workers.dev' }}
         run: node scripts/release-promotion-controller.mjs
