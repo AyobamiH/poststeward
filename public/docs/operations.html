@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Search PostSteward operations by name, tier and required agent scope." />
+    <title>PostSteward docs · Operations</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <script type="module" src="/docs-app.js"></script>
+  </head>
+  <body class="docs-app">
+    <header class="docs-topbar"><div class="docs-topbar-inner"><a class="wordmark" href="/" aria-label="PostSteward home"><img class="brand-mark" src="/favicon.svg" alt="" /><span>PostSteward</span></a><nav aria-label="Documentation shortcuts"><a href="/docs/">Docs home</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav><details class="docs-mobile-menu"><summary>Docs</summary><nav><a href="/docs/">Docs home</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav></details></div></header>
+    <div class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Operation reference navigation">
+        <div class="docs-sidebar-group"><p>Documentation</p><nav><a href="/docs/">Start here</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html" aria-current="page">Operation reference</a></nav></div>
+        <div class="docs-sidebar-group"><p>Machine reference</p><nav><a href="/catalog.json">catalog.json</a><a href="/help.json">help.json</a><a href="/openapi.json">OpenAPI</a><a href="/docs/operations.md">Raw Markdown</a></nav></div>
+      </aside>
+      <main class="docs-main" id="main-content">
+        <article class="docs-content">
+          <p class="eyebrow">GENERATED OPERATION CONTRACT</p>
+          <h1>Search the operations an agent can actually call.</h1>
+          <p class="docs-lead">This human view is rendered from <code>/catalog.json</code>, which is generated from the same operation catalogue used by HTTP, MCP and documentation checks. Runtime availability still comes from the deployed service.</p>
+          <div class="docs-runtime" id="docs-runtime" aria-label="Deployed runtime summary"><div><span>Runtime</span><strong>Loading…</strong></div></div>
+
+          <section class="docs-section" id="reference">
+            <div class="operations-toolbar" aria-label="Operation filters">
+              <label>Search<input id="operation-search" type="search" placeholder="publish, receipt, automation…" autocomplete="off" /></label>
+              <label>Tier<select id="operation-tier"><option value="">All tiers</option></select></label>
+              <label>Scope<select id="operation-scope"><option value="">All scopes</option></select></label>
+            </div>
+            <p id="operation-count" class="muted" aria-live="polite">Loading operations…</p>
+            <div id="operations-grid" class="operations-grid" aria-live="polite"><p class="docs-empty">Loading the generated catalogue…</p></div>
+            <p id="operations-empty" class="docs-empty" hidden>No operations match the current filters.</p>
+          </section>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>

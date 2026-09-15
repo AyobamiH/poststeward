@@ -5,3 +5,9 @@ dist/
 !.dev.vars.example
 .env*
 coverage/
+/public/apple-touch-icon.png
+/public/icon-192.png
+/public/icon-512.png
+/public/og-image.png
+/public/favicon.ico
+/ux-evidence/
