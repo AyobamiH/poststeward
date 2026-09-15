@@ -145,16 +145,34 @@ export async function runAlertFireDrill(env = process.env) {
   };
   const report = evaluateAlertEvidence(observation);
   demand(report.ready === true, "Operational alert fire drill did not satisfy the reviewed evidence contract.");
-  return { ...report, issue: issue.html_url, issueNumber: issue.number, issueClosed: true, evidenceBoundary: "Synthetic alert-class fire drill plus GitHub issue create/readback/close. It proves the out-of-band delivery path, not a real incident occurrence." };
+  return {
+    report: {
+      ...report,
+      issue: issue.html_url,
+      issueNumber: issue.number,
+      issueClosed: true,
+      evidenceBoundary: "Synthetic alert-class fire drill plus GitHub issue create/readback/close. It proves the out-of-band delivery path, not a real incident occurrence.",
+    },
+    observation,
+  };
+}
+
+export function alertOutputDocument(mode, result) {
+  return mode === "fire-drill" ? result.observation : result;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const mode = process.argv[2] || "surface";
   const runner = mode === "fire-drill" ? runAlertFireDrill : surfaceDurableAlerts;
-  runner().then((report) => {
+  runner().then((result) => {
+    const report = mode === "fire-drill" ? result.report : result;
     const serialized = JSON.stringify(report);
-    for (const secret of [process.env.GITHUB_TOKEN, process.env.CLOUDFLARE_API_TOKEN].filter(Boolean)) demand(!serialized.includes(secret), "Alert report attempted to emit protected material.");
-    if (process.env.POSTSTEWARD_ALERT_OUTPUT) writeFileSync(process.env.POSTSTEWARD_ALERT_OUTPUT, serialized + "\n", "utf8");
+    const output = JSON.stringify(alertOutputDocument(mode, result));
+    for (const secret of [process.env.GITHUB_TOKEN, process.env.CLOUDFLARE_API_TOKEN].filter(Boolean)) {
+      demand(!serialized.includes(secret), "Alert report attempted to emit protected material.");
+      demand(!output.includes(secret), "Alert evidence attempted to emit protected material.");
+    }
+    if (process.env.POSTSTEWARD_ALERT_OUTPUT) writeFileSync(process.env.POSTSTEWARD_ALERT_OUTPUT, output + "\n", "utf8");
     console.log((mode === "fire-drill" ? "POSTSTEWARD_ALERT_FIRE_DRILL " : "POSTSTEWARD_ALERT_CONTROL_PLANE ") + serialized);
   }).catch((error) => {
     console.error("POSTSTEWARD_ALERT_CONTROL_PLANE_FAILED " + JSON.stringify({ message: error instanceof Error ? error.message : "unknown_error" }));
