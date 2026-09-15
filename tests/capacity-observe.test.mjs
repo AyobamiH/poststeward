@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildCapacityObservation,
   capacityAnalyticsRequest,
+  classifyCapacitySampleAbsence,
   insufficientCapacityObservation,
 } from "../scripts/capacity-observe.mjs";
 
@@ -128,19 +129,73 @@ test("Cloudflare Workers and D1 analytics use their distinct time filter contrac
   );
 });
 
-test("absence of release-bound capacity samples is insufficient evidence, not an infrastructure failure", () => {
+test("zero-sample capacity evidence distinguishes registry, sweep and release drift", () => {
   const context = {
     release: "b".repeat(40),
     environment: "staging",
     origin: "https://poststeward-staging.example.com",
   };
-  const report = insufficientCapacityObservation(context, 123456);
+  assert.equal(
+    classifyCapacitySampleAbsence(context, {
+      registeredWorkspaces: 0,
+      totalObservationRows: 0,
+    }).blocker,
+    "no_registered_workspaces_for_capacity_observation",
+  );
+  assert.equal(
+    classifyCapacitySampleAbsence(context, {
+      registeredWorkspaces: 2,
+      totalObservationRows: 0,
+    }).blocker,
+    "no_capacity_sweep_rows_despite_registered_workspaces",
+  );
+  assert.equal(
+    classifyCapacitySampleAbsence(context, {
+      registeredWorkspaces: 2,
+      totalObservationRows: 4,
+      latestObservedAt: 123,
+      latestRelease: "a".repeat(40),
+    }).blocker,
+    "capacity_rows_only_for_older_release",
+  );
+  assert.equal(
+    classifyCapacitySampleAbsence(context, {
+      registeredWorkspaces: 2,
+      totalObservationRows: 4,
+      latestObservedAt: 123,
+      latestRelease: context.release,
+    }).blocker,
+    "no_current_release_capacity_samples_in_window",
+  );
+});
+
+test("absence report exposes only bounded operational counts and release timing", () => {
+  const context = {
+    release: "b".repeat(40),
+    environment: "staging",
+    origin: "https://poststeward-staging.example.com",
+  };
+  const report = insufficientCapacityObservation(
+    context,
+    {
+      registeredWorkspaces: 3,
+      totalObservationRows: 8,
+      latestObservedAt: 654321,
+      latestRelease: "a".repeat(40),
+    },
+    700000,
+  );
   assert.equal(report.evidenceClass, "insufficient_observation");
   assert.equal(report.release, context.release);
   assert.equal(report.environment, "staging");
   assert.equal(report.workspaces, 0);
   assert.equal(report.ready, false);
-  assert.deepEqual(report.blockers, [
-    "no_hosted_workspace_capacity_samples_for_release",
-  ]);
+  assert.deepEqual(report.diagnostics, {
+    registeredWorkspaces: 3,
+    totalObservationRows: 8,
+    latestObservedAt: 654321,
+    latestRelease: "a".repeat(40),
+  });
+  assert.deepEqual(report.blockers, ["capacity_rows_only_for_older_release"]);
+  assert.equal(JSON.stringify(report).includes("workspace_fingerprint"), false);
 });
