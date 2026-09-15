@@ -1,9 +1,10 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-operational-alert-outbox
+# Deployment request: 2026-09-15-cross-tenant-acceptance
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision adding durable, deduplicated semantic alert delivery.
-# Alert delivery remains inert unless a protected webhook destination is configured.
+# Deploy the exact reviewed revision containing hosted capacity observation and the
+# protected reversible cross-tenant acceptance path. The acceptance itself remains
+# a separate owner-triggered manual run using two short-lived disposable agent grants.
 # Protected staging still has Advanced master false, mode disabled and zero basis points.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
