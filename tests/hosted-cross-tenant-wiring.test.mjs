@@ -7,16 +7,28 @@ const workflow = readFileSync(
   "utf8",
 );
 const script = readFileSync("scripts/hosted-acceptance.mjs", "utf8");
+const harness = readFileSync(
+  "scripts/staging-cross-tenant-self-contained.mjs",
+  "utf8",
+);
 
-test("hosted tenant-isolation acceptance is explicit, main-only and protected by staging secrets", () => {
+test("hosted tenant-isolation acceptance is explicit, main-only and self-contained in protected staging", () => {
   assert.match(workflow, /RUN_CROSS_TENANT_ACCEPTANCE/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /github\.repository == 'AyobamiH\/poststeward'/);
   assert.match(workflow, /github\.actor == 'AyobamiH'/);
   assert.match(workflow, /environment:\n      name: staging/);
-  assert.match(workflow, /secrets\.CROSS_TENANT_AGENT_TOKEN_A/);
-  assert.match(workflow, /secrets\.CROSS_TENANT_AGENT_TOKEN_B/);
-  assert.match(workflow, /cross-tenant-state/);
+  assert.doesNotMatch(
+    workflow,
+    /CROSS_TENANT_AGENT_TOKEN_A|CROSS_TENANT_AGENT_TOKEN_B/,
+  );
+  assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /secrets\.ALLOWED_OWNER_EMAILS/);
+  assert.match(workflow, /staging-cross-tenant-self-contained\.mjs/);
+  assert.match(harness, /checkCrossTenantStateIsolation/);
+  assert.match(harness, /scopes: \["read", "publish"\]/);
+  assert.match(harness, /hours: 1/);
+  assert.match(harness, /"\/api\/lifecycle\/delete"/);
 });
 
 test("state-isolation mode uses only workspace status and reversible publishing pause", () => {
@@ -40,6 +52,9 @@ test("state-isolation mode uses only workspace status and reversible publishing 
 });
 
 test("cross-tenant acceptance binds hosted evidence to the exact workflow release", () => {
-  assert.match(script, /process\.env\.GITHUB_SHA/);
-  assert.match(script, /Hosted staging release does not equal the reviewed workflow revision/);
+  assert.match(harness, /process\.env\.GITHUB_SHA/);
+  assert.match(
+    harness,
+    /Hosted staging release does not equal the reviewed workflow SHA/,
+  );
 });
