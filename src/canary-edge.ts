@@ -1,5 +1,9 @@
 import edge, { Workspace as BaseWorkspace } from "./edge.ts";
 import { advancedRolloutDecision } from "./advanced-rollout.ts";
+import {
+  flushOperationalAlerts,
+  sweepOperationalConditions,
+} from "./operational-alerts.ts";
 import type { Env } from "./types.ts";
 
 function storedWorkspace(ctx: DurableObjectState) {
@@ -43,4 +47,49 @@ export class Workspace extends BaseWorkspace {
   }
 }
 
-export default edge;
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    return edge.fetch(request, env, ctx);
+  },
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ) {
+    // Identity expiry remains on its established hourly cadence. The five-minute
+    // trigger only sweeps and delivers the durable alert outbox.
+    if (controller.cron === "17 * * * *")
+      await edge.scheduled(controller, env, ctx);
+
+    try {
+      await sweepOperationalConditions(env);
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "operational_alert_sweep_failed",
+          release: env.RELEASE_SHA,
+          code: error instanceof Error ? error.name : "UnknownError",
+        }),
+      );
+    }
+    try {
+      const result = await flushOperationalAlerts(env);
+      if (result.dead > 0)
+        console.error(
+          JSON.stringify({
+            event: "operational_alert_delivery_dead",
+            release: env.RELEASE_SHA,
+            count: result.dead,
+          }),
+        );
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "operational_alert_flush_failed",
+          release: env.RELEASE_SHA,
+          code: error instanceof Error ? error.name : "UnknownError",
+        }),
+      );
+    }
+  },
+} satisfies ExportedHandler<Env>;
