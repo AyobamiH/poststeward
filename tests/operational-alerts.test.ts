@@ -43,7 +43,7 @@ async function rows(db: D1Database) {
   return result.results;
 }
 
-test("alert enqueue deduplicates one incident window without storing raw subject", async () => {
+test("same-severity alert deduplicates without storing raw subject", async () => {
   const { mf, db, env } = await fixture();
   try {
     const now = Date.UTC(2026, 8, 15, 12);
@@ -62,7 +62,7 @@ test("alert enqueue deduplicates one incident window without storing raw subject
       env,
       {
         class: "recovery_state",
-        severity: "critical",
+        severity: "warning",
         code: "RECOVERY_PREPARED_STALE",
         subject: "workspace-secret-id:plan-secret-id",
         dedupe: "workspace-secret-id:plan-secret-id:prepared",
@@ -72,11 +72,48 @@ test("alert enqueue deduplicates one incident window without storing raw subject
     const stored = await rows(db);
     assert.equal(stored.length, 1);
     assert.equal(stored[0].occurrences, 2);
-    assert.equal(stored[0].severity, "critical");
     assert.equal(first.id, second.id);
     assert.equal(stored[0].subject_fingerprint.length, 24);
     assert.ok(!JSON.stringify(stored).includes("workspace-secret-id"));
     assert.ok(!JSON.stringify(stored).includes("plan-secret-id"));
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("critical escalation becomes a distinct durable alert event", async () => {
+  const { mf, db, env } = await fixture();
+  try {
+    const now = Date.UTC(2026, 8, 15, 12);
+    const warning = await enqueueOperationalAlert(
+      env,
+      {
+        class: "recovery_state",
+        severity: "warning",
+        code: "RECOVERY_PREPARED_STALE",
+        subject: "workspace:plan",
+        dedupe: "workspace:plan:prepared",
+      },
+      now,
+    );
+    const critical = await enqueueOperationalAlert(
+      env,
+      {
+        class: "recovery_state",
+        severity: "critical",
+        code: "RECOVERY_PREPARED_STALE",
+        subject: "workspace:plan",
+        dedupe: "workspace:plan:prepared",
+      },
+      now + 1000,
+    );
+    assert.notEqual(warning.id, critical.id);
+    const stored = await rows(db);
+    assert.equal(stored.length, 2);
+    assert.deepEqual(
+      stored.map((row) => row.severity).sort(),
+      ["critical", "warning"],
+    );
   } finally {
     await mf.dispose();
   }
