@@ -169,6 +169,8 @@ export interface Env {
   STRIPE_PRICE_ID?: string;
   STRIPE_PROFILE_ID?: string;
   MPP_SECRET?: string;
+  OPERATIONAL_ALERT_WEBHOOK_URL?: string;
+  OPERATIONAL_ALERT_WEBHOOK_TOKEN?: string;
   ADVANCED_ENABLED: string;
   ADVANCED_ROLLOUT_MODE?: "disabled" | "canary" | "global";
   ADVANCED_CANARY_BPS?: string;
