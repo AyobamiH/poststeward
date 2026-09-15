@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Run reversible tenant-isolation acceptance with two disposable staging agent grants
+        description: Run reversible tenant-isolation acceptance with two synthetic disposable staging workspaces
         required: true
         type: choice
         options:
@@ -29,6 +29,28 @@ jobs:
     timeout-minutes: 15
     environment:
       name: staging
+    env:
+      DEPLOY_ENV: staging
+      ENCRYPTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
+      OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+      GITHUB_APP_CLIENT_ID: ${{ vars.POSTSTEWARD_GITHUB_APP_CLIENT_ID }}
+      GITHUB_APP_SLUG: ${{ vars.POSTSTEWARD_GITHUB_APP_SLUG }}
+      X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
+      THREADS_OAUTH_CLIENT_ID: ${{ vars.THREADS_OAUTH_CLIENT_ID }}
+      LINKEDIN_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
+      LINKEDIN_MEMBER_READBACK: ${{ vars.LINKEDIN_MEMBER_READBACK }}
+      STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
+      STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
+      ADVANCED_ENABLED: ${{ vars.ADVANCED_ENABLED }}
+      ADVANCED_ROLLOUT_MODE: ${{ vars.ADVANCED_ROLLOUT_MODE }}
+      ADVANCED_CANARY_BPS: ${{ vars.ADVANCED_CANARY_BPS }}
+      ADVANCED_CANARY_SEED: ${{ vars.ADVANCED_CANARY_SEED }}
+      WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -38,9 +60,12 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm run verify
-      - name: Prove reversible hosted workspace isolation
+      - name: Configure exact staging bindings
         env:
-          POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN }}
-          POSTSTEWARD_AGENT_TOKEN_A: ${{ secrets.CROSS_TENANT_AGENT_TOKEN_A }}
-          POSTSTEWARD_AGENT_TOKEN_B: ${{ secrets.CROSS_TENANT_AGENT_TOKEN_B }}
-        run: node scripts/hosted-acceptance.mjs cross-tenant-state
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/configure-deploy.mjs
+      - name: Create disposable grants, prove isolation, revoke and erase
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+        run: node scripts/staging-cross-tenant-self-contained.mjs
