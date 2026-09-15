@@ -173,11 +173,14 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "github_main_ruleset",
-    state: "external_setup_required",
+    state: "live_verified",
     scope: "production",
-    blocking: true,
-    summary: "Required server-side main ruleset is not yet evidenced; merged-PR provenance is not a substitute.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+    blocking: false,
+    summary: "Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy.",
+    evidence: [
+      "docs/github-main-ruleset-live-evidence-2026-09-15.md",
+      "ruleset/23461973",
+    ],
   },
   {
     id: "operational_alert_delivery",
