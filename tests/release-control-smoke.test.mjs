@@ -22,6 +22,12 @@ function readiness(overrides = {}) {
       stripe_sandbox_lifecycle: { state: "live_verified" },
       protected_root_cutover: { state: "live_verified" },
       exact_recovery_checkpoints: { state: "live_verified" },
+      github_main_ruleset: { state: "live_verified", blocking: false },
+      public_signup: {
+        state: "disabled_policy",
+        scope: "public_launch",
+        blocking: true,
+      },
       threads_oauth_callback: { state: "blocked_external" },
       advanced_rollout: { state: "disabled_policy" },
     },
@@ -33,19 +39,24 @@ function readiness(overrides = {}) {
         signupMode: "restricted",
       },
     },
-    evidenceStillExternal: ["threads_oauth_callback", "native_webmcp"],
+    evidenceStillExternal: [
+      "threads_oauth_callback",
+      "native_webmcp",
+      "public_signup",
+    ],
     ...overrides,
   };
 }
 
 function gates(overrides = {}) {
   const rows = [
-    ["owner_google_signin", "live_verified", false],
-    ["exact_recovery_checkpoints", "live_verified", false],
-    ["approximate_timestamp_pitr", "blocked_external", false],
-    ["native_webmcp", "unavailable_capability", false],
-    ["github_main_ruleset", "external_setup_required", true],
-  ].map(([id, state, blocking]) => ({ id, state, blocking }));
+    ["owner_google_signin", "live_verified", false, "restricted_staging"],
+    ["exact_recovery_checkpoints", "live_verified", false, "restricted_staging"],
+    ["approximate_timestamp_pitr", "blocked_external", false, "restricted_staging"],
+    ["native_webmcp", "unavailable_capability", false, "restricted_staging"],
+    ["github_main_ruleset", "live_verified", false, "production"],
+    ["public_signup", "disabled_policy", true, "public_launch"],
+  ].map(([id, state, blocking, scope]) => ({ id, state, blocking, scope }));
   return { schemaVersion: 1, gates: rows, ...overrides };
 }
 
@@ -84,6 +95,40 @@ test("hosted release control fails when the public ledger contradicts reviewed e
     value.gates = value.gates.map((gate) =>
       gate.id === "exact_recovery_checkpoints"
         ? { ...gate, state: "deployed" }
+        : gate,
+    );
+    return Response.json(value, { headers: secureHeaders });
+  });
+  assert.equal(report.passed, false);
+  assert.equal(report.checks[1].passed, false);
+});
+
+test("hosted release control rejects stale pre-acceptance GitHub governance state", async () => {
+  const report = await verifyReleaseControl(origin, release, async (url) => {
+    const path = new URL(url).pathname;
+    if (path === "/readiness.json")
+      return Response.json(readiness(), { headers: secureHeaders });
+    const value = gates();
+    value.gates = value.gates.map((gate) =>
+      gate.id === "github_main_ruleset"
+        ? { ...gate, state: "external_setup_required", blocking: true }
+        : gate,
+    );
+    return Response.json(value, { headers: secureHeaders });
+  });
+  assert.equal(report.passed, false);
+  assert.equal(report.checks[1].passed, false);
+});
+
+test("hosted release control rejects public admission incorrectly coupled to technical production", async () => {
+  const report = await verifyReleaseControl(origin, release, async (url) => {
+    const path = new URL(url).pathname;
+    if (path === "/readiness.json")
+      return Response.json(readiness(), { headers: secureHeaders });
+    const value = gates();
+    value.gates = value.gates.map((gate) =>
+      gate.id === "public_signup"
+        ? { ...gate, scope: "production" }
         : gate,
     );
     return Response.json(value, { headers: secureHeaders });
