@@ -2,7 +2,7 @@ name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
 # Deployment request: 2026-09-15-release-promotion-controller
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that separates restricted production readiness from
+# Deploy the exact reviewed revision that separates restricted release readiness from
 # later public admission and exposes the fail-closed promotion controller's gate model.
 # Protected staging still has Advanced master false, mode disabled and zero basis points.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
