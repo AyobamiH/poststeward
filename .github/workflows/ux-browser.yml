@@ -25,11 +25,24 @@ jobs:
           mkdir -p ux-evidence
           git archive --format=tar HEAD > ux-evidence/source.tar
           git rev-parse HEAD > ux-evidence/revision.txt
-      - name: Install isolated browser tooling
+      - name: Read current main for integration review
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+          path: ux-main
+          persist-credentials: false
+      - name: Preserve integration reference
         run: |
-          npm install --prefix tools/browser --ignore-scripts
-          cp tools/browser/package-lock.json ux-evidence/browser-package-lock.json
+          git -C ux-main archive --format=tar HEAD > ux-evidence/main-source.tar
+          git -C ux-main rev-parse HEAD > ux-evidence/main-revision.txt
+          rm -rf ux-main
+      - name: Install locked runtime and browser tooling
+        run: |
+          npm ci
+          npm ci --prefix tools/browser --ignore-scripts
           npm audit --prefix tools/browser --audit-level=high
+          cp tools/browser/node_modules/axe-core/axe.min.js ux-evidence/axe.min.js
+          npm run build
           cd tools/browser
           npx --no-install playwright install --with-deps chromium
       - name: Browser accessibility and interaction acceptance
