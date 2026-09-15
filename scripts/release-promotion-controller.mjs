@@ -4,7 +4,7 @@ import { evaluateCapacity } from "./capacity-calibration.mjs";
 import { evaluateSloObservation } from "./slo-evaluate.mjs";
 import { evaluateAlertEvidence } from "./operational-alert-evidence.mjs";
 import { inspectProductionEdge } from "./production-edge-check.mjs";
-import { checkCrossTenantIsolation } from "./hosted-acceptance.mjs";
+import { checkCrossTenantStateIsolation } from "./hosted-acceptance.mjs";
 import { assessObservation, assessReleaseBinding, evaluatedObservation,
   promotionExitCode, validateReviewedLedger } from "./promotion-evidence.mjs";
 
@@ -205,14 +205,25 @@ export async function collectObservations(env) {
       expectedRelease,
     });
   }
-  if (env.POSTSTEWARD_AGENT_TOKEN_A || env.POSTSTEWARD_AGENT_TOKEN_B || env.POSTSTEWARD_FOREIGN_DELIVERY_ID) {
-    demand(env.POSTSTEWARD_AGENT_TOKEN_A && env.POSTSTEWARD_AGENT_TOKEN_B && env.POSTSTEWARD_FOREIGN_DELIVERY_ID,
+  if (env.POSTSTEWARD_AGENT_TOKEN_A || env.POSTSTEWARD_AGENT_TOKEN_B) {
+    demand(env.POSTSTEWARD_AGENT_TOKEN_A && env.POSTSTEWARD_AGENT_TOKEN_B,
       "Cross-tenant observation configuration is incomplete.");
     demand(/^[a-f0-9]{40}$/.test(expectedRelease || ""), "Cross-tenant observation needs the exact expected release.");
-    const crossTenant = await checkCrossTenantIsolation(env.POSTSTEWARD_ORIGIN,
-      env.POSTSTEWARD_AGENT_TOKEN_A, env.POSTSTEWARD_AGENT_TOKEN_B,
-      env.POSTSTEWARD_FOREIGN_DELIVERY_ID, undefined, expectedRelease);
-    observations.hosted_cross_tenant = { ...crossTenant, ready: true };
+    const crossTenant = await checkCrossTenantStateIsolation(
+      env.POSTSTEWARD_ORIGIN,
+      env.POSTSTEWARD_AGENT_TOKEN_A,
+      env.POSTSTEWARD_AGENT_TOKEN_B,
+      expectedRelease,
+    );
+    observations.hosted_cross_tenant = {
+      ...crossTenant,
+      schemaVersion: 1,
+      evidenceClass: "hosted_observation",
+      environment: "staging",
+      origin: env.POSTSTEWARD_ORIGIN,
+      release: crossTenant.release,
+      ready: crossTenant.ready === true,
+    };
   }
   return observations;
 }
