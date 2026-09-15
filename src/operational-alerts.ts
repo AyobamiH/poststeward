@@ -136,8 +136,6 @@ export async function enqueueOperationalAlert(
   const subjectFingerprint = input.subject
     ? (await sha256(input.subject)).slice(0, 24)
     : null;
-  // Severity is part of event identity. Repeated warnings dedupe, while a
-  // critical escalation cannot disappear behind an already-delivered warning.
   const dedupeKey = await sha256(
     [
       input.class,
@@ -356,8 +354,7 @@ export async function flushOperationalAlerts(
               ? "WEBHOOK_RETRYABLE_HTTP"
               : "WEBHOOK_PERMANENT_HTTP",
             retryable,
-            retryAfterSeconds:
-              status === 429 ? retryAfter(response, now) : undefined,
+            retryAfterSeconds: retryable ? retryAfter(response, now) : undefined,
           },
           now,
         );
