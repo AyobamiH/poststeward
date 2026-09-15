@@ -142,27 +142,44 @@ test("capacity calibration demands at least thirty percent headroom", () => {
   assert.equal(tight.verdict, "insufficient_headroom");
 });
 
-test("GitHub main protection evaluator requires review, Verify, deletion and force-push protection", () => {
+test("GitHub main protection requires PR trail, signed squash, actual verify check and destructive-ref protection", () => {
   const result = evaluateRulesets([
     {
+      name: "PostSteward main protection",
       enforcement: "active",
       target: "branch",
+      bypass_actors: [],
       conditions: { ref_name: { include: ["~DEFAULT_BRANCH"] } },
       rules: [
         { type: "deletion" },
         { type: "non_fast_forward" },
+        { type: "required_signatures" },
+        { type: "required_linear_history" },
         {
           type: "pull_request",
-          parameters: { required_approving_review_count: 1 },
+          parameters: {
+            allowed_merge_methods: ["squash"],
+            required_approving_review_count: 0,
+            required_review_thread_resolution: true,
+            require_last_push_approval: false,
+          },
         },
         {
           type: "required_status_checks",
-          parameters: { required_status_checks: [{ context: "Verify" }] },
+          parameters: {
+            strict_required_status_checks_policy: true,
+            required_status_checks: [
+              { context: "verify", integration_id: 15368 },
+            ],
+          },
         },
       ],
     },
   ]);
   assert.equal(result.ready, true);
+  assert.equal(result.reviewApprovalsRequired, 0);
+  assert.equal(result.requiredCheckContext, "verify");
+  assert.equal(result.requiredCheckIntegrationId, 15368);
   assert.equal(evaluateRulesets([]).ready, false);
 });
 

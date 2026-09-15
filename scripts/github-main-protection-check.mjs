@@ -1,5 +1,10 @@
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+
+const canonicalRuleset = JSON.parse(
+  readFileSync(new URL("../.github/rulesets/main-protection.json", import.meta.url), "utf8"),
+);
 
 function appliesToMain(ruleset) {
   if (ruleset.target && ruleset.target !== "branch") return false;
@@ -9,40 +14,75 @@ function appliesToMain(ruleset) {
   );
 }
 
-export function evaluateRulesets(rulesets, requiredCheck = "Verify") {
-  const active = rulesets.filter(
-    (ruleset) => ruleset.enforcement === "active" && appliesToMain(ruleset),
+function ruleOf(ruleset, type) {
+  return (ruleset.rules || []).find((rule) => rule.type === type);
+}
+
+export function evaluateRulesets(rulesets, expected = canonicalRuleset) {
+  const candidates = rulesets.filter(
+    (ruleset) =>
+      ruleset.name === expected.name &&
+      ruleset.enforcement === "active" &&
+      appliesToMain(ruleset),
   );
-  const ruleTypes = new Set(active.flatMap((ruleset) => (ruleset.rules || []).map((rule) => rule.type)));
-  const statusContexts = new Set(
-    active.flatMap((ruleset) =>
-      (ruleset.rules || [])
-        .filter((rule) => rule.type === "required_status_checks")
-        .flatMap((rule) => rule.parameters?.required_status_checks || [])
-        .map((check) => check.context),
-    ),
+  const ruleset = candidates.length === 1 ? candidates[0] : undefined;
+  const rules = new Set((ruleset?.rules || []).map((rule) => rule.type));
+  const pullRequest = ruleOf(ruleset || {}, "pull_request")?.parameters || {};
+  const status = ruleOf(ruleset || {}, "required_status_checks")?.parameters || {};
+  const expectedStatus = ruleOf(expected, "required_status_checks")?.parameters
+    ?.required_status_checks?.[0];
+  const matchingCheck = (status.required_status_checks || []).find(
+    (check) =>
+      check.context === expectedStatus?.context &&
+      Number(check.integration_id || 0) === Number(expectedStatus?.integration_id || 0),
   );
-  const reviewRules = active
-    .flatMap((ruleset) => ruleset.rules || [])
-    .filter((rule) => rule.type === "pull_request");
-  const reviewRequired = reviewRules.some(
-    (rule) => Number(rule.parameters?.required_approving_review_count || 0) >= 1,
+  const bypassActors = ruleset?.bypass_actors || [];
+  const directBypass = bypassActors.filter(
+    (actor) => actor.bypass_mode !== "pull_request",
   );
+
   const result = {
-    activeRulesetsForMain: active.length,
-    deletionBlocked: ruleTypes.has("deletion"),
-    forcePushBlocked: ruleTypes.has("non_fast_forward"),
-    requiredCheckPresent: statusContexts.has(requiredCheck),
-    reviewRequired,
+    canonicalRulesetMatches: candidates.length === 1,
+    activeRulesetsForMain: rulesets.filter(
+      (item) => item.enforcement === "active" && appliesToMain(item),
+    ).length,
+    pullRequestRequired: rules.has("pull_request"),
+    deletionBlocked: rules.has("deletion"),
+    forcePushBlocked: rules.has("non_fast_forward"),
+    signedCommitsRequired: rules.has("required_signatures"),
+    linearHistoryRequired: rules.has("required_linear_history"),
+    requiredCheckPresent: Boolean(matchingCheck),
+    requiredCheckContext: expectedStatus?.context || null,
+    requiredCheckIntegrationId: expectedStatus?.integration_id || null,
+    strictStatusChecks: status.strict_required_status_checks_policy === true,
+    reviewApprovalsRequired:
+      Number(pullRequest.required_approving_review_count || 0),
+    reviewThreadResolutionRequired:
+      pullRequest.required_review_thread_resolution === true,
+    lastPushApprovalRequired: pullRequest.require_last_push_approval === true,
+    allowedMergeMethods: Array.isArray(pullRequest.allowed_merge_methods)
+      ? [...pullRequest.allowed_merge_methods].sort()
+      : [],
+    directBypassActors: directBypass.length,
   };
+
   return {
     ...result,
     ready:
-      result.activeRulesetsForMain > 0 &&
+      result.canonicalRulesetMatches &&
+      result.pullRequestRequired &&
       result.deletionBlocked &&
       result.forcePushBlocked &&
+      result.signedCommitsRequired &&
+      result.linearHistoryRequired &&
       result.requiredCheckPresent &&
-      result.reviewRequired,
+      result.strictStatusChecks &&
+      result.reviewApprovalsRequired === 0 &&
+      result.reviewThreadResolutionRequired &&
+      result.lastPushApprovalRequired === false &&
+      result.allowedMergeMethods.length === 1 &&
+      result.allowedMergeMethods[0] === "squash" &&
+      result.directBypassActors === 0,
   };
 }
 
@@ -51,7 +91,7 @@ async function github(path, token) {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
+      "X-GitHub-Api-Version": "2026-03-10",
       "User-Agent": "poststeward-governance-check",
     },
     redirect: "error",
@@ -66,9 +106,14 @@ export async function inspectMainProtection(repository, token) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository || ""))
     throw new Error("GITHUB_REPOSITORY must be owner/name.");
   if (!token || token.length < 20)
-    throw new Error("GITHUB_TOKEN with repository metadata/ruleset read access is required.");
+    throw new Error(
+      "GITHUB_TOKEN with repository Administration read access is required.",
+    );
   const [owner, name] = repository.split("/");
-  const listed = await github(`/repos/${owner}/${name}/rulesets?includes_parents=true`, token);
+  const listed = await github(
+    `/repos/${owner}/${name}/rulesets?includes_parents=true`,
+    token,
+  );
   const details = [];
   for (const item of listed) {
     const detail = await github(`/repos/${owner}/${name}/rulesets/${item.id}`, token);
