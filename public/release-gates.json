@@ -158,7 +158,7 @@
     {
       "id": "public_signup",
       "state": "disabled_policy",
-      "scope": "production",
+      "scope": "public_launch",
       "blocking": true,
       "summary": "Public signup remains restricted until production/support/abuse controls are accepted.",
       "evidence": [
