@@ -221,7 +221,7 @@ export function evaluatePromotion({
       provider,
       {
         configured: readiness?.providers?.[provider]?.oauth === true,
-        callback: `${readiness?.origin || ""}`,
+        callback: `${readiness?.origin || ""}/connections/oauth/${provider}/callback`,
         requiredScopes: readiness?.providers?.[provider]?.requiredScopes || [],
         optionalScopes: readiness?.providers?.[provider]?.optionalScopes || [],
         capabilities: readiness?.providers?.[provider]?.capabilities || null,
@@ -243,6 +243,7 @@ export function evaluatePromotion({
     observations,
     providerContracts,
     nextActions,
+    nextAction: nextActions[0] || null,
     promotion: {
       ready: policyHealthy && unresolvedRequired.length === 0,
       blockers: [
@@ -281,7 +282,7 @@ function summary(report) {
   return lines.join("\n");
 }
 
-async function collectObservations(env, readiness) {
+async function collectObservations(env) {
   const observations = {};
 
   if (env.POSTSTEWARD_SLO_OBSERVATION)
@@ -336,7 +337,7 @@ async function main() {
   const readiness = await fetchReadiness(origin);
   readiness.origin = origin;
   const ledger = readJson("public/release-gates.json", "reviewed gate ledger");
-  const observations = await collectObservations(env, readiness);
+  const observations = await collectObservations(env);
   const report = evaluatePromotion({ target, ledger, readiness, observations });
 
   const serialized = JSON.stringify(report);
