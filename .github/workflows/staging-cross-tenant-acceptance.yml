@@ -1,0 +1,46 @@
+name: Staging hosted cross-tenant acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Run reversible tenant-isolation acceptance with two disposable staging agent grants
+        required: true
+        type: choice
+        options:
+          - DO_NOT_RUN
+          - RUN_CROSS_TENANT_ACCEPTANCE
+        default: DO_NOT_RUN
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-hosted-cross-tenant-acceptance
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'AyobamiH/poststeward' &&
+      github.actor == 'AyobamiH' &&
+      inputs.confirmation == 'RUN_CROSS_TENANT_ACCEPTANCE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run verify
+      - name: Prove reversible hosted workspace isolation
+        env:
+          POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN }}
+          POSTSTEWARD_AGENT_TOKEN_A: ${{ secrets.CROSS_TENANT_AGENT_TOKEN_A }}
+          POSTSTEWARD_AGENT_TOKEN_B: ${{ secrets.CROSS_TENANT_AGENT_TOKEN_B }}
+        run: node scripts/hosted-acceptance.mjs cross-tenant-state
