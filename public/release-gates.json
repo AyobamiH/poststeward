@@ -177,12 +177,13 @@
     },
     {
       "id": "github_main_ruleset",
-      "state": "external_setup_required",
+      "state": "live_verified",
       "scope": "production",
-      "blocking": true,
-      "summary": "Required server-side main ruleset is not yet evidenced; merged-PR provenance is not a substitute.",
+      "blocking": false,
+      "summary": "Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy.",
       "evidence": [
-        "docs/production-readiness-acceptance.md"
+        "docs/github-main-ruleset-live-evidence-2026-09-15.md",
+        "ruleset/23461973"
       ]
     },
     {
