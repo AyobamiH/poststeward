@@ -1,6 +1,6 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-production-ux-closure
+# Deployment request: 2026-09-15-ux-closure
 # Updating this file on main is an explicit staging deployment request.
 # Deploy the exact reviewed revision containing the completed human UX/docs/trust layer,
 # deterministic brand assets and browser-response presentation wrapper from PR #93.
