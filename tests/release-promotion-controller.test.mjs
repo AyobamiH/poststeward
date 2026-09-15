@@ -108,12 +108,32 @@ test("provider callbacks and owner actions are reported exactly without granting
     report.providerContracts.x.callback,
     "https://poststeward-staging.example.com/connections/oauth/x/callback",
   );
-  const x = report.nextActions.find((entry) => entry.gate === "x_oauth");
+  const x = report.optionalActions.find((entry) => entry.gate === "x_oauth");
   assert.equal(
     x.action,
     "register_x_application_and_store_protected_client_authority",
   );
   assert.equal(x.evidenceReady, false);
+});
+
+test("production next action cannot be displaced by an optional provider gate", () => {
+  const report = evaluatePromotion({
+    target: "production",
+    ledger: ledger(),
+    readiness: readiness(),
+    observations: {},
+  });
+  assert.equal(report.nextAction.gate, "production_edge");
+  assert.deepEqual(
+    report.nextActions.map((entry) => entry.gate),
+    [
+      "production_edge",
+      "operational_alert_delivery",
+      "capacity_cost_calibration",
+      "hosted_cross_tenant",
+    ],
+  );
+  assert.ok(report.optionalActions.some((entry) => entry.gate === "x_oauth"));
 });
 
 test("live evidence is surfaced for review but never auto-advances a gate", () => {
