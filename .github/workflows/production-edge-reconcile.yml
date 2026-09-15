@@ -1,0 +1,43 @@
+name: Production edge reconciliation
+on:
+  workflow_dispatch:
+    inputs:
+      origin:
+        description: Exact custom production HTTPS origin, for example https://service.example.com
+        required: true
+        type: string
+      zone:
+        description: Exact active Cloudflare zone containing the hostname
+        required: true
+        type: string
+      confirmation:
+        description: Apply only the reviewed host-scoped WAF and auth rate-limit rules
+        required: true
+        type: choice
+        options:
+          - DO_NOT_APPLY
+          - APPLY_POSTSTEWARD_PRODUCTION_EDGE
+        default: DO_NOT_APPLY
+permissions:
+  contents: read
+jobs:
+  reconcile:
+    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main' && github.actor == 'AyobamiH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Reconcile canonical Cloudflare zone controls
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          POSTSTEWARD_PRODUCTION_ORIGIN: ${{ inputs.origin }}
+          CLOUDFLARE_ZONE_NAME: ${{ inputs.zone }}
+          POSTSTEWARD_APPLY_PRODUCTION_EDGE: ${{ inputs.confirmation }}
+        run: node scripts/production-edge-apply.mjs
