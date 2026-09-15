@@ -54,7 +54,7 @@ async function queryGraphql(accountId, scriptName, databaseId, token, start, end
       accounts(filter: { accountTag: $accountTag }) {
         workersInvocationsAdaptive(limit: 10000, filter: { scriptName: $scriptName, datetime_geq: $start, datetime_leq: $end }) {
           sum { requests subrequests errors }
-          quantiles { cpuTimeP50 cpuTimeP99 memoryUsageBytesP99 }
+          quantiles { cpuTimeP50 cpuTimeP99 }
         }
         d1AnalyticsAdaptiveGroups(limit: 10000, filter: { databaseId: $databaseId, datetime_geq: $start, datetime_leq: $end }) {
           sum { readQueries writeQueries rowsRead rowsWritten queryBatchResponseBytes queryBatchTimeMs }
@@ -120,7 +120,6 @@ export function buildCapacityObservation({
     peakActiveSchedules: boundedInteger(highWater.peakActiveSchedules, "peakActiveSchedules"),
     peakProfiles: boundedInteger(highWater.peakProfiles, "peakProfiles"),
     requestsPerWorkspaceDay: boundedInteger(highWater.requestsPerWorkspaceDay, "requestsPerWorkspaceDay"),
-    // Alarm cycles are a conservative upper-bound proxy for provider polling cycles.
     providerPollsPerWorkspaceDay: boundedInteger(highWater.alarmCyclesPerWorkspaceDay, "alarmCyclesPerWorkspaceDay"),
   };
   const calibrated = evaluateCapacity(observation);
@@ -145,6 +144,10 @@ export function buildCapacityObservation({
     evidenceClass: "hosted_observation",
     windowDays,
     ...observation,
+    providerPollObservation: {
+      method: "workspace_alarm_cycles_upper_bound",
+      note: "Alarm cycles are a conservative upper-bound proxy for provider polling cycles; they never understate scheduler wake frequency.",
+    },
     calibration: calibrated,
     cloudflare: { worker: workerAnalytics, d1: d1Analytics },
     providerQuota: providerQuotaObserved ? providerQuota : null,
@@ -210,7 +213,7 @@ async function main() {
   );
   const worker = {
     ...sumGroups(graphql.workersInvocationsAdaptive, ["requests", "subrequests", "errors"]),
-    ...maxGroups(graphql.workersInvocationsAdaptive, ["cpuTimeP50", "cpuTimeP99", "memoryUsageBytesP99"]),
+    ...maxGroups(graphql.workersInvocationsAdaptive, ["cpuTimeP50", "cpuTimeP99"]),
   };
   const d1 = sumGroups(graphql.d1AnalyticsAdaptiveGroups, [
     "readQueries",
