@@ -7,16 +7,19 @@ const workflow = readFileSync(
   "utf8",
 );
 const script = readFileSync("scripts/hosted-acceptance.mjs", "utf8");
+const fixture = readFileSync("scripts/staging-cross-tenant-fixture.mjs", "utf8");
 
-test("hosted tenant-isolation acceptance is explicit, main-only and protected by staging secrets", () => {
+test("hosted tenant-isolation acceptance is explicit, main-only and protected by staging authority", () => {
   assert.match(workflow, /RUN_CROSS_TENANT_ACCEPTANCE/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /github\.repository == 'AyobamiH\/poststeward'/);
   assert.match(workflow, /github\.actor == 'AyobamiH'/);
   assert.match(workflow, /environment:\n      name: staging/);
-  assert.match(workflow, /secrets\.CROSS_TENANT_AGENT_TOKEN_A/);
-  assert.match(workflow, /secrets\.CROSS_TENANT_AGENT_TOKEN_B/);
-  assert.match(workflow, /cross-tenant-state/);
+  assert.match(workflow, /vars\.CLOUDFLARE_ACCOUNT_ID/);
+  assert.match(workflow, /vars\.D1_ID/);
+  assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
+  assert.match(workflow, /staging-cross-tenant-fixture\.mjs/);
+  assert.doesNotMatch(workflow, /CROSS_TENANT_AGENT_TOKEN_A|CROSS_TENANT_AGENT_TOKEN_B/);
 });
 
 test("state-isolation mode uses only workspace status and reversible publishing pause", () => {
@@ -39,7 +42,10 @@ test("state-isolation mode uses only workspace status and reversible publishing 
   assert.match(body, /rawWorkspaceIdsEmitted: false/);
 });
 
-test("cross-tenant acceptance binds hosted evidence to the exact workflow release", () => {
-  assert.match(script, /process\.env\.GITHUB_SHA/);
-  assert.match(script, /Hosted staging release does not equal the reviewed workflow revision/);
+test("ephemeral observer binds isolation evidence to the exact hosted staging release", () => {
+  assert.match(fixture, /await hostedRelease\(origin\)/);
+  assert.match(fixture, /body\?\.environment === "staging"/);
+  assert.match(fixture, /checkCrossTenantStateIsolation\(origin, secrets\[0\], secrets\[1\], release\)/);
+  assert.match(fixture, /observerRelease: env\.GITHUB_SHA/);
+  assert.doesNotMatch(fixture, /expectedRelease = env\.GITHUB_SHA/);
 });
