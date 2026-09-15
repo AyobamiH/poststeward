@@ -77,11 +77,7 @@ export function capacityAnalyticsRequest(accountId, scriptName, databaseId, star
 async function queryGraphql(accountId, scriptName, databaseId, token, start, end) {
   const value = await cloudflareJson(
     "https://api.cloudflare.com/client/v4/graphql",
-    {
-      toString() {
-        return token;
-      },
-    }.toString(),
+    token,
     {
       method: "POST",
       body: JSON.stringify(capacityAnalyticsRequest(accountId, scriptName, databaseId, start, end)),
@@ -181,17 +177,63 @@ export function bindCapacityObservation(report, context, highWater, collectedAt 
   };
 }
 
-export function insufficientCapacityObservation(context, collectedAt = Date.now()) {
+export function classifyCapacitySampleAbsence(context, diagnostics = {}) {
+  const registeredWorkspaces = boundedInteger(
+    diagnostics.registeredWorkspaces || 0,
+    "registeredWorkspaces",
+  );
+  const totalObservationRows = boundedInteger(
+    diagnostics.totalObservationRows || 0,
+    "totalObservationRows",
+  );
+  const latestObservedAt = diagnostics.latestObservedAt == null
+    ? null
+    : boundedInteger(diagnostics.latestObservedAt, "latestObservedAt");
+  const latestRelease = /^[a-f0-9]{40}$/.test(diagnostics.latestRelease || "")
+    ? diagnostics.latestRelease
+    : null;
+
+  let blocker = "no_hosted_workspace_capacity_samples_for_release";
+  if (registeredWorkspaces === 0)
+    blocker = "no_registered_workspaces_for_capacity_observation";
+  else if (totalObservationRows === 0)
+    blocker = "no_capacity_sweep_rows_despite_registered_workspaces";
+  else if (latestRelease && latestRelease !== context.release)
+    blocker = "capacity_rows_only_for_older_release";
+  else
+    blocker = "no_current_release_capacity_samples_in_window";
+
+  return {
+    registeredWorkspaces,
+    totalObservationRows,
+    latestObservedAt,
+    latestRelease,
+    blocker,
+  };
+}
+
+export function insufficientCapacityObservation(
+  context,
+  diagnostics = {},
+  collectedAt = Date.now(),
+) {
+  const classified = classifyCapacitySampleAbsence(context, diagnostics);
   return {
     schemaVersion: 1,
     evidenceClass: "insufficient_observation",
     release: context.release,
     environment: context.environment,
     origin: context.origin,
-    observedAt: null,
+    observedAt: classified.latestObservedAt,
     collectedAt,
     workspaces: 0,
-    blockers: ["no_hosted_workspace_capacity_samples_for_release"],
+    diagnostics: {
+      registeredWorkspaces: classified.registeredWorkspaces,
+      totalObservationRows: classified.totalObservationRows,
+      latestObservedAt: classified.latestObservedAt,
+      latestRelease: classified.latestRelease,
+    },
+    blockers: [classified.blocker],
     ready: false,
   };
 }
@@ -209,6 +251,35 @@ function emit(report) {
     writeFileSync(process.env.POSTSTEWARD_CAPACITY_OUTPUT, serialized + "\n", "utf8");
   console.log("POSTSTEWARD_CAPACITY_OBSERVATION " + serialized);
   return serialized;
+}
+
+async function capacityAbsenceDiagnostics(accountId, databaseId, token) {
+  const registeredRows = await queryD1(
+    accountId,
+    databaseId,
+    token,
+    "SELECT count(*) AS registeredWorkspaces FROM workspace_registry",
+  );
+  const totalRows = await queryD1(
+    accountId,
+    databaseId,
+    token,
+    "SELECT count(*) AS totalObservationRows FROM workspace_capacity_observations",
+  );
+  const latestRows = await queryD1(
+    accountId,
+    databaseId,
+    token,
+    "SELECT release,observed_at FROM workspace_capacity_observations ORDER BY observed_at DESC LIMIT 1",
+  );
+  return {
+    registeredWorkspaces: Number(registeredRows[0]?.registeredWorkspaces || 0),
+    totalObservationRows: Number(totalRows[0]?.totalObservationRows || 0),
+    latestObservedAt: latestRows[0]?.observed_at == null
+      ? null
+      : Number(latestRows[0].observed_at),
+    latestRelease: latestRows[0]?.release || null,
+  };
 }
 
 async function main() {
@@ -246,7 +317,12 @@ async function main() {
     [cutoff, context.release]);
   const highWater = highRows[0] || {};
   if (Number(highWater.workspaces || 0) <= 0) {
-    const report = insufficientCapacityObservation(context);
+    const diagnostics = await capacityAbsenceDiagnostics(
+      accountId,
+      databaseId,
+      token,
+    );
+    const report = insufficientCapacityObservation(context, diagnostics);
     const serialized = emit(report);
     demand(!serialized.includes(token), "Capacity observation attempted to emit protected material.");
     process.exitCode = 2;
