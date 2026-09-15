@@ -176,12 +176,12 @@ export default {
   async scheduled(
     controller: ScheduledController,
     env: Env,
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
   ) {
     // Identity expiry remains on its established hourly cadence. The five-minute
     // trigger only sweeps and delivers the durable alert outbox.
     if (controller.cron === "17 * * * *")
-      await edge.scheduled(controller, env, ctx);
+      await edge.scheduled(controller, env);
 
     try {
       await sweepOperationalConditions(env);
