@@ -31,6 +31,14 @@ interface AlertRow {
   updated_at: number;
 }
 
+interface AlertHttpResponse {
+  ok: boolean;
+  status: number;
+  headers: { get(name: string): string | null };
+  body?: { cancel(): Promise<void> } | null;
+}
+type AlertSender = (url: string, init: RequestInit) => Promise<AlertHttpResponse>;
+
 const maxAttempts = 8;
 const leaseMs = 60_000;
 const defaultWindowMs = 15 * 60_000;
@@ -85,7 +93,7 @@ function retryDelayMs(attempt: number, retryAfterSeconds?: number) {
   return Math.min(maxRetryMs, base + ((attempt * 7919) % 30_000));
 }
 
-function retryAfter(response: Response) {
+function retryAfter(response: AlertHttpResponse) {
   const raw = response.headers.get("retry-after");
   if (!raw) return undefined;
   const seconds = Number(raw);
@@ -273,7 +281,7 @@ export async function flushOperationalAlerts(
   options: {
     now?: number;
     limit?: number;
-    send?: typeof fetch;
+    send?: AlertSender;
   } = {},
 ) {
   const url = webhookUrl(env.OPERATIONAL_ALERT_WEBHOOK_URL);
@@ -289,7 +297,8 @@ export async function flushOperationalAlerts(
 
   const now = options.now ?? Date.now();
   const limit = Math.max(1, Math.min(50, options.limit || 20));
-  const send = options.send || fetch;
+  const send: AlertSender =
+    options.send || ((target, init) => fetch(target, init));
   const due = await env.IDENTITY.prepare(
     `SELECT id FROM operational_alerts
      WHERE attempts < ? AND (
