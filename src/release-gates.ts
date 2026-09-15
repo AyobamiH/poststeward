@@ -144,8 +144,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "disabled_policy",
     scope: "advanced",
     blocking: false,
-    summary: "Global Advanced rollout remains disabled; only a bounded restricted-staging canary may be enabled to gather acceptance and SLO evidence.",
-    evidence: ["docs/production-readiness-acceptance.md", "docs/advanced-canary-rollout.md"],
+    summary: "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
+    evidence: ["docs/production-readiness-acceptance.md"],
   },
   {
     id: "mpp",
