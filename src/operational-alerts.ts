@@ -82,8 +82,6 @@ function retryDelayMs(attempt: number, retryAfterSeconds?: number) {
     return retryAfterSeconds! * 1000;
   const exponent = Math.max(0, Math.min(8, attempt - 1));
   const base = Math.min(maxRetryMs, 60_000 * 2 ** exponent);
-  // Deterministic per-attempt spread prevents identical attempts from staying
-  // phase-locked without requiring secret/random state in durable evidence.
   return Math.min(maxRetryMs, base + ((attempt * 7919) % 30_000));
 }
 
@@ -125,9 +123,19 @@ export async function enqueueOperationalAlert(
   );
   const bucket = Math.floor(now / windowMs);
   const subject = input.subject || "global";
-  const subjectFingerprint = input.subject ? (await sha256(input.subject)).slice(0, 24) : null;
+  const subjectFingerprint = input.subject
+    ? (await sha256(input.subject)).slice(0, 24)
+    : null;
+  // Severity is part of event identity. Repeated warnings dedupe, while a
+  // critical escalation cannot disappear behind an already-delivered warning.
   const dedupeKey = await sha256(
-    [input.class, code, input.dedupe || subject, String(bucket)].join("\0"),
+    [
+      input.class,
+      input.severity,
+      code,
+      input.dedupe || subject,
+      String(bucket),
+    ].join("\0"),
   );
   const id = crypto.randomUUID();
   const result = await env.IDENTITY.prepare(
@@ -140,10 +148,6 @@ export async function enqueueOperationalAlert(
       occurrences=operational_alerts.occurrences+1,
       last_seen_at=excluded.last_seen_at,
       release=excluded.release,
-      severity=CASE
-        WHEN operational_alerts.severity='critical' THEN 'critical'
-        ELSE excluded.severity
-      END,
       updated_at=excluded.updated_at
     RETURNING id,dedupe_key,class,severity,code,release,subject_fingerprint,
       occurrences,first_seen_at,last_seen_at,status,attempts,next_attempt_at,
@@ -326,7 +330,8 @@ export async function flushOperationalAlerts(
         body: JSON.stringify(alertPayload(row)),
       });
       const status = response.status;
-      const retryable = status === 408 || status === 425 || status === 429 || status >= 500;
+      const retryable =
+        status === 408 || status === 425 || status === 429 || status >= 500;
       if (response.ok) {
         await markSent(env, row, status, now);
         counts.sent++;
@@ -336,7 +341,9 @@ export async function flushOperationalAlerts(
           row,
           {
             status,
-            code: retryable ? "WEBHOOK_RETRYABLE_HTTP" : "WEBHOOK_PERMANENT_HTTP",
+            code: retryable
+              ? "WEBHOOK_RETRYABLE_HTTP"
+              : "WEBHOOK_PERMANENT_HTTP",
             retryable,
             retryAfterSeconds: status === 429 ? retryAfter(response) : undefined,
           },
