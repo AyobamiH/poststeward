@@ -1,0 +1,69 @@
+name: Staging capacity and cost observation
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 3 * * *"
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/staging-capacity-observation.yml
+      - scripts/capacity-observe.mjs
+      - scripts/capacity-calibration.mjs
+      - tests/capacity-observe.test.mjs
+      - tests/capacity-observation-wiring.test.mjs
+permissions:
+  contents: read
+concurrency:
+  group: staging-capacity-cost-observation
+  cancel-in-progress: true
+jobs:
+  observe:
+    if: github.repository == 'AyobamiH/poststeward'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: staging
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN || 'https://poststeward-staging.woeinvests.workers.dev' }}
+      POSTSTEWARD_WORKER_NAME: poststeward-staging
+      POSTSTEWARD_CAPACITY_WINDOW_DAYS: "7"
+      POSTSTEWARD_CAPACITY_OUTPUT: /tmp/poststeward-capacity.json
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Resolve exact hosted staging release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="$(node --input-type=module -e 'const r=await fetch(process.env.POSTSTEWARD_ORIGIN+"/readiness.json",{redirect:"error"});if(!r.ok)process.exit(1);const j=await r.json();if(j.environment!=="staging"||!/^[a-f0-9]{40}$/.test(j.release||""))process.exit(1);process.stdout.write(j.release)')"
+          echo "POSTSTEWARD_EXPECTED_RELEASE=$release" >> "$GITHUB_ENV"
+      - name: Collect exact-release hosted capacity evidence
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set +e
+          node scripts/capacity-observe.mjs
+          status=$?
+          set -e
+          if [[ $status -eq 1 ]]; then
+            exit 1
+          fi
+          if [[ $status -eq 2 ]]; then
+            echo "Hosted observation is valid but not yet calibration-ready. Provider quota and reviewed pricing remain explicit evidence inputs rather than assumptions."
+          fi
+      - name: Evaluate bounded observation summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/poststeward-capacity.json ]]; then
+            node --input-type=module -e 'import fs from "node:fs";const j=JSON.parse(fs.readFileSync("/tmp/poststeward-capacity.json","utf8"));console.log("POSTSTEWARD_CAPACITY_SUMMARY "+JSON.stringify({release:j.release,environment:j.environment,observedAt:j.observedAt,workspaces:j.workspaces,calibration:j.calibration?.verdict,costEvidence:j.costEvidence,ready:j.ready}));'
+          else
+            echo "POSTSTEWARD_CAPACITY_SUMMARY unavailable"
+          fi
