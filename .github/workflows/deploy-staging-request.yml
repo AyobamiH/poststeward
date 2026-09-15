@@ -1,12 +1,11 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-advanced-slo-observation
+# Deployment request: 2026-09-15-promotion-evidence-binding
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision containing event-time Advanced SLO telemetry,
-# exact canary run boundaries and the protected hosted observation workflow.
+# Deploy the exact reviewed revision with release/environment-bound evidence adapters
+# and the read-only enforced staging promotion check after hosted smoke checks.
 # Alert delivery remains inert unless a protected webhook destination is configured.
-# Protected staging still has Advanced master false, mode disabled and zero basis points;
-# this ordinary deployment therefore cannot start a canary and closes any stale active run.
+# Protected staging retains its existing disabled Advanced policy; no canary start is requested.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
 # Existing accepted evidence is not repeated. The timestamp PITR diagnostic remains disabled.
