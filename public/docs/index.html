@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="PostSteward documentation for owners, operators and agent builders." />
+    <title>PostSteward docs · Start here</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <script type="module" src="/docs-app.js"></script>
+  </head>
+  <body class="docs-app">
+    <header class="docs-topbar">
+      <div class="docs-topbar-inner">
+        <a class="wordmark" href="/" aria-label="PostSteward home"><img class="brand-mark" src="/favicon.svg" alt="" /><span>PostSteward</span></a>
+        <nav aria-label="Documentation shortcuts"><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operations</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav>
+        <details class="docs-mobile-menu"><summary>Docs</summary><nav><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operations</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav></details>
+      </div>
+    </header>
+    <div class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation navigation">
+        <div class="docs-sidebar-group"><p>Documentation</p><nav><a href="/docs/" aria-current="page">Start here</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operation reference</a></nav></div>
+        <div class="docs-sidebar-group"><p>Machine surfaces</p><nav><a href="/help.json">help.json</a><a href="/openapi.json">OpenAPI</a><a href="/catalog.json">catalog.json</a><a href="/llms.txt">llms.txt</a><a href="/docs/agent-guide.md">Raw guide</a></nav></div>
+        <div class="docs-sidebar-group"><p>Trust</p><nav><a href="/security.html">Security</a><a href="/status.html">Runtime status</a><a href="/support.html">Support</a></nav></div>
+      </aside>
+      <main class="docs-main" id="main-content">
+        <article class="docs-content">
+          <p class="eyebrow">POSTSTEWARD DOCUMENTATION</p>
+          <h1>One operation contract. Two audiences.</h1>
+          <p class="docs-lead">Owners decide authority and inspect consequences. Agents call a bounded publishing contract. The human docs explain the model; the machine surfaces remain the authoritative integration formats.</p>
+          <div class="docs-runtime" id="docs-runtime" aria-label="Deployed runtime summary"><div><span>Runtime</span><strong>Loading…</strong></div></div>
+
+          <section class="docs-section" id="choose-surface">
+            <h2>Choose the surface that matches the job.</h2>
+            <div class="docs-tools">
+              <a class="docs-tool" href="/docs/agent-guide.html"><strong>Agent guide</strong><span>Connect an owner, delegate a token, publish approved copy and inspect evidence safely.</span></a>
+              <a class="docs-tool" href="/docs/operations.html"><strong>Operation reference</strong><span>Search the generated operation catalogue by name, tier and required scope.</span></a>
+              <a class="docs-tool" href="/help.json"><strong>Runtime help</strong><span>Machine-readable availability and operation discovery for the deployment you are actually using.</span></a>
+              <a class="docs-tool" href="/openapi.json"><strong>OpenAPI</strong><span>HTTP schema for clients that prefer a standard API description.</span></a>
+            </div>
+          </section>
+
+          <section class="docs-section" id="model">
+            <h2>The model is intent → authority → effect → evidence.</h2>
+            <p>PostSteward does not treat an API response as proof that a social post exists. It stores the reviewed intent, resolves an explicit destination, fences duplicate external effects and keeps provider readback separate from reservation state.</p>
+            <div class="docs-callout" data-kind="warning"><strong>Do not retry uncertainty blindly.</strong><p>If a provider write has an ambiguous outcome, inspect the existing receipt and provider evidence. Reusing a new idempotency key to force another post defeats the safety boundary.</p></div>
+          </section>
+
+          <section class="docs-section" id="availability">
+            <h2>Implementation and live availability are different facts.</h2>
+            <p>The code can implement an OAuth path while a provider application is still unapproved or unconfigured in a deployment. `/readiness.json`, `/help.json` and the returned operation errors describe runtime availability; reviewed release-gate evidence records what has actually been accepted.</p>
+            <p>PostSteward therefore avoids promising X, LinkedIn, Advanced automation, public signup or browser WebMCP merely because corresponding code exists.</p>
+          </section>
+
+          <section class="docs-section" id="raw">
+            <h2>Agents can skip this interface entirely.</h2>
+            <p>The human documentation is additive. Agents may continue to use the raw guide, generated operation Markdown, OpenAPI, `catalog.json`, `help.json`, `llms.txt`, HTTP or remote MCP directly.</p>
+          </section>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>
