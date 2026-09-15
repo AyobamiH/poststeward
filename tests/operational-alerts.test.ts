@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { Miniflare, convertV4MiniflareOptions, Response as RuntimeResponse } from "miniflare";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import {
   enqueueOperationalAlert,
   flushOperationalAlerts,
@@ -169,7 +169,7 @@ test("successful delivery is idempotency-keyed and contains only bounded evidenc
       now,
       send: async (url, init) => {
         calls.push({ url: String(url), init });
-        return new RuntimeResponse(null, { status: 204 });
+        return new Response(null, { status: 204 });
       },
     });
     assert.equal(result.sent, 1);
@@ -211,7 +211,7 @@ test("retryable webhook failure releases the lease with bounded backoff", async 
     const result = await flushOperationalAlerts(env, {
       now,
       send: async () =>
-        new RuntimeResponse(null, {
+        new Response(null, {
           status: 503,
           headers: { "Retry-After": "120" },
         }),
@@ -244,7 +244,7 @@ test("permanent webhook rejection is dead-lettered without retry", async () => {
     );
     const result = await flushOperationalAlerts(env, {
       now,
-      send: async () => new RuntimeResponse(null, { status: 400 }),
+      send: async () => new Response(null, { status: 400 }),
     });
     assert.equal(result.dead, 1);
     const stored = (await rows(db))[0];
@@ -282,7 +282,7 @@ test("expired sending lease is safely reclaimed using the same alert id", async 
       now,
       send: async (_url, init: any) => {
         idempotencyKey = init.headers["Idempotency-Key"];
-        return new RuntimeResponse(null, { status: 204 });
+        return new Response(null, { status: 204 });
       },
     });
     assert.equal(result.sent, 1);
