@@ -1,418 +1,182 @@
-const providerLabels = { x: "X", threads: "Threads", linkedin: "LinkedIn" };
-const receiptStateLabels = {
-  scheduled: "Scheduled",
-  executing: "Executing",
-  waiting_container: "Waiting for Threads",
-  cancelled: "Cancelled",
-  published_verified: "Verified",
-  published_unverified: "Needs readback",
-  ambiguous_effect: "Ambiguous effect",
-  failed: "Failed",
-  drift_blocked: "Drift blocked",
+/** Read-only presentation. Existing application handlers retain every operation. */
+export const receiptStates = {
+  scheduled: ["Scheduled", "pending"], executing: ["Executing", "pending"],
+  waiting_container: ["Waiting for Threads", "pending"], cancelled: ["Cancelled", "cancelled"],
+  published_verified: ["Verified", "verified"], published_unverified: ["Needs readback", "warning"],
+  ambiguous_effect: ["Ambiguous effect", "ambiguous"], failed: ["Failed", "failed"], drift_blocked: ["Drift blocked", "blocked"],
 };
-const receiptPillState = {
-  scheduled: "pending",
-  executing: "pending",
-  waiting_container: "pending",
-  cancelled: "cancelled",
-  published_verified: "verified",
-  published_unverified: "warning",
-  ambiguous_effect: "ambiguous",
-  failed: "failed",
-  drift_blocked: "blocked",
-};
+const providers = { x: "X", threads: "Threads", linkedin: "LinkedIn" };
 const emptyCopy = {
-  accounts: [
-    "No social destinations connected",
-    "Connect one verified provider account above. PostSteward will keep its stable provider identity with the routing record.",
-  ],
-  projects: [
-    "No publishing projects yet",
-    "Create a project after at least one destination is connected. Projects bind approved work to explicit accounts.",
-  ],
-  receipts: [
-    "No delivery evidence yet",
-    "Receipts appear after a publication or schedule is reserved. A reservation will remain distinct from verified provider readback.",
-  ],
-  grants: [
-    "No delegated agents",
-    "Create a scoped, expiring grant when an agent needs direct PostSteward access. Owner controls are never delegated here.",
-  ],
-  profiles: [
-    "No automation profiles",
-    "Advanced profiles appear here only after reviewed source, template, destination and spacing rules are stored.",
-  ],
-  "github-sources": [
-    "No private repositories linked",
-    "Private GitHub access is optional. Link selected repositories only when reviewed source monitoring needs them.",
-  ],
-  categories: [
-    "No reviewed categories yet",
-    "Categories appear when Advanced profiles establish reviewed source families.",
-  ],
-  inventory: [
-    "No reviewed inventory yet",
-    "Observed source inventory appears after an enabled profile sees a reviewed source change.",
-  ],
-  deliveries: [
-    "No automatic allocations yet",
-    "Future automatic deliveries remain empty until a reviewed profile allocates work.",
-  ],
-  "checkpoint-list": [
-    "No exact checkpoints listed",
-    "Exact checkpoints are owner-only recovery evidence. Refresh or capture one only when the recovery contract requires it.",
-  ],
+  accounts: ["No social destinations connected", "Connect your first destination using the provider controls above."],
+  projects: ["No publishing projects yet", "Create a project that binds approved work to explicit connected accounts."],
+  receipts: ["No delivery evidence yet", "A receipt appears after work is reserved. A reservation is not proof of publication."],
+  grants: ["No delegated agents", "Issue an expiring, scoped grant only when an agent needs access."],
+  profiles: ["No automation profiles", "Add reviewed sources, templates, destinations and spacing before enabling a profile."],
+  inventory: ["No reviewed inventory", "An enabled, reviewed profile must observe a source change before it can allocate work."],
+  categories: ["No reviewed categories", "Categories describe the source families of your reviewed profiles."],
+  deliveries: ["No automatic allocations", "Automatic allocations require a reviewed, enabled profile."],
 };
-
-function make(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
+export function grantState(grant, now = Date.now()) {
+  if (grant.revoked_at) return ["Revoked", "revoked"];
+  if (!Number.isFinite(grant.expires_at)) return ["Expiry unknown", "warning"];
+  return grant.expires_at <= now ? ["Expired", "paused"] : ["Active", "connected"];
 }
-
-function providerMark(provider) {
-  const node = make("span", "ux-provider-mark", provider === "linkedin" ? "in" : provider === "threads" ? "@" : "X");
-  node.dataset.provider = provider;
-  node.setAttribute("aria-hidden", "true");
-  return node;
+export function receiptState(state) { return Object.hasOwn(receiptStates, state) ? receiptStates[state] : ["Unknown state", "warning"]; }
+export function operationSummary(value) {
+  if (!value || typeof value !== "object") return "Response received. Inspect the existing evidence before taking another action.";
+  if (value.error) return String(value.error.message || "Operation did not complete.");
+  if (value.accepted && value.restartInProgress) return "Recovery transition accepted. The restart is still in progress.";
+  if (value.reconciled === true) return "Recovery reconciliation completed. Publication remains subject to the current fence.";
+  if (value.resumed === true) return "The server confirmed publication was resumed.";
+  if (value.cancelled === true) return "Cancellation recorded. Inspect the existing record for its final state.";
+  if (value.revoked === true) return "The server confirmed revocation.";
+  const deliveries = Array.isArray(value) ? value : value.deliveries;
+  if (Array.isArray(deliveries) && deliveries.length) return `${deliveries.length} record(s) returned. ${[...new Set(deliveries.map((d) => receiptState(d.status)[0]))].join(" · ")}. Inspect receipts for provider evidence.`;
+  if (value.status) return `${receiptState(value.status)[0]}. Inspect the server evidence below.`;
+  return "Response received. Inspect the returned record below; this is not a claim of verified publication.";
 }
-
-function pill(text, state = "neutral") {
-  const node = make("span", "ux-pill", text);
-  node.dataset.state = state;
-  return node;
+function node(tag, cls = "", text) {
+  const el = document.createElement(tag); if (cls) el.className = cls;
+  if (text !== undefined) el.textContent = String(text); return el;
 }
-
-function titleGroup(provider, title) {
-  const wrap = make("div", "ux-entity-title");
-  if (providerLabels[provider]) wrap.append(providerMark(provider));
-  wrap.append(make("strong", "", title));
-  return wrap;
+function badge(label, state = "neutral") { const el = node("span", "ux-pill", label); el.dataset.state = state; return el; }
+function time(value) { return Number.isFinite(value) ? new Date(value).toLocaleString() : "Not recorded"; }
+function fields(values) {
+  const dl = node("dl", "ux-fields");
+  for (const [label, value] of values) { const cell = node("div"); cell.append(node("dt", "", label), node("dd", "", value ?? "Not recorded")); dl.append(cell); }
+  return dl;
 }
-
-function heading(titleNode, badges = []) {
-  const row = make("div", "ux-record-heading");
-  const title = make("div", "ux-record-title");
-  title.append(titleNode);
-  const badgeWrap = make("div", "ux-badges");
-  badgeWrap.append(...badges);
-  row.append(title, badgeWrap);
-  return row;
+function title(row, label, badges) {
+  row.querySelector(":scope > strong")?.remove();
+  const head = node("div", "ux-record-heading"), tags = node("div", "ux-badges");
+  tags.append(...badges.map((args) => badge(...args))); head.append(node("strong", "ux-record-title", label), tags); row.prepend(head);
 }
-
-function replaceEmpty(root) {
-  if (!root || root.children.length !== 1) return;
-  const current = root.firstElementChild;
-  if (!current || current.textContent?.trim() !== "Nothing here yet.") return;
-  const copy = emptyCopy[root.id];
-  if (!copy) return;
-  const state = make("div", "ux-empty-state");
-  state.append(make("strong", "", copy[0]), make("p", "", copy[1]));
-  root.replaceChildren(state);
+function actions(row) {
+  const controls = [...row.children].filter((el) => ["BUTTON", "A"].includes(el.tagName));
+  if (controls.length) { const group = node("div", "ux-record-actions"); group.append(...controls); row.append(group); }
 }
-
-function enhanceAccount(row) {
-  const strong = row.querySelector(":scope > strong");
-  if (!strong) return;
-  const [alias, provider] = strong.textContent.split(" · ").map((part) => part.trim());
-  if (!providerLabels[provider]) return;
-  const detail = row.querySelector(":scope > span");
-  const detailText = detail?.textContent || "";
-  const connected = detailText.includes("Connected") && !detailText.includes("Disconnected");
-  const badges = [pill(connected ? "Connected" : "Disconnected", connected ? "connected" : "disconnected")];
-  if (detailText.includes("OAuth")) badges.push(pill("OAuth"));
-  if (detailText.includes("refresh")) badges.push(pill("refresh"));
-  if (detailText.includes("readback")) badges.push(pill("readback", "verified"));
-  strong.remove();
-  row.prepend(heading(titleGroup(provider, alias), badges));
-  row.dataset.provider = provider;
+function enrichRows(id, items, render) {
+  const root = document.getElementById(id); if (!root) return;
+  const rows = [...root.querySelectorAll(":scope > .record")];
+  if (rows.length !== items.length) return;
+  rows.forEach((row, i) => { if (row.dataset.uxEnhanced) return; render(row, items[i]); actions(row); row.dataset.uxEnhanced = "true"; });
 }
-
-function enhanceReceipt(row) {
-  const strong = row.querySelector(":scope > strong");
-  if (!strong) return;
-  const [provider, account, state] = strong.textContent.split(" · ").map((part) => part.trim());
-  if (!receiptStateLabels[state]) return;
-  strong.remove();
-  row.prepend(
-    heading(titleGroup(provider, account || "Delivery"), [
-      pill(receiptStateLabels[state], receiptPillState[state]),
-      pill(providerLabels[provider] || provider),
-    ]),
-  );
-  row.dataset.receiptState = state;
-  row.dataset.provider = provider;
-}
-
-function enhanceProfile(row) {
-  const strong = row.querySelector(":scope > strong");
-  if (!strong) return;
-  const match = /^(.*?) · (Running|Paused)$/.exec(strong.textContent.trim());
-  if (!match) return;
-  strong.textContent = match[1];
-  strong.remove();
-  row.prepend(
-    heading(make("strong", "", match[1]), [
-      pill(match[2], match[2] === "Running" ? "running" : "paused"),
-    ]),
-  );
-}
-
-function enhanceGrant(row) {
-  const strong = row.querySelector(":scope > strong");
-  const detail = row.querySelector(":scope > span");
-  if (!strong || !detail) return;
-  const revoked = detail.textContent.trim().startsWith("Revoked ·");
-  strong.remove();
-  row.prepend(
-    heading(make("strong", "", strong.textContent), [
-      pill(revoked ? "Revoked" : "Active", revoked ? "revoked" : "connected"),
-    ]),
-  );
-}
-
-function enhanceGeneric(row, id) {
-  if (id === "accounts") enhanceAccount(row);
-  else if (id === "receipts") enhanceReceipt(row);
-  else if (id === "profiles") enhanceProfile(row);
-  else if (id === "grants") enhanceGrant(row);
-  row.dataset.uxEnhanced = "true";
-}
-
-function enhanceRecordLists() {
-  for (const root of document.querySelectorAll(".record-list")) {
-    replaceEmpty(root);
-    for (const row of root.querySelectorAll(":scope > .record:not([data-ux-enhanced])"))
-      enhanceGeneric(row, root.id);
-  }
-  applyReceiptFilter();
-}
-
-function ensureReceiptToolbar() {
-  const root = document.getElementById("receipts");
-  if (!root || document.getElementById("ux-receipt-filter")) return;
-  const toolbar = make("div", "ux-evidence-toolbar");
-  const statusLabel = make("label", "", "Receipt state");
-  const select = document.createElement("select");
-  select.id = "ux-receipt-filter";
-  for (const [value, label] of [
-    ["", "All states"],
-    ["published_verified", "Verified"],
-    ["published_unverified", "Needs readback"],
-    ["ambiguous_effect", "Ambiguous effect"],
-    ["scheduled", "Scheduled"],
-    ["executing", "Executing"],
-    ["waiting_container", "Waiting for Threads"],
-    ["failed", "Failed"],
-    ["drift_blocked", "Drift blocked"],
-    ["cancelled", "Cancelled"],
-  ]) select.append(new Option(label, value));
-  statusLabel.append(select);
-  const searchLabel = make("label", "", "Search evidence");
-  const search = document.createElement("input");
-  search.id = "ux-receipt-search";
-  search.type = "search";
-  search.placeholder = "Account, copy, reason…";
-  searchLabel.append(search);
-  toolbar.append(statusLabel, searchLabel);
-  root.before(toolbar);
-  select.addEventListener("change", applyReceiptFilter);
-  search.addEventListener("input", applyReceiptFilter);
-}
-
-function applyReceiptFilter() {
-  const root = document.getElementById("receipts");
-  if (!root) return;
-  const state = document.getElementById("ux-receipt-filter")?.value || "";
-  const query = (document.getElementById("ux-receipt-search")?.value || "").trim().toLowerCase();
-  for (const row of root.querySelectorAll(":scope > .record")) {
-    const stateMatch = !state || row.dataset.receiptState === state;
-    const queryMatch = !query || row.textContent.toLowerCase().includes(query);
-    row.hidden = !(stateMatch && queryMatch);
-  }
-}
-
-async function fetchJson(path) {
-  const response = await fetch(path, {
-    credentials: "same-origin",
-    mode: "same-origin",
-    cache: "no-store",
-    redirect: "manual",
-    signal: AbortSignal.timeout(15000),
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) return;
-  return response.json().catch(() => undefined);
-}
-
-function providerState(config, connections) {
-  if (!config?.available) return ["Not configured", "paused"];
-  if (connections.some((item) => item.status === "healthy")) return ["Connected", "connected"];
-  if (connections.some((item) => item.needsReauthorization || item.status === "reauthorization_required"))
-    return ["Reconnect", "warning"];
-  if (connections.some((item) => ["expired", "identity_drift", "refresh_failed"].includes(item.status)))
-    return ["Attention", "warning"];
-  return ["OAuth ready", "verified"];
-}
-
-function capability(label, value, detail = "") {
-  const item = make("li");
-  item.append(make("span", "", label), make("code", "", value ? detail || "yes" : "no"));
-  return item;
-}
-
-async function renderProviderMatrix() {
-  const anchor = document.getElementById("oauth-status");
-  if (!anchor) return;
-  const value = await fetchJson("/api/connections/oauth/status");
-  if (!value?.providers) return;
-  let grid = document.getElementById("ux-provider-grid");
-  if (!grid) {
-    grid = make("div", "ux-provider-grid");
-    grid.id = "ux-provider-grid";
-    anchor.after(grid);
-  }
-  grid.replaceChildren();
-  for (const provider of ["x", "threads", "linkedin"]) {
-    const config = value.providers[provider] || {};
-    const connections = (value.connections || []).filter((item) => item.provider === provider);
-    const [stateText, state] = providerState(config, connections);
-    const card = make("section", "ux-provider-card");
-    const head = make("div", "ux-provider-card-head");
-    const title = make("div", "ux-provider-card-title");
-    title.append(providerMark(provider), make("span", "", providerLabels[provider]));
-    head.append(title, pill(stateText, state));
-    const list = make("ul", "ux-capability-list");
-    list.append(
-      capability("Provider app", !!config.available, config.available ? "configured" : "missing"),
-      capability("Independent readback", !!config.readback, config.readback ? "available" : "not approved"),
-      capability("Connected accounts", connections.length > 0, String(connections.length)),
-    );
-    if (Array.isArray(config.requiredScopes) && config.requiredScopes.length) {
-      const scope = make("li");
-      scope.append(make("span", "", "Required scopes"), make("code", "", String(config.requiredScopes.length)));
-      list.append(scope);
+function emptyStates() {
+  for (const [id, [title, body]] of Object.entries(emptyCopy)) {
+    const root = document.getElementById(id);
+    if (root?.children.length === 1 && root.firstElementChild.textContent.trim() === "Nothing here yet.") {
+      const empty = node("div", "ux-empty-state"); empty.append(node("strong", "", title), node("p", "", body)); root.replaceChildren(empty);
     }
-    card.append(head, list);
-    grid.append(card);
+  }
+}
+function capabilityState(value) {
+  const labels = { available: "Available to this grant", unavailable: "Unavailable", connection_required: "Connection required", external_approval_required: "Approval required", unknown: "Unknown" };
+  return Object.hasOwn(labels, value?.state) ? labels[value.state] : "Unknown";
+}
+function renderProviders(snapshot) {
+  const anchor = document.getElementById("oauth-status"); if (!anchor) return;
+  let grid = document.getElementById("ux-provider-grid");
+  if (!grid) { grid = node("div", "ux-provider-grid"); grid.id = "ux-provider-grid"; anchor.after(grid); }
+  grid.replaceChildren();
+  const info = snapshot.oauthInfo;
+  if (!info?.providers) { grid.append(node("p", "", "Provider status could not be loaded. No connection or capability is inferred.")); anchor.hidden = true; return; }
+  for (const provider of Object.keys(providers)) {
+    const config = info.providers[provider];
+    const accounts = snapshot.accounts.filter((a) => a.provider === provider && a.active === true);
+    const card = node("section", "ux-provider-card"); card.setAttribute("aria-label", providers[provider] + " capabilities");
+    const head = node("div", "ux-provider-card-head");
+    head.append(node("strong", "", providers[provider]), badge(config?.available === true ? "App configured" : config?.available === false ? "OAuth unconfigured" : "Status unknown", config?.available === false ? "warning" : "neutral"));
+    card.append(head, node("p", "", `${accounts.length} connected account(s). Application configuration is not provider acceptance.`));
+    const list = node("ul", "ux-capability-list");
+    for (const key of ["publish", "readback", "refresh", "metrics"]) {
+      const li = node("li"); li.append(node("span", "", key), node("span", "", capabilityState(config?.capabilities?.[key]))); list.append(li);
+    }
+    card.append(list); grid.append(card);
   }
   anchor.hidden = true;
 }
-
-function recoveryEffectLabel(effects) {
-  if (!effects || typeof effects !== "object") return "Unavailable";
-  const uncertain = Number(effects.uncertain || 0) + Number(effects.containerUncertain || 0);
-  if (uncertain > 0) return `${uncertain} uncertain effect${uncertain === 1 ? "" : "s"}`;
-  const active = Number(effects.intent || 0) + Number(effects.containerIntent || 0);
-  if (active > 0) return `${active} write intent${active === 1 ? "" : "s"}`;
-  const recorded = Number(effects.created || 0) + Number(effects.verified || 0) + Number(effects.unverified || 0) + Number(effects.containerCreated || 0);
-  return recorded > 0 ? `${recorded} recorded external effect${recorded === 1 ? "" : "s"}` : "No effect ledger entries";
-}
-
-async function renderRecoverySummary() {
-  const root = document.getElementById("recovery-status");
-  if (!root) return;
-  const value = await fetchJson("/api/recovery/status");
-  if (!value) return;
-  const summary = make("div", "ux-recovery-summary");
-  const quarantine = make("div");
-  quarantine.append(make("span", "", "Publication fence"), make("strong", "", value.control?.quarantined ? "Quarantined" : "Open"));
-  const plan = make("div");
-  plan.append(make("span", "", "Recovery plan"), make("strong", "", value.plan?.state || "None"));
-  const effects = make("div");
-  effects.append(make("span", "", "Effect ledger"), make("strong", "", recoveryEffectLabel(value.effects)));
-  summary.append(quarantine, plan, effects);
+function renderRecovery(value) {
+  const root = document.getElementById("recovery-status"); if (!root) return;
+  const fence = value?.control?.quarantined;
+  const summary = node("div", "ux-recovery-summary");
+  for (const [label, text] of [["Publication fence", fence === true ? "Quarantined" : fence === false ? "Open" : "Unknown"], ["Recovery plan", value?.plan?.state || (value ? "None" : "Unavailable")], ["Uncertain effects", value?.effects ? String(Number(value.effects.uncertain || 0) + Number(value.effects.containerUncertain || 0)) : "Unknown"]]) {
+    const cell = node("div"); cell.append(node("span", "", label), node("strong", "", text)); summary.append(cell);
+  }
   root.replaceChildren(summary);
-}
-
-function operationSummary(value) {
-  if (!value || typeof value !== "object") return "Operation completed.";
-  if (value.error?.message) return value.error.message;
-  if (value.accepted && value.restartInProgress) return "Recovery transition accepted. The workspace restart is in progress.";
-  if (value.reconciled) return "Recovered workspace state reconciled successfully.";
-  if (value.resumed) return "Publishing resumed after recovery reconciliation.";
-  if (value.cancelled) return "Prepared recovery was cancelled before restore.";
-  if (value.revoked) return "Agent authority was revoked.";
-  if (value.signedOut) return "Signed out.";
-  if (value.id) return `Operation completed. Record ${value.id} was returned.`;
-  return "Operation completed. Inspect the durable evidence below if you need the exact machine response.";
-}
-
-let feedbackBusy = false;
-function enhanceFeedback() {
-  if (feedbackBusy) return;
-  const root = document.getElementById("result");
-  if (!root || root.hidden) return;
-  const text = root.textContent || "";
-  if (root.dataset.uxSummary === text) return;
-  root.classList.add("ux-feedback");
-  let value;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    const details = document.getElementById("ux-result-evidence");
-    if (details) details.hidden = true;
-    return;
+  if (value?.plan) {
+    const states = ["prepared", "armed", "reconciled", "resumed"];
+    const current = value.plan.state === "reconciled" && fence === false ? "resumed" : value.plan.state;
+    const journey = node("ol", "ux-recovery-journey"); journey.setAttribute("aria-label", "Current recovery plan progress");
+    for (const state of states) { const item = node("li", "", state); if (current === state) item.setAttribute("aria-current", "step"); journey.append(item); }
+    root.append(journey, fields([["Plan", value.plan.id], ["Target", time(value.plan.targetTime)], ["Reason", value.plan.reason]]));
   }
-  feedbackBusy = true;
-  const summary = operationSummary(value);
-  root.dataset.uxSummary = summary;
-  root.textContent = summary;
-  let details = document.getElementById("ux-result-evidence");
-  if (!details) {
-    details = make("details", "ux-raw-evidence");
-    details.id = "ux-result-evidence";
-    details.append(make("summary", "", "Inspect raw machine evidence"), make("pre"));
-    root.after(details);
-  }
-  details.hidden = false;
-  details.querySelector("pre").textContent = text;
-  feedbackBusy = false;
 }
-
-function stylePageStates() {
-  for (const node of document.querySelectorAll("#notice, #receipt-status, #archive-result, #checkpoint-result, #github-probe-result"))
-    node.classList.add("ux-feedback");
-}
-
-function scheduleOwnerRefresh() {
-  setTimeout(() => {
-    enhanceRecordLists();
-    enhanceFeedback();
-    void renderProviderMatrix();
-    void renderRecoverySummary();
-  }, 250);
-}
-
-function boot() {
-  document.body.classList.add("ux-owner-ready");
-  ensureReceiptToolbar();
-  enhanceRecordLists();
-  enhanceFeedback();
-  stylePageStates();
-  void renderProviderMatrix();
-  void renderRecoverySummary();
-
-  const observer = new MutationObserver(() => {
-    enhanceRecordLists();
-    enhanceFeedback();
+export function renderOwnerSnapshot(snapshot) {
+  emptyStates();
+  enrichRows("accounts", snapshot.accounts, (row, account) => {
+    title(row, account.alias, [[providers[account.provider] || "Unknown provider"], [account.active === true ? "Connected" : "Disconnected", account.active === true ? "connected" : "disconnected"]]);
+    row.querySelector(":scope > span")?.remove();
+    const connection = snapshot.oauthInfo?.connections?.find((item) => item.alias === account.alias);
+    row.append(fields([["Account", account.identity?.username], ["Stable author ID", account.identity?.id], ["Connection verified", time(account.verifiedAt)], ["Readback permission", connection ? capabilityState(connection.capabilities?.readback) : account.capabilities?.readback === true ? "Reported supported; inspect receipt evidence" : "Unknown / unavailable"]]));
   });
-  for (const root of document.querySelectorAll(".record-list, #result"))
-    observer.observe(root, { childList: true, subtree: true, characterData: true });
-
-  document.getElementById("refresh")?.addEventListener("click", scheduleOwnerRefresh, true);
-  for (const id of [
-    "recovery-prepare",
-    "recovery-execute",
-    "recovery-reconcile",
-    "recovery-resume",
-    "recovery-undo",
-    "recovery-cancel",
-  ]) document.getElementById(id)?.addEventListener("click", scheduleOwnerRefresh, true);
+  enrichRows("receipts", snapshot.receipts, (row, receipt) => {
+    title(row, receipt.account, [[providers[receipt.provider] || "Unknown provider"], receiptState(receipt.status)]);
+    row.dataset.receiptState = receipt.status;
+    row.dataset.search = [receipt.account, receipt.provider, receipt.text, receipt.reason, receipt.id].join(" ").toLowerCase();
+    row.querySelector(":scope > span")?.remove();
+    const copy = row.querySelector(":scope > p");
+    if (copy) { const details = node("details", "ux-exact-copy"); details.append(node("summary", "", "Inspect exact approved copy")); details.append(copy); row.append(details); }
+    row.append(fields([["Scheduled for", `${time(receipt.dueAt)} · ${receipt.timezone || "zone not recorded"}`], ["Last record update", time(receipt.updatedAt)], ["Receipt ID", receipt.id], ["Provider creation ID", receipt.postId || "Not recorded"]]));
+    if (receipt.reason) row.append(node("p", "", receipt.reason));
+    if (receipt.status === "ambiguous_effect") row.append(node("p", "ux-state-warning", "The provider may have published. Do not republish to repair this uncertainty."));
+    if (!Object.hasOwn(receiptStates, receipt.status)) row.append(node("p", "ux-state-warning", "Unfamiliar server state. Inspect evidence; do not assume success or retry."));
+  });
+  enrichRows("grants", snapshot.grants, (row, grant) => {
+    title(row, grant.actor, [grantState(grant)]);
+    row.append(fields([["Expires", time(grant.expires_at)]]));
+  });
+  enrichRows("profiles", snapshot.profiles.profiles, (row, profile) => {
+    title(row, profile.id, [[profile.enabled ? "Running" : "Paused", profile.enabled ? "running" : "paused"]]);
+    row.append(fields([["Source checked", time(profile.lastCheck)], ["Next observation", time(profile.nextRun)], ["Minimum spacing", `${profile.minSpacingMinutes} minutes`]]));
+  });
+  renderProviders(snapshot); renderRecovery(snapshot.recovery); filterReceipts();
 }
-
+export function showFeedback(value, error = false, target) {
+  const root = document.getElementById("result"); if (!root) return;
+  root.hidden = false; root.classList.add("ux-feedback"); root.classList.toggle("error", error);
+  root.setAttribute("role", error ? "alert" : "status"); root.setAttribute("aria-atomic", "true");
+  root.textContent = typeof value === "string" ? value : operationSummary(value);
+  let details = document.getElementById("ux-result-evidence");
+  if (!details) { details = node("details", "ux-raw-evidence"); details.id = "ux-result-evidence"; details.append(node("summary", "", "Inspect raw machine evidence"), node("pre")); }
+  if (target?.isConnected && !target.contains(root)) target.after(root);
+  root.after(details); details.hidden = !value || typeof value !== "object"; details.open = false;
+  details.querySelector("pre").textContent = details.hidden ? "" : JSON.stringify(value, null, 2);
+}
+function ensureToolbar() {
+  const root = document.getElementById("receipts"); if (!root || document.getElementById("ux-receipt-filter")) return;
+  const toolbar = node("div", "ux-evidence-toolbar");
+  const label = node("label", "", "Receipt state"), select = node("select"); select.id = "ux-receipt-filter";
+  select.append(new Option("All states", ""));
+  for (const [state, [text]] of Object.entries(receiptStates)) select.append(new Option(text, state));
+  const searchLabel = node("label", "", "Search loaded evidence"), search = node("input"); search.type = "search"; search.id = "ux-receipt-search"; search.maxLength = 200;
+  label.append(select); searchLabel.append(search); toolbar.append(label, searchLabel); root.before(toolbar);
+  const count = node("p", "muted"); count.id = "ux-receipt-count"; count.setAttribute("role", "status"); toolbar.after(count);
+  select.addEventListener("change", filterReceipts); search.addEventListener("input", filterReceipts);
+}
+function filterReceipts() {
+  const root = document.getElementById("receipts"); if (!root) return;
+  ensureToolbar();
+  const state = document.getElementById("ux-receipt-filter").value, query = document.getElementById("ux-receipt-search").value.trim().toLowerCase();
+  const rows = [...root.querySelectorAll(":scope > .record")]; let shown = 0;
+  for (const row of rows) { row.hidden = Boolean((state && row.dataset.receiptState !== state) || (query && !(row.dataset.search || row.textContent.toLowerCase()).includes(query))); if (!row.hidden) shown++; }
+  document.getElementById("ux-receipt-count").textContent = `${shown} of ${rows.length} loaded receipts. This view loads at most the latest 50, not the complete history.${rows.length && !shown ? " No loaded receipts match these filters." : ""}`;
+}
+function boot() {
+  document.body.classList.add("ux-owner-ready"); ensureToolbar(); emptyStates();
+  const observer = new MutationObserver(emptyStates);
+  for (const root of document.querySelectorAll(".record-list")) observer.observe(root, { childList: true });
+  window.addEventListener("pagehide", () => observer.disconnect(), { once: true });
+}
 if (typeof document !== "undefined") {
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
-  else boot();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true }); else boot();
 }
