@@ -15,6 +15,10 @@ const targets = new Set([
 ]);
 
 const actionCatalog = Object.freeze({
+  approximate_timestamp_pitr: {
+    class: "external_wait",
+    action: "keep_exact_checkpoints_primary_until_cloudflare_timestamp_resolution_recovers",
+  },
   threads_oauth_callback: {
     class: "external_wait",
     action: "wait_for_meta_callback_persistence",
@@ -212,7 +216,15 @@ export function evaluatePromotion({
     (entry) => !entry.evidenceReady,
   );
 
-  const nextActions = reviewed
+  const requiredIds = new Set(requiredOpen.map((gate) => gate.id));
+  const nextActions = requiredOpen
+    .map((gate) => nextActionForGate(gate, readiness, observations))
+    .filter(Boolean);
+  const optionalActions = reviewed
+    .filter(
+      (gate) =>
+        !acceptedStates.has(gate.state) && !requiredIds.has(gate.id),
+    )
     .map((gate) => nextActionForGate(gate, readiness, observations))
     .filter(Boolean);
 
@@ -244,6 +256,7 @@ export function evaluatePromotion({
     providerContracts,
     nextActions,
     nextAction: nextActions[0] || null,
+    optionalActions,
     promotion: {
       ready: policyHealthy && unresolvedRequired.length === 0,
       blockers: [
@@ -270,9 +283,16 @@ function summary(report) {
       ? report.promotion.blockers.map((item) => `- \`${item}\``).join("\n")
       : "- none",
     ``,
-    `## Next actions`,
+    `## Target next actions`,
     report.nextActions.length
       ? report.nextActions
+          .map((item) => `- \`${item.gate}\`: ${item.action}`)
+          .join("\n")
+      : "- none",
+    ``,
+    `## Deferred / optional actions`,
+    report.optionalActions.length
+      ? report.optionalActions
           .slice(0, 12)
           .map((item) => `- \`${item.gate}\`: ${item.action}`)
           .join("\n")
