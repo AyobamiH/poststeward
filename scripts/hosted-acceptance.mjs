@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
@@ -63,6 +63,19 @@ async function mcp(base, bearer, body, send = fetch) {
 function requireStatus(response, expected, label) {
   if (response.status !== expected)
     throw new Error(`${label} returned HTTP ${response.status}; expected ${expected}.`);
+}
+
+async function hostedRelease(base, send = fetch) {
+  const response = await send(`${base}/readiness.json`, {
+    redirect: "manual",
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+  requireStatus(response, 200, "hosted readiness");
+  const body = await readJson(response);
+  if (!/^[a-f0-9]{40}$/.test(String(body?.release || "")))
+    throw new Error("Hosted readiness did not expose a pinned release SHA.");
+  return String(body.release);
 }
 
 export async function checkReadiness(baseInput, send = fetch) {
@@ -227,6 +240,130 @@ export async function checkCrossTenantIsolation(
   };
 }
 
+/**
+ * Hosted isolation without provider or customer data. Two short-lived grants
+ * must belong to explicitly disposable, distinct staging workspaces and include
+ * read + publish. The only mutation is a reversible workspace pause canary.
+ */
+export async function checkCrossTenantStateIsolation(
+  baseInput,
+  tokenAInput,
+  tokenBInput,
+  expectedRelease,
+  send = fetch,
+) {
+  const base = origin(baseInput);
+  const tokenA = token(tokenAInput, "POSTSTEWARD_AGENT_TOKEN_A");
+  const tokenB = token(tokenBInput, "POSTSTEWARD_AGENT_TOKEN_B");
+  if (!/^[a-f0-9]{40}$/.test(expectedRelease || ""))
+    throw new Error("Cross-tenant acceptance requires the exact reviewed release SHA.");
+  const release = await hostedRelease(base, send);
+  if (release !== expectedRelease)
+    throw new Error("Hosted staging release does not equal the reviewed workflow revision.");
+
+  const [aResponse, bResponse] = await Promise.all([
+    operation(base, tokenA, "workspace_status", {}, send),
+    operation(base, tokenB, "workspace_status", {}, send),
+  ]);
+  requireStatus(aResponse, 200, "workspace A status");
+  requireStatus(bResponse, 200, "workspace B status");
+  const a = await readJson(aResponse);
+  const b = await readJson(bResponse);
+  if (
+    !a.workspace ||
+    !b.workspace ||
+    a.workspace === b.workspace ||
+    a.release !== release ||
+    b.release !== release
+  )
+    throw new Error("Cross-tenant acceptance requires two distinct workspaces on the exact release.");
+  if (a.publishingPaused !== false || b.publishingPaused !== false)
+    throw new Error("Disposable cross-tenant workspaces must begin unpaused.");
+
+  let pauseApplied = false;
+  let cleanupError;
+  try {
+    const pause = await operation(
+      base,
+      tokenA,
+      "publishing_pause",
+      {
+        paused: true,
+        idempotencyKey: `cross-tenant-pause-${randomUUID()}`,
+      },
+      send,
+    );
+    requireStatus(pause, 200, "workspace A pause canary");
+    const pauseBody = await readJson(pause);
+    if (pauseBody?.paused !== true)
+      throw new Error("Workspace A pause canary did not commit.");
+    pauseApplied = true;
+
+    const [aPausedResponse, bUnchangedResponse] = await Promise.all([
+      operation(base, tokenA, "workspace_status", {}, send),
+      operation(base, tokenB, "workspace_status", {}, send),
+    ]);
+    requireStatus(aPausedResponse, 200, "workspace A paused status");
+    requireStatus(bUnchangedResponse, 200, "workspace B unchanged status");
+    const aPaused = await readJson(aPausedResponse);
+    const bUnchanged = await readJson(bUnchangedResponse);
+    if (aPaused.publishingPaused !== true || bUnchanged.publishingPaused !== false)
+      throw new Error("Workspace-local pause state crossed a tenant boundary.");
+
+    const forgedOrigin = await send(`${base}/api/operations/workspace_status`, {
+      method: "POST",
+      redirect: "manual",
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${tokenA}`,
+        Origin: "https://attacker.invalid",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+      signal: AbortSignal.timeout(20_000),
+    });
+    requireStatus(forgedOrigin, 403, "hostile Origin replay");
+
+    return {
+      release,
+      observedAt: new Date().toISOString(),
+      workspaceA: publicWorkspaceId(a.workspace),
+      workspaceB: publicWorkspaceId(b.workspace),
+      distinctWorkspaces: true,
+      workspaceLocalStateIsolation: true,
+      hostileOriginReplay: "denied",
+      providerEffectAttempted: false,
+      paymentAttempted: false,
+      recoveryAttempted: false,
+      tokenValuesEmitted: false,
+      rawWorkspaceIdsEmitted: false,
+      ready: true,
+    };
+  } finally {
+    if (pauseApplied) {
+      try {
+        const resume = await operation(
+          base,
+          tokenA,
+          "publishing_pause",
+          {
+            paused: false,
+            idempotencyKey: `cross-tenant-resume-${randomUUID()}`,
+          },
+          send,
+        );
+        requireStatus(resume, 200, "workspace A pause cleanup");
+        const resumed = await readJson(resume);
+        if (resumed?.paused !== false)
+          throw new Error("Workspace A pause cleanup did not commit.");
+      } catch (error) {
+        cleanupError = error;
+      }
+    }
+    if (cleanupError) throw cleanupError;
+  }
+}
+
 async function main() {
   const mode = process.argv[2];
   const base = process.env.POSTSTEWARD_ORIGIN || "";
@@ -243,9 +380,22 @@ async function main() {
       process.env.POSTSTEWARD_AGENT_TOKEN_B || "",
       process.env.POSTSTEWARD_FOREIGN_DELIVERY_ID || "",
     );
+  else if (mode === "cross-tenant-state")
+    result = await checkCrossTenantStateIsolation(
+      base,
+      process.env.POSTSTEWARD_AGENT_TOKEN_A || "",
+      process.env.POSTSTEWARD_AGENT_TOKEN_B || "",
+      process.env.GITHUB_SHA || "",
+    );
   else
-    throw new Error("Usage: node scripts/hosted-acceptance.mjs readiness|agent|revoked|cross-tenant");
-  console.log(JSON.stringify(result, null, 2));
+    throw new Error(
+      "Usage: node scripts/hosted-acceptance.mjs readiness|agent|revoked|cross-tenant|cross-tenant-state",
+    );
+  const marker =
+    mode === "cross-tenant-state"
+      ? "POSTSTEWARD_CROSS_TENANT_STATE_ACCEPTANCE "
+      : "";
+  console.log(marker + JSON.stringify(result, null, marker ? 0 : 2));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
