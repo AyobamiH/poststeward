@@ -2,7 +2,7 @@
 
 This runbook defines the evidence required beyond the restricted-staging product loop. It is intentionally separate from provider P0 acceptance.
 
-## Current status note — 14 September 2026
+## Current status note — 15 September 2026
 
 - Protected staging root cutover is **accepted**. The active writer is `next`; the legacy root is intentionally retained for recovery. Do not repeat the cutover or retire the old root merely to satisfy this runbook.
 - Stripe sandbox lifecycle is **accepted**. Do not recreate payment/refund/cancellation merely for production-readiness evidence.
@@ -10,7 +10,7 @@ This runbook defines the evidence required beyond the restricted-staging product
 - Exact-checkpoint Cloudflare Durable Object recovery is **accepted** on restricted staging from live run `34890295276`: exact checkpoint capture, real restore, reconciliation, explicit resume and disposable erasure all passed. Do not repeat that rehearsal merely for production-readiness paperwork.
 - Cloudflare's separate approximate timestamp resolver `getBookmarkForTime()` remains **blocked externally**. It is an optional convenience and no longer a dependency of PostSteward's recovery guarantee.
 - The accepted synthetic recovery run also proved export, deletion, old-session denial and tombstone/registry retention. A future public-production claim may still require the separate new-workspace anti-resurrection/admission scenario below.
-- The GitHub repository ruleset inventory was still **empty** when re-read on 14 September. Merged-PR provenance in deployment is not server-side main protection.
+- GitHub server-side main protection is **accepted**. Ruleset `23461973` is active and independently read back with the reviewed solo-maintainer policy; do not recreate it merely for evidence.
 - Production custom edge, capacity/cost observations, delivered alerts, hosted two-workspace cross-tenant evidence and public-signup/support/abuse ownership remain open.
 
 The sections below are the production acceptance contract. Accepted staging effects are historical procedure only and must not be replayed unnecessarily.
@@ -100,27 +100,27 @@ Required evidence:
 
 OAuth/provider callback registrations must be checked against the exact production origin. Do not reuse staging callbacks.
 
-## GitHub release governance
+## GitHub release governance — accepted
 
-The repository returned an empty server-side ruleset inventory again on 14 September 2026. This remains a genuine repository-admin action.
+Server-side main protection is accepted from live ruleset `23461973`; the independent readback is recorded in `docs/github-main-ruleset-live-evidence-2026-09-15.md`.
 
-The reviewed desired state is stored in `.github/rulesets/main-protection.json`; `scripts/github-main-protection-check.mjs` verifies the live GitHub configuration against it. The actual GitHub Actions check-run context observed on this repository is lowercase `verify`, emitted by the GitHub Actions app (integration ID `15368`). Do not configure the workflow display name `Verify` as the required context.
+The reviewed canonical state remains stored in `.github/rulesets/main-protection.json`; `scripts/github-main-protection-check.mjs` verifies the live GitHub configuration against it. The actual GitHub Actions check-run context observed on this repository is lowercase `verify`, emitted by the GitHub Actions app (integration ID `15368`). Do not configure the workflow display name `Verify` as the required context.
 
-For the current **single-maintainer** repository, the ruleset must:
+For the current **single-maintainer** repository, the accepted ruleset:
 
-- target the default/main branch and be active;
-- require all changes through a pull request;
-- require the exact `verify` GitHub Actions check with strict/latest-branch status checks;
-- require verified signatures on commits reaching main;
-- require linear history and allow only squash merges;
-- block branch deletion and non-fast-forward/force-push updates;
-- require review-thread resolution;
-- require **zero human approvals while there is only one trusted maintainer**. Self-approval would not be independent review and must not be represented as such;
-- have no direct/always bypass actor. Emergency break-glass is an explicit repository-admin policy change, not a permanent silent bypass.
+- targets the default/main branch and is active;
+- requires all changes through a pull request;
+- requires the exact `verify` GitHub Actions check with strict/latest-branch status checks;
+- requires verified signatures on commits reaching main;
+- requires linear history and allows only squash merges;
+- blocks branch deletion and non-fast-forward/force-push updates;
+- requires review-thread resolution;
+- requires **zero human approvals while there is only one trusted maintainer**. Self-approval would not be independent review and must not be represented as such;
+- has no direct/always bypass actor.
 
 When a second trusted maintainer actually exists, changing the approval count from 0 to 1 is a new reviewed governance change and the canonical file/verifier should move with it.
 
-Read-only verification:
+Read-only verification remains available without changing policy:
 
 ```sh
 GITHUB_REPOSITORY=AyobamiH/poststeward \
@@ -128,7 +128,7 @@ GITHUB_TOKEN='...' \
   npm run governance:check
 ```
 
-The repository-admin helper is deliberately confirmation-gated and restricted to this repository. It creates or updates only the canonical named ruleset, refuses competing active main rulesets, verifies GitHub's returned policy after mutation, and never logs the token:
+The repository-admin helper is deliberately confirmation-gated and restricted to this repository. It is retained for future reconciliation but must not be run merely to repeat accepted evidence:
 
 ```sh
 GITHUB_REPOSITORY=AyobamiH/poststeward \
@@ -137,7 +137,7 @@ POSTSTEWARD_APPLY_MAIN_RULESET=APPLY_POSTSTEWARD_MAIN_RULESET \
   npm run governance:apply
 ```
 
-The token used for apply requires GitHub repository **Administration: write** authority. A successful local/unit test is not production evidence; close this gate only after the live repository ruleset can be read back and the verifier returns `ready: true`.
+The token used for apply requires GitHub repository **Administration: write** authority. Any future governance mutation is a new repository-admin event and should be reviewed independently before application.
 
 ## Root encryption-key replacement — accepted staging evidence
 
