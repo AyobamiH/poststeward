@@ -1,12 +1,12 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-cross-tenant-acceptance
+# Deployment request: 2026-09-15-advanced-slo-observation
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision containing hosted capacity observation and the
-# protected reversible cross-tenant acceptance path. The acceptance itself remains
-# a separate owner-triggered manual run using two short-lived disposable agent grants.
+# Deploy the exact reviewed revision containing event-time Advanced SLO telemetry,
+# exact canary run boundaries and the protected hosted observation workflow.
 # Alert delivery remains inert unless a protected webhook destination is configured.
-# Protected staging still has Advanced master false, mode disabled and zero basis points.
+# Protected staging still has Advanced master false, mode disabled and zero basis points;
+# this ordinary deployment therefore cannot start a canary and closes any stale active run.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
 # Existing accepted evidence is not repeated. The timestamp PITR diagnostic remains disabled.
@@ -25,6 +25,7 @@ jobs:
     with:
       environment: staging
       run_pitr_diagnostic: false
+      advanced_rollout_request: environment
     # Pass only explicitly named fallbacks, never every repository secret.
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
