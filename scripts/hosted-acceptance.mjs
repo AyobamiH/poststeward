@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 function origin(value) {
   const parsed = new URL(value);
@@ -76,6 +77,25 @@ async function hostedRelease(base, send = fetch) {
   if (!/^[a-f0-9]{40}$/.test(String(body?.release || "")))
     throw new Error("Hosted readiness did not expose a pinned release SHA.");
   return String(body.release);
+}
+
+async function isolationContext(base, expectedRelease, send) {
+  if (!/^[a-f0-9]{40}$/.test(expectedRelease || ""))
+    throw new Error("Isolation evidence requires an exact expected release.");
+  const response = await send(`${base}/readiness.json`, {
+    redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20_000),
+  });
+  requireStatus(response, 200, "isolation runtime context");
+  const body = await readJson(response);
+  if (body?.release !== expectedRelease || body?.schemaVersion < 2 ||
+      !["staging", "production"].includes(body?.environment) ||
+      body?.policy?.healthy !== true || !Array.isArray(body?.policy?.violations) ||
+      body.policy.violations.length !== 0)
+    throw new Error("Isolation evidence runtime does not match the reviewed release.");
+  return {
+    release: body.release, environment: body.environment,
+    policy: body.policy, gates: body.gates, runtimeCapabilities: body.runtimeCapabilities,
+  };
 }
 
 export async function checkReadiness(baseInput, send = fetch) {
@@ -184,12 +204,17 @@ export async function checkCrossTenantIsolation(
   tokenBInput,
   foreignDeliveryId,
   send = fetch,
+  expectedRelease,
 ) {
   const base = origin(baseInput);
   const tokenA = token(tokenAInput, "POSTSTEWARD_AGENT_TOKEN_A");
   const tokenB = token(tokenBInput, "POSTSTEWARD_AGENT_TOKEN_B");
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(foreignDeliveryId || ""))
     throw new Error("POSTSTEWARD_FOREIGN_DELIVERY_ID must be an existing delivery from workspace A.");
+  const bound = expectedRelease !== undefined;
+  if (bound && base !== baseInput)
+    throw new Error("Bound isolation evidence requires an exact HTTPS origin.");
+  const context = bound ? await isolationContext(base, expectedRelease, send) : null;
 
   const [aResponse, bResponse] = await Promise.all([
     operation(base, tokenA, "workspace_status", {}, send),
@@ -201,6 +226,8 @@ export async function checkCrossTenantIsolation(
   const b = await readJson(bResponse);
   if (!a.workspace || !b.workspace || a.workspace === b.workspace)
     throw new Error("Cross-tenant acceptance requires two distinct workspaces.");
+  if (bound && (a.release !== context.release || b.release !== context.release))
+    throw new Error("Authenticated isolation probes observed another release.");
 
   const ownerRead = await operation(
     base,
@@ -231,12 +258,19 @@ export async function checkCrossTenantIsolation(
     signal: AbortSignal.timeout(20_000),
   });
   requireStatus(forgedOrigin, 403, "hostile Origin replay");
+  if (bound && !isDeepStrictEqual(context, await isolationContext(base, expectedRelease, send)))
+    throw new Error("Isolation runtime changed while collecting evidence.");
 
   return {
     workspaceA: publicWorkspaceId(a.workspace),
     workspaceB: publicWorkspaceId(b.workspace),
     objectIdSwap: "denied",
     hostileOriginReplay: "denied",
+    ...(bound ? {
+      schemaVersion: 1, evidenceClass: "hosted_observation",
+      release: context.release, environment: context.environment, origin: base,
+      observedAt: new Date().toISOString(),
+    } : {}),
   };
 }
 

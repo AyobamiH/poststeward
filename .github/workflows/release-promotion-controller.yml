@@ -21,6 +21,7 @@ on:
     paths:
       - .github/workflows/release-promotion-controller.yml
       - scripts/release-promotion-controller.mjs
+      - scripts/promotion-evidence.mjs
       - scripts/operational-alert-evidence.mjs
       - scripts/slo-evaluate.mjs
       - scripts/capacity-calibration.mjs
@@ -38,7 +39,7 @@ concurrency:
 
 jobs:
   evaluate:
-    if: github.repository == 'AyobamiH/poststeward'
+    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -51,5 +52,7 @@ jobs:
       - name: Evaluate reviewed gates against hosted runtime
         env:
           POSTSTEWARD_PROMOTION_TARGET: ${{ inputs.target || 'production' }}
+          POSTSTEWARD_PROMOTION_MODE: report
+          POSTSTEWARD_EXPECTED_RELEASE: ${{ github.sha }}
           POSTSTEWARD_ORIGIN: https://poststeward-staging.woeinvests.workers.dev
         run: node scripts/release-promotion-controller.mjs

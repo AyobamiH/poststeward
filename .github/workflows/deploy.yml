@@ -168,6 +168,14 @@ jobs:
         run: node scripts/recovery-smoke.mjs
       - name: Verify non-destructive account lifecycle boundary
         run: node scripts/lifecycle-smoke.mjs
+      - name: Enforce exact restricted-staging promotion evidence
+        if: inputs.environment == 'staging'
+        env:
+          POSTSTEWARD_PROMOTION_TARGET: restricted_staging
+          POSTSTEWARD_PROMOTION_MODE: enforce
+          POSTSTEWARD_EXPECTED_RELEASE: ${{ github.sha }}
+          POSTSTEWARD_ORIGIN: ${{ steps.config.outputs.origin }}
+        run: node scripts/release-promotion-controller.mjs
       - name: Record verified Advanced canary boundary
         if: inputs.environment == 'staging'
         env:
