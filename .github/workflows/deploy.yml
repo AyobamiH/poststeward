@@ -46,6 +46,10 @@ on:
         required: false
       STRIPE_SANDBOX_WEBHOOK_SECRET:
         required: false
+      OPERATIONAL_ALERT_WEBHOOK_URL:
+        required: false
+      OPERATIONAL_ALERT_WEBHOOK_TOKEN:
+        required: false
 permissions:
   contents: read
   pull-requests: read
@@ -138,6 +142,8 @@ jobs:
           LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
           STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
           STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
+          OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
+          OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}
       - name: Verify deployed revision and access boundary
         run: node scripts/smoke.mjs
       - name: Verify owner acceptance surfaces without signing in or publishing

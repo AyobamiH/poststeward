@@ -1,9 +1,9 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-15-release-control-readback
+# Deployment request: 2026-09-15-operational-alert-outbox
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that reconciles the public gate ledger with the
-# accepted GitHub ruleset and the separate later public-admission stage.
+# Deploy the exact reviewed revision adding durable, deduplicated semantic alert delivery.
+# Alert delivery remains inert unless a protected webhook destination is configured.
 # Protected staging still has Advanced master false, mode disabled and zero basis points.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
@@ -36,3 +36,5 @@ jobs:
       LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
       STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
       STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
+      OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
+      OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}

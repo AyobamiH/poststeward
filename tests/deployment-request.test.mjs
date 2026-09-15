@@ -19,6 +19,8 @@ const secretNames = [
   "LINKEDIN_OAUTH_CLIENT_SECRET",
   "STRIPE_SANDBOX_SECRET_KEY",
   "STRIPE_SANDBOX_WEBHOOK_SECRET",
+  "OPERATIONAL_ALERT_WEBHOOK_URL",
+  "OPERATIONAL_ALERT_WEBHOOK_TOKEN",
 ];
 
 test("staging deployment requests are limited to their explicit main-only path", () => {

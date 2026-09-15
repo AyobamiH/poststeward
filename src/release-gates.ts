@@ -250,6 +250,7 @@ export function runtimeCapabilitySnapshot(env: Env) {
         env.STRIPE_PRICE_ID &&
         env.STRIPE_WEBHOOK_SECRET,
     ),
+    operationalAlertWebhookConfigured: Boolean(env.OPERATIONAL_ALERT_WEBHOOK_URL),
     policies: {
       signupMode: env.SIGNUP_MODE,
       advancedEnabled: env.ADVANCED_ENABLED === "true",

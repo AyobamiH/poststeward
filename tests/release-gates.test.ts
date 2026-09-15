@@ -33,6 +33,7 @@ function env(overrides: Record<string, string | undefined> = {}) {
     STRIPE_SECRET_KEY: "sk_test_fixture",
     STRIPE_PRICE_ID: "price_fixture",
     STRIPE_WEBHOOK_SECRET: "whsec_fixture",
+    OPERATIONAL_ALERT_WEBHOOK_URL: "",
     ...overrides,
   } as any;
 }
@@ -62,11 +63,23 @@ test("runtime capabilities remain distinct from reviewed live evidence", () => {
   });
   assert.equal(runtime.privateGitHubConfigured, true);
   assert.equal(runtime.stripeSandboxConfigured, true);
+  assert.equal(runtime.operationalAlertWebhookConfigured, false);
   assert.equal(runtime.policies.advancedEnabled, false);
   assert.equal(runtime.policies.advancedRolloutMode, "disabled");
   assert.equal(runtime.policies.advancedCanaryBps, 0);
   assert.equal(runtime.policies.advancedCanarySeedConfigured, false);
   assert.equal(releasePolicyViolations(env()).length, 0);
+});
+
+test("configured alert delivery is runtime capability only, not acceptance", () => {
+  const runtime = runtimeCapabilitySnapshot(
+    env({ OPERATIONAL_ALERT_WEBHOOK_URL: "https://alerts.example/hook" }),
+  );
+  assert.equal(runtime.operationalAlertWebhookConfigured, true);
+  assert.equal(
+    releaseGateDefinitions.find((gate) => gate.id === "operational_alert_delivery")?.state,
+    "external_setup_required",
+  );
 });
 
 test("bounded staging canary is a permitted evidence mode, not a global rollout", () => {
@@ -132,6 +145,7 @@ test("readiness keeps legacy fields while exposing the typed control plane", () 
   assert.equal(readiness.policy.healthy, true);
   assert.equal(readiness.recovery.exactCheckpoints, true);
   assert.equal(readiness.gates.exact_recovery_checkpoints.state, "live_verified");
+  assert.equal(readiness.runtimeCapabilities.operationalAlertWebhookConfigured, false);
   assert.equal(readiness.runtimeCapabilities.policies.advancedRolloutMode, "disabled");
   assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 0);
   assert.ok(readiness.evidenceStillExternal.includes("native_webmcp"));
