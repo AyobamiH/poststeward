@@ -1,0 +1,59 @@
+name: Operational alert control plane
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/operational-alert-control-plane.yml
+      - scripts/github-alert-control-plane.mjs
+      - scripts/operational-alert-evidence.mjs
+      - tests/github-alert-control-plane.test.mjs
+  schedule:
+    - cron: "*/5 * * * *"
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: operational-alert-control-plane
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: github.repository == 'AyobamiH/poststeward'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: staging
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN || 'https://poststeward-staging.woeinvests.workers.dev' }}
+      POSTSTEWARD_REPOSITORY: AyobamiH/poststeward
+      POSTSTEWARD_ENVIRONMENT: staging
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Resolve exact hosted release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="$(node --input-type=module -e 'const r=await fetch(process.env.POSTSTEWARD_ORIGIN+"/readiness.json",{redirect:"error"});if(!r.ok)process.exit(1);const j=await r.json();if(j.environment!=="staging"||!/^[a-f0-9]{40}$/.test(j.release||""))process.exit(1);process.stdout.write(j.release)')"
+          echo "POSTSTEWARD_EXPECTED_RELEASE=$release" >> "$GITHUB_ENV"
+      - name: Surface durable pending alerts out of band
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/github-alert-control-plane.mjs surface
+      - name: Exercise all reviewed alert classes and failed-path fallback
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          POSTSTEWARD_ALERT_OUTPUT: /tmp/poststeward-alert-fire-drill.json
+        run: node scripts/github-alert-control-plane.mjs fire-drill
+      - name: Evaluate fire-drill evidence
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: node scripts/operational-alert-evidence.mjs /tmp/poststeward-alert-fire-drill.json
