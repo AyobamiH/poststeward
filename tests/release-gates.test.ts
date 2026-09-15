@@ -46,6 +46,10 @@ test("release gate identifiers are unique and external evidence is derived from 
   assert.ok(ids.includes("github_main_ruleset"));
   assert.ok(!externalEvidenceGateIds().includes("private_github_authority"));
   assert.ok(externalEvidenceGateIds().includes("threads_oauth_callback"));
+  assert.equal(
+    releaseGateDefinitions.find((gate) => gate.id === "public_signup")?.scope,
+    "public_launch",
+  );
 });
 
 test("runtime capabilities remain distinct from reviewed live evidence", () => {
@@ -94,7 +98,7 @@ test("policy contradictions are visible instead of silently broadening claims", 
     "advanced_globally_enabled_before_canary_gate",
     "linkedin_readback_enabled_without_live_permission_evidence",
     "mpp_enabled_before_settlement_gate",
-    "public_signup_enabled_before_production_gate",
+    "public_signup_enabled_before_public_launch_gate",
   ]);
   const readiness = releaseReadiness(unsafe);
   assert.equal(readiness.policy.healthy, false);
