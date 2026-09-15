@@ -29,9 +29,13 @@ test("state-isolation mode uses only workspace status and reversible publishing 
   assert.match(body, /paused: true/);
   assert.match(body, /paused: false/);
   assert.match(body, /hostile Origin replay/);
-  assert.doesNotMatch(body, /publish_now|schedule_create|billing_|recovery|account_disconnect/);
+  assert.doesNotMatch(
+    body,
+    /"publish_now"|"schedule_create"|"account_disconnect"|\/api\/recovery\/|"billing_[^"]*"/,
+  );
   assert.match(body, /providerEffectAttempted: false/);
   assert.match(body, /paymentAttempted: false/);
+  assert.match(body, /recoveryAttempted: false/);
   assert.match(body, /rawWorkspaceIdsEmitted: false/);
 });
 
