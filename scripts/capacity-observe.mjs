@@ -50,29 +50,41 @@ async function queryD1(accountId, databaseId, token, sql, params = []) {
   return d1Rows(value);
 }
 
-async function queryGraphql(accountId, scriptName, databaseId, token, start, end) {
-  const query = `query Capacity($accountTag: string, $scriptName: string, $databaseId: string, $start: string, $end: string) {
+export function capacityAnalyticsRequest(accountId, scriptName, databaseId, start, end) {
+  const dateStart = String(start).slice(0, 10);
+  const dateEnd = String(end).slice(0, 10);
+  demand(/^\d{4}-\d{2}-\d{2}$/.test(dateStart) && /^\d{4}-\d{2}-\d{2}$/.test(dateEnd),
+    "Capacity analytics dates are invalid.");
+  const query = `query Capacity($accountTag: string, $scriptName: string, $databaseId: string, $start: string, $end: string, $dateStart: Date, $dateEnd: Date) {
     viewer {
       accounts(filter: { accountTag: $accountTag }) {
         workersInvocationsAdaptive(limit: 10000, filter: { scriptName: $scriptName, datetime_geq: $start, datetime_leq: $end }) {
           sum { requests subrequests errors }
           quantiles { cpuTimeP50 cpuTimeP99 }
         }
-        d1AnalyticsAdaptiveGroups(limit: 10000, filter: { databaseId: $databaseId, datetime_geq: $start, datetime_leq: $end }) {
+        d1AnalyticsAdaptiveGroups(limit: 10000, filter: { databaseId: $databaseId, date_geq: $dateStart, date_leq: $dateEnd }) {
           sum { readQueries writeQueries rowsRead rowsWritten queryBatchResponseBytes queryBatchTimeMs }
         }
       }
     }
   }`;
+  return {
+    query,
+    variables: { accountTag: accountId, scriptName, databaseId, start, end, dateStart, dateEnd },
+  };
+}
+
+async function queryGraphql(accountId, scriptName, databaseId, token, start, end) {
   const value = await cloudflareJson(
     "https://api.cloudflare.com/client/v4/graphql",
-    token,
+    {
+      toString() {
+        return token;
+      },
+    }.toString(),
     {
       method: "POST",
-      body: JSON.stringify({
-        query,
-        variables: { accountTag: accountId, scriptName, databaseId, start, end },
-      }),
+      body: JSON.stringify(capacityAnalyticsRequest(accountId, scriptName, databaseId, start, end)),
     },
   );
   demand(!value.errors?.length, "Cloudflare GraphQL capacity query returned errors.");
@@ -152,7 +164,6 @@ export async function readCapacityRuntime(origin, expectedRelease, send = fetch)
 
 export function capacityWorkerName(environment) {
   demand(["staging", "production"].includes(environment), "Capacity environment is invalid.");
-  // Keep the established deployment-config.mjs names, not an invented suffix.
   return environment === "staging" ? "poststeward-staging" : "poststeward";
 }
 
@@ -164,10 +175,24 @@ export function bindCapacityObservation(report, context, highWater, collectedAt 
     "Capacity sample timestamps are missing or invalid.");
   return {
     ...report, release: context.release, environment: context.environment, origin: context.origin,
-    // Freshness follows the durable SAMPLE time, not the time an old dataset is fetched.
     observedAt: last, collectedAt,
     sampleWindow: { firstObservedAt: first, lastObservedAt: last },
     provenanceBoundary: "High-water rows last observed on the named release; daily maxima and Cloudflare analytics may include earlier revisions within the reported window. This is not an isolated per-release load test.",
+  };
+}
+
+export function insufficientCapacityObservation(context, collectedAt = Date.now()) {
+  return {
+    schemaVersion: 1,
+    evidenceClass: "insufficient_observation",
+    release: context.release,
+    environment: context.environment,
+    origin: context.origin,
+    observedAt: null,
+    collectedAt,
+    workspaces: 0,
+    blockers: ["no_hosted_workspace_capacity_samples_for_release"],
+    ready: false,
   };
 }
 
@@ -176,6 +201,14 @@ function optionalJson(path, label) {
   const value = JSON.parse(readFileSync(path, "utf8"));
   demand(value && typeof value === "object", `${label} evidence must be JSON object.`);
   return value;
+}
+
+function emit(report) {
+  const serialized = JSON.stringify(report);
+  if (process.env.POSTSTEWARD_CAPACITY_OUTPUT)
+    writeFileSync(process.env.POSTSTEWARD_CAPACITY_OUTPUT, serialized + "\n", "utf8");
+  console.log("POSTSTEWARD_CAPACITY_OBSERVATION " + serialized);
+  return serialized;
 }
 
 async function main() {
@@ -212,7 +245,13 @@ async function main() {
      WHERE observation_date >= ? AND release = ?`,
     [cutoff, context.release]);
   const highWater = highRows[0] || {};
-  demand(Number(highWater.workspaces || 0) > 0, "No hosted workspace capacity observations exist for this release in the requested window yet.");
+  if (Number(highWater.workspaces || 0) <= 0) {
+    const report = insufficientCapacityObservation(context);
+    const serialized = emit(report);
+    demand(!serialized.includes(token), "Capacity observation attempted to emit protected material.");
+    process.exitCode = 2;
+    return;
+  }
 
   const graphql = await queryGraphql(accountId, scriptName, databaseId, token, start.toISOString(), end.toISOString());
   const worker = {
@@ -235,11 +274,8 @@ async function main() {
   demand(isDeepStrictEqual(context, await readCapacityRuntime(origin, expectedRelease)),
     "Capacity runtime changed while collecting evidence.");
   const report = bindCapacityObservation(evaluated, context, highWater);
-  const serialized = JSON.stringify(report);
+  const serialized = emit(report);
   demand(!serialized.includes(token), "Capacity observation attempted to emit protected material.");
-  if (process.env.POSTSTEWARD_CAPACITY_OUTPUT)
-    writeFileSync(process.env.POSTSTEWARD_CAPACITY_OUTPUT, serialized + "\n", "utf8");
-  console.log("POSTSTEWARD_CAPACITY_OBSERVATION " + serialized);
   if (!report.ready) process.exitCode = 2;
 }
 
