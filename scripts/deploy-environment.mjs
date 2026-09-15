@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { assertRetainedRoots, runRootCutover } from "./root-cutover.mjs";
+import { operationalAlertSecrets } from "./operational-alert-config.mjs";
 import {
   demand,
   deploymentSecrets,
@@ -24,7 +25,10 @@ demand(
     process.env.CLOUDFLARE_API_TOKEN,
   "Deployment account and token are required.",
 );
-const secrets = deploymentSecrets(process.env);
+const secrets = {
+  ...deploymentSecrets(process.env),
+  ...operationalAlertSecrets(process.env),
+};
 const rootHash = value => createHash("sha256").update(Buffer.from(value, "base64")).digest("hex");
 c.vars.ENCRYPTION_LEGACY_ROOT_ID = rootHash(secrets.ENCRYPTION_KEY);
 if (secrets.ENCRYPTION_KEY_NEXT) c.vars.ENCRYPTION_NEXT_ROOT_ID = rootHash(secrets.ENCRYPTION_KEY_NEXT);
