@@ -1,0 +1,56 @@
+name: Staging Advanced SLO observation
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "29 */4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-advanced-slo-observation
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    if: github.repository == 'AyobamiH/poststeward'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: staging
+    env:
+      DEPLOY_ENV: staging
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Build privacy-safe hosted canary observation
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          POSTSTEWARD_SLO_OUTPUT: /tmp/poststeward-advanced-slo.json
+          POSTSTEWARD_SLO_OPTIONAL: "true"
+        run: node scripts/advanced-slo-observe.mjs
+      - name: Evaluate canary SLO and error budget
+        shell: bash
+        run: |
+          if [[ ! -f /tmp/poststeward-advanced-slo.json ]]; then
+            echo "No Advanced canary run is available yet; observation is idle."
+            exit 0
+          fi
+          set +e
+          node scripts/slo-evaluate.mjs /tmp/poststeward-advanced-slo.json
+          status=$?
+          set -e
+          if [[ $status -eq 1 ]]; then
+            exit 1
+          fi
+          if [[ $status -eq 2 ]]; then
+            echo "Advanced canary evidence is valid but not promotion-ready yet."
+            exit 0
+          fi
