@@ -97,6 +97,13 @@ test("partially supplied collector authority is rejected rather than silently ig
     { POSTSTEWARD_PRODUCTION_ORIGIN: base },
     { CLOUDFLARE_ZONE_NAME: "example.com" },
     { POSTSTEWARD_AGENT_TOKEN_A: tokenA },
-    { POSTSTEWARD_FOREIGN_DELIVERY_ID: "existing-receipt" },
+    { POSTSTEWARD_AGENT_TOKEN_B: tokenB },
   ]) await assert.rejects(() => collectObservations(env), /incomplete/);
+});
+
+test("retired receipt-id input is ignored and cannot trigger an older tenant proof", async () => {
+  assert.deepEqual(
+    await collectObservations({ POSTSTEWARD_FOREIGN_DELIVERY_ID: "legacy-receipt" }),
+    {},
+  );
 });
