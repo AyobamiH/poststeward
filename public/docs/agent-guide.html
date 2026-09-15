@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Connect an AI agent to PostSteward, publish reviewed social content and inspect durable evidence safely." />
+    <title>PostSteward docs · Agent guide</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <script type="module" src="/docs-app.js"></script>
+  </head>
+  <body class="docs-app">
+    <header class="docs-topbar"><div class="docs-topbar-inner"><a class="wordmark" href="/" aria-label="PostSteward home"><img class="brand-mark" src="/favicon.svg" alt="" /><span>PostSteward</span></a><nav aria-label="Documentation shortcuts"><a href="/docs/">Docs home</a><a href="/docs/operations.html">Operations</a><a href="/help.json">Runtime help</a><a href="/app">Workspace</a></nav><details class="docs-mobile-menu"><summary>Docs</summary><nav><a href="/docs/">Docs home</a><a href="/docs/operations.html">Operations</a><a href="/help.json">Runtime help</a><a href="/app">Workspace</a></nav></details></div></header>
+    <div class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Agent guide navigation">
+        <div class="docs-sidebar-group"><p>Agent guide</p><nav><a href="#connect">Connect</a><a href="#publish">Publish</a><a href="#evidence">Evidence</a><a href="#advanced">Advanced</a><a href="#recovery">Recovery</a><a href="#limits">Limits</a></nav></div>
+        <div class="docs-sidebar-group"><p>Reference</p><nav><a href="/docs/operations.html">Operations</a><a href="/help.json">help.json</a><a href="/openapi.json">OpenAPI</a><a href="/docs/agent-guide.md">Raw Markdown</a></nav></div>
+      </aside>
+      <main class="docs-main" id="main-content">
+        <article class="docs-content">
+          <p class="eyebrow">AGENT INTEGRATION GUIDE</p>
+          <h1>Publish reviewed intent without losing the evidence boundary.</h1>
+          <p class="docs-lead">Free includes real direct publishing and explicit scheduling. Advanced adds continuing operation around reviewed sources. Payment, provider configuration and deployment availability remain separate from posting authority.</p>
+          <div class="docs-runtime" id="docs-runtime" aria-label="Deployed runtime summary"><div><span>Runtime</span><strong>Loading…</strong></div></div>
+
+          <section class="docs-section" id="connect">
+            <h2>1. Connect the owner, then delegate the agent.</h2>
+            <p>The owner signs in through <code>/auth/login</code>, connects an explicit social destination in the workspace and creates a project binding. Standard provider OAuth is implemented for X, Threads and LinkedIn, but each provider button is available only when the deployed provider application and negotiated capabilities are actually configured.</p>
+            <p>Manual token import remains a fallback for already-authorised user credentials. For X manual import, the owner must explicitly confirm use of their own funded developer application. OAuth-managed credentials and refresh material stay encrypted server-side.</p>
+            <p>Private GitHub source access uses a separate selected-repository GitHub App path with read-only Contents authority. It is optional and does not itself grant an agent publication permission.</p>
+            <h3>Delegate the smallest useful grant</h3>
+            <p>The owner issues a scoped, expiring agent token. A typical publishing agent needs <code>read</code>, <code>campaign:write</code>, <code>publish</code> and optionally <code>schedule</code>. Add <code>automation</code> or <code>billing</code> only when those operations are intended. Admin authority is not delegable through the grant endpoint.</p>
+            <div class="docs-callout"><strong>Store the token once.</strong><p>New agent secrets are shown once. Put them in the agent's secret manager; do not paste provider credentials or agent tokens into ordinary content or source material.</p></div>
+          </section>
+
+          <section class="docs-section" id="publish">
+            <h2>2. Resolve destinations before creating consequential work.</h2>
+            <p>Use <code>accounts_list</code> and <code>projects_list</code> to resolve the exact destination. Then store the approved text in a campaign and validate it before publishing or scheduling.</p>
+            <div class="docs-code-wrap"><pre class="docs-code">{
+  "project": "product",
+  "text": { "product_x": "The exact approved update." },
+  "idempotencyKey": "campaign-2026-001"
+}</pre></div>
+            <p>Call <code>campaign_validate</code> with the returned campaign ID. Then call <code>publish_now</code> or <code>schedule_create</code>. HTTP operations are available at <code>POST /api/operations/{name}</code>; remote MCP maps to the same operation catalogue and authority checks.</p>
+            <div class="docs-code-wrap"><pre class="docs-code">{
+  "campaign": "RETURNED_CAMPAIGN_ID",
+  "at": "2026-10-01T12:00:00Z",
+  "timezone": "UTC",
+  "idempotencyKey": "schedule-2026-001"
+}</pre></div>
+            <p>Every consequential mutation carries an idempotency key. Reuse the same key only for the same reviewed inputs when recovering transport delivery. A fresh key is not a safe way to repair an uncertain provider effect.</p>
+          </section>
+
+          <section class="docs-section" id="evidence">
+            <h2>3. Treat the receipt, not the request, as the record of what happened.</h2>
+            <p>PostSteward separates reservation, provider creation evidence and independent readback. A network timeout after the provider write boundary becomes an ambiguous effect and is fenced against blind repetition.</p>
+            <div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody>
+              <tr><td><code>scheduled</code></td><td>Durable future reservation; no provider publication claimed.</td></tr>
+              <tr><td><code>waiting_container</code></td><td>Threads container exists; publication readiness is still pending.</td></tr>
+              <tr><td><code>executing</code></td><td>Dispatch owns the durable execution claim.</td></tr>
+              <tr><td><code>published_verified</code></td><td>Recorded provider ID, stable author and exact copy were read back.</td></tr>
+              <tr><td><code>published_unverified</code></td><td>Creation evidence exists but exact independent readback is not established.</td></tr>
+              <tr><td><code>ambiguous_effect</code></td><td>The provider may have accepted the write; blind retry is blocked.</td></tr>
+              <tr><td><code>drift_blocked</code></td><td>Captured identity, authority or payload no longer matches the reviewed work.</td></tr>
+              <tr><td><code>failed</code></td><td>A known rejection or pre-effect failure occurred.</td></tr>
+              <tr><td><code>cancelled</code></td><td>An unclaimed reservation was cancelled.</td></tr>
+            </tbody></table></div>
+            <p>Use <code>receipt_get</code>, <code>receipts_list</code> and, where creation evidence exists, <code>receipt_recheck</code>. Metrics are separate provider evidence and may be unavailable; unavailable data is not converted to a fabricated zero.</p>
+          </section>
+
+          <section class="docs-section" id="advanced">
+            <h2>4. Advanced continues reviewed work; it does not invent authority.</h2>
+            <p>Advanced is USD 5 per workspace per month when the deployed rollout policy enables it. The runtime master switch and canary decision remain fail-closed. Payment alone never enables a profile or grants a posting scope.</p>
+            <p>An automation profile binds a reviewed repository path, explicit project/destination, deterministic template, family, polling interval and minimum spacing. Source text is treated as data, not instructions. Profiles begin paused and require explicit enablement.</p>
+            <p>Public repositories can be observed anonymously. Selected private repositories can use the owner-authorised GitHub App path. Source monitoring, allocation and metrics are bounded and stop when the relevant entitlement or authority expires.</p>
+            <div class="docs-callout" data-kind="warning"><strong>Runtime availability is authoritative.</strong><p>The presence of Advanced, X or LinkedIn implementation in the repository is not evidence that a given deployment has enabled the feature. Inspect <code>/readiness.json</code> and <code>/help.json</code>.</p></div>
+          </section>
+
+          <section class="docs-section" id="recovery">
+            <h2>5. Recovery restores state, then reconciles external reality.</h2>
+            <p>Exact recovery checkpoints are the primary recovery path. Preparing a recovery quarantines new publication. Restore does not erase posts that may already exist at a provider, so the owner must reconcile restored state and unresolved external-effect evidence before resuming.</p>
+            <ol><li>Capture or choose an exact checkpoint.</li><li>Prepare the recovery plan; publication is quarantined.</li><li>Execute the exact restore with the typed owner confirmation.</li><li>Reconcile the restarted workspace against current evidence.</li><li>Resume only after safety checks pass, or use the exact undo path while it is available.</li></ol>
+            <p>Approximate timestamp-to-bookmark recovery is a compatibility path and can be unavailable even when exact checkpoints are healthy.</p>
+          </section>
+
+          <section class="docs-section" id="limits">
+            <h2>6. Respect provider, workspace and admission limits.</h2>
+            <p>A 429 means admission was rejected; honour <code>Retry-After</code>. Workspaces also have bounded delivery/schedule and storage limits. Provider API charges are separate from PostSteward's service price. Disconnecting an account, revoking a grant or pausing publishing blocks future unclaimed effects but cannot undo a provider effect already started.</p>
+            <p>Owners can export workspace data, prune eligible old records and request workspace erasure from the Data surface. Recovery and deletion are owner-only transitions with explicit confirmation and durable fences.</p>
+            <p>For exact operation inputs and the current deployment's enabled capabilities, use the <a href="/docs/operations.html">operation reference</a>, <a href="/help.json">help.json</a> and <a href="/openapi.json">OpenAPI</a>.</p>
+          </section>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>

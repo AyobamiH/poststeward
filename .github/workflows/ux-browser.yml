@@ -1,0 +1,55 @@
+name: UX browser verification
+on:
+  pull_request:
+  push:
+    branches: [main, feat/production-ux-closure-rebased]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ux-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - name: Package exact source for review
+        run: |
+          mkdir -p ux-evidence
+          git archive --format=tar HEAD > ux-evidence/source.tar
+          git rev-parse HEAD > ux-evidence/revision.txt
+      - name: Read current main for integration review
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+          path: ux-main
+          persist-credentials: false
+      - name: Preserve integration reference
+        run: |
+          git -C ux-main archive --format=tar HEAD > ux-evidence/main-source.tar
+          git -C ux-main rev-parse HEAD > ux-evidence/main-revision.txt
+          rm -rf ux-main
+      - name: Install locked runtime and browser tooling
+        run: |
+          npm ci
+          npm ci --prefix tools/browser --ignore-scripts
+          npm audit --prefix tools/browser --audit-level=high
+          npm run build
+          cd tools/browser
+          npx --no-install playwright install --with-deps chromium
+      - name: Browser accessibility and interaction acceptance
+        run: node tools/browser/verify.mjs
+      - name: Preserve bounded synthetic review evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ux-evidence-${{ github.run_id }}
+          path: ux-evidence/
+          retention-days: 7
