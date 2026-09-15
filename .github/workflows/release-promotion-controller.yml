@@ -1,0 +1,55 @@
+name: Release promotion controller
+run-name: Promotion status — ${{ inputs.target || 'production' }} — ${{ github.sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Promotion stage to evaluate without performing external effects
+        type: choice
+        required: true
+        default: production
+        options:
+          - restricted_staging
+          - advanced_canary
+          - production
+          - public_launch
+  schedule:
+    - cron: "23 6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release-promotion-controller.yml
+      - scripts/release-promotion-controller.mjs
+      - scripts/operational-alert-evidence.mjs
+      - scripts/slo-evaluate.mjs
+      - scripts/capacity-calibration.mjs
+      - scripts/production-edge-check.mjs
+      - scripts/hosted-acceptance.mjs
+      - src/release-gates.ts
+      - public/release-gates.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-promotion-controller-${{ inputs.target || 'production' }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    if: github.repository == 'AyobamiH/poststeward'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Evaluate reviewed gates against hosted runtime
+        env:
+          POSTSTEWARD_PROMOTION_TARGET: ${{ inputs.target || 'production' }}
+          POSTSTEWARD_ORIGIN: https://poststeward-staging.woeinvests.workers.dev
+        run: node scripts/release-promotion-controller.mjs

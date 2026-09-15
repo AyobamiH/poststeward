@@ -16,6 +16,8 @@
     "deploy": "npm run deploy:check && node scripts/deploy-environment.mjs",
     "deploy:check": "node scripts/deploy-check.mjs",
     "slo:evaluate": "node scripts/slo-evaluate.mjs",
+    "promotion:status": "node scripts/release-promotion-controller.mjs",
+    "alerts:evaluate": "node scripts/operational-alert-evidence.mjs",
     "governance:check": "node scripts/github-main-protection-check.mjs",
     "governance:apply": "node scripts/github-main-protection-apply.mjs",
     "format": "prettier --write src scripts tests public/*.js public/*.html public/*.css package.json tsconfig.json wrangler.jsonc .github"

@@ -14,7 +14,8 @@ export type ReleaseGateScope =
   | "restricted_staging"
   | "advanced"
   | "provider_optional"
-  | "production";
+  | "production"
+  | "public_launch";
 
 export interface ReleaseGateDefinition {
   id: string;
@@ -158,7 +159,7 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   {
     id: "public_signup",
     state: "disabled_policy",
-    scope: "production",
+    scope: "public_launch",
     blocking: true,
     summary: "Public signup remains restricted until production/support/abuse controls are accepted.",
     evidence: ["docs/production-readiness-acceptance.md"],
@@ -227,6 +228,11 @@ function rolloutBps(env: Env) {
   return Number.isInteger(value) && value >= 0 && value <= 10000 ? value : -1;
 }
 
+function reviewedGateAccepted(id: string) {
+  const state = releaseGateDefinitions.find((gate) => gate.id === id)?.state;
+  return state === "live_verified" || state === "production_ready";
+}
+
 export function runtimeCapabilitySnapshot(env: Env) {
   return {
     providerApplications: {
@@ -261,8 +267,11 @@ export function runtimeCapabilitySnapshot(env: Env) {
 export function releasePolicyViolations(env: Env) {
   const runtime = runtimeCapabilitySnapshot(env);
   const violations: string[] = [];
-  if (runtime.policies.signupMode === "public")
-    violations.push("public_signup_enabled_before_production_gate");
+  if (
+    runtime.policies.signupMode === "public" &&
+    !reviewedGateAccepted("public_signup")
+  )
+    violations.push("public_signup_enabled_before_public_launch_gate");
 
   const advanced = runtime.policies.advancedEnabled;
   const mode = runtime.policies.advancedRolloutMode;
@@ -271,7 +280,8 @@ export function releasePolicyViolations(env: Env) {
     if (mode !== "disabled" || bps !== 0)
       violations.push("advanced_disabled_policy_drift");
   } else if (mode === "global") {
-    violations.push("advanced_globally_enabled_before_canary_gate");
+    if (!reviewedGateAccepted("advanced_rollout"))
+      violations.push("advanced_globally_enabled_before_canary_gate");
   } else if (
     env.DEPLOY_ENV !== "staging" ||
     mode !== "canary" ||
@@ -282,12 +292,11 @@ export function releasePolicyViolations(env: Env) {
     violations.push("advanced_canary_policy_invalid");
   }
 
-  if (runtime.policies.mppEnabled)
+  if (runtime.policies.mppEnabled && !reviewedGateAccepted("mpp"))
     violations.push("mpp_enabled_before_settlement_gate");
   if (
     runtime.providerApplications.linkedinMemberReadback &&
-    releaseGateDefinitions.find((gate) => gate.id === "linkedin_member_readback")?.state !==
-      "live_verified"
+    !reviewedGateAccepted("linkedin_member_readback")
   )
     violations.push("linkedin_readback_enabled_without_live_permission_evidence");
   return violations;
