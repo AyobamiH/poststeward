@@ -1,5 +1,6 @@
 import edge, { Workspace as BaseWorkspace } from "./edge.ts";
 import { advancedRolloutDecision } from "./advanced-rollout.ts";
+import { presentBrowserResponse } from "./browser-presentation.ts";
 import type { Env } from "./types.ts";
 
 function storedWorkspace(ctx: DurableObjectState) {
@@ -43,4 +44,12 @@ export class Workspace extends BaseWorkspace {
   }
 }
 
-export default edge;
+export default {
+  scheduled(controller: ScheduledController, env: Env) {
+    return edge.scheduled(controller, env);
+  },
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const response = await edge.fetch(request, env, ctx);
+    return presentBrowserResponse(request, response, env);
+  },
+} satisfies ExportedHandler<Env>;
