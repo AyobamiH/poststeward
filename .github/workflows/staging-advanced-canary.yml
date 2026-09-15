@@ -1,0 +1,58 @@
+name: Staging Advanced canary control
+run-name: Advanced canary ${{ inputs.action }} — ${{ github.sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Bounded staging rollout change
+        required: true
+        type: choice
+        options:
+          - stop
+          - start_100bps
+          - start_500bps
+          - start_1000bps
+        default: stop
+      confirmation:
+        description: Confirm the reviewed canary configuration change
+        required: true
+        type: choice
+        options:
+          - DO_NOT_APPLY
+          - APPLY_ADVANCED_CANARY_CHANGE
+        default: DO_NOT_APPLY
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  staging:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'AyobamiH/poststeward' &&
+      github.actor == 'AyobamiH' &&
+      inputs.confirmation == 'APPLY_ADVANCED_CANARY_CHANGE'
+    # The reusable deploy workflow owns the deploy-staging concurrency group.
+    # Do not duplicate that group here or the caller can block its callee.
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
+      run_pitr_diagnostic: false
+      advanced_rollout_request: ${{ inputs.action }}
+    # Explicit fallbacks only. The called workflow still uses the protected
+    # staging environment and never receives an unbounded secret set.
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
+      OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+      ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      POSTSTEWARD_GITHUB_APP_CLIENT_SECRET: ${{ secrets.POSTSTEWARD_GITHUB_APP_CLIENT_SECRET }}
+      X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
+      THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+      STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
+      OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
+      OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}

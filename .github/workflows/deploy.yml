@@ -11,6 +11,11 @@ on:
         description: Run staging-only prepare diagnostic without executing a restore
         type: boolean
         default: false
+      advanced_rollout_request:
+        description: Reviewed Advanced rollout override
+        type: choice
+        options: [environment, start_100bps, start_500bps, start_1000bps, stop]
+        default: environment
   workflow_call:
     inputs:
       environment:
@@ -22,6 +27,11 @@ on:
         required: false
         type: boolean
         default: false
+      advanced_rollout_request:
+        description: Reviewed Advanced rollout override
+        required: false
+        type: string
+        default: environment
     # Explicit repository-level fallbacks only; the selected environment takes precedence.
     secrets:
       CLOUDFLARE_API_TOKEN:
@@ -116,6 +126,10 @@ jobs:
           node-version: 24
       # No secret is available to dependency lifecycle scripts or tests.
       - run: npm ci --ignore-scripts
+      - name: Resolve bounded Advanced rollout request
+        env:
+          POSTSTEWARD_ADVANCED_ROLLOUT_REQUEST: ${{ inputs.advanced_rollout_request }}
+        run: node scripts/advanced-rollout-request.mjs
       - name: Configure isolated environment
         id: config
         env:
