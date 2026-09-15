@@ -19,20 +19,25 @@ test("protected staging enforces exact promotion context after smoke and before 
   assert.ok(deploy.indexOf("run: node scripts/lifecycle-smoke.mjs") < deploy.indexOf(marker));
   assert.ok(deploy.indexOf(marker) < deploy.indexOf("      - name: Record verified Advanced canary boundary"));
 });
-test("scheduled promotion status remains read-only and explicitly informational", () => {
+
+test("scheduled promotion status remains read-only, stage-correct and observational", () => {
   assert.match(report, /permissions:\n  contents: read/);
   assert.match(report, /POSTSTEWARD_PROMOTION_MODE: report/);
-  assert.ok(report.includes("POSTSTEWARD_EXPECTED_RELEASE: ${{ github.sha }}"));
+  assert.doesNotMatch(report, /POSTSTEWARD_EXPECTED_RELEASE:/);
   assert.ok(report.includes("scripts/promotion-evidence.mjs"));
   assert.ok(report.includes('cron: "23 6 * * *"'));
+  assert.ok(report.includes("'restricted_staging'"));
   assert.doesNotMatch(report, /secrets\.|contents: write|actions: write|CLOUDFLARE_API_TOKEN|AGENT_TOKEN/);
 });
-test("controller guards collection before performing any optional authenticated observations", () => {
+
+test("controller guards collection and separates observational from enforcement release binding", () => {
   assert.match(controller, /initial\.releaseBinding\.ready && initial\.runtimePolicy\.healthy/);
   assert.match(controller, /process\.exitCode = promotionExitCode\(report, mode\)/);
-  assert.match(controller, /POSTSTEWARD_EXPECTED_RELEASE \?\? env\.GITHUB_SHA \?\? ""/);
+  assert.match(controller, /export function resolveExpectedRelease/);
+  assert.match(controller, /mode === "report" \? hostedRelease : githubSha \|\| ""/);
   assert.doesNotMatch(controller, /workspace_delete|recovery\/execute|publishing_pause|workflow_dispatch|advanced-rollout-request/);
 });
+
 test("capacity observation command remains available without removing SLO and governance commands", () => {
   const scripts = JSON.parse(readFileSync("package.json", "utf8")).scripts;
   assert.equal(scripts["capacity:observe"], "node scripts/capacity-observe.mjs");
