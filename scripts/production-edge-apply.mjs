@@ -86,6 +86,17 @@ function canonicalRulesetName(kind) {
     : "PostSteward authentication rate limits";
 }
 
+function boundedCloudflareErrors(value) {
+  const errors = Array.isArray(value?.errors) ? value.errors.slice(0, 3) : [];
+  return errors.map((error) => ({
+    code: Number.isFinite(Number(error?.code)) ? Number(error.code) : null,
+    message:
+      typeof error?.message === "string"
+        ? error.message.replace(/[\r\n\t]/g, " ").slice(0, 240)
+        : "Cloudflare rejected the request.",
+  }));
+}
+
 async function cloudflare(path, token, init = {}) {
   const response = await fetch(`https://api.cloudflare.com/client/v4${path}`, {
     ...init,
@@ -108,10 +119,13 @@ async function cloudflare(path, token, init = {}) {
   } catch {
     value = {};
   }
-  demand(
-    response.ok && value.success !== false,
-    `Cloudflare edge request failed with HTTP ${response.status}.`,
-  );
+  if (!response.ok || value.success === false) {
+    const diagnostics = boundedCloudflareErrors(value);
+    const detail = diagnostics.length
+      ? ` ${JSON.stringify({ path, errors: diagnostics })}`
+      : ` ${JSON.stringify({ path })}`;
+    throw new Error(`Cloudflare edge request failed with HTTP ${response.status}.${detail}`);
+  }
   return value.result ?? value;
 }
 
