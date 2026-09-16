@@ -46,17 +46,21 @@ function fakeCloudflare(initial = {}) {
   return { phases, calls, send };
 }
 
-test("canonical rules are narrowly host-scoped and conservative", () => {
+test("canonical WAF rule is host-scoped while Free-plan rate rule uses only supported path/IP/10-second controls", () => {
   const value = canonicalEdgeRules("service.example.com");
   assert.match(value.waf.expression, /http\.host eq "service\.example\.com"/);
   assert.match(value.waf.expression, /TRACE/);
   assert.deepEqual(value.rate.ratelimit, {
     characteristics: ["cf.colo.id", "ip.src"],
-    period: 60,
-    requests_per_period: 30,
-    mitigation_timeout: 60,
+    period: 10,
+    requests_per_period: 5,
+    mitigation_timeout: 10,
   });
-  assert.match(value.rate.expression, /starts_with\(http\.request\.uri\.path, "\/auth\/"\)/);
+  assert.equal(
+    value.rate.expression,
+    '(starts_with(http.request.uri.path, "/auth/"))',
+  );
+  assert.doesNotMatch(value.rate.expression, /http\.host|http\.request\.method|ip\.src/);
 });
 
 test("dry run reports missing controls without mutation", async () => {
@@ -119,6 +123,45 @@ test("drifted canonical rule is patched in place rather than duplicated", async 
   assert.equal(report.ready, true);
   assert.equal(cf.calls.filter((call) => call.method === "PATCH").length, 1);
   assert.equal(cf.calls.filter((call) => call.method === "POST").length, 0);
+});
+
+test("legacy 60-second rate rule is detected as drift and corrected in place", async () => {
+  const expected = canonicalEdgeRules("service.example.com");
+  const rateId = "c".repeat(32);
+  const rateRuleId = "e".repeat(32);
+  const cf = fakeCloudflare({
+    http_request_firewall_custom: {
+      id: "b".repeat(32),
+      rules: [{ id: "d".repeat(32), ...expected.waf }],
+    },
+    http_ratelimit: {
+      id: rateId,
+      rules: [
+        {
+          id: rateRuleId,
+          ...expected.rate,
+          expression:
+            '(http.host eq "service.example.com" and starts_with(http.request.uri.path, "/auth/"))',
+          ratelimit: {
+            characteristics: ["cf.colo.id", "ip.src"],
+            period: 60,
+            requests_per_period: 30,
+            mitigation_timeout: 60,
+          },
+        },
+      ],
+    },
+  });
+  const report = await reconcileProductionEdge({
+    origin: "https://service.example.com",
+    zoneName: "example.com",
+    token,
+    confirmation: EDGE_CONFIRMATION,
+    send: cf.send,
+  });
+  assert.equal(report.ready, true);
+  assert.equal(report.before.rate, "drifted_rule");
+  assert.equal(cf.calls.filter((call) => call.method === "PATCH").length, 1);
 });
 
 test("ambiguous same-description rule fails closed", async () => {
