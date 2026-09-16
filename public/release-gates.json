@@ -7,9 +7,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Real owner Google sign-in accepted in the owner browser.",
-      "evidence": [
-        "docs/p0-live-evidence-2026-09-12.md"
-      ]
+      "evidence": ["docs/p0-live-evidence-2026-09-12.md"]
     },
     {
       "id": "threads_publication_readback",
@@ -17,9 +15,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Controlled Threads publication and independent provider readback accepted.",
-      "evidence": [
-        "docs/p0-live-evidence-2026-09-12.md"
-      ]
+      "evidence": ["docs/p0-live-evidence-2026-09-12.md"]
     },
     {
       "id": "inspect_http_remote_mcp",
@@ -27,9 +23,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Inspect-only HTTP and remote MCP accepted before revoke and denied after revoke.",
-      "evidence": [
-        "docs/p0-live-evidence-2026-09-12.md"
-      ]
+      "evidence": ["docs/p0-live-evidence-2026-09-12.md"]
     },
     {
       "id": "stripe_sandbox_lifecycle",
@@ -37,9 +31,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Sandbox Checkout, paid state, refund/revocation, cancellation and webhook ledger accepted.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "protected_root_cutover",
@@ -58,9 +50,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Selected private repository read and provider-side revoke/fail-closed proof accepted.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "exact_recovery_checkpoints",
@@ -80,9 +70,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "threads_oauth_callback",
@@ -90,9 +78,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "Meta currently rejects persistence of the exact Threads callback allowlist.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "native_webmcp",
@@ -100,9 +86,7 @@
       "scope": "restricted_staging",
       "blocking": false,
       "summary": "PostSteward native WebMCP is deployed; the owner's ordinary browser does not expose the native API.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ],
+      "evidence": ["docs/live-external-gates-2026-09-13.md"],
       "ownerAction": "Use one authenticated supporting browser for the read-only workspace_status proof when available."
     },
     {
@@ -111,9 +95,7 @@
       "scope": "provider_optional",
       "blocking": false,
       "summary": "X OAuth implementation is present; the real application/client authority is not configured in staging.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "linkedin_oauth",
@@ -121,9 +103,7 @@
       "scope": "provider_optional",
       "blocking": false,
       "summary": "LinkedIn OAuth implementation is present; the real application/client authority is not configured in staging.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "linkedin_member_readback",
@@ -131,9 +111,7 @@
       "scope": "provider_optional",
       "blocking": false,
       "summary": "Independent member-post readback remains unavailable until the actual LinkedIn application receives the restricted permission.",
-      "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
-      ]
+      "evidence": ["docs/live-external-gates-2026-09-13.md"]
     },
     {
       "id": "advanced_rollout",
@@ -141,9 +119,7 @@
       "scope": "advanced",
       "blocking": false,
       "summary": "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
-      "evidence": [
-        "docs/production-readiness-acceptance.md"
-      ]
+      "evidence": ["docs/production-readiness-acceptance.md"]
     },
     {
       "id": "mpp",
@@ -151,9 +127,7 @@
       "scope": "advanced",
       "blocking": false,
       "summary": "MPP is a separate optional settlement stream and remains disabled.",
-      "evidence": [
-        "docs/production-readiness-acceptance.md"
-      ]
+      "evidence": ["docs/production-readiness-acceptance.md"]
     },
     {
       "id": "public_signup",
@@ -161,9 +135,7 @@
       "scope": "public_launch",
       "blocking": true,
       "summary": "Public signup remains restricted until production/support/abuse controls are accepted.",
-      "evidence": [
-        "docs/production-readiness-acceptance.md"
-      ]
+      "evidence": ["docs/production-readiness-acceptance.md"]
     },
     {
       "id": "production_edge",
@@ -171,9 +143,7 @@
       "scope": "production",
       "blocking": true,
       "summary": "Custom production origin, DNS/TLS, WAF and rate-policy evidence remain open.",
-      "evidence": [
-        "docs/production-readiness-acceptance.md"
-      ]
+      "evidence": ["docs/production-readiness-acceptance.md"]
     },
     {
       "id": "github_main_ruleset",
@@ -192,9 +162,7 @@
       "scope": "production",
       "blocking": true,
       "summary": "Production alert delivery and escalation evidence remain open.",
-      "evidence": [
-        "docs/production-readiness-acceptance.md"
-      ]
+      "evidence": ["docs/production-readiness-acceptance.md"]
     },
     {
       "id": "capacity_cost_calibration",
@@ -202,18 +170,17 @@
       "scope": "production",
       "blocking": true,
       "summary": "Representative capacity/cost observations with required headroom remain open.",
-      "evidence": [
-        "docs/production-readiness-acceptance.md"
-      ]
+      "evidence": ["docs/production-readiness-acceptance.md"]
     },
     {
       "id": "hosted_cross_tenant",
-      "state": "external_setup_required",
+      "state": "live_verified",
       "scope": "production",
-      "blocking": true,
-      "summary": "Two-workspace hosted isolation acceptance remains open.",
+      "blocking": false,
+      "summary": "Hosted two-workspace isolation, hostile-Origin denial and ephemeral grant cleanup are accepted on the exact staged release.",
       "evidence": [
-        "docs/production-readiness-acceptance.md"
+        "docs/hosted-cross-tenant-live-evidence-2026-09-15.md",
+        "actions/35029954430"
       ]
     }
   ]
