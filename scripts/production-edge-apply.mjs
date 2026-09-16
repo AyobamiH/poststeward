@@ -31,6 +31,14 @@ function exactProductionOrigin(value, zoneName) {
   return { origin: url.origin, hostname: host, zoneName: zone };
 }
 
+/**
+ * The production zone currently has Cloudflare Free WAF rate-limiting
+ * entitlement even though the account has Workers Paid. Free-zone rate limits
+ * support URI path matching, IP counting, one rule, a 10-second counting
+ * period and a 10-second mitigation period. Keep the stronger Worker-side
+ * LOGIN_LIMITER as the precise 10/min application control; this edge rule is a
+ * coarse abuse shield that fails earlier at Cloudflare's network edge.
+ */
 export function canonicalEdgeRules(hostname) {
   return {
     waf: {
@@ -43,14 +51,20 @@ export function canonicalEdgeRules(hostname) {
     rate: {
       ref: "poststeward_auth_rate_limit_v1",
       description: "PostSteward owner authentication rate limit",
-      expression: `(http.host eq "${hostname}" and starts_with(http.request.uri.path, "/auth/"))`,
+      // Free rate-limiting rules cannot use Host in the match expression. The
+      // rule is zone-scoped already, so protect every /auth/ route in the zone.
+      expression: `(starts_with(http.request.uri.path, "/auth/"))`,
       action: "block",
       enabled: true,
       ratelimit: {
+        // cf.colo.id is mandatory in API-created rules. Free supports IP as the
+        // counting characteristic.
         characteristics: ["cf.colo.id", "ip.src"],
-        period: 60,
-        requests_per_period: 30,
-        mitigation_timeout: 60,
+        period: 10,
+        // Preserve the previous coarse 30/min envelope as 5 requests/10 sec.
+        // Precise per-workspace/login enforcement remains in the Worker.
+        requests_per_period: 5,
+        mitigation_timeout: 10,
       },
     },
   };
