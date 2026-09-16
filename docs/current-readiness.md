@@ -24,7 +24,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `github_main_ruleset` | `live_verified` | `production` | no | Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy. |
 | `operational_alert_delivery` | `external_setup_required` | `production` | yes | Production alert delivery and escalation evidence remain open. |
 | `capacity_cost_calibration` | `external_setup_required` | `production` | yes | Representative capacity/cost observations with required headroom remain open. |
-| `hosted_cross_tenant` | `external_setup_required` | `production` | yes | Two-workspace hosted isolation acceptance remains open. |
+| `hosted_cross_tenant` | `live_verified` | `production` | no | Hosted two-workspace isolation, hostile-Origin denial and ephemeral grant cleanup are accepted on the exact staged release. |
 
 ## Evidence references
 
@@ -48,4 +48,4 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `github_main_ruleset`: `docs/github-main-ruleset-live-evidence-2026-09-15.md`, `ruleset/23461973`
 - `operational_alert_delivery`: `docs/production-readiness-acceptance.md`
 - `capacity_cost_calibration`: `docs/production-readiness-acceptance.md`
-- `hosted_cross_tenant`: `docs/production-readiness-acceptance.md`
+- `hosted_cross_tenant`: `docs/hosted-cross-tenant-live-evidence-2026-09-15.md`, `actions/35029954430`

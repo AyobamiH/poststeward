@@ -201,11 +201,14 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "hosted_cross_tenant",
-    state: "external_setup_required",
+    state: "live_verified",
     scope: "production",
-    blocking: true,
-    summary: "Two-workspace hosted isolation acceptance remains open.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+    blocking: false,
+    summary: "Hosted two-workspace isolation, hostile-Origin denial and ephemeral grant cleanup are accepted on the exact staged release.",
+    evidence: [
+      "docs/hosted-cross-tenant-live-evidence-2026-09-15.md",
+      "actions/35029954430",
+    ],
   },
 ] as const;
 

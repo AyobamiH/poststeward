@@ -7,7 +7,7 @@ import { evaluatePromotion, collectObservations } from "../scripts/release-promo
 
 const release = "a".repeat(40);
 const now = Date.parse("2026-09-15T18:00:00Z");
-const productionIds = ["production_edge", "operational_alert_delivery", "capacity_cost_calibration", "hosted_cross_tenant"];
+const productionIds = ["production_edge", "operational_alert_delivery", "capacity_cost_calibration"];
 function fixture(target = "restricted_staging", acceptedProduction = false) {
   const ledger = JSON.parse(readFileSync(new URL("../public/release-gates.json", import.meta.url), "utf8"));
   if (acceptedProduction)
