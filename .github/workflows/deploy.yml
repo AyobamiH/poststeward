@@ -32,6 +32,11 @@ on:
         required: false
         type: string
         default: environment
+      production_deploy_request:
+        description: Allow production only from the reviewed production-request caller
+        required: false
+        type: boolean
+        default: false
     # Explicit repository-level fallbacks only; the selected environment takes precedence.
     secrets:
       CLOUDFLARE_API_TOKEN:
@@ -68,7 +73,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && (inputs.environment == 'staging' || (inputs.environment == 'production' && github.event_name == 'workflow_dispatch'))
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && (inputs.environment == 'staging' || (inputs.environment == 'production' && (github.event_name == 'workflow_dispatch' || inputs.production_deploy_request == true)))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -84,12 +89,18 @@ jobs:
           REQUIRE_MERGED_PR: "true"
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/assert-merge-provenance.mjs
+      - name: Require reviewed production caller provenance
+        if: inputs.environment == 'production' && inputs.production_deploy_request == true
+        env:
+          REQUIRE_MERGED_PR: "true"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/assert-merge-provenance.mjs
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run verify
   deploy:
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && (inputs.environment == 'staging' || (inputs.environment == 'production' && github.event_name == 'workflow_dispatch'))
+    if: github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && (inputs.environment == 'staging' || (inputs.environment == 'production' && (github.event_name == 'workflow_dispatch' || inputs.production_deploy_request == true)))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:

@@ -6,6 +6,10 @@ const request = readFileSync(
   ".github/workflows/deploy-staging-request.yml",
   "utf8",
 );
+const productionRequest = readFileSync(
+  ".github/workflows/deploy-production-request.yml",
+  "utf8",
+);
 const deploy = readFileSync(".github/workflows/deploy.yml", "utf8");
 const secretNames = [
   "CLOUDFLARE_API_TOKEN",
@@ -54,10 +58,14 @@ test("staging request reuses the same commit with only explicitly named secret f
   assert.doesNotMatch(deploy, /secrets: inherit/);
 });
 
-test("reusable deployment keeps production manual and both jobs main-only", () => {
+test("reusable deployment accepts production only from direct dispatch or explicit reviewed caller", () => {
   assert.match(
     deploy,
     /workflow_call:\n    inputs:\n      environment:[\s\S]*?required: true\n        type: string/,
+  );
+  assert.match(
+    deploy,
+    /production_deploy_request:\n        description: Allow production only from the reviewed production-request caller\n        required: false\n        type: boolean\n        default: false/,
   );
   assert.match(deploy, /workflow_dispatch:/);
   const guards = deploy
@@ -69,10 +77,24 @@ test("reusable deployment keeps production manual and both jobs main-only", () =
     assert.ok(guard.includes("github.repository == 'AyobamiH/poststeward'"));
     assert.ok(
       guard.includes(
-        "(inputs.environment == 'staging' || (inputs.environment == 'production' && github.event_name == 'workflow_dispatch'))",
+        "(inputs.environment == 'staging' || (inputs.environment == 'production' && (github.event_name == 'workflow_dispatch' || inputs.production_deploy_request == true)))",
       ),
     );
   }
+  assert.match(
+    productionRequest,
+    /environment: production[\s\S]*production_deploy_request: true/,
+  );
+});
+
+test("reviewed production workflow call requires merged-PR provenance before verification", () => {
+  const verification = deploy.split("  verify:\n")[1].split("  deploy:\n")[0];
+  assert.match(
+    verification,
+    /Require reviewed production caller provenance[\s\S]*inputs\.environment == 'production' && inputs\.production_deploy_request == true/,
+  );
+  assert.ok(verification.includes("REQUIRE_MERGED_PR: \"true\""));
+  assert.ok(verification.includes("run: node scripts/assert-merge-provenance.mjs"));
 });
 
 test("deployment still verifies before entering the protected environment", () => {
