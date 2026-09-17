@@ -1,0 +1,86 @@
+name: Deploy requested production revision
+run-name: Deploy production revision ${{ github.sha }}
+# Production deployment request: 2026-09-17-restricted-production-runtime
+# This file is the only reviewed push-triggered production deployment request.
+# It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
+# It performs a read-only protected-environment preflight before calling the shared deploy workflow.
+# No provider consent, publication, payment, public admission or recovery effect is requested.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy-production-request.yml
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  preflight:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+    env:
+      DEPLOY_ENV: production
+      ENCRYPTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_ID: ${{ vars.D1_ID }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
+      OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
+      GITHUB_APP_CLIENT_ID: ${{ vars.POSTSTEWARD_GITHUB_APP_CLIENT_ID }}
+      GITHUB_APP_SLUG: ${{ vars.POSTSTEWARD_GITHUB_APP_SLUG }}
+      X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
+      THREADS_OAUTH_CLIENT_ID: ${{ vars.THREADS_OAUTH_CLIENT_ID }}
+      LINKEDIN_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
+      LINKEDIN_MEMBER_READBACK: ${{ vars.LINKEDIN_MEMBER_READBACK }}
+      STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
+      STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
+      ADVANCED_ENABLED: ${{ vars.ADVANCED_ENABLED }}
+      ADVANCED_ROLLOUT_MODE: ${{ vars.ADVANCED_ROLLOUT_MODE }}
+      ADVANCED_CANARY_BPS: ${{ vars.ADVANCED_CANARY_BPS }}
+      ADVANCED_CANARY_SEED: ${{ vars.ADVANCED_CANARY_SEED }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
+      OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+      ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      GITHUB_APP_CLIENT_SECRET: ${{ secrets.POSTSTEWARD_GITHUB_APP_CLIENT_SECRET }}
+      X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
+      THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
+      OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Verify production resource identity and protected configuration
+        run: node scripts/production-deploy-preflight.mjs
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.result == 'success'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      run_pitr_diagnostic: false
+      advanced_rollout_request: environment
+      production_deploy_request: true
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
+      OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+      ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      POSTSTEWARD_GITHUB_APP_CLIENT_SECRET: ${{ secrets.POSTSTEWARD_GITHUB_APP_CLIENT_SECRET }}
+      X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
+      THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+      STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
+      OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
+      OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}
