@@ -5,6 +5,7 @@ import {
   deploymentSecrets,
   resolveCloudflareConfiguration,
 } from "./deployment-config.mjs";
+import { operationalAlertSecrets } from "./operational-alert-config.mjs";
 
 function demand(condition, message) {
   if (!condition) throw new Error(message);
@@ -67,8 +68,9 @@ export async function preflightProductionDeploy(
     "Production Worker configuration did not resolve to the reviewed custom origin.",
   );
 
-  // Validate the real protected environment values without returning any secret.
+  // Validate real protected environment values without returning any secret.
   deploymentSecrets(env);
+  const alertSecrets = operationalAlertSecrets(env);
 
   const token = env.CLOUDFLARE_API_TOKEN || "";
   const account = configuration.account_id;
@@ -110,6 +112,9 @@ export async function preflightProductionDeploy(
     dedicatedProductionDatabase: true,
     cloudflareAccountAuthority: true,
     requiredSecretsValidated: true,
+    operationalAlertDestinationConfigured: Boolean(
+      alertSecrets.OPERATIONAL_ALERT_WEBHOOK_URL,
+    ),
     restrictedSignup: true,
     advancedDisabled: true,
     mppDisabled: true,
