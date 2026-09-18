@@ -99,6 +99,16 @@ test("OAuth status exposes negotiated evidence while account compatibility flags
     configured.linkedin.capabilities.readback.state,
     "external_approval_required",
   );
+  assert.deepEqual(configured.linkedin.organizationScopes, [
+    "openid",
+    "profile",
+    "w_organization_social",
+    "r_organization_social",
+  ]);
+  assert.equal(
+    configured.linkedin.organizationCapabilities.readback.state,
+    "connection_required",
+  );
 
   const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
   const result: any = await oauth.connect(owner, {
