@@ -1,12 +1,12 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-17-workflow-contract-retry
+# Production deployment request: 2026-09-18-promote-current-staging-ui
 # This file is the only reviewed push-triggered production deployment request.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
-# This request specifically re-exercises the reviewed production caller after PR #114 fixed
-# the reusable workflow_call contract; no provider consent, publication, payment, public admission
-# or recovery effect is requested.
+# This request promotes the current reviewed PostSteward UI/runtime to the protected production origin.
+# The landing-page assets are byte-identical to the active staging release; no provider consent,
+# publication, payment, public admission or recovery effect is requested.
 on:
   push:
     branches: [main]
