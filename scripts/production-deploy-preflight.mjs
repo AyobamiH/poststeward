@@ -40,8 +40,13 @@ export async function preflightProductionDeploy(
     "Production preflight runs only for AyobamiH/poststeward main as AyobamiH.",
   );
   demand(
-    env.APP_ORIGIN === "https://poststeward.com",
-    "Production APP_ORIGIN must be exactly https://poststeward.com.",
+    env.APP_ORIGIN === "https://app.poststeward.com",
+    "Production APP_ORIGIN must be exactly https://app.poststeward.com.",
+  );
+  const credentialMode = env.PRODUCTION_CREDENTIAL_MODE || "";
+  demand(
+    ["isolated", "shared_staging_bootstrap"].includes(credentialMode),
+    "Set PRODUCTION_CREDENTIAL_MODE to isolated or shared_staging_bootstrap.",
   );
   demand(
     env.ENCRYPTION_ROOT_WRITE !== "next",
@@ -62,7 +67,7 @@ export async function preflightProductionDeploy(
   const configuration = buildConfiguration(base, resolved);
   demand(
     configuration.name === "poststeward" &&
-      configuration.vars.PUBLIC_ORIGIN === "https://poststeward.com" &&
+      configuration.vars.PUBLIC_ORIGIN === "https://app.poststeward.com" &&
       configuration.vars.DEPLOY_ENV === "production" &&
       configuration.workers_dev === false,
     "Production Worker configuration did not resolve to the reviewed custom origin.",
@@ -105,7 +110,9 @@ export async function preflightProductionDeploy(
     schemaVersion: 1,
     ready: true,
     environment: "production",
-    origin: "https://poststeward.com",
+    origin: "https://app.poststeward.com",
+    credentialMode,
+    credentialRotationRequired: credentialMode === "shared_staging_bootstrap",
     release: env.GITHUB_SHA,
     workerName: "poststeward",
     workerAlreadyPresent: workerResponse.ok,
