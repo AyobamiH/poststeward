@@ -11,7 +11,11 @@ export interface Published {
   url?: string;
 }
 export interface ProviderAPI {
-  identity(provider: Provider, credential: Credential): Promise<Identity>;
+  identity(
+    provider: Provider,
+    credential: Credential,
+    actorUrn?: string,
+  ): Promise<Identity>;
   createContainer(delivery: Delivery, credential: Credential): Promise<string>;
   containerStatus(id: string, credential: Credential): Promise<string>;
   publish(delivery: Delivery, credential: Credential): Promise<Published>;
@@ -96,21 +100,52 @@ export class SocialProviders implements ProviderAPI {
         write ? "Provider accepted the request but durable response evidence is unavailable. Do not resubmit." : "Provider returned unreadable or incomplete data.", 502);
     }
   }
-  async identity(provider: Provider, c: Credential): Promise<Identity> {
+  async identity(
+    provider: Provider,
+    c: Credential,
+    actorUrn?: string,
+  ): Promise<Identity> {
     requireValue(!c.expiresAt || c.expiresAt > Date.now() + 30000, "CONNECTION_EXPIRED", "Reconnect this account before publishing.", 409);
     if (provider === "x") {
+      requireValue(!actorUrn, "IDENTITY_UNVERIFIED", "X does not accept a LinkedIn actor URN.", 400);
       const { data } = await this.request("https://api.x.com/2/users/me", c.accessToken);
       requireValue(validId(data.data?.id) && validId(data.data?.username), "IDENTITY_UNVERIFIED", "X identity unavailable.", 502);
       return { id: data.data.id, username: data.data.username };
     }
     if (provider === "threads") {
+      requireValue(!actorUrn, "IDENTITY_UNVERIFIED", "Threads does not accept a LinkedIn actor URN.", 400);
       const { data } = await this.request("https://graph.threads.net/v1.0/me?fields=id,username", c.accessToken);
       requireValue(validId(data.id) && validId(data.username), "IDENTITY_UNVERIFIED", "Threads identity unavailable.", 502);
       return { id: data.id, username: data.username };
     }
     const { data } = await this.request("https://api.linkedin.com/v2/userinfo", c.accessToken);
     requireValue(validId(data.sub), "IDENTITY_UNVERIFIED", "LinkedIn member identity unavailable. openid/profile permissions are required.", 502);
-    return { id: `urn:li:person:${data.sub}`, username: String(data.name || data.sub) };
+    const member = { id: `urn:li:person:${data.sub}`, username: String(data.name || data.sub) };
+    if (!actorUrn) return member;
+    requireValue(
+      /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(actorUrn),
+      "LINKEDIN_ACTOR_INVALID",
+      "LinkedIn page actor must be an organization or organizationBrand URN.",
+      400,
+    );
+    // The author finder is permission/role gated by LinkedIn. A successful
+    // response proves this member grant can read as the reviewed organization.
+    const finder = new URL("https://api.linkedin.com/rest/posts");
+    finder.search = new URLSearchParams({
+      author: actorUrn,
+      q: "author",
+      count: "1",
+      viewContext: "AUTHOR",
+      sortBy: "LAST_MODIFIED",
+    }).toString();
+    await this.request(finder.href, c.accessToken, {
+      headers: {
+        "LinkedIn-Version": this.linkedinVersion,
+        "X-Restli-Protocol-Version": "2.0.0",
+        "X-RestLi-Method": "FINDER",
+      },
+    });
+    return { id: actorUrn, username: actorUrn };
   }
   async createContainer(d: Delivery, c: Credential): Promise<string> {
     const { data } = await this.request(`https://graph.threads.net/v1.0/${encodeURIComponent(d.identity.id)}/threads`, c.accessToken,
