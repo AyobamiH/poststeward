@@ -105,6 +105,7 @@ test("OAuth status exposes negotiated evidence while account compatibility flags
     "w_organization_social",
     "r_organization_social",
   ]);
+  assert.ok(configured.linkedin.organizationCapabilities);
   assert.equal(
     configured.linkedin.organizationCapabilities.readback.state,
     "connection_required",
