@@ -154,7 +154,6 @@ for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]")) b.
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(alias)) throw new Error("Choose an account alias first.");
   const provider = b.dataset.provider;
   const actorUrn = String(form.get("actorUrn") || "").trim();
-  if (provider !== "linkedin" && actorUrn) throw new Error("A LinkedIn Page URN can be used only with LinkedIn.");
   const started = await api(`/api/connections/oauth/${provider}/start`, {
     alias,
     returnPath: "/app",
