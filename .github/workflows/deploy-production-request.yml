@@ -1,12 +1,12 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-18-promote-current-staging-ui
+# Production deployment request: 2026-09-18-production-bootstrap
 # This file is the only reviewed push-triggered production deployment request.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
-# This request promotes the current reviewed PostSteward UI/runtime to the protected production origin.
-# The landing-page assets are byte-identical to the active staging release; no provider consent,
-# publication, payment, public admission or recovery effect is requested.
+# Production uses its own D1, APP_ORIGIN and OIDC. PRODUCTION_CREDENTIAL_MODE may explicitly
+# record temporary reuse of staging credential values while signup remains restricted. No provider
+# consent, publication, payment, public admission or recovery effect is requested by deployment.
 on:
   push:
     branches: [main]
@@ -24,6 +24,7 @@ jobs:
       name: production
     env:
       DEPLOY_ENV: production
+      PRODUCTION_CREDENTIAL_MODE: ${{ vars.PRODUCTION_CREDENTIAL_MODE }}
       ENCRYPTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.D1_ID }}
