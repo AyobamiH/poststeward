@@ -19,7 +19,8 @@ function environment(overrides = {}) {
     CLOUDFLARE_ACCOUNT_ID: account,
     CLOUDFLARE_API_TOKEN: "cf-token-" + "x".repeat(32),
     D1_ID: database,
-    APP_ORIGIN: "https://poststeward.com",
+    APP_ORIGIN: "https://app.poststeward.com",
+    PRODUCTION_CREDENTIAL_MODE: "shared_staging_bootstrap",
     OIDC_ISSUER: "https://accounts.google.com",
     OIDC_CLIENT_ID: "production-google-client",
     ENCRYPTION_ROOT_WRITE: "legacy",
@@ -77,7 +78,9 @@ test("production preflight validates exact protected environment without exposin
   const env = environment();
   const report = await preflightProductionDeploy(env, cloudflare(), base);
   assert.equal(report.ready, true);
-  assert.equal(report.origin, "https://poststeward.com");
+  assert.equal(report.origin, "https://app.poststeward.com");
+  assert.equal(report.credentialMode, "shared_staging_bootstrap");
+  assert.equal(report.credentialRotationRequired, true);
   assert.equal(report.release, release);
   assert.equal(report.dedicatedProductionDatabase, true);
   assert.equal(report.workerAlreadyPresent, false);
@@ -95,7 +98,7 @@ test("production preflight refuses origin drift and Advanced enablement", async 
         cloudflare(),
         base,
       ),
-    /exactly https:\/\/poststeward\.com/,
+    /exactly https:\/\/app\.poststeward\.com/,
   );
   await assert.rejects(
     () =>
@@ -129,4 +132,27 @@ test("production preflight refuses the wrong D1 identity", async () => {
     () => preflightProductionDeploy(environment(), cloudflare({ d1Name: "wrong-db" }), base),
     /Production D1 identity does not match/,
   );
+});
+
+
+test("production preflight requires an explicit credential isolation mode", async () => {
+  await assert.rejects(
+    () =>
+      preflightProductionDeploy(
+        environment({ PRODUCTION_CREDENTIAL_MODE: "" }),
+        cloudflare(),
+        base,
+      ),
+    /PRODUCTION_CREDENTIAL_MODE/,
+  );
+});
+
+test("production preflight records isolated credentials without rotation debt", async () => {
+  const report = await preflightProductionDeploy(
+    environment({ PRODUCTION_CREDENTIAL_MODE: "isolated" }),
+    cloudflare(),
+    base,
+  );
+  assert.equal(report.credentialMode, "isolated");
+  assert.equal(report.credentialRotationRequired, false);
 });
