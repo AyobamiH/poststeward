@@ -228,9 +228,13 @@ for (const button of $("oauth-buttons").querySelectorAll(
           "Choose an account alias before starting provider authorization.",
         );
       const provider = button.dataset.provider;
+      const actorUrn = $("oauth-linkedin-actor").value.trim();
+      if (provider !== "linkedin" && actorUrn)
+        throw new Error("The LinkedIn Page URN is used only for LinkedIn authorization.");
       const started = await api(`/api/connections/oauth/${provider}/start`, {
         alias,
         returnPath: "/pilot",
+        ...(provider === "linkedin" && actorUrn ? { actorUrn } : {}),
       });
       notice(
         `Opening ${provider} authorization. No publication has been approved.`,
