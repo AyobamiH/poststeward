@@ -124,6 +124,17 @@
                       pattern="[A-Za-z0-9_-]{1,100}"
                       placeholder="product_x"
                   /></label>
+                  <label
+                    >LinkedIn Page URN (optional)<input
+                      name="actorUrn"
+                      pattern="urn:li:(organization|organizationBrand):[1-9][0-9]{0,29}"
+                      placeholder="urn:li:organization:123456"
+                      spellcheck="false"
+                  /></label>
+                  <p class="muted">
+                    Leave blank for your member profile. For a Page, enter the exact organisation URN;
+                    the same member signs in and PostSteward verifies access to that Page before binding it.
+                  </p>
                   <div class="row" id="oauth-buttons">
                     <button type="button" data-provider="x" disabled>Connect X</button>
                     <button type="button" data-provider="threads" disabled>Connect Threads</button>
