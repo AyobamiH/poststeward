@@ -187,3 +187,9 @@ test("production preflight rejects an invalid pinned Workers subdomain", async (
     /valid pinned production WORKERS_SUBDOMAIN/,
   );
 });
+
+
+test("production request passes the pinned Workers subdomain into preflight", () => {
+  const workflow = readFileSync(".github/workflows/deploy-production-request.yml", "utf8");
+  assert.ok(workflow.includes('WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}'));
+});
