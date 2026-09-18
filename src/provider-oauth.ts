@@ -317,8 +317,9 @@ async function exchangeCode(
   verifier?: string,
   now = Date.now(),
   http: HttpClient = fetch,
+  actorUrn?: string,
 ): Promise<OAuthTokenSet> {
-  const c = config(env, provider);
+  const c = config(env, provider, actorUrn);
   requireValue(
     configured(c),
     "OAUTH_NOT_CONFIGURED",
@@ -443,7 +444,7 @@ async function refreshToken(
   now: number,
   http: HttpClient,
 ): Promise<OAuthTokenSet> {
-  const c = config(env, meta.provider);
+  const c = config(env, meta.provider, meta.actorUrn);
   requireValue(
     configured(c),
     "OAUTH_NOT_CONFIGURED",
@@ -580,6 +581,7 @@ export class ProviderOAuthConnections {
   private async metadata(
     alias: string,
     token: OAuthTokenSet,
+    actorUrn?: string,
   ): Promise<OAuthMeta> {
     const strategy =
       token.provider === "threads"
@@ -591,6 +593,7 @@ export class ProviderOAuthConnections {
     return {
       alias,
       provider: token.provider,
+      ...(actorUrn ? { actorUrn } : {}),
       scopes: token.scopes,
       scopeEvidence,
       capabilities: negotiatedProviderCapabilities(
@@ -600,6 +603,8 @@ export class ProviderOAuthConnections {
           refreshable: strategy !== "reauthorize",
           scopeEvidence,
           identityVerified: true,
+          linkedinOrganizationActor:
+            token.provider === "linkedin" && Boolean(actorUrn),
         },
       ),
       strategy,
@@ -621,7 +626,10 @@ export class ProviderOAuthConnections {
         : {}),
     };
   }
-  async connect(actor: Actor, input: { alias: string; token: OAuthTokenSet }) {
+  async connect(
+    actor: Actor,
+    input: { alias: string; token: OAuthTokenSet; actorUrn?: string },
+  ) {
     requireValue(
       actor.workspace === this.workspace() &&
         !actor.grant &&
@@ -631,7 +639,17 @@ export class ProviderOAuthConnections {
       "A signed-in workspace owner must complete provider OAuth.",
       403,
     );
-    const c = config(this.env, input.token.provider);
+    const actorUrn =
+      input.token.provider === "linkedin"
+        ? linkedinActor(input.actorUrn)
+        : undefined;
+    requireValue(
+      input.token.provider === "linkedin" || !input.actorUrn,
+      "LINKEDIN_ACTOR_INVALID",
+      "Only LinkedIn connections accept an actor URN.",
+      400,
+    );
+    const c = config(this.env, input.token.provider, actorUrn);
     requireValue(
       configured(c),
       "OAUTH_NOT_CONFIGURED",
@@ -646,13 +664,17 @@ export class ProviderOAuthConnections {
       409,
     );
     const expected = this.snapshot(input.alias);
-    const identity = await this.api.identity(input.token.provider, {
-      accessToken: input.token.accessToken,
-      expiresAt: input.token.expiresAt,
-      ...(input.token.provider === "x"
-        ? { funding: "service_app" as const }
-        : {}),
-    });
+    const identity = await this.api.identity(
+      input.token.provider,
+      {
+        accessToken: input.token.accessToken,
+        expiresAt: input.token.expiresAt,
+        ...(input.token.provider === "x"
+          ? { funding: "service_app" as const }
+          : {}),
+      },
+      actorUrn,
+    );
     const encrypted = await seal(
       {
         accessToken: input.token.accessToken,
@@ -665,7 +687,7 @@ export class ProviderOAuthConnections {
       actor.workspace + ":" + input.alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );
-    const meta = await this.metadata(input.alias, input.token);
+    const meta = await this.metadata(input.alias, input.token, actorUrn);
     const old = this.account(input.alias);
     const account: Account = {
       alias: input.alias,
@@ -784,13 +806,17 @@ export class ProviderOAuthConnections {
           now,
           this.http,
         );
-        const identity = await this.api.identity(meta.provider, {
-          accessToken: fresh.accessToken,
-          expiresAt: fresh.expiresAt,
-          ...(meta.provider === "x"
-            ? { funding: "service_app" as const }
-            : {}),
-        });
+        const identity = await this.api.identity(
+          meta.provider,
+          {
+            accessToken: fresh.accessToken,
+            expiresAt: fresh.expiresAt,
+            ...(meta.provider === "x"
+              ? { funding: "service_app" as const }
+              : {}),
+          },
+          meta.actorUrn,
+        );
         if (identity.id !== account.identity.id) {
           this.deactivate(
             account,
@@ -801,7 +827,7 @@ export class ProviderOAuthConnections {
           );
           continue;
         }
-        const updatedMeta = await this.metadata(meta.alias, fresh);
+        const updatedMeta = await this.metadata(meta.alias, fresh, meta.actorUrn);
         updatedMeta.lastRefreshAt = now;
         const updatedCapabilities = booleanCapabilities(
           meta.provider,
