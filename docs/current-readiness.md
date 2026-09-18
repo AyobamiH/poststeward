@@ -15,6 +15,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `threads_oauth_callback` | `blocked_external` | `restricted_staging` | no | Meta currently rejects persistence of the exact Threads callback allowlist. |
 | `native_webmcp` | `unavailable_capability` | `restricted_staging` | no | PostSteward native WebMCP is deployed; the owner's ordinary browser does not expose the native API. |
 | `x_oauth` | `external_setup_required` | `provider_optional` | no | X OAuth implementation is present; the real application/client authority is not configured in staging. |
+| `linkedin_poststeward_page_identity` | `live_verified` | `provider_optional` | no | PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate. |
 | `linkedin_oauth` | `external_setup_required` | `provider_optional` | no | LinkedIn OAuth implementation is present; the real application/client authority is not configured in staging. |
 | `linkedin_member_readback` | `external_setup_required` | `provider_optional` | no | Independent member-post readback remains unavailable until the actual LinkedIn application receives the restricted permission. |
 | `advanced_rollout` | `disabled_policy` | `advanced` | no | Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass. |
@@ -39,6 +40,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `threads_oauth_callback`: `docs/live-external-gates-2026-09-13.md`
 - `native_webmcp`: `docs/live-external-gates-2026-09-13.md`; owner action: Use one authenticated supporting browser for the read-only workspace_status proof when available.
 - `x_oauth`: `docs/live-external-gates-2026-09-13.md`
+- `linkedin_poststeward_page_identity`: `docs/live-external-gates-2026-09-13.md`
 - `linkedin_oauth`: `docs/live-external-gates-2026-09-13.md`
 - `linkedin_member_readback`: `docs/live-external-gates-2026-09-13.md`
 - `advanced_rollout`: `docs/production-readiness-acceptance.md`
