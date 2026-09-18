@@ -14,8 +14,8 @@ The reviewed helper `scripts/production-edge-apply.mjs` is intentionally narrow:
 
 The canonical rules are deliberately conservative:
 
-1. `poststeward_block_unsupported_methods_v1` blocks `TRACE` and `TRACK` only for the PostSteward production hostname.
-2. `poststeward_auth_rate_limit_v1` rate-limits only `/auth/` on the production hostname to 30 requests per minute per Cloudflare colo/IP pair, with a 60-second mitigation timeout. The application’s own login limiter remains stricter and independent.
+1. `poststeward_block_unsupported_methods_v1` blocks `TRACE` and `TRACK` only for the PostSteward production hostname (`app.poststeward.com`).
+2. `poststeward_auth_rate_limit_v1` rate-limits only `/auth/` on `app.poststeward.com` to 30 requests per minute per Cloudflare colo/IP pair, with a 60-second mitigation timeout. The application’s own login limiter remains stricter and independent.
 
 The Worker custom domain is not created by this helper. The reviewed Worker deployment already treats `APP_ORIGIN` as a custom domain and Wrangler reconciles that binding during the production deployment. Keeping Worker routing and zone security in separate controllers makes each change independently reviewable and reversible.
 

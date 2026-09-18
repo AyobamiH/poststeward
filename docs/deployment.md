@@ -33,7 +33,7 @@ These permissions are account-scoped, not restricted to one Worker/database. Sep
 
 ## 3. Configure owner sign-in
 
-Use an OIDC provider supporting code flow, PKCE S256, confidential-client basic authentication, signed ID tokens and `openid profile email`. Use separate web OAuth clients for staging and production.
+Use an OIDC provider supporting code flow, PKCE S256, confidential-client basic authentication, signed ID tokens and `openid profile email`. Use separate web OAuth clients for staging and production. The reviewed production application origin is `https://app.poststeward.com`; the apex `https://poststeward.com` remains the non-effectful public showcase.
 
 For Google, open [Google Auth Platform clients](https://console.cloud.google.com/auth/clients), configure the application's branding/audience, and create a **Web application** OAuth client. The issuer is `https://accounts.google.com`. Register the exact chosen origin plus `/auth/callback` as its authorised redirect URI. For example, staging on workers.dev uses `https://poststeward-staging.YOUR_SUBDOMAIN.workers.dev/auth/callback`. Add the invited owner as a test user while the OAuth application is in testing. Configure the production consent screen and domain requirements before public use. Follow [Google's OIDC documentation](https://developers.google.com/identity/openid-connect/openid-connect).
 
@@ -65,7 +65,7 @@ The owner connection remains a separate post-deployment action. Deployment and h
 
 ## 4. Enter GitHub environment settings
 
-Open [repository environments](https://github.com/AyobamiH/poststeward/settings/environments). Create **staging** for a new setup. Restrict deployment branches to **main**. Repeat separately for **production**, with its own resources and credentials. Use required-reviewer protection where available on the repository's GitHub plan. Protect main through [repository rules](https://github.com/AyobamiH/poststeward/settings/rules), requiring the Verify check and reviewed changes to deployment code. Prefer environment-scoped deployment secrets over repository-wide secrets that unreviewed branch workflows could request.
+Open [repository environments](https://github.com/AyobamiH/poststeward/settings/environments). Create **staging** for a new setup. Restrict deployment branches to **main**. Repeat separately for **production**. Production must always use its own D1, application origin and OIDC client. During the bounded bootstrap period, other staging credential values may be copied into the production GitHub environment without minting new tokens, provided `PRODUCTION_CREDENTIAL_MODE=shared_staging_bootstrap`, signup stays restricted, Advanced/MPP remain disabled, and the reuse is treated as rotation debt rather than credential isolation. Use required-reviewer protection where available on the repository's GitHub plan. Protect main through [repository rules](https://github.com/AyobamiH/poststeward/settings/rules), requiring the Verify check and reviewed changes to deployment code. Prefer environment-scoped deployment secrets over repository-wide secrets that unreviewed branch workflows could request.
 
 Environment **variables**:
 
@@ -76,9 +76,10 @@ Environment **variables**:
 | `WORKERS_SUBDOMAIN` | Your bare workers.dev account subdomain |
 | `OIDC_ISSUER` | Identity issuer URL; Google: `https://accounts.google.com` |
 | `OIDC_CLIENT_ID` | This environment's OAuth client ID |
-| `APP_ORIGIN` | Optional custom HTTPS origin; leave absent for the generated workers.dev origin |
+| `APP_ORIGIN` | Production: `https://app.poststeward.com`; staging may use its workers.dev origin |
 | `GITHUB_APP_CLIENT_ID` | Optional private-source GitHub App client ID; configure with slug + secret |
 | `GITHUB_APP_SLUG` | Optional private-source GitHub App slug; configure with client ID + secret |
+| `PRODUCTION_CREDENTIAL_MODE` | Production only: `shared_staging_bootstrap` during temporary reuse, then `isolated` after rotation |
 
 Environment **secrets**:
 
@@ -119,7 +120,7 @@ No live payment test has been performed. A live test needs an exact authorised p
 
 ## Release
 
-Use separate production bindings, secrets, webhook signing key, GitHub App and Price. Set a real release SHA. Check actual provider and private-repository permissions with a fresh user, native WebMCP in a supported browser and both HTTP/MCP clients. Record provider receipt URLs and payment receipts separately. Use the runbook to rehearse pause and restore. Publish calibrated limits and retention/deletion policy before opening public signup.
+Use separate production bindings. The bootstrap may temporarily reuse unchanged staging credential values for deployment/provider integrations, but production D1, `APP_ORIGIN` and OIDC stay distinct. Rotate the shared credential set and change `PRODUCTION_CREDENTIAL_MODE` to `isolated` before treating credential isolation as accepted. Set a real release SHA. Check actual provider and private-repository permissions with a fresh user, native WebMCP in a supported browser and both HTTP/MCP clients. Record provider receipt URLs and payment receipts separately. Use the runbook to rehearse pause and restore. Publish calibrated limits and retention/deletion policy before opening public signup.
 
 The current deployment preflight intentionally rejects enabling Advanced/MPP. Enabling billing requires a reviewed release that extends the secret manifest and deployment workflow, after the acceptance above. This repository does not automatically deploy on every merge.
 
