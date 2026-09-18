@@ -229,8 +229,6 @@ for (const button of $("oauth-buttons").querySelectorAll(
         );
       const provider = button.dataset.provider;
       const actorUrn = $("oauth-linkedin-actor").value.trim();
-      if (provider !== "linkedin" && actorUrn)
-        throw new Error("The LinkedIn Page URN is used only for LinkedIn authorization.");
       const started = await api(`/api/connections/oauth/${provider}/start`, {
         alias,
         returnPath: "/pilot",
