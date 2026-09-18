@@ -149,10 +149,17 @@ async function refresh() {
   renderOwnerSnapshot({ accounts, receipts, profiles, grants, oauthInfo, recovery });
 }
 for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]")) b.onclick = () => action(async () => {
-  const alias = new FormData($("oauth")).get("alias");
+  const form = new FormData($("oauth"));
+  const alias = form.get("alias");
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(alias)) throw new Error("Choose an account alias first.");
   const provider = b.dataset.provider;
-  const started = await api(`/api/connections/oauth/${provider}/start`, { alias, returnPath: "/app" });
+  const actorUrn = String(form.get("actorUrn") || "").trim();
+  if (provider !== "linkedin" && actorUrn) throw new Error("A LinkedIn Page URN can be used only with LinkedIn.");
+  const started = await api(`/api/connections/oauth/${provider}/start`, {
+    alias,
+    returnPath: "/app",
+    ...(provider === "linkedin" && actorUrn ? { actorUrn } : {}),
+  });
   navigateExternal(started.authorizationUrl, oauthHosts(provider));
 });
 for (const id of ["connection", "project", "campaign", "delivery", "grant", "profile", "recovery-prepare"]) $(id).onsubmit = (e) => {
