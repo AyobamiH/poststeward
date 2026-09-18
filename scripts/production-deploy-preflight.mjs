@@ -118,6 +118,8 @@ export async function preflightProductionDeploy(
     workerAlreadyPresent: workerResponse.ok,
     dedicatedProductionDatabase: true,
     cloudflareAccountAuthority: true,
+    workersSubdomainSource:
+      resolved.WORKERS_SUBDOMAIN_SOURCE || "cloudflare_discovery",
     requiredSecretsValidated: true,
     operationalAlertDestinationConfigured: Boolean(
       alertSecrets.OPERATIONAL_ALERT_WEBHOOK_URL,

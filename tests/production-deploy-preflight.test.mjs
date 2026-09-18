@@ -18,6 +18,7 @@ function environment(overrides = {}) {
     GITHUB_SHA: release,
     CLOUDFLARE_ACCOUNT_ID: account,
     CLOUDFLARE_API_TOKEN: "cf-token-" + "x".repeat(32),
+    WORKERS_SUBDOMAIN: "woeinvests",
     D1_ID: database,
     APP_ORIGIN: "https://app.poststeward.com",
     PRODUCTION_CREDENTIAL_MODE: "shared_staging_bootstrap",
@@ -81,6 +82,7 @@ test("production preflight validates exact protected environment without exposin
   assert.equal(report.origin, "https://app.poststeward.com");
   assert.equal(report.credentialMode, "shared_staging_bootstrap");
   assert.equal(report.credentialRotationRequired, true);
+  assert.equal(report.workersSubdomainSource, "pinned_production_variable");
   assert.equal(report.release, release);
   assert.equal(report.dedicatedProductionDatabase, true);
   assert.equal(report.workerAlreadyPresent, false);
@@ -155,4 +157,39 @@ test("production preflight records isolated credentials without rotation debt", 
   );
   assert.equal(report.credentialMode, "isolated");
   assert.equal(report.credentialRotationRequired, false);
+});
+
+
+test("production preflight does not require Cloudflare subdomain discovery when a valid production subdomain is pinned", async () => {
+  let subdomainDiscoveryCalled = false;
+  const send = async (url) => {
+    const value = String(url);
+    if (value.endsWith(`/accounts/${account}/workers/subdomain`)) {
+      subdomainDiscoveryCalled = true;
+      return json(403, {});
+    }
+    return cloudflare()(url);
+  };
+  const report = await preflightProductionDeploy(environment(), send, base);
+  assert.equal(report.ready, true);
+  assert.equal(report.workersSubdomainSource, "pinned_production_variable");
+  assert.equal(subdomainDiscoveryCalled, false);
+});
+
+test("production preflight rejects an invalid pinned Workers subdomain", async () => {
+  await assert.rejects(
+    () =>
+      preflightProductionDeploy(
+        environment({ WORKERS_SUBDOMAIN: "bad.example.com" }),
+        cloudflare(),
+        base,
+      ),
+    /valid pinned production WORKERS_SUBDOMAIN/,
+  );
+});
+
+
+test("production request passes the pinned Workers subdomain into preflight", () => {
+  const workflow = readFileSync(".github/workflows/deploy-production-request.yml", "utf8");
+  assert.ok(workflow.includes('WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}'));
 });

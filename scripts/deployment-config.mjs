@@ -17,6 +17,19 @@ export async function resolveCloudflareConfiguration(env, send = fetch) {
       env.CLOUDFLARE_API_TOKEN,
     "Cloudflare account and deployment token are required for configuration discovery.",
   );
+  const pinnedSubdomain =
+    env.DEPLOY_ENV === "production" ? env.WORKERS_SUBDOMAIN || "" : "";
+  if (pinnedSubdomain) {
+    demand(
+      /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(pinnedSubdomain),
+      "Configure a valid pinned production WORKERS_SUBDOMAIN.",
+    );
+    return {
+      ...env,
+      WORKERS_SUBDOMAIN: pinnedSubdomain,
+      WORKERS_SUBDOMAIN_SOURCE: "pinned_production_variable",
+    };
+  }
   const response = await send(
     `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/subdomain`,
     {
@@ -41,7 +54,11 @@ export async function resolveCloudflareConfiguration(env, send = fetch) {
       /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain || ""),
     "Cloudflare did not return a valid Workers subdomain.",
   );
-  return { ...env, WORKERS_SUBDOMAIN: subdomain };
+  return {
+    ...env,
+    WORKERS_SUBDOMAIN: subdomain,
+    WORKERS_SUBDOMAIN_SOURCE: "cloudflare_discovery",
+  };
 }
 export function httpsUrl(value, originOnly = false) {
   let u;
