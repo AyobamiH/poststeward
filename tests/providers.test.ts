@@ -29,6 +29,40 @@ test("a successful response without a creation ID cannot be called failed or ret
     code: "AMBIGUOUS_PROVIDER_WRITE",
   });
 });
+test("LinkedIn organization identity verifies the member then exact page author access", async () => {
+  const actor = "urn:li:organization:146607525";
+  const seen: string[] = [];
+  const p = new SocialProviders((async (url, init) => {
+    seen.push(String(url));
+    if (String(url) === "https://api.linkedin.com/v2/userinfo")
+      return Response.json({ sub: "member-123", name: "Owner" });
+    const parsed = new URL(String(url));
+    assert.equal(parsed.origin + parsed.pathname, "https://api.linkedin.com/rest/posts");
+    assert.equal(parsed.searchParams.get("author"), actor);
+    assert.equal(parsed.searchParams.get("q"), "author");
+    assert.equal(parsed.searchParams.get("count"), "1");
+    assert.equal(parsed.searchParams.get("viewContext"), "AUTHOR");
+    assert.equal(new Headers(init?.headers).get("X-RestLi-Method"), "FINDER");
+    assert.equal(new Headers(init?.headers).get("LinkedIn-Version"), "202608");
+    return Response.json({ paging: { start: 0, count: 1, links: [] }, elements: [] });
+  }) as typeof fetch);
+  const identity = await p.identity("linkedin", credential, actor);
+  assert.deepEqual(identity, { id: actor, username: actor });
+  assert.equal(seen.length, 2);
+});
+
+test("LinkedIn organization identity keeps denied page access distinct from member identity", async () => {
+  const actor = "urn:li:organization:146607525";
+  const p = new SocialProviders((async (url) => {
+    if (String(url) === "https://api.linkedin.com/v2/userinfo")
+      return Response.json({ sub: "member-123", name: "Owner" });
+    return new Response("{}", { status: 403 });
+  }) as typeof fetch);
+  await assert.rejects(p.identity("linkedin", credential, actor), {
+    code: "PROVIDER_HTTP_403",
+  });
+});
+
 test("LinkedIn preserves the creation URN and independently reads back exact author and commentary", async () => {
   let payload: any;
   let writes = 0;
