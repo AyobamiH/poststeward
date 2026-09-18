@@ -667,7 +667,11 @@ async function route(
       env,
       auth.actor,
       "",
-      { alias: completed.alias, token: completed.token },
+      {
+        alias: completed.alias,
+        token: completed.token,
+        ...(completed.actorUrn ? { actorUrn: completed.actorUrn } : {}),
+      },
       "/oauth/connect",
     );
     if (!response.ok) {
