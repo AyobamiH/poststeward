@@ -338,7 +338,7 @@ test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor throu
       },
     );
     assert.equal(accounts.status, 200);
-    const rows: any[] = await accounts.json();
+    const rows = (await accounts.json()) as any[];
     assert.equal(rows[0].identity.id, actorUrn);
 
     const status = await mf.dispatchFetch(
