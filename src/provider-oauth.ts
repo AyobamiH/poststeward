@@ -238,6 +238,10 @@ export function oauthConfiguration(env: Env) {
     providerNames.map((provider) => {
       const c = config(env, provider);
       const available = configured(c);
+      const organization =
+        provider === "linkedin"
+          ? config(env, provider, "urn:li:organization:1")
+          : undefined;
       return [
         provider,
         {
@@ -253,6 +257,19 @@ export function oauthConfiguration(env: Env) {
             linkedinMemberReadbackApproved:
               c.optionalScopes.includes("r_member_social"),
           }),
+          ...(organization
+            ? {
+                organizationScopes: organization.scopes,
+                organizationCapabilities: providerApplicationCapabilities(
+                  "linkedin",
+                  available,
+                  {
+                    linkedinMemberReadbackApproved: false,
+                    linkedinOrganizationActor: true,
+                  },
+                ),
+              }
+            : {}),
           reason: available ? undefined : "provider_app_not_configured",
         },
       ];
