@@ -34,6 +34,7 @@ export interface OAuthTokenSet {
 interface OAuthMeta {
   alias: string;
   provider: OAuthProvider;
+  actorUrn?: string;
   scopes: string[];
   scopeEvidence: ScopeEvidence;
   capabilities: ProviderCapabilitySet;
@@ -58,6 +59,7 @@ interface OAuthStateRow {
   provider: OAuthProvider;
   alias: string;
   verifier?: string;
+  actor_urn?: string | null;
   return_path: OAuthReturnPath;
   expires_at: number;
 }
@@ -163,7 +165,25 @@ function demandExpiry(value: unknown, now: number) {
   );
   return now + seconds * 1000;
 }
-function config(env: Env, provider: OAuthProvider): ProviderConfig {
+function linkedinActor(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  requireValue(
+    typeof value === "string" &&
+      /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(value),
+    "LINKEDIN_ACTOR_INVALID",
+    "LinkedIn actor must be an organization or organizationBrand URN.",
+    400,
+  );
+  return value;
+}
+
+function config(
+  env: Env,
+  provider: OAuthProvider,
+  actorUrn?: string,
+): ProviderConfig {
+  const organizationActor =
+    provider === "linkedin" ? linkedinActor(actorUrn) : undefined;
   const values = {
     x: {
       clientId: env.X_OAUTH_CLIENT_ID || "",
@@ -188,9 +208,19 @@ function config(env: Env, provider: OAuthProvider): ProviderConfig {
       clientId: env.LINKEDIN_OAUTH_CLIENT_ID || "",
       clientSecret: env.LINKEDIN_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://www.linkedin.com/oauth/v2/authorization",
-      requiredScopes: ["openid", "profile", "w_member_social"],
-      optionalScopes:
-        env.LINKEDIN_MEMBER_READBACK === "true" ? ["r_member_social"] : [],
+      requiredScopes: organizationActor
+        ? [
+            "openid",
+            "profile",
+            "w_organization_social",
+            "r_organization_social",
+          ]
+        : ["openid", "profile", "w_member_social"],
+      optionalScopes: organizationActor
+        ? []
+        : env.LINKEDIN_MEMBER_READBACK === "true"
+          ? ["r_member_social"]
+          : [],
     },
   }[provider];
   return {
@@ -208,6 +238,10 @@ export function oauthConfiguration(env: Env) {
     providerNames.map((provider) => {
       const c = config(env, provider);
       const available = configured(c);
+      const organization =
+        provider === "linkedin"
+          ? config(env, provider, "urn:li:organization:1")
+          : undefined;
       return [
         provider,
         {
@@ -223,6 +257,19 @@ export function oauthConfiguration(env: Env) {
             linkedinMemberReadbackApproved:
               c.optionalScopes.includes("r_member_social"),
           }),
+          ...(organization
+            ? {
+                organizationScopes: organization.scopes,
+                organizationCapabilities: providerApplicationCapabilities(
+                  "linkedin",
+                  available,
+                  {
+                    linkedinMemberReadbackApproved: false,
+                    linkedinOrganizationActor: true,
+                  },
+                ),
+              }
+            : {}),
           reason: available ? undefined : "provider_app_not_configured",
         },
       ];
@@ -287,8 +334,9 @@ async function exchangeCode(
   verifier?: string,
   now = Date.now(),
   http: HttpClient = fetch,
+  actorUrn?: string,
 ): Promise<OAuthTokenSet> {
-  const c = config(env, provider);
+  const c = config(env, provider, actorUrn);
   requireValue(
     configured(c),
     "OAUTH_NOT_CONFIGURED",
@@ -413,7 +461,7 @@ async function refreshToken(
   now: number,
   http: HttpClient,
 ): Promise<OAuthTokenSet> {
-  const c = config(env, meta.provider);
+  const c = config(env, meta.provider, meta.actorUrn);
   requireValue(
     configured(c),
     "OAUTH_NOT_CONFIGURED",
@@ -550,6 +598,7 @@ export class ProviderOAuthConnections {
   private async metadata(
     alias: string,
     token: OAuthTokenSet,
+    actorUrn?: string,
   ): Promise<OAuthMeta> {
     const strategy =
       token.provider === "threads"
@@ -561,6 +610,7 @@ export class ProviderOAuthConnections {
     return {
       alias,
       provider: token.provider,
+      ...(actorUrn ? { actorUrn } : {}),
       scopes: token.scopes,
       scopeEvidence,
       capabilities: negotiatedProviderCapabilities(
@@ -570,6 +620,8 @@ export class ProviderOAuthConnections {
           refreshable: strategy !== "reauthorize",
           scopeEvidence,
           identityVerified: true,
+          linkedinOrganizationActor:
+            token.provider === "linkedin" && Boolean(actorUrn),
         },
       ),
       strategy,
@@ -591,7 +643,10 @@ export class ProviderOAuthConnections {
         : {}),
     };
   }
-  async connect(actor: Actor, input: { alias: string; token: OAuthTokenSet }) {
+  async connect(
+    actor: Actor,
+    input: { alias: string; token: OAuthTokenSet; actorUrn?: string },
+  ) {
     requireValue(
       actor.workspace === this.workspace() &&
         !actor.grant &&
@@ -601,7 +656,17 @@ export class ProviderOAuthConnections {
       "A signed-in workspace owner must complete provider OAuth.",
       403,
     );
-    const c = config(this.env, input.token.provider);
+    const actorUrn =
+      input.token.provider === "linkedin"
+        ? linkedinActor(input.actorUrn)
+        : undefined;
+    requireValue(
+      input.token.provider === "linkedin" || !input.actorUrn,
+      "LINKEDIN_ACTOR_INVALID",
+      "Only LinkedIn connections accept an actor URN.",
+      400,
+    );
+    const c = config(this.env, input.token.provider, actorUrn);
     requireValue(
       configured(c),
       "OAUTH_NOT_CONFIGURED",
@@ -616,13 +681,17 @@ export class ProviderOAuthConnections {
       409,
     );
     const expected = this.snapshot(input.alias);
-    const identity = await this.api.identity(input.token.provider, {
-      accessToken: input.token.accessToken,
-      expiresAt: input.token.expiresAt,
-      ...(input.token.provider === "x"
-        ? { funding: "service_app" as const }
-        : {}),
-    });
+    const identity = await this.api.identity(
+      input.token.provider,
+      {
+        accessToken: input.token.accessToken,
+        expiresAt: input.token.expiresAt,
+        ...(input.token.provider === "x"
+          ? { funding: "service_app" as const }
+          : {}),
+      },
+      actorUrn,
+    );
     const encrypted = await seal(
       {
         accessToken: input.token.accessToken,
@@ -635,7 +704,7 @@ export class ProviderOAuthConnections {
       actor.workspace + ":" + input.alias,
       this.env.ENCRYPTION_KEY_VERSION,
     );
-    const meta = await this.metadata(input.alias, input.token);
+    const meta = await this.metadata(input.alias, input.token, actorUrn);
     const old = this.account(input.alias);
     const account: Account = {
       alias: input.alias,
@@ -754,13 +823,17 @@ export class ProviderOAuthConnections {
           now,
           this.http,
         );
-        const identity = await this.api.identity(meta.provider, {
-          accessToken: fresh.accessToken,
-          expiresAt: fresh.expiresAt,
-          ...(meta.provider === "x"
-            ? { funding: "service_app" as const }
-            : {}),
-        });
+        const identity = await this.api.identity(
+          meta.provider,
+          {
+            accessToken: fresh.accessToken,
+            expiresAt: fresh.expiresAt,
+            ...(meta.provider === "x"
+              ? { funding: "service_app" as const }
+              : {}),
+          },
+          meta.actorUrn,
+        );
         if (identity.id !== account.identity.id) {
           this.deactivate(
             account,
@@ -771,7 +844,7 @@ export class ProviderOAuthConnections {
           );
           continue;
         }
-        const updatedMeta = await this.metadata(meta.alias, fresh);
+        const updatedMeta = await this.metadata(meta.alias, fresh, meta.actorUrn);
         updatedMeta.lastRefreshAt = now;
         const updatedCapabilities = booleanCapabilities(
           meta.provider,
@@ -880,17 +953,27 @@ export async function startProviderOAuth(
     "Start provider OAuth from the signed-in owner browser.",
     403,
   );
-  const c = config(env, provider);
+  const rawInput = (await request.clone().json()) as {
+    alias?: unknown;
+    returnPath?: unknown;
+    actorUrn?: unknown;
+  };
+  const actorUrn =
+    provider === "linkedin" ? linkedinActor(rawInput.actorUrn) : undefined;
+  requireValue(
+    provider === "linkedin" || rawInput.actorUrn === undefined,
+    "LINKEDIN_ACTOR_INVALID",
+    "Only LinkedIn connections accept an actor URN.",
+    400,
+  );
+  const c = config(env, provider, actorUrn);
   requireValue(
     configured(c),
     "OAUTH_NOT_CONFIGURED",
     "This provider connection is not configured yet.",
     503,
   );
-  const input = (await request.json()) as {
-    alias?: unknown;
-    returnPath?: unknown;
-  };
+  const input = rawInput;
   const destination = returnPath(input.returnPath);
   requireValue(
     typeof input.alias === "string" && aliasPattern.test(input.alias),
@@ -909,7 +992,7 @@ export async function startProviderOAuth(
   const verifier = provider === "x" ? randomSecret(48) : undefined;
   const stateHash = await digest(state);
   const inserted = await env.IDENTITY.prepare(
-    "INSERT INTO provider_oauth_states(state_hash,session_hash,workspace,actor,provider,alias,verifier,return_path,expires_at,created_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM provider_oauth_states) < 10000",
+    "INSERT INTO provider_oauth_states(state_hash,session_hash,workspace,actor,provider,alias,verifier,actor_urn,return_path,expires_at,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM provider_oauth_states) < 10000",
   )
     .bind(
       stateHash,
@@ -919,6 +1002,7 @@ export async function startProviderOAuth(
       provider,
       input.alias,
       verifier || null,
+      actorUrn || null,
       destination,
       Date.now() + 600000,
       Date.now(),
@@ -952,9 +1036,11 @@ export async function startProviderOAuth(
       scopes: c.scopes,
       requiredScopes: c.requiredScopes,
       optionalScopes: c.optionalScopes,
+      ...(actorUrn ? { actorUrn } : {}),
       capabilities: providerApplicationCapabilities(provider, true, {
         linkedinMemberReadbackApproved:
           c.optionalScopes.includes("r_member_social"),
+        linkedinOrganizationActor: Boolean(actorUrn),
       }),
       returnPath: destination,
     },
@@ -971,6 +1057,7 @@ export async function completeProviderOAuth(
 ): Promise<{
   alias: string;
   returnPath: OAuthReturnPath;
+  actorUrn?: string;
   token?: OAuthTokenSet;
   response?: Response;
 }> {
@@ -1030,10 +1117,21 @@ export async function completeProviderOAuth(
     "Provider returned no authorization code.",
     400,
   );
+  const actorUrn =
+    provider === "linkedin" ? linkedinActor(row.actor_urn) : undefined;
   return {
     alias: row.alias,
     returnPath: destination,
-    token: await exchangeCode(env, provider, code, row.verifier),
+    ...(actorUrn ? { actorUrn } : {}),
+    token: await exchangeCode(
+      env,
+      provider,
+      code,
+      row.verifier,
+      Date.now(),
+      fetch,
+      actorUrn,
+    ),
   };
 }
 

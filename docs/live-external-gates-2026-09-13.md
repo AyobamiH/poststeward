@@ -134,17 +134,29 @@ https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code
 
 ## Gate 6 — LinkedIn provider application and grant
 
-**State: application client/secret absent; member readback approval absent.**
+**State: PostSteward Page identity is independently known; provider application/grant and live organisation OAuth acceptance remain open.**
 
 Callback:
 `https://poststeward-staging.woeinvests.workers.dev/connections/oauth/linkedin/callback`
 
-Base scopes are `openid`, `profile`, and `w_member_social`. `r_member_social` is requested only after the LinkedIn application is actually approved for that restricted permission and staging sets `LINKEDIN_MEMBER_READBACK=true`. Protected configuration is `LINKEDIN_OAUTH_CLIENT_ID` plus secret `LINKEDIN_OAUTH_CLIENT_SECRET`.
+Verified Page:
+- URL: `https://www.linkedin.com/company/poststeward/`
+- organisation ID: `146607525`
+- actor URN: `urn:li:organization:146607525`
 
-Close the application/grant first. Independent member-post readback remains a separate capability that must not be claimed until LinkedIn has actually granted the restricted permission.
+This Page is administered by the same LinkedIn member account that administers the owner's other Pages. The member remains the OAuth subject; the Page URN is a separately reviewed organisation actor.
 
-Primary LinkedIn Posts API contract:
-https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
+For a member-profile connection, the existing base scopes remain `openid`, `profile`, and `w_member_social`; restricted `r_member_social` is never inferred.
+
+For the reviewed PostSteward Page actor, the OAuth journey now requests `openid`, `profile`, `w_organization_social`, and `r_organization_social`. The exact actor URN is stored in one-use OAuth state before redirect, then the callback verifies the member and performs LinkedIn's permission-gated author finder for that exact Page before the connection can be stored. A denied Page read remains a provider authority gate and is never converted into member authority.
+
+Protected configuration remains `LINKEDIN_OAUTH_CLIENT_ID` plus secret `LINKEDIN_OAUTH_CLIENT_SECRET`. The independently verified Page ID does **not** establish that the LinkedIn application has been granted the required organisation permissions.
+
+Close this gate only after the real LinkedIn application is configured, the owner completes OAuth for `urn:li:organization:146607525`, PostSteward stores that exact actor identity, and an ordinary controlled Page publication/readback produces live evidence. Do not substitute the member profile or another Page merely to obtain a receipt.
+
+Primary LinkedIn contracts:
+- Posts API: https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
+- Organization access control: https://learn.microsoft.com/en-us/linkedin/marketing/community-management/organizations/organization-access-control-by-role
 
 ## Execution order and stop conditions
 

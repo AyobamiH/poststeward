@@ -10,7 +10,7 @@ Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststew
 
 - TypeScript Cloudflare Worker, D1 identity and one SQLite-backed Durable Object per workspace.
 - Google OIDC code/PKCE owner sign-in, browser sessions, CSRF and revocable scoped agent tokens. Admin authority cannot be delegated through the grant endpoint.
-- X, Threads and LinkedIn provider adapters with stable identity checks. Threads uses long-lived token refresh handling. LinkedIn controlled readback is capability-gated.
+- X, Threads and LinkedIn provider adapters with stable identity checks. Threads uses long-lived token refresh handling. LinkedIn supports member identities plus explicitly reviewed organization/page actors; controlled readback is capability-gated.
 - One generated operation catalogue shared by HTTP, remote MCP and native browser WebMCP. Owner acceptance, provider OAuth, private-source, recovery and lifecycle APIs remain owner-browser controls rather than delegated agent tools.
 - Owner-controlled `/pilot`: fresh provider identity, expiring immutable review, explicit approval, thirty-second cancellation boundary, session/account/release fencing and bounded independent readback.
 - Fingerprint dedupe, operation idempotency, stale-claim recovery and ambiguous-effect preservation. A lost or uncertain write is inspected, never blindly retried with a fresh key.
@@ -76,7 +76,7 @@ See [deployment](docs/deployment.md), [private GitHub source authority](docs/pri
 1. Preserve every accepted live receipt. Do not repeat Google sign-in acceptance, Threads publication/readback, Inspect-only grant/revoke, Stripe sandbox lifecycle, private GitHub grant/read/revoke or protected root cutover merely for fresh evidence.
 2. Close authenticated native WebMCP in a supporting browser with one read-only `workspace_status` round trip bound to the current workspace and exact hosted release.
 3. Configure and accept the X provider application/grant if X is in release scope.
-4. Configure and accept the LinkedIn provider application/grant; enable member-post readback only after LinkedIn actually grants that restricted capability.
+4. Configure and accept the LinkedIn provider application/grant. Restricted staging now targets the verified PostSteward Page `urn:li:organization:146607525` with organization publish/read scopes and exact actor verification. Member-profile readback remains a separate restricted capability.
 5. Keep Threads OAuth parked until Meta accepts the exact callback. Keep PITR parked until Cloudflare target-bookmark resolution succeeds or an explicit owner-visible recovery fallback is deliberately implemented and verified.
 6. Before enabling Advanced, run its live source-change -> inventory/allocation -> provider/readback -> scheduled-metrics path without repeating the already accepted Stripe lifecycle.
 7. Production/public launch remains separate: capacity/cost, alert delivery, hosted cross-tenant evidence, custom production DNS/TLS/WAF/rate policy, GitHub main protection and public signup/support/abuse ownership must be accepted deliberately.

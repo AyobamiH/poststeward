@@ -224,6 +224,137 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
   }
 });
 
+test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor through state and callback", async () => {
+  const actorUrn = "urn:li:organization:146607525";
+  let tokenExchanges = 0;
+  let memberReads = 0;
+  let actorReads = 0;
+  const { mf, db } = await runtime(
+    async (request) => {
+      const url = new URL(request.url);
+      if (
+        url.hostname === "www.linkedin.com" &&
+        url.pathname === "/oauth/v2/accessToken"
+      ) {
+        tokenExchanges++;
+        const body = new URLSearchParams(await request.text());
+        assert.equal(body.get("grant_type"), "authorization_code");
+        assert.equal(body.get("code"), "linkedin-code");
+        return RuntimeResponse.json({
+          access_token: "linkedin-org-access-private-001",
+          expires_in: 3600,
+          scope:
+            "openid profile w_organization_social r_organization_social",
+        });
+      }
+      if (
+        url.hostname === "api.linkedin.com" &&
+        url.pathname === "/v2/userinfo"
+      ) {
+        memberReads++;
+        return RuntimeResponse.json({
+          sub: "member-123",
+          name: "Owner",
+        });
+      }
+      if (
+        url.hostname === "api.linkedin.com" &&
+        url.pathname === "/rest/posts"
+      ) {
+        actorReads++;
+        assert.equal(url.searchParams.get("author"), actorUrn);
+        assert.equal(url.searchParams.get("q"), "author");
+        assert.equal(request.headers.get("X-RestLi-Method"), "FINDER");
+        return RuntimeResponse.json({
+          paging: { start: 0, count: 1, links: [] },
+          elements: [],
+        });
+      }
+      throw new Error(`Unexpected outbound provider endpoint ${url.href}`);
+    },
+    {
+      OIDC_ISSUER: "https://accounts.google.com",
+      LINKEDIN_OAUTH_CLIENT_ID: "linkedin-client",
+      LINKEDIN_OAUTH_CLIENT_SECRET: "linkedin-client-secret",
+    },
+    100,
+  );
+  try {
+    const owner = await seedOwner(db);
+    const start = await mf.dispatchFetch(
+      `${origin}/api/connections/oauth/linkedin/start`,
+      {
+        method: "POST",
+        headers: ownerHeaders(owner),
+        body: JSON.stringify({
+          alias: "poststeward-page",
+          actorUrn,
+        }),
+      },
+    );
+    assert.equal(start.status, 200, await start.clone().text());
+    const started: any = await start.json();
+    assert.equal(started.actorUrn, actorUrn);
+    assert.deepEqual(started.requiredScopes, [
+      "openid",
+      "profile",
+      "w_organization_social",
+      "r_organization_social",
+    ]);
+    const authorization = new URL(started.authorizationUrl);
+    assert.equal(
+      authorization.searchParams.get("scope"),
+      "openid profile w_organization_social r_organization_social",
+    );
+    const state = authorization.searchParams.get("state")!;
+    const stored = await db
+      .prepare(
+        "SELECT actor_urn FROM provider_oauth_states WHERE state_hash IS NOT NULL",
+      )
+      .first<any>();
+    assert.equal(stored?.actor_urn, actorUrn);
+
+    const callback = await mf.dispatchFetch(
+      `${origin}/connections/oauth/linkedin/callback?state=${encodeURIComponent(state)}&code=linkedin-code`,
+      {
+        redirect: "manual",
+        headers: {
+          Cookie: `__Host-session=${owner.session}; __Host-provider-oauth=${state}`,
+        },
+      },
+    );
+    assert.equal(callback.status, 302, await callback.clone().text());
+    assert.equal(callback.headers.get("location"), "/pilot?connected=linkedin");
+    assert.equal(tokenExchanges, 1);
+    assert.equal(memberReads, 1);
+    assert.equal(actorReads, 1);
+
+    const accounts = await mf.dispatchFetch(
+      `${origin}/api/operations/accounts_list`,
+      {
+        method: "POST",
+        headers: ownerHeaders(owner),
+        body: "{}",
+      },
+    );
+    assert.equal(accounts.status, 200);
+    const rows = (await accounts.json()) as any[];
+    assert.equal(rows[0].identity.id, actorUrn);
+
+    const status = await mf.dispatchFetch(
+      `${origin}/api/connections/oauth/status`,
+      { headers: { Cookie: `__Host-session=${owner.session}` } },
+    );
+    assert.equal(status.status, 200);
+    const value: any = await status.json();
+    assert.equal(value.connections[0].actorUrn, actorUrn);
+    assert.equal(value.connections[0].capabilities.publish.state, "available");
+    assert.equal(value.connections[0].capabilities.readback.state, "available");
+  } finally {
+    await mf.dispose();
+  }
+});
+
 test("provider OAuth start requires a current owner completion proof and a configured provider app", async () => {
   const { mf, db } = await runtime(
     undefined,

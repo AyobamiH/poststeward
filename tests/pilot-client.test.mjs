@@ -50,4 +50,7 @@ test("receipt URLs and browser secret handling remain constrained", () => {
   assert.match(html, /type="password"/); assert.match(html, /id="approve" type="checkbox" required/);
   assert.match(html, /<option value="">Choose a connected account<\/option>/);
   assert.match(html, /data-provider="linkedin"/);
+  assert.match(html, /id="oauth-linkedin-actor"/);
+  assert.match(html, /urn:li:organization:146607525/);
+  assert.ok(browser.includes("actorUrn"));
 });

@@ -60,9 +60,7 @@ function renderOAuth() {
         : "provider app not configured";
       const readback =
         provider === "linkedin"
-          ? value.readback
-            ? ", member readback enabled"
-            : ", member readback not approved"
+          ? `, member readback ${value.readback ? "enabled" : "not approved"}, Page actor ${value.organizationCapabilities?.readback?.state === "connection_required" ? "ready for OAuth" : "not configured"}`
           : "";
       return `${provider}: ${capability}${readback}`;
     },
@@ -228,9 +226,11 @@ for (const button of $("oauth-buttons").querySelectorAll(
           "Choose an account alias before starting provider authorization.",
         );
       const provider = button.dataset.provider;
+      const actorUrn = $("oauth-linkedin-actor").value.trim();
       const started = await api(`/api/connections/oauth/${provider}/start`, {
         alias,
         returnPath: "/pilot",
+        ...(provider === "linkedin" && actorUrn ? { actorUrn } : {}),
       });
       notice(
         `Opening ${provider} authorization. No publication has been approved.`,

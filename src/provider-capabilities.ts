@@ -67,7 +67,10 @@ function connected(requiredScopes: string[] = []): ProviderCapability {
 export function providerApplicationCapabilities(
   provider: Provider,
   configured: boolean,
-  options: { linkedinMemberReadbackApproved: boolean },
+  options: {
+    linkedinMemberReadbackApproved: boolean;
+    linkedinOrganizationActor?: boolean;
+  },
 ): ProviderCapabilitySet {
   if (!configured) {
     const missing = unavailable("provider_app_not_configured");
@@ -95,6 +98,14 @@ export function providerApplicationCapabilities(
       refresh: connected(),
       metrics: connected(["threads_manage_insights"]),
     };
+  if (options.linkedinOrganizationActor)
+    return {
+      identity: connected(["openid", "profile"]),
+      publish: connected(["w_organization_social"]),
+      readback: connected(["r_organization_social"]),
+      refresh: connected(),
+      metrics: unavailable("organization_analytics_not_enabled"),
+    };
   return {
     identity: connected(["openid", "profile"]),
     publish: connected(["w_member_social"]),
@@ -115,6 +126,7 @@ export function negotiatedProviderCapabilities(
     refreshable: boolean;
     scopeEvidence: "provider" | "request_assumed";
     identityVerified: boolean;
+    linkedinOrganizationActor?: boolean;
   },
 ): ProviderCapabilitySet {
   const scopes = new Set(grantedScopes);
@@ -169,6 +181,22 @@ export function negotiatedProviderCapabilities(
           ]),
     };
 
+  if (options.linkedinOrganizationActor)
+    return {
+      identity,
+      publish: scoped(
+        ["w_organization_social"],
+        "w_organization_social_not_granted",
+      ),
+      readback: scoped(
+        ["r_organization_social"],
+        "r_organization_social_not_granted",
+      ),
+      refresh: options.refreshable
+        ? available()
+        : unavailable("provider_refresh_token_not_issued"),
+      metrics: unavailable("organization_analytics_not_enabled"),
+    };
   return {
     identity,
     publish: scoped(["w_member_social"], "w_member_social_not_granted"),

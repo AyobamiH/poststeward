@@ -114,6 +114,15 @@
                     <h3>Connect with the provider</h3>
                     <label for="oauth-alias">Account alias</label>
                     <input id="oauth-alias" name="alias" required pattern="[a-zA-Z0-9_-]{1,100}" maxlength="100" placeholder="my-account" />
+                    <label for="oauth-linkedin-actor">LinkedIn Page URN</label>
+                    <input id="oauth-linkedin-actor" name="actorUrn"
+                      pattern="urn:li:(organization|organizationBrand):[1-9][0-9]{0,29}"
+                      value="urn:li:organization:146607525" spellcheck="false" />
+                    <p class="muted">
+                      Restricted staging is prefilled with the independently verified PostSteward Page.
+                      The same member signs in; PostSteward binds the Page only after LinkedIn verifies
+                      organization read access for this exact URN.
+                    </p>
                     <div class="pilot-actions" id="oauth-buttons">
                       <button type="button" data-provider="threads" disabled>Connect Threads</button>
                       <button type="button" data-provider="x" disabled>Connect X</button>
