@@ -60,9 +60,7 @@ function renderOAuth() {
         : "provider app not configured";
       const readback =
         provider === "linkedin"
-          ? value.readback
-            ? ", member readback enabled"
-            : ", member readback not approved"
+          ? `, member readback ${value.readback ? "enabled" : "not approved"}, Page actor ${value.organizationCapabilities?.readback?.state === "connection_required" ? "ready for OAuth" : "not configured"}`
           : "";
       return `${provider}: ${capability}${readback}`;
     },
