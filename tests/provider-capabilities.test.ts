@@ -31,6 +31,30 @@ test("provider application capabilities separate configuration from connection a
   );
 });
 
+test("LinkedIn organization actors use organization publish/read scopes rather than member scopes", () => {
+  const app = providerApplicationCapabilities("linkedin", true, {
+    linkedinMemberReadbackApproved: false,
+    linkedinOrganizationActor: true,
+  });
+  assert.deepEqual(app.publish.requiredScopes, ["w_organization_social"]);
+  assert.deepEqual(app.readback.requiredScopes, ["r_organization_social"]);
+  assert.equal(app.readback.state, "connection_required");
+
+  const negotiated = negotiatedProviderCapabilities(
+    "linkedin",
+    ["openid", "profile", "w_organization_social", "r_organization_social"],
+    {
+      refreshable: false,
+      scopeEvidence: "provider",
+      identityVerified: true,
+      linkedinOrganizationActor: true,
+    },
+  );
+  assert.equal(negotiated.publish.state, "available");
+  assert.equal(negotiated.readback.state, "available");
+  assert.equal(negotiated.metrics.reason, "organization_analytics_not_enabled");
+});
+
 test("negotiation never invents optional LinkedIn readback or Threads insights from an omitted scope response", () => {
   const linkedin = negotiatedProviderCapabilities(
     "linkedin",
