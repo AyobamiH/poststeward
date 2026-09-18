@@ -34,6 +34,7 @@ export interface OAuthTokenSet {
 interface OAuthMeta {
   alias: string;
   provider: OAuthProvider;
+  actorUrn?: string;
   scopes: string[];
   scopeEvidence: ScopeEvidence;
   capabilities: ProviderCapabilitySet;
@@ -58,6 +59,7 @@ interface OAuthStateRow {
   provider: OAuthProvider;
   alias: string;
   verifier?: string;
+  actor_urn?: string | null;
   return_path: OAuthReturnPath;
   expires_at: number;
 }
@@ -163,7 +165,25 @@ function demandExpiry(value: unknown, now: number) {
   );
   return now + seconds * 1000;
 }
-function config(env: Env, provider: OAuthProvider): ProviderConfig {
+function linkedinActor(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  requireValue(
+    typeof value === "string" &&
+      /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(value),
+    "LINKEDIN_ACTOR_INVALID",
+    "LinkedIn actor must be an organization or organizationBrand URN.",
+    400,
+  );
+  return value;
+}
+
+function config(
+  env: Env,
+  provider: OAuthProvider,
+  actorUrn?: string,
+): ProviderConfig {
+  const organizationActor =
+    provider === "linkedin" ? linkedinActor(actorUrn) : undefined;
   const values = {
     x: {
       clientId: env.X_OAUTH_CLIENT_ID || "",
@@ -188,9 +208,19 @@ function config(env: Env, provider: OAuthProvider): ProviderConfig {
       clientId: env.LINKEDIN_OAUTH_CLIENT_ID || "",
       clientSecret: env.LINKEDIN_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://www.linkedin.com/oauth/v2/authorization",
-      requiredScopes: ["openid", "profile", "w_member_social"],
-      optionalScopes:
-        env.LINKEDIN_MEMBER_READBACK === "true" ? ["r_member_social"] : [],
+      requiredScopes: organizationActor
+        ? [
+            "openid",
+            "profile",
+            "w_organization_social",
+            "r_organization_social",
+          ]
+        : ["openid", "profile", "w_member_social"],
+      optionalScopes: organizationActor
+        ? []
+        : env.LINKEDIN_MEMBER_READBACK === "true"
+          ? ["r_member_social"]
+          : [],
     },
   }[provider];
   return {
