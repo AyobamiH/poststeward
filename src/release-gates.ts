@@ -125,6 +125,14 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     evidence: ["docs/live-external-gates-2026-09-13.md"],
   },
   {
+    id: "linkedin_poststeward_page_identity",
+    state: "live_verified",
+    scope: "provider_optional",
+    blocking: false,
+    summary: "PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate.",
+    evidence: ["docs/live-external-gates-2026-09-13.md"],
+  },
+  {
     id: "linkedin_oauth",
     state: "external_setup_required",
     scope: "provider_optional",
