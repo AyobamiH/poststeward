@@ -6,7 +6,7 @@ PostSteward runs centrally on the service operator's Cloudflare account. Custome
 
 ## 1. Create isolated resources
 
-Open [Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) and record the account ID and your account's workers.dev subdomain. The subdomain variable is the bare account label, without `.workers.dev`. Deployment reads the account's actual subdomain from Cloudflare and uses that verified value, so a stale saved subdomain cannot misroute the Worker or OAuth callback.
+Open [Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) and record the account ID and your account's workers.dev subdomain. The subdomain variable is the bare account label, without `.workers.dev`. Staging deployment reads the account's actual subdomain from Cloudflare. Production may instead use the reviewed `WORKERS_SUBDOMAIN` environment variable when it is explicitly pinned; this avoids requiring Account Settings read scope on the production deployment token while the later D1/Worker identity checks still verify that the token can reach the intended account resources.
 
 Open [Cloudflare D1](https://dash.cloudflare.com/?to=/:account/workers/d1). For a new setup, create `poststeward-identity-staging` first and record its database UUID. The current staging database already exists. Create `poststeward-identity-production` separately when preparing production. Keep read replication disabled for identity data. The deployment checks each database's actual name and UUID through Cloudflare before migrating it.
 
@@ -25,7 +25,7 @@ Open [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens). Cr
 
 - Account / Workers Scripts / Edit.
 - Account / D1 / Edit.
-- Account / Account Settings / Read for Wrangler's account/subdomain discovery.
+- Account / Account Settings / Read for automatic account/subdomain discovery. This is optional for production when `WORKERS_SUBDOMAIN` is explicitly pinned in the protected environment.
 
 For custom-domain routing, include Zone / Workers Routes / Edit and Zone / Zone / Read, limited to the selected domain's zone. Do not grant DNS edit, billing, API-token administration, R2, KV or access to every account. Use an expiry and a separate production token. If Cloudflare's displayed permission names differ, use the corresponding Workers Scripts and D1 write permissions from its current [permission catalogue](https://developers.cloudflare.com/fundamentals/api/reference/permissions/).
 
