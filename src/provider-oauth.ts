@@ -936,17 +936,27 @@ export async function startProviderOAuth(
     "Start provider OAuth from the signed-in owner browser.",
     403,
   );
-  const c = config(env, provider);
+  const rawInput = (await request.clone().json()) as {
+    alias?: unknown;
+    returnPath?: unknown;
+    actorUrn?: unknown;
+  };
+  const actorUrn =
+    provider === "linkedin" ? linkedinActor(rawInput.actorUrn) : undefined;
+  requireValue(
+    provider === "linkedin" || rawInput.actorUrn === undefined,
+    "LINKEDIN_ACTOR_INVALID",
+    "Only LinkedIn connections accept an actor URN.",
+    400,
+  );
+  const c = config(env, provider, actorUrn);
   requireValue(
     configured(c),
     "OAUTH_NOT_CONFIGURED",
     "This provider connection is not configured yet.",
     503,
   );
-  const input = (await request.json()) as {
-    alias?: unknown;
-    returnPath?: unknown;
-  };
+  const input = rawInput;
   const destination = returnPath(input.returnPath);
   requireValue(
     typeof input.alias === "string" && aliasPattern.test(input.alias),
@@ -965,7 +975,7 @@ export async function startProviderOAuth(
   const verifier = provider === "x" ? randomSecret(48) : undefined;
   const stateHash = await digest(state);
   const inserted = await env.IDENTITY.prepare(
-    "INSERT INTO provider_oauth_states(state_hash,session_hash,workspace,actor,provider,alias,verifier,return_path,expires_at,created_at) SELECT ?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM provider_oauth_states) < 10000",
+    "INSERT INTO provider_oauth_states(state_hash,session_hash,workspace,actor,provider,alias,verifier,actor_urn,return_path,expires_at,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM provider_oauth_states) < 10000",
   )
     .bind(
       stateHash,
@@ -975,6 +985,7 @@ export async function startProviderOAuth(
       provider,
       input.alias,
       verifier || null,
+      actorUrn || null,
       destination,
       Date.now() + 600000,
       Date.now(),
@@ -1008,9 +1019,11 @@ export async function startProviderOAuth(
       scopes: c.scopes,
       requiredScopes: c.requiredScopes,
       optionalScopes: c.optionalScopes,
+      ...(actorUrn ? { actorUrn } : {}),
       capabilities: providerApplicationCapabilities(provider, true, {
         linkedinMemberReadbackApproved:
           c.optionalScopes.includes("r_member_social"),
+        linkedinOrganizationActor: Boolean(actorUrn),
       }),
       returnPath: destination,
     },
@@ -1027,6 +1040,7 @@ export async function completeProviderOAuth(
 ): Promise<{
   alias: string;
   returnPath: OAuthReturnPath;
+  actorUrn?: string;
   token?: OAuthTokenSet;
   response?: Response;
 }> {
@@ -1086,10 +1100,21 @@ export async function completeProviderOAuth(
     "Provider returned no authorization code.",
     400,
   );
+  const actorUrn =
+    provider === "linkedin" ? linkedinActor(row.actor_urn) : undefined;
   return {
     alias: row.alias,
     returnPath: destination,
-    token: await exchangeCode(env, provider, code, row.verifier),
+    ...(actorUrn ? { actorUrn } : {}),
+    token: await exchangeCode(
+      env,
+      provider,
+      code,
+      row.verifier,
+      Date.now(),
+      fetch,
+      actorUrn,
+    ),
   };
 }
 
