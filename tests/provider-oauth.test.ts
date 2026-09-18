@@ -143,6 +143,64 @@ test("refreshed credentials that resolve to a different stable identity deactiva
   assert.equal(oauth.status()[0].status, "identity_drift");
 });
 
+test("LinkedIn organization connection binds the exact reviewed page actor and organization scopes", async () => {
+  const h = configuredHarness();
+  const actorUrn = "urn:li:organization:146607525";
+  let observedActor: string | undefined;
+  h.provider.identity = async (_provider, _credential, actor) => {
+    observedActor = actor;
+    return { id: actor!, username: actor! };
+  };
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  const result: any = await oauth.connect(owner, {
+    alias: "poststeward-page",
+    actorUrn,
+    token: {
+      provider: "linkedin",
+      accessToken: "linkedin-organization-access-001",
+      expiresAt: h.now() + 3600000,
+      scopes: [
+        "openid",
+        "profile",
+        "w_organization_social",
+        "r_organization_social",
+      ],
+      scopeEvidence: "provider",
+      obtainedAt: h.now(),
+    },
+  });
+  assert.equal(observedActor, actorUrn);
+  assert.equal(result.account.identity.id, actorUrn);
+  assert.equal(result.oauth.actorUrn, actorUrn);
+  assert.equal(result.oauth.capabilities.publish.state, "available");
+  assert.equal(result.oauth.capabilities.readback.state, "available");
+  assert.deepEqual(result.account.capabilities, {
+    oauth: true,
+    refresh: false,
+    readback: true,
+  });
+});
+
+test("LinkedIn organization connection rejects member-only scope grants", async () => {
+  const h = configuredHarness();
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  await assert.rejects(
+    oauth.connect(owner, {
+      alias: "poststeward-page",
+      actorUrn: "urn:li:organization:146607525",
+      token: {
+        provider: "linkedin",
+        accessToken: "linkedin-member-only-access-001",
+        expiresAt: h.now() + 3600000,
+        scopes: ["openid", "profile", "w_member_social"],
+        scopeEvidence: "provider",
+        obtainedAt: h.now(),
+      },
+    }),
+    /Provider did not grant every required permission/,
+  );
+});
+
 test("LinkedIn without an issued refresh token requests reauthorisation, wakes once at expiry and then deactivates", async () => {
   const h = configuredHarness();
   let network = 0;
