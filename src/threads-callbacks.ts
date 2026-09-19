@@ -160,9 +160,9 @@ export async function registerProviderIdentity(
   await db.batch([
     db
       .prepare(
-        "DELETE FROM provider_identity_bindings WHERE provider=? AND workspace=? AND alias=?",
+        "DELETE FROM provider_identity_bindings WHERE workspace=? AND alias=?",
       )
-      .bind(binding.provider, binding.workspace, binding.alias),
+      .bind(binding.workspace, binding.alias),
     db
       .prepare(
         "INSERT INTO provider_identity_bindings(provider,identity_id,workspace,alias,created_at,updated_at) VALUES (?,?,?,?,?,?)",
