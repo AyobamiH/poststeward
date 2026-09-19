@@ -14,10 +14,13 @@ test("restricted signup rejects unverified and unlisted identities and unknown c
   for (const claims of [
     { email: "owner@example.com", email_verified: false },
     { email: "owner@example.com", email_verified: "true" },
-    { email: "outsider@example.com", email_verified: true },
     {},
   ])
-    assert.throws(() => allowOwner(claims, env), /invited owners/);
+    assert.throws(() => allowOwner(claims, env), /verified email/);
+  assert.throws(
+    () => allowOwner({ email: "outsider@example.com", email_verified: true }, env),
+    /invited owners/,
+  );
   assert.throws(
     () =>
       allowOwner({ email: "owner@example.com", email_verified: true }, {
