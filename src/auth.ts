@@ -170,19 +170,30 @@ export async function resolveOwnerPrincipal(
   now = Date.now(),
 ) {
   const existing = await env.IDENTITY.prepare(
-    "SELECT workspace FROM principals WHERE subject=?",
+    "SELECT workspace,created_at FROM principals WHERE subject=?",
   )
     .bind(subject)
-    .first<{ workspace: string }>();
-  if (existing) return existing;
-
-  if (env.SIGNUP_MODE !== "public") {
-    const workspace = uid();
+    .first<{ workspace: string; created_at: number }>();
+  if (existing) {
     await env.IDENTITY.prepare(
-      "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
+      "INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'preexisting')",
     )
-      .bind(subject, workspace, now)
+      .bind(existing.workspace, existing.created_at)
       .run();
+    return { workspace: existing.workspace };
+  }
+
+  const workspace = uid();
+  if (env.SIGNUP_MODE !== "public") {
+    await env.IDENTITY.batch([
+      env.IDENTITY.prepare(
+        "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
+      ).bind(subject, workspace, now),
+      env.IDENTITY.prepare(
+        `INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode)
+         SELECT workspace,created_at,'restricted' FROM principals WHERE subject=?`,
+      ).bind(subject),
+    ]);
   } else {
     const workspaceLimit = publicAdmissionLimit(
       env.PUBLIC_WORKSPACE_LIMIT,
@@ -194,23 +205,26 @@ export async function resolveOwnerPrincipal(
       "PUBLIC_SIGNUPS_PER_HOUR",
       1_000,
     );
-    const workspace = uid();
-    await env.IDENTITY.prepare(
-      `INSERT INTO principals(subject,workspace,created_at)
-       SELECT ?,?,?
-       WHERE (SELECT count(*) FROM principals) < ?
-         AND (SELECT count(*) FROM principals WHERE created_at>=?) < ?
-       ON CONFLICT(subject) DO NOTHING`,
-    )
-      .bind(
+    await env.IDENTITY.batch([
+      env.IDENTITY.prepare(
+        `INSERT INTO principals(subject,workspace,created_at)
+         SELECT ?,?,?
+         WHERE (SELECT count(*) FROM workspace_admissions) < ?
+           AND (SELECT count(*) FROM workspace_admissions WHERE created_at>=?) < ?
+         ON CONFLICT(subject) DO NOTHING`,
+      ).bind(
         subject,
         workspace,
         now,
         workspaceLimit,
         now - 60 * 60_000,
         hourlyLimit,
-      )
-      .run();
+      ),
+      env.IDENTITY.prepare(
+        `INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode)
+         SELECT workspace,created_at,'public' FROM principals WHERE subject=?`,
+      ).bind(subject),
+    ]);
   }
 
   const principal = await env.IDENTITY.prepare(
@@ -233,8 +247,8 @@ export async function resolveOwnerPrincipal(
     );
     const counts = await env.IDENTITY.prepare(
       `SELECT
-         (SELECT count(*) FROM principals) AS total,
-         (SELECT count(*) FROM principals WHERE created_at>=?) AS recent`,
+         (SELECT count(*) FROM workspace_admissions) AS total,
+         (SELECT count(*) FROM workspace_admissions WHERE created_at>=?) AS recent`,
     )
       .bind(now - 60 * 60_000)
       .first<{ total: number; recent: number }>();
