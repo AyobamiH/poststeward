@@ -731,21 +731,33 @@ async function route(
     return callback(request, env);
   if (path === "/webhooks/stripe" && request.method === "POST")
     return stripeWebhook(request, env);
-  if (
-    path === "/connections/oauth/threads/uninstall" &&
-    request.method === "POST"
-  )
+  if (path === "/connections/oauth/threads/uninstall") {
+    requireValue(
+      request.method === "POST",
+      "METHOD_NOT_ALLOWED",
+      "Threads uninstall callback requires POST.",
+      405,
+    );
     return threadsUninstallCallback(request, env);
-  if (
-    path === "/connections/oauth/threads/delete" &&
-    request.method === "POST"
-  )
+  }
+  if (path === "/connections/oauth/threads/delete") {
+    requireValue(
+      request.method === "POST",
+      "METHOD_NOT_ALLOWED",
+      "Threads deletion callback requires POST.",
+      405,
+    );
     return threadsDeleteCallback(request, env);
-  if (
-    path === "/connections/oauth/threads/delete/status" &&
-    request.method === "GET"
-  )
+  }
+  if (path === "/connections/oauth/threads/delete/status") {
+    requireValue(
+      request.method === "GET",
+      "METHOD_NOT_ALLOWED",
+      "Threads deletion status requires GET.",
+      405,
+    );
     return threadsDeleteStatus(request, env);
+  }
 
   const providerCallback =
     /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.exec(path);
