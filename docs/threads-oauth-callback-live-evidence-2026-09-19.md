@@ -1,40 +1,70 @@
-# Threads OAuth callback evidence — 19 September 2026
+# Threads OAuth callback and owner-grant evidence — 19 September 2026
 
-## What changed
+## Accepted callback contract
 
-The earlier external blocker was Meta's refusal to persist the exact Threads callback allowlist. That blocker is no longer current.
+The earlier Meta callback-persistence blocker is closed.
 
-The owner confirmed that Meta accepted and saved the PostSteward Threads settings with the production callback contract:
+Meta accepted and saved the PostSteward Threads configuration with the production callback contract:
 
 - OAuth redirect: `https://app.poststeward.com/connections/oauth/threads/callback`
 - Uninstall callback: `https://app.poststeward.com/connections/oauth/threads/uninstall`
 - Data deletion callback: `https://app.poststeward.com/connections/oauth/threads/delete`
 
-The staging OAuth redirect remains allowed for restricted acceptance:
+The restricted staging redirect remains allowed:
 
 - `https://poststeward-staging.woeinvests.workers.dev/connections/oauth/threads/callback`
 
-## Runtime evidence
+## Hosted runtime evidence
 
-Production deployment run `35417886121` completed successfully on release `951034d3e1b2c2c2057ba193dc66e5b80a5c059f`.
+Production deployment run `35419352439` completed successfully on release `cb1f3697fca545c94453cf3b4339fecbfd3744a1`.
 
-The hosted production runtime reports Threads OAuth configured. Independent read-only probes confirm:
+Hosted checks on that exact production release proved:
 
-- `/health` returns the exact production release and `providerOAuth.threads=true`.
-- the uninstall route exists and rejects an ordinary GET with HTTP 405, proving it is present without triggering an uninstall;
-- the deletion route exists and rejects an ordinary GET with HTTP 405, proving it is present without triggering deletion.
+- `/health` returned the exact release with Threads OAuth configured;
+- the uninstall callback route existed and rejected a non-effectful GET with HTTP 405;
+- the deletion callback route existed and rejected a non-effectful GET with HTTP 405;
+- release-control reconciliation passed against the reviewed gate ledger.
 
-The callback handlers verify Meta `signed_request` HMACs, revoke the exact matching Threads authority, scrub provider-derived identifiers on deletion, and return Meta-compatible deletion confirmation/status responses.
+The callback handlers verify Meta `signed_request` HMACs, revoke the matching Threads authority, scrub provider-derived identifiers on deletion and return Meta-compatible deletion confirmation/status responses.
 
-## Remaining acceptance boundary
+## Real owner OAuth acceptance
 
-This evidence closes the specific upstream callback-persistence blocker. It does **not** claim the owner OAuth journey is accepted yet.
+The owner then completed the normal production customer journey at `https://app.poststeward.com`:
 
-The remaining bounded acceptance is one real owner Threads OAuth connection through PostSteward that proves:
+1. PostSteward initiated the Threads authorisation flow against Meta.
+2. Meta displayed the PostSteward consent screen for Threads account information/posts, content publishing and optional insights.
+3. The owner approved the provider consent.
+4. Meta returned to the production PostSteward callback.
+5. PostSteward completed the server-side authorisation-code exchange and long-lived-token exchange.
+6. PostSteward independently read the provider identity and persisted the connection.
+7. The production workspace displayed the account as **Connected** with a fresh verification timestamp and a stable Threads author ID.
 
-1. Meta authorisation returns to the exact PostSteward callback.
-2. PostSteward exchanges the code successfully.
-3. The stable Threads identity is persisted for the intended workspace.
-4. The resulting capability evidence is visible without exposing tokens.
+For evidence minimisation, the raw provider ID is not copied into this repository. Its SHA-256 is:
 
-Until that owner journey is completed, keep the gate in `external_setup_required`, not `live_verified`.
+`911246cbc48d3d2a952dba06f4ceb45d1754196ca50ce11afbfe9da466da1e2b`
+
+The owner-visible connection verification timestamp was 19 September 2026 at 04:54:29 Europe/London.
+
+No social publication was required to close this OAuth gate.
+
+## Scope/readback nuance
+
+Threads may omit the granted-scope echo during token exchange. PostSteward deliberately records that as `scopeEvidence=request_assumed` rather than inventing provider-confirmed scope evidence.
+
+For the required Threads baseline, the application requested `threads_basic` and `threads_content_publish`, the stable provider identity read succeeded, and the compatibility account record treats the required baseline readback path as usable. Optional insights authority is never inferred when Meta omits scope echoing.
+
+This distinction is preserved in the UI and does not weaken the OAuth acceptance claim.
+
+## Accepted state
+
+The `threads_oauth_callback` gate is now `live_verified`.
+
+This acceptance covers:
+
+- Meta callback persistence;
+- real owner provider consent;
+- exact production callback return;
+- successful server-side code/token exchange;
+- stable provider identity verification and persistence.
+
+It does not claim that every optional Threads permission was independently echoed by Meta.

@@ -73,6 +73,20 @@ function capabilityState(value) {
   const labels = { available: "Available to this grant", unavailable: "Unavailable", connection_required: "Connection required", external_approval_required: "Approval required", unknown: "Unknown" };
   return Object.hasOwn(labels, value?.state) ? labels[value.state] : "Unknown";
 }
+export function accountReadbackLabel(account, connection) {
+  const capability = connection?.capabilities?.readback;
+  if (
+    account?.provider === "threads" &&
+    account?.capabilities?.readback === true &&
+    capability?.state === "unknown" &&
+    capability?.reason === "scope_response_absent"
+  )
+    return "Baseline requested; provider did not echo scope";
+  if (connection) return capabilityState(capability);
+  return account?.capabilities?.readback === true
+    ? "Reported supported; inspect receipt evidence"
+    : "Unknown / unavailable";
+}
 function renderProviders(snapshot) {
   const anchor = document.getElementById("oauth-status"); if (!anchor) return;
   let grid = document.getElementById("ux-provider-grid");
@@ -117,7 +131,7 @@ export function renderOwnerSnapshot(snapshot) {
     title(row, account.alias, [[providers[account.provider] || "Unknown provider"], [account.active === true ? "Connected" : "Disconnected", account.active === true ? "connected" : "disconnected"]]);
     row.querySelector(":scope > span")?.remove();
     const connection = snapshot.oauthInfo?.connections?.find((item) => item.alias === account.alias);
-    row.append(fields([["Account", account.identity?.username], ["Stable author ID", account.identity?.id], ["Connection verified", time(account.verifiedAt)], ["Readback permission", connection ? capabilityState(connection.capabilities?.readback) : account.capabilities?.readback === true ? "Reported supported; inspect receipt evidence" : "Unknown / unavailable"]]));
+    row.append(fields([["Account", account.identity?.username], ["Stable author ID", account.identity?.id], ["Connection verified", time(account.verifiedAt)], ["Readback permission", accountReadbackLabel(account, connection)]]));
   });
   enrichRows("receipts", snapshot.receipts, (row, receipt) => {
     title(row, receipt.account, [[providers[receipt.provider] || "Unknown provider"], receiptState(receipt.status)]);
