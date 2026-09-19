@@ -75,7 +75,7 @@ export function workspaceCapacitySnapshot(
   initialiseCapacityTelemetry(ctx);
   const usage = ctx.storage.sql
     .exec<{ records: number; bytes: number }>(
-      "SELECT records,bytes FROM record_usage WHERE singleton=1",
+      "SELECT records,bytes FROM record_usage WHERE id=1",
     )
     .toArray()[0] || { records: 0, bytes: 0 };
   const maxValue = ctx.storage.sql
