@@ -56,7 +56,14 @@ import {
   limitEdge,
   limitWorkspace,
 } from "./security.ts";
-import type { Actor, Env } from "./types.ts";
+import type { Account, Actor, Delivery, Env } from "./types.ts";
+import {
+  registerProviderIdentity,
+  removeProviderIdentity,
+  threadsDeleteCallback,
+  threadsDeleteStatus,
+  threadsUninstallCallback,
+} from "./threads-callbacks.ts";
 
 const connectionSchema = z.strictObject({
   alias: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
@@ -234,6 +241,76 @@ export class Workspace extends DurableObject<Env> {
         await this.schedule(engine, oauth);
         return json({ reconciled: true });
       }
+      if (path === "/provider/threads-callback") {
+        const input = data.input as {
+          provider?: unknown;
+          identityId?: unknown;
+          action?: unknown;
+          alias?: unknown;
+        };
+        requireValue(
+          input.provider === "threads" &&
+            typeof input.identityId === "string" &&
+            input.identityId.length >= 1 &&
+            input.identityId.length <= 256 &&
+            ["uninstall", "delete"].includes(String(input.action)) &&
+            (input.alias === undefined ||
+              (typeof input.alias === "string" &&
+                /^[A-Za-z0-9_-]{1,100}$/.test(input.alias))),
+          "THREADS_CALLBACK_INVALID",
+          "Threads callback request is invalid.",
+          400,
+        );
+        const { engine, oauth } = this.services(data.workspace);
+        const accounts = this.store
+          .list<Account>("account:")
+          .filter(
+            (account) =>
+              account.provider === "threads" &&
+              account.identity.id === input.identityId &&
+              (input.alias === undefined || account.alias === input.alias),
+          );
+        const aliases: string[] = [];
+        for (const account of accounts) {
+          const actor: Actor = {
+            workspace: data.workspace,
+            id: "threads-meta-callback",
+            scopes: ["admin"],
+          };
+          await engine.run("account_disconnect", { alias: account.alias }, actor);
+          await oauth.afterDisconnect(account.alias);
+          aliases.push(account.alias);
+          if (input.action === "delete") {
+            const tombstone =
+              "deleted:" +
+              (await digest({
+                provider: "threads",
+                identity: input.identityId,
+              })).slice(0, 24);
+            const current = this.store.get<Account>("account:" + account.alias);
+            if (current) {
+              current.identity = { id: tombstone, username: "deleted" };
+              this.store.put("account:" + account.alias, current);
+            }
+            for (const entry of this.store.entries("delivery:")) {
+              const delivery = entry.value as Delivery;
+              if (
+                delivery.provider === "threads" &&
+                delivery.account === account.alias &&
+                delivery.identity.id === input.identityId
+              ) {
+                delivery.identity = { id: tombstone, username: "deleted" };
+                delete delivery.metrics;
+                delete delivery.postId;
+                delete delivery.url;
+                this.store.put(entry.key, delivery);
+              }
+            }
+          }
+        }
+        return json({ matched: aliases.length, aliases });
+      }
+
       requireValue(
         data.actor?.workspace === data.workspace,
         "WORKSPACE_MISMATCH",
@@ -653,6 +730,22 @@ async function route(
     return callback(request, env);
   if (path === "/webhooks/stripe" && request.method === "POST")
     return stripeWebhook(request, env);
+  if (
+    path === "/connections/oauth/threads/uninstall" &&
+    request.method === "POST"
+  )
+    return threadsUninstallCallback(request, env);
+  if (
+    path === "/connections/oauth/threads/delete" &&
+    request.method === "POST"
+  )
+    return threadsDeleteCallback(request, env);
+  if (
+    path === "/connections/oauth/threads/delete/status" &&
+    request.method === "GET"
+  )
+    return threadsDeleteStatus(request, env);
+
   const providerCallback =
     /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.exec(path);
   if (providerCallback && request.method === "GET") {
@@ -674,8 +767,8 @@ async function route(
       },
       "/oauth/connect",
     );
+    const value: any = await response.json();
     if (!response.ok) {
-      const value: any = await response.json();
       return json(
         {
           error: {
@@ -692,6 +785,17 @@ async function route(
         },
       );
     }
+    if (
+      value?.account?.provider &&
+      value.account.identity?.id &&
+      value.account.alias
+    )
+      await registerProviderIdentity(env.IDENTITY, {
+        provider: value.account.provider,
+        identityId: value.account.identity.id,
+        workspace: auth.actor.workspace,
+        alias: value.account.alias,
+      });
     return providerOAuthSuccess(provider, completed.returnPath);
   }
   if (
@@ -1066,8 +1170,29 @@ async function route(
       return grants(request, env, auth);
     if (path === "/auth/logout" && request.method === "POST")
       return logout(request, env);
-    if (path === "/api/connections/import" && request.method === "POST")
-      return invoke(env, auth.actor, "", await request.json(), "/connect");
+    if (path === "/api/connections/import" && request.method === "POST") {
+      const response = await invoke(
+        env,
+        auth.actor,
+        "",
+        await request.json(),
+        "/connect",
+      );
+      const value: any = await response.json();
+      if (
+        response.ok &&
+        value?.provider &&
+        value.identity?.id &&
+        value.alias
+      )
+        await registerProviderIdentity(env.IDENTITY, {
+          provider: value.provider,
+          identityId: value.identity.id,
+          workspace: auth.actor.workspace,
+          alias: value.alias,
+        });
+      return json(value, response.status);
+    }
     if (path === "/mcp")
       return mcp(request, env, auth.actor, async (name, input) => {
         const response = await invoke(env, auth.actor, name, input);
@@ -1096,13 +1221,36 @@ async function route(
           ),
         },
       );
-    if (path.startsWith("/api/operations/") && request.method === "POST")
-      return invoke(
-        env,
-        auth.actor,
-        path.slice("/api/operations/".length),
-        await request.json(),
-      );
+    if (path.startsWith("/api/operations/") && request.method === "POST") {
+      const operation = path.slice("/api/operations/".length);
+      const input = await request.json();
+      const response = await invoke(env, auth.actor, operation, input);
+      if (
+        response.ok &&
+        operation === "account_disconnect" &&
+        typeof (input as { alias?: unknown }).alias === "string"
+      ) {
+        const alias = (input as { alias: string }).alias;
+        const accountsResponse = await invoke(
+          env,
+          auth.actor,
+          "accounts_list",
+          {},
+        );
+        const accounts = accountsResponse.ok
+          ? ((await accountsResponse.json()) as Account[])
+          : [];
+        const account = accounts.find((row) => row.alias === alias);
+        if (account)
+          await removeProviderIdentity(
+            env.IDENTITY,
+            account.provider,
+            auth.actor.workspace,
+            alias,
+          );
+      }
+      return response;
+    }
     return json(
       {
         error: { code: "NOT_FOUND", message: "Unknown route or HTTP method." },
