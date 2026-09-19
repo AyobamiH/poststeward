@@ -5,6 +5,7 @@ import {
   grantState,
   receiptState,
   operationSummary,
+  accountReadbackLabel,
 } from "../public/owner-ui.js";
 
 const ui = readFileSync("public/owner-ui.js", "utf8");
@@ -36,6 +37,34 @@ test("unknown server receipt states remain unproven", () => {
   assert.deepEqual(receiptState("published_verified"), ["Verified", "verified"]);
   assert.deepEqual(receiptState("published_unverified"), ["Needs readback", "warning"]);
   assert.deepEqual(receiptState("ambiguous_effect"), ["Ambiguous effect", "ambiguous"]);
+});
+
+test("Threads baseline readback omission is labelled as unconfirmed scope evidence, not generic unknown", () => {
+  assert.equal(
+    accountReadbackLabel(
+      {
+        provider: "threads",
+        capabilities: { readback: true },
+      },
+      {
+        capabilities: {
+          readback: {
+            state: "unknown",
+            reason: "scope_response_absent",
+            requiredScopes: ["threads_basic"],
+          },
+        },
+      },
+    ),
+    "Baseline requested; provider did not echo scope",
+  );
+  assert.equal(
+    accountReadbackLabel(
+      { provider: "threads", capabilities: { readback: true } },
+      { capabilities: { readback: { state: "available" } } },
+    ),
+    "Available to this grant",
+  );
 });
 
 test("response summaries do not promote reservation or uncertainty to success", () => {
