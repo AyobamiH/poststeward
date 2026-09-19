@@ -135,7 +135,7 @@ export function allowOwner(
   requireValue(
     claims.email_verified === true &&
       typeof claims.email === "string" &&
-      /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(claims.email),
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claims.email),
     "OWNER_EMAIL_UNVERIFIED",
     "Use a provider account with a verified email address.",
     403,
