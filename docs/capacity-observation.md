@@ -25,7 +25,7 @@ Alarm cycles are deliberately labelled as an upper-bound proxy for provider poll
 `scripts/capacity-observe.mjs` reads the high-water table through the D1 API and combines it with Cloudflare GraphQL analytics for:
 
 - Worker requests, subrequests and errors;
-- Worker CPU p50/p99;
+- Worker CPU p50/p99, normalised from Cloudflare microseconds into pricing milliseconds;
 - D1 read/write queries, rows read/written, response bytes and p90 query time;
 - operational-alert volume from D1.
 
