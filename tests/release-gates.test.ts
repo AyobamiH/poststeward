@@ -46,7 +46,7 @@ test("release gate identifiers are unique and external evidence is derived from 
   assert.ok(ids.includes("native_webmcp"));
   assert.ok(ids.includes("github_main_ruleset"));
   assert.ok(!externalEvidenceGateIds().includes("private_github_authority"));
-  assert.ok(externalEvidenceGateIds().includes("threads_oauth_callback"));
+  assert.ok(!externalEvidenceGateIds().includes("threads_oauth_callback"));
   assert.equal(
     releaseGateDefinitions.find((gate) => gate.id === "public_signup")?.scope,
     "public_launch",
