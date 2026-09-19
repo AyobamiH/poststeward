@@ -153,13 +153,16 @@ export function buildCapacityObservation({ highWater, workerAnalytics, d1Analyti
     Number.isFinite(pricing?.monthlyEstimate) && pricing.monthlyEstimate >= 0;
   const projectedMonthlyRequests = calibrated.projectedDailyRequests * 30;
   const observedWorkerRequests = Number(workerAnalytics?.requests || 0);
+  const observedWorkerCpuP99Us = Number(workerAnalytics?.cpuTimeP99Us || 0);
   const requestScale = observedWorkerRequests > 0
     ? projectedMonthlyRequests / observedWorkerRequests
     : Infinity;
   const projectedUsage = {
     workerRequests: projectedMonthlyRequests,
     workerCpuMsAtObservedP99:
-      projectedMonthlyRequests * Number(workerAnalytics?.cpuTimeP99 || 0),
+      Number.isFinite(observedWorkerCpuP99Us) && observedWorkerCpuP99Us >= 0
+        ? projectedMonthlyRequests * observedWorkerCpuP99Us / 1000
+        : Infinity,
     d1RowsRead:
       Number.isFinite(requestScale) ? Number(d1Analytics?.rowsRead || 0) * requestScale : Infinity,
     d1RowsWritten:
@@ -405,9 +408,14 @@ async function main() {
   }
 
   const graphql = await queryGraphql(accountId, scriptName, databaseId, token, start.toISOString(), end.toISOString());
+  const workerCpuUs = maxGroups(
+    graphql.workersInvocationsAdaptive,
+    ["cpuTimeP50", "cpuTimeP99"],
+  );
   const worker = {
     ...sumGroups(graphql.workersInvocationsAdaptive, ["requests", "subrequests", "errors"]),
-    ...maxGroups(graphql.workersInvocationsAdaptive, ["cpuTimeP50", "cpuTimeP99"]),
+    cpuTimeP50Us: workerCpuUs.cpuTimeP50,
+    cpuTimeP99Us: workerCpuUs.cpuTimeP99,
   };
   const d1 = {
     ...sumGroups(graphql.d1AnalyticsAdaptiveGroups, [
