@@ -26,6 +26,9 @@ on:
       - tests/production-edge-authority-preflight.test.mjs
       - scripts/production-edge-apply.mjs
       - tests/production-edge-apply.test.mjs
+      - scripts/production-edge-check.mjs
+      - tests/completion-harness.test.mjs
+      - tests/promotion-edge-provenance.test.mjs
 permissions:
   contents: read
 concurrency:
@@ -44,6 +47,8 @@ jobs:
       name: production
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      POSTSTEWARD_WORKER_NAME: poststeward
       POSTSTEWARD_PRODUCTION_ORIGIN: ${{ github.event_name == 'workflow_dispatch' && inputs.origin || 'https://app.poststeward.com' }}
       CLOUDFLARE_ZONE_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.zone || 'poststeward.com' }}
     steps:
