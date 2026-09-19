@@ -16,6 +16,11 @@ on:
         type: choice
         options: [environment, start_100bps, start_500bps, start_1000bps, stop]
         default: environment
+      signup_mode_request:
+        description: Reviewed owner admission mode
+        type: choice
+        options: [restricted, public]
+        default: restricted
   workflow_call:
     inputs:
       environment:
@@ -37,6 +42,11 @@ on:
         required: false
         type: boolean
         default: false
+      signup_mode_request:
+        description: Reviewed owner admission mode; public is honoured only by the production-request caller
+        required: false
+        type: string
+        default: restricted
     # Explicit repository-level fallbacks only; the selected environment takes precedence.
     secrets:
       CLOUDFLARE_API_TOKEN:
@@ -113,6 +123,9 @@ jobs:
       D1_ID: ${{ vars.D1_ID }}
       WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
       APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      SIGNUP_MODE: ${{ inputs.environment == 'production' && inputs.production_deploy_request == true && inputs.signup_mode_request == 'public' && 'public' || 'restricted' }}
+      PUBLIC_WORKSPACE_LIMIT: "100"
+      PUBLIC_SIGNUPS_PER_HOUR: "10"
       OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
       OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
       GITHUB_APP_CLIENT_ID: ${{ vars.POSTSTEWARD_GITHUB_APP_CLIENT_ID }}
