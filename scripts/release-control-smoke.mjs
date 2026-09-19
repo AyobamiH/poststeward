@@ -44,7 +44,7 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
     value.gates?.github_main_ruleset?.blocking === false &&
     value.gates?.public_signup?.scope === "public_launch" &&
     value.gates?.public_signup?.state === "disabled_policy" &&
-    value.gates?.threads_oauth_callback?.state === "external_setup_required" &&
+    value.gates?.threads_oauth_callback?.state === "live_verified" &&
     value.gates?.advanced_rollout?.state === "disabled_policy" &&
     value.runtimeCapabilities?.policies?.advancedEnabled === false &&
     value.runtimeCapabilities?.policies?.advancedRolloutMode === "disabled" &&
@@ -53,7 +53,8 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
     Array.isArray(value.evidenceStillExternal) &&
     !value.evidenceStillExternal.includes("private_github_authority") &&
     !value.evidenceStillExternal.includes("exact_recovery_checkpoints") &&
-    !value.evidenceStillExternal.includes("github_main_ruleset")
+    !value.evidenceStillExternal.includes("github_main_ruleset") &&
+    !value.evidenceStillExternal.includes("threads_oauth_callback")
   );
 
   await check("generated public release gate ledger matches reviewed evidence", "/release-gates.json", (value) => {
