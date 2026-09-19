@@ -59,3 +59,9 @@ jobs:
         env:
           POSTSTEWARD_APPLY_PRODUCTION_EDGE: ${{ github.event_name == 'push' && 'APPLY_POSTSTEWARD_PRODUCTION_EDGE' || inputs.confirmation }}
         run: node scripts/production-edge-apply.mjs
+      - name: Independently read back production edge acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="$(node --input-type=module -e 'const r=await fetch(process.env.POSTSTEWARD_PRODUCTION_ORIGIN+"/readiness.json",{redirect:"error",headers:{"Cache-Control":"no-cache"}});if(!r.ok)process.exit(1);const j=await r.json();if(j.environment!=="production"||!/^[a-f0-9]{40}$/.test(j.release||""))process.exit(1);process.stdout.write(j.release)')"
+          POSTSTEWARD_EXPECTED_RELEASE="$release" npm run edge:check
