@@ -40,7 +40,6 @@ function readiness(overrides = {}) {
       },
     },
     evidenceStillExternal: [
-      "threads_oauth_callback",
       "native_webmcp",
       "public_signup",
     ],
