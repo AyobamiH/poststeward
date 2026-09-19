@@ -101,6 +101,7 @@ export async function completeWorkspaceDeletion(
     db.prepare("DELETE FROM workspace_recovery_plans WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM workspace_controls WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM provider_oauth_states WHERE workspace=?").bind(workspace),
+    db.prepare("DELETE FROM provider_identity_bindings WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM github_repository_links WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM github_installations WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM github_install_states WHERE workspace=?").bind(workspace),
