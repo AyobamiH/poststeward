@@ -12,7 +12,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `private_github_authority` | `live_verified` | `restricted_staging` | no | Selected private repository read and provider-side revoke/fail-closed proof accepted. |
 | `exact_recovery_checkpoints` | `live_verified` | `restricted_staging` | no | Exact checkpoint capture, real restore, reconciliation, resume and disposable erasure are accepted on restricted staging. |
 | `approximate_timestamp_pitr` | `blocked_external` | `restricted_staging` | no | Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it. |
-| `threads_oauth_callback` | `external_setup_required` | `restricted_staging` | no | Meta accepted the exact Threads callback allowlist; owner OAuth consent, code exchange and stable-identity persistence remain to be accepted. |
+| `threads_oauth_callback` | `live_verified` | `restricted_staging` | no | Meta callback persistence and one real production owner Threads OAuth journey are accepted; PostSteward completed the code exchange and persisted the verified stable provider identity. |
 | `native_webmcp` | `unavailable_capability` | `restricted_staging` | no | PostSteward native WebMCP is deployed; the owner's ordinary browser does not expose the native API. |
 | `x_oauth` | `external_setup_required` | `provider_optional` | no | X OAuth implementation is present; the real application/client authority is not configured in staging. |
 | `linkedin_poststeward_page_identity` | `live_verified` | `provider_optional` | no | PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate. |
@@ -37,7 +37,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `private_github_authority`: `docs/live-external-gates-2026-09-13.md`
 - `exact_recovery_checkpoints`: `docs/recovery.md`, `docs/exact-recovery-live-evidence-2026-09-14.md`, `actions/34890295276`
 - `approximate_timestamp_pitr`: `docs/live-external-gates-2026-09-13.md`
-- `threads_oauth_callback`: `docs/threads-oauth-callback-live-evidence-2026-09-19.md`; owner action: Complete one real owner Threads OAuth connection and preserve the resulting stable identity/capability evidence.
+- `threads_oauth_callback`: `docs/threads-oauth-callback-live-evidence-2026-09-19.md`
 - `native_webmcp`: `docs/live-external-gates-2026-09-13.md`; owner action: Use one authenticated supporting browser for the read-only workspace_status proof when available.
 - `x_oauth`: `docs/live-external-gates-2026-09-13.md`
 - `linkedin_poststeward_page_identity`: `docs/live-external-gates-2026-09-13.md`
