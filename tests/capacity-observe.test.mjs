@@ -29,14 +29,25 @@ function providerQuota() {
   return {
     evidenceClass: "provider_observation",
     observedAt: Date.UTC(2026, 8, 15),
-    providers: [{ provider: "threads", observed: true }],
+    providers: [{
+      provider: "threads",
+      observed: true,
+      quotaTotalPerUser: 250,
+      poststewardDailyDeliveryCeilingPerWorkspace: 20,
+    }],
   };
 }
 function pricing() {
   return {
     evidenceClass: "reviewed_pricing",
     observedAt: Date.UTC(2026, 8, 15),
-    monthlyEstimate: 12.5,
+    monthlyEstimate: 5,
+    model: {
+      includedWorkerRequestsPerMonth: 10_000_000,
+      includedWorkerCpuMsPerMonth: 30_000_000,
+      includedD1RowsReadPerMonth: 25_000_000_000,
+      includedD1RowsWrittenPerMonth: 50_000_000,
+    },
   };
 }
 
@@ -52,7 +63,9 @@ test("complete hosted observation can satisfy calibration and cost evidence", ()
   assert.equal(report.calibration.verdict, "calibrated_with_30pct_headroom");
   assert.equal(report.costEvidence.cloudflareObserved, true);
   assert.equal(report.costEvidence.providerQuotaObserved, true);
+  assert.equal(report.costEvidence.providerQuotaHeadroomSatisfied, true);
   assert.equal(report.costEvidence.estimateRecorded, true);
+  assert.equal(report.costEvidence.pricingEnvelopeSatisfied, true);
   assert.equal(report.ready, true);
   assert.equal(
     report.providerPollObservation.method,
@@ -94,7 +107,9 @@ test("Cloudflare metrics alone never invent provider quota or reviewed pricing",
   });
   assert.equal(report.costEvidence.cloudflareObserved, true);
   assert.equal(report.costEvidence.providerQuotaObserved, false);
+  assert.equal(report.costEvidence.providerQuotaHeadroomSatisfied, false);
   assert.equal(report.costEvidence.estimateRecorded, false);
+  assert.equal(report.costEvidence.pricingEnvelopeSatisfied, false);
   assert.equal(report.costEvidence.monthlyEstimate, null);
   assert.equal(report.ready, false);
 });
