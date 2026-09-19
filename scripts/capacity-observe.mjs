@@ -63,7 +63,8 @@ export function capacityAnalyticsRequest(accountId, scriptName, databaseId, star
           quantiles { cpuTimeP50 cpuTimeP99 }
         }
         d1AnalyticsAdaptiveGroups(limit: 10000, filter: { databaseId: $databaseId, date_geq: $dateStart, date_leq: $dateEnd }) {
-          sum { readQueries writeQueries rowsRead rowsWritten queryBatchResponseBytes queryBatchTimeMs }
+          sum { readQueries writeQueries rowsRead rowsWritten queryBatchResponseBytes }
+          quantiles { queryBatchTimeMsP90 }
         }
       }
     }
@@ -98,6 +99,21 @@ function maxGroups(groups, fields) {
   return Object.fromEntries(fields.map((field) => [field,
     Math.max(0, ...(groups || []).map((group) => Number(group?.quantiles?.[field] || 0))),
   ]));
+}
+
+export function capacityFailureCode(error) {
+  const message = error instanceof Error ? error.message : "";
+  const http = /^Cloudflare observation failed with HTTP ([1-5][0-9]{2})\.$/.exec(
+    message,
+  );
+  if (http) return `cloudflare_http_${http[1]}`;
+  if (message === "Cloudflare GraphQL capacity query returned errors.")
+    return "cloudflare_graphql_query_rejected";
+  if (message === "Cloudflare GraphQL returned no matching account analytics.")
+    return "cloudflare_graphql_account_unavailable";
+  if (error instanceof DOMException && error.name === "TimeoutError")
+    return "cloudflare_request_timeout";
+  return "invalid_input_or_observation";
 }
 
 export function buildCapacityObservation({ highWater, workerAnalytics, d1Analytics,
@@ -393,9 +409,12 @@ async function main() {
     ...sumGroups(graphql.workersInvocationsAdaptive, ["requests", "subrequests", "errors"]),
     ...maxGroups(graphql.workersInvocationsAdaptive, ["cpuTimeP50", "cpuTimeP99"]),
   };
-  const d1 = sumGroups(graphql.d1AnalyticsAdaptiveGroups, [
-    "readQueries", "writeQueries", "rowsRead", "rowsWritten", "queryBatchResponseBytes", "queryBatchTimeMs",
-  ]);
+  const d1 = {
+    ...sumGroups(graphql.d1AnalyticsAdaptiveGroups, [
+      "readQueries", "writeQueries", "rowsRead", "rowsWritten", "queryBatchResponseBytes",
+    ]),
+    ...maxGroups(graphql.d1AnalyticsAdaptiveGroups, ["queryBatchTimeMsP90"]),
+  };
   const alertRows = await queryD1(accountId, databaseId, token,
     `SELECT count(*) AS total,
       sum(CASE WHEN status='sent' THEN 1 ELSE 0 END) AS sent,
@@ -417,7 +436,7 @@ async function main() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  main().catch(() => {
-    console.error("POSTSTEWARD_CAPACITY_OBSERVATION_FAILED invalid_input_or_observation");
+  main().catch((error) => {
+    console.error(`POSTSTEWARD_CAPACITY_OBSERVATION_FAILED ${capacityFailureCode(error)}`);
     process.exitCode = 1;
   });
