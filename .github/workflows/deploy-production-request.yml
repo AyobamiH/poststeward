@@ -1,7 +1,8 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-18-production-bootstrap
+# Production deployment request: 2026-09-19-threads-compliance-callbacks
 # This file is the only reviewed push-triggered production deployment request.
+# This request includes the signed Threads uninstall/data-deletion callbacks from PR #120.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
 # Production uses its own D1, APP_ORIGIN and OIDC. PRODUCTION_CREDENTIAL_MODE may explicitly
