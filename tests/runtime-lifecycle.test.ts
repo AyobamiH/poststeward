@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { digest } from "../src/common.ts";
+import { resolveOwnerPrincipal } from "../src/auth.ts";
 import { runtime } from "./runtime-fixture.ts";
 
 async function fixture(billingCustomer = false) {
@@ -161,6 +162,61 @@ test("workspace erasure requires fresh owner confirmation, clears recoverable st
       }),
     });
     assert.equal(stale.status, 410);
+  } finally {
+    await f.mf.dispose();
+  }
+});
+
+test("fresh public admission after completed deletion creates a new workspace and never resurrects the tombstoned one", async () => {
+  const f = await fixture();
+  try {
+    const response = await f.mf.dispatchFetch(
+      "https://publish.example/api/lifecycle/delete",
+      {
+        method: "POST",
+        headers: f.headers,
+        body: JSON.stringify({
+          delete: true,
+          confirmation: `DELETE ${f.workspace}`,
+        }),
+      },
+    );
+    assert.equal(response.status, 200, await response.clone().text());
+    const tombstone = await f.db
+      .prepare("SELECT state FROM workspace_deletions WHERE workspace=?")
+      .bind(f.workspace)
+      .first<any>();
+    assert.equal(tombstone?.state, "completed");
+
+    const fresh = await resolveOwnerPrincipal(
+      {
+        IDENTITY: f.db,
+        SIGNUP_MODE: "public",
+        PUBLIC_WORKSPACE_LIMIT: "100",
+        PUBLIC_SIGNUPS_PER_HOUR: "10",
+      } as any,
+      f.actor,
+      Date.now() + 1000,
+    );
+    assert.notEqual(fresh.workspace, f.workspace);
+    assert.equal(
+      (
+        await f.db
+          .prepare("SELECT workspace FROM principals WHERE subject=?")
+          .bind(f.actor)
+          .first<any>()
+      )?.workspace,
+      fresh.workspace,
+    );
+    assert.equal(
+      (
+        await f.db
+          .prepare("SELECT state FROM workspace_deletions WHERE workspace=?")
+          .bind(f.workspace)
+          .first<any>()
+      )?.state,
+      "completed",
+    );
   } finally {
     await f.mf.dispose();
   }
