@@ -7,7 +7,7 @@ import { evaluatePromotion, collectObservations } from "../scripts/release-promo
 
 const release = "a".repeat(40);
 const now = Date.parse("2026-09-15T18:00:00Z");
-const productionIds = ["production_edge", "operational_alert_delivery", "capacity_cost_calibration"];
+const productionIds = ["capacity_cost_calibration"];
 function fixture(target = "restricted_staging", acceptedProduction = false) {
   const ledger = JSON.parse(readFileSync(new URL("../public/release-gates.json", import.meta.url), "utf8"));
   if (acceptedProduction)
@@ -121,7 +121,7 @@ test("accepted historical effects are not reopened by observation freshness", ()
 test("production next actions cannot be displaced by optional provider setup", () => {
   const report = evaluatePromotion(fixture("production"));
   assert.deepEqual(report.nextActions.map((entry) => entry.gate), productionIds);
-  assert.equal(report.nextAction.gate, "production_edge");
+  assert.equal(report.nextAction.gate, "capacity_cost_calibration");
   assert.equal(report.providerContracts.x.callback, "https://production.example.com/connections/oauth/x/callback");
   assert.equal(report.optionalActions.find((entry) => entry.gate === "x_oauth").action,
     "register_x_application_and_store_protected_client_authority");

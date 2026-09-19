@@ -36,10 +36,13 @@ test("capacity sweep hashes registry identity before writing observations", () =
   );
 });
 
-test("capacity observation uses the established hourly schedule without adding a third trigger", () => {
+test("capacity observation uses hourly sampling plus one current-release bootstrap on the existing five-minute loop", () => {
   assert.deepEqual(wrangler.triggers.crons.sort(), ["*/5 * * * *", "17 * * * *"]);
   assert.match(edge, /controller\.cron === "17 \* \* \* \*"/);
+  assert.match(edge, /controller\.cron === "\*\/5 \* \* \* \*"/);
+  assert.match(edge, /capacityObservationDue\(env\)/);
   assert.match(edge, /sweepWorkspaceCapacityObservations\(env\)/);
+  assert.match(capacity, /WHERE observation_date=\? AND release=\?/);
 });
 
 test("internal capacity snapshot is not exposed publicly and does not manufacture workspace identity", () => {
@@ -55,4 +58,14 @@ test("capacity sweep excludes completed deletion tombstones before Durable Objec
   assert.match(capacity, /workspace_deletions deletion/);
   assert.match(capacity, /deletion\.state='completed'/);
   assert.match(capacity, /WHERE deletion\.workspace IS NULL/);
+});
+
+
+test("capacity sweep is fault-isolated from hourly identity maintenance", () => {
+  assert.match(edge, /hourly_identity_maintenance_failed/);
+  assert.match(edge, /workspace_capacity_observation_failed/);
+  const maintenance = edge.indexOf("await edge.scheduled(controller, env)");
+  const capacitySweep = edge.indexOf("sweepWorkspaceCapacityObservations(env)");
+  assert.ok(maintenance >= 0 && capacitySweep > maintenance);
+  assert.match(edge.slice(maintenance - 120, capacitySweep + 120), /try[\s\S]*catch[\s\S]*sweepWorkspaceCapacityObservations/);
 });

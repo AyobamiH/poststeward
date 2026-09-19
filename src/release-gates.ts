@@ -174,11 +174,11 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "production_edge",
-    state: "external_setup_required",
+    state: "live_verified",
     scope: "production",
-    blocking: true,
-    summary: "Custom production origin, DNS/TLS, WAF and rate-policy evidence remain open.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+    blocking: false,
+    summary: "The exact production custom domain, Worker binding, security headers, canonical WAF rule and auth rate-limit rule are independently read back and accepted.",
+    evidence: ["docs/production-edge-live-evidence-2026-09-19.md", "actions/35440149519"],
   },
   {
     id: "github_main_ruleset",
@@ -193,11 +193,11 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "operational_alert_delivery",
-    state: "external_setup_required",
+    state: "live_verified",
     scope: "production",
-    blocking: true,
-    summary: "Production alert delivery and escalation evidence remain open.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+    blocking: false,
+    summary: "Production operator alert delivery is accepted through the out-of-band GitHub issue control plane, including all reviewed alert classes and a deliberately failed-path escalation drill.",
+    evidence: ["docs/operational-alert-live-evidence-2026-09-19.md", "actions/35440129849"],
   },
   {
     id: "capacity_cost_calibration",

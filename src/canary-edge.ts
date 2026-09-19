@@ -1,6 +1,7 @@
 import edge, { Workspace as BaseWorkspace } from "./edge.ts";
 import { advancedRolloutDecision } from "./advanced-rollout.ts";
 import {
+  capacityObservationDue,
   initialiseCapacityTelemetry,
   recordAlarmCycle,
   recordWorkspaceRequest,
@@ -432,8 +433,36 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ) {
-    if (controller.cron === "17 * * * *") {
-      await edge.scheduled(controller, env);
+    const hourly = controller.cron === "17 * * * *";
+    if (hourly) {
+      try {
+        await edge.scheduled(controller, env);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "hourly_identity_maintenance_failed",
+            release: env.RELEASE_SHA,
+            code: error instanceof Error ? error.name : "UnknownError",
+          }),
+        );
+      }
+    }
+
+    let observeCapacity = hourly;
+    if (!observeCapacity && controller.cron === "*/5 * * * *") {
+      try {
+        observeCapacity = await capacityObservationDue(env);
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "workspace_capacity_due_check_failed",
+            release: env.RELEASE_SHA,
+            code: error instanceof Error ? error.name : "UnknownError",
+          }),
+        );
+      }
+    }
+    if (observeCapacity) {
       try {
         const result = await sweepWorkspaceCapacityObservations(env);
         if (!result.complete || result.failed > 0)
@@ -456,8 +485,8 @@ export default {
           }),
         );
       }
-      await pruneAdvancedSloTelemetry(env);
     }
+    if (hourly) await pruneAdvancedSloTelemetry(env);
 
     try {
       await sweepOperationalConditions(env);

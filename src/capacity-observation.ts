@@ -117,6 +117,21 @@ export function workspaceCapacitySnapshot(
   };
 }
 
+export async function capacityObservationDue(
+  env: Env,
+  now = Date.now(),
+) {
+  const row = await env.IDENTITY.prepare(
+    `SELECT 1 AS present
+       FROM workspace_capacity_observations
+       WHERE observation_date=? AND release=?
+       LIMIT 1`,
+  )
+    .bind(utcDay(now), env.RELEASE_SHA)
+    .first<{ present: number }>();
+  return !row;
+}
+
 async function snapshotWorkspace(env: Env, workspace: string) {
   const stub = env.WORKSPACES.get(env.WORKSPACES.idFromName(workspace));
   const response = await stub.fetch("https://workspace.internal/capacity/snapshot", {
