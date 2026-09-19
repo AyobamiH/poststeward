@@ -170,6 +170,11 @@ test("workspace erasure requires fresh owner confirmation, clears recoverable st
 test("fresh public admission after completed deletion creates a new workspace and never resurrects the tombstoned one", async () => {
   const f = await fixture();
   try {
+    const admittedAt = Date.now() - 60_000;
+    await f.db.prepare(
+      "INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'restricted')",
+    ).bind(f.workspace, admittedAt).run();
+
     const response = await f.mf.dispatchFetch(
       "https://publish.example/api/lifecycle/delete",
       {
@@ -216,6 +221,15 @@ test("fresh public admission after completed deletion creates a new workspace an
           .first<any>()
       )?.state,
       "completed",
+    );
+    assert.equal(
+      (
+        await f.db
+          .prepare("SELECT count(*) AS n FROM workspace_admissions WHERE workspace=?")
+          .bind(f.workspace)
+          .first<any>()
+      )?.n,
+      1,
     );
   } finally {
     await f.mf.dispose();
