@@ -201,11 +201,14 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "capacity_cost_calibration",
-    state: "external_setup_required",
+    state: "live_verified",
     scope: "production",
-    blocking: true,
-    summary: "Representative capacity/cost observations with required headroom remain open.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+    blocking: false,
+    summary: "Exact-release staging and production observations project the reviewed first-100 workload with at least 30% product headroom and inside the reviewed Cloudflare/provider cost envelope.",
+    evidence: [
+      "docs/capacity-cost-live-evidence-2026-09-19.md",
+      "actions/35442767724",
+    ],
   },
   {
     id: "hosted_cross_tenant",

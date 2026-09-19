@@ -2,7 +2,7 @@
 
 This runbook defines the evidence required beyond the restricted-staging product loop. It is intentionally separate from provider P0 acceptance.
 
-## Current status note — 15 September 2026
+## Current status note — 19 September 2026
 
 - Protected staging root cutover is **accepted**. The active writer is `next`; the legacy root is intentionally retained for recovery. Do not repeat the cutover or retire the old root merely to satisfy this runbook.
 - Stripe sandbox lifecycle is **accepted**. Do not recreate payment/refund/cancellation merely for production-readiness evidence.
@@ -11,7 +11,8 @@ This runbook defines the evidence required beyond the restricted-staging product
 - Cloudflare's separate approximate timestamp resolver `getBookmarkForTime()` remains **blocked externally**. It is an optional convenience and no longer a dependency of PostSteward's recovery guarantee.
 - The accepted synthetic recovery run also proved export, deletion, old-session denial and tombstone/registry retention. A future public-production claim may still require the separate new-workspace anti-resurrection/admission scenario below.
 - GitHub server-side main protection is **accepted**. Ruleset `23461973` is active and independently read back with the reviewed solo-maintainer policy; do not recreate it merely for evidence.
-- Production custom edge, capacity/cost observations, delivered alerts, hosted two-workspace cross-tenant evidence and public-signup/support/abuse ownership remain open.
+- Production custom edge, delivered alerts, hosted two-workspace cross-tenant evidence and capacity/cost calibration are **accepted**. Capacity acceptance is bound to hosted workflow `35442767724` and the exact deployed runtime release recorded in `docs/capacity-cost-live-evidence-2026-09-19.md`.
+- Public-signup/support/abuse ownership remains open and signup remains restricted.
 
 The sections below are the production acceptance contract. Accepted staging effects are historical procedure only and must not be replayed unnecessarily.
 

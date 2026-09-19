@@ -8,11 +8,13 @@ import { evaluatePromotion, collectObservations } from "../scripts/release-promo
 const release = "a".repeat(40);
 const now = Date.parse("2026-09-15T18:00:00Z");
 const productionIds = ["capacity_cost_calibration"];
-function fixture(target = "restricted_staging", acceptedProduction = false) {
+function fixture(target = "restricted_staging", acceptedProduction = true) {
   const ledger = JSON.parse(readFileSync(new URL("../public/release-gates.json", import.meta.url), "utf8"));
-  if (acceptedProduction)
-    for (const gate of ledger.gates)
-      if (productionIds.includes(gate.id)) { gate.state = "live_verified"; gate.blocking = false; }
+  for (const gate of ledger.gates)
+    if (productionIds.includes(gate.id)) {
+      gate.state = acceptedProduction ? "live_verified" : "external_setup_required";
+      gate.blocking = !acceptedProduction;
+    }
   const environment = ["production", "public_launch"].includes(target) ? "production" : "staging";
   return {
     target, ledger, expectedRelease: release, now,
@@ -42,7 +44,7 @@ test("public launch still requires the separately reviewed admission gate", () =
   assert.deepEqual(report.promotion.blockers, ["public_signup"]);
 });
 test("successful observations only make evidence review-ready, never auto-promote", () => {
-  const input = fixture("production");
+  const input = fixture("production", false);
   input.observations = Object.fromEntries(productionIds.map((id) => [id, observation(input)]));
   const before = JSON.stringify(input.ledger);
   const report = evaluatePromotion(input);
@@ -53,7 +55,7 @@ test("successful observations only make evidence review-ready, never auto-promot
   assert.equal(report.nextAction.action, "review_and_advance_gate_from_live_evidence");
 });
 test("arbitrary ready flags cannot satisfy a gate", () => {
-  const input = fixture("production");
+  const input = fixture("production", false);
   input.observations = Object.fromEntries(productionIds.map((id) => [id, { ready: true }]));
   const report = evaluatePromotion(input);
   assert.equal(report.promotion.ready, false);
@@ -119,7 +121,7 @@ test("accepted historical effects are not reopened by observation freshness", ()
   assert.ok(!report.nextActions.some((entry) => entry.gate === "exact_recovery_checkpoints"));
 });
 test("production next actions cannot be displaced by optional provider setup", () => {
-  const report = evaluatePromotion(fixture("production"));
+  const report = evaluatePromotion(fixture("production", false));
   assert.deepEqual(report.nextActions.map((entry) => entry.gate), productionIds);
   assert.equal(report.nextAction.gate, "capacity_cost_calibration");
   assert.equal(report.providerContracts.x.callback, "https://production.example.com/connections/oauth/x/callback");

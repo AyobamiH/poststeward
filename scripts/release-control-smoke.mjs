@@ -42,6 +42,8 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
     value.gates?.exact_recovery_checkpoints?.state === "live_verified" &&
     value.gates?.github_main_ruleset?.state === "live_verified" &&
     value.gates?.github_main_ruleset?.blocking === false &&
+    value.gates?.capacity_cost_calibration?.state === "live_verified" &&
+    value.gates?.capacity_cost_calibration?.blocking === false &&
     value.gates?.public_signup?.scope === "public_launch" &&
     value.gates?.public_signup?.state === "disabled_policy" &&
     value.gates?.threads_oauth_callback?.state === "live_verified" &&
@@ -54,6 +56,7 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
     !value.evidenceStillExternal.includes("private_github_authority") &&
     !value.evidenceStillExternal.includes("exact_recovery_checkpoints") &&
     !value.evidenceStillExternal.includes("github_main_ruleset") &&
+    !value.evidenceStillExternal.includes("capacity_cost_calibration") &&
     !value.evidenceStillExternal.includes("threads_oauth_callback")
   );
 
@@ -66,6 +69,8 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
       gates.native_webmcp?.state === "unavailable_capability" &&
       gates.github_main_ruleset?.state === "live_verified" &&
       gates.github_main_ruleset?.blocking === false &&
+      gates.capacity_cost_calibration?.state === "live_verified" &&
+      gates.capacity_cost_calibration?.blocking === false &&
       gates.public_signup?.scope === "public_launch" &&
       gates.public_signup?.state === "disabled_policy" &&
       gates.public_signup?.blocking === true;
