@@ -21,9 +21,9 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `advanced_rollout` | `disabled_policy` | `advanced` | no | Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass. |
 | `mpp` | `disabled_policy` | `advanced` | no | MPP is a separate optional settlement stream and remains disabled. |
 | `public_signup` | `disabled_policy` | `public_launch` | yes | Public signup remains restricted until production/support/abuse controls are accepted. |
-| `production_edge` | `external_setup_required` | `production` | yes | Custom production origin, DNS/TLS, WAF and rate-policy evidence remain open. |
+| `production_edge` | `live_verified` | `production` | no | The exact production custom domain, Worker binding, security headers, canonical WAF rule and auth rate-limit rule are independently read back and accepted. |
 | `github_main_ruleset` | `live_verified` | `production` | no | Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy. |
-| `operational_alert_delivery` | `external_setup_required` | `production` | yes | Production alert delivery and escalation evidence remain open. |
+| `operational_alert_delivery` | `live_verified` | `production` | no | Production operator alert delivery is accepted through the out-of-band GitHub issue control plane, including all reviewed alert classes and a deliberately failed-path escalation drill. |
 | `capacity_cost_calibration` | `external_setup_required` | `production` | yes | Representative capacity/cost observations with required headroom remain open. |
 | `hosted_cross_tenant` | `live_verified` | `production` | no | Hosted two-workspace isolation, hostile-Origin denial and ephemeral grant cleanup are accepted on the exact staged release. |
 
@@ -46,8 +46,8 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `advanced_rollout`: `docs/production-readiness-acceptance.md`
 - `mpp`: `docs/production-readiness-acceptance.md`
 - `public_signup`: `docs/production-readiness-acceptance.md`
-- `production_edge`: `docs/production-readiness-acceptance.md`
+- `production_edge`: `docs/production-edge-live-evidence-2026-09-19.md`, `actions/35440149519`
 - `github_main_ruleset`: `docs/github-main-ruleset-live-evidence-2026-09-15.md`, `ruleset/23461973`
-- `operational_alert_delivery`: `docs/production-readiness-acceptance.md`
+- `operational_alert_delivery`: `docs/operational-alert-live-evidence-2026-09-19.md`, `actions/35440129849`
 - `capacity_cost_calibration`: `docs/production-readiness-acceptance.md`
 - `hosted_cross_tenant`: `docs/hosted-cross-tenant-live-evidence-2026-09-15.md`, `actions/35029954430`
