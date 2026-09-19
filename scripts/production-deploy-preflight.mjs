@@ -80,6 +80,20 @@ export async function preflightProductionDeploy(
   const token = env.CLOUDFLARE_API_TOKEN || "";
   const account = configuration.account_id;
   const database = configuration.d1_databases[0];
+  const tokenVerifyResponse = await send(
+    "https://api.cloudflare.com/client/v4/user/tokens/verify",
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  demand(
+    tokenVerifyResponse.ok,
+    `Cloudflare production token verification failed with HTTP ${tokenVerifyResponse.status}.`,
+  );
+
   const databaseMetadata = await cloudflareJson(
     `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${database.database_id}`,
     token,

@@ -58,6 +58,11 @@ function json(status, body) {
 function cloudflare({ d1Name = "poststeward-identity-production", workerStatus = 404 } = {}) {
   return async (url) => {
     const value = String(url);
+    if (value === "https://api.cloudflare.com/client/v4/user/tokens/verify")
+      return json(200, {
+        success: true,
+        result: { status: "active" },
+      });
     if (value.endsWith(`/accounts/${account}/workers/subdomain`))
       return json(200, { success: true, result: { subdomain: "woeinvests" } });
     if (value.endsWith(`/accounts/${account}/d1/database/${database}`))
@@ -126,6 +131,19 @@ test("production preflight refuses half-configured provider authority", async ()
         base,
       ),
     /X_OAUTH_CLIENT_ID and X_OAUTH_CLIENT_SECRET must be configured as a pair/,
+  );
+});
+
+test("production preflight distinguishes an invalid Cloudflare token before D1 authority", async () => {
+  const send = async (url) => {
+    const value = String(url);
+    if (value === "https://api.cloudflare.com/client/v4/user/tokens/verify")
+      return json(401, { success: false });
+    throw new Error("D1 should not be queried after invalid token verification");
+  };
+  await assert.rejects(
+    () => preflightProductionDeploy(environment(), send, base),
+    /token verification failed with HTTP 401/,
   );
 });
 
