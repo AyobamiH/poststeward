@@ -195,20 +195,22 @@ test("production edge evaluator requires custom security and rate evidence", () 
       payments: { advancedEnabled: false, mppEnabled: false },
     },
     headers,
-    dnsRecords: [{ proxied: true }],
+    workerDomains: [{ hostname: "app.poststeward.com", service: "poststeward", cert_id: "cert-fixture" }],
     customFirewallRules: [{ id: "waf" }],
-    managedFirewallRules: [],
     rateLimitRules: [{ id: "rate" }],
+    hostname: "app.poststeward.com",
+    workerName: "poststeward",
   });
   assert.equal(result.ready, true);
   assert.equal(
     evaluateEdgeEvidence({
       readiness: { release: "development", access: {}, payments: {} },
       headers: new Headers(),
-      dnsRecords: [],
+      workerDomains: [],
       customFirewallRules: [],
-      managedFirewallRules: [],
       rateLimitRules: [],
+      hostname: "app.poststeward.com",
+      workerName: "poststeward",
     }).ready,
     false,
   );
