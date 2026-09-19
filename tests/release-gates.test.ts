@@ -73,15 +73,16 @@ test("runtime capabilities remain distinct from reviewed live evidence", () => {
   assert.equal(releasePolicyViolations(env()).length, 0);
 });
 
-test("configured alert delivery is runtime capability only, not acceptance", () => {
+test("configured webhook remains runtime capability separate from reviewed alert acceptance", () => {
   const runtime = runtimeCapabilitySnapshot(
     env({ OPERATIONAL_ALERT_WEBHOOK_URL: "https://alerts.example/hook" }),
   );
   assert.equal(runtime.operationalAlertWebhookConfigured, true);
   assert.equal(
     releaseGateDefinitions.find((gate) => gate.id === "operational_alert_delivery")?.state,
-    "external_setup_required",
+    "live_verified",
   );
+  assert.ok(!externalEvidenceGateIds().includes("operational_alert_delivery"));
 });
 
 test("bounded staging canary is a permitted evidence mode, not a global rollout", () => {
