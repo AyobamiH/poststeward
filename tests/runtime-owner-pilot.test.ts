@@ -284,9 +284,14 @@ test("public admission caps new workspaces without locking out returning owners"
     const owner = await f.signin();
     const old = Date.now() - 2 * 60 * 60_000;
     for (let i = 0; i < 99; i++)
-      await f.db.prepare(
-        "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
-      ).bind(`seed-subject-${i}`, `seed-workspace-${i}`, old).run();
+      await f.db.batch([
+        f.db.prepare(
+          "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+        ).bind(`seed-subject-${i}`, `seed-workspace-${i}`, old),
+        f.db.prepare(
+          "INSERT INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'preexisting')",
+        ).bind(`seed-workspace-${i}`, old),
+      ]);
     assert.equal((await f.db.prepare("SELECT count(*) AS n FROM principals").first<any>())?.n, 100);
 
     const returning = await f.signin(owner.cookie);
@@ -304,9 +309,14 @@ test("public admission caps new workspaces without locking out returning owners"
   try {
     const old = Date.now() - 2 * 60 * 60_000;
     for (let i = 0; i < 100; i++)
-      await capped.db.prepare(
-        "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
-      ).bind(`cap-subject-${i}`, `cap-workspace-${i}`, old).run();
+      await capped.db.batch([
+        capped.db.prepare(
+          "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+        ).bind(`cap-subject-${i}`, `cap-workspace-${i}`, old),
+        capped.db.prepare(
+          "INSERT INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'preexisting')",
+        ).bind(`cap-workspace-${i}`, old),
+      ]);
     const denied = await (await capped.begin())();
     assert.equal(denied.status, 503);
     assert.equal((await denied.json() as any).error.code, "PUBLIC_WORKSPACE_LIMIT_REACHED");
@@ -323,9 +333,14 @@ test("public admission globally bounds new workspace velocity", async () => {
   try {
     const now = Date.now();
     for (let i = 0; i < 10; i++)
-      await f.db.prepare(
-        "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
-      ).bind(`recent-subject-${i}`, `recent-workspace-${i}`, now).run();
+      await f.db.batch([
+        f.db.prepare(
+          "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+        ).bind(`recent-subject-${i}`, `recent-workspace-${i}`, now),
+        f.db.prepare(
+          "INSERT INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'public')",
+        ).bind(`recent-workspace-${i}`, now),
+      ]);
     const denied = await (await f.begin())();
     assert.equal(denied.status, 429);
     assert.equal((await denied.json() as any).error.code, "PUBLIC_SIGNUP_RATE_LIMIT");
