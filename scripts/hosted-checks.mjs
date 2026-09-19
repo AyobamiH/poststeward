@@ -186,6 +186,20 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
   ])
     await check(`public resource: ${path}`, path, 200, {}, secure);
   await check(
+    "Threads uninstall callback route exists without side effects",
+    "/connections/oauth/threads/uninstall",
+    405,
+    {},
+    async (r) => (await r.json()).error?.code === "METHOD_NOT_ALLOWED",
+  );
+  await check(
+    "Threads deletion callback route exists without side effects",
+    "/connections/oauth/threads/delete",
+    405,
+    {},
+    async (r) => (await r.json()).error?.code === "METHOD_NOT_ALLOWED",
+  );
+  await check(
     "unauthenticated session rejected without caching",
     "/api/session",
     401,

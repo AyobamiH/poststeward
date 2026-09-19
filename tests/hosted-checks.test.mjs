@@ -74,6 +74,14 @@ function service(appStatus = 200) {
         { error: { code: "UNAUTHENTICATED" } },
         { status: options.headers?.Origin ? 403 : 401, headers },
       );
+    if (
+      path === "/connections/oauth/threads/uninstall" ||
+      path === "/connections/oauth/threads/delete"
+    )
+      return Response.json(
+        { error: { code: "METHOD_NOT_ALLOWED" } },
+        { status: 405, headers },
+      );
     if (path === "/mcp") return new Response(null, { status: 401 });
     if (path === "/auth/callback")
       return Response.json(
@@ -158,10 +166,10 @@ test("readiness never follows redirects or retries access rejection", async () =
     assert.equal(calls, 1);
   }
 });
-test("hosted report checks 26 surfaces and does not disclose login state or cookies", async () => {
+test("hosted report checks 28 surfaces and does not disclose login state or cookies", async () => {
   const report = await verifyHosted(c, { send: service(), sleep });
   assert.equal(report.passed, true);
-  assert.equal(report.checks.length, 26);
+  assert.equal(report.checks.length, 28);
   assert.deepEqual(report.configuredCapabilities, {
     stripeSandbox: false,
     githubPrivateSources: false,
