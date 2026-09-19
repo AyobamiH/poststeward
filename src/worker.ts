@@ -278,7 +278,21 @@ export class Workspace extends DurableObject<Env> {
             id: "threads-meta-callback",
             scopes: ["admin"],
           };
-          await engine.run("account_disconnect", { alias: account.alias }, actor);
+          if (account.active)
+            await engine.run(
+              "account_disconnect",
+              {
+                alias: account.alias,
+                idempotencyKey:
+                  "threads-meta-" +
+                  (await digest({
+                    action: input.action,
+                    identity: input.identityId,
+                    alias: account.alias,
+                  })).slice(0, 32),
+              },
+              actor,
+            );
           await oauth.afterDisconnect(account.alias);
           aliases.push(account.alias);
           if (input.action === "delete") {
