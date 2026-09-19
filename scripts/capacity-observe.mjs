@@ -101,9 +101,15 @@ function maxGroups(groups, fields) {
 }
 
 export function buildCapacityObservation({ highWater, workerAnalytics, d1Analytics,
-  providerQuota, pricing, windowDays }) {
+  providerQuota, pricing, windowDays, targetWorkspaces }) {
+  const sampledWorkspaces = boundedInteger(highWater.workspaces, "workspaces");
+  const projectedWorkspaces = targetWorkspaces == null
+    ? sampledWorkspaces
+    : boundedInteger(targetWorkspaces, "targetWorkspaces");
+  demand(projectedWorkspaces >= sampledWorkspaces,
+    "targetWorkspaces cannot be smaller than the hosted sample.");
   const observation = {
-    workspaces: boundedInteger(highWater.workspaces, "workspaces"),
+    workspaces: projectedWorkspaces,
     peakRecordsPerWorkspace: boundedInteger(highWater.peakRecordsPerWorkspace, "peakRecordsPerWorkspace"),
     peakBytesPerWorkspace: boundedInteger(highWater.peakBytesPerWorkspace, "peakBytesPerWorkspace"),
     maxValueBytes: boundedInteger(highWater.maxValueBytes, "maxValueBytes"),
@@ -127,6 +133,13 @@ export function buildCapacityObservation({ highWater, workerAnalytics, d1Analyti
   };
   return {
     schemaVersion: 1, evidenceClass: "hosted_observation", windowDays, ...observation,
+    sampledWorkspaces,
+    projection: {
+      targetWorkspaces: projectedWorkspaces,
+      method: projectedWorkspaces === sampledWorkspaces
+        ? "hosted_sample"
+        : "hosted_per_workspace_high_water_projected_to_target",
+    },
     providerPollObservation: {
       method: "workspace_alarm_cycles_upper_bound",
       note: "Alarm cycles are a conservative upper-bound proxy for provider polling cycles; they never understate scheduler wake frequency.",
@@ -344,9 +357,11 @@ async function main() {
      FROM operational_alerts WHERE created_at >= ?`, [start.getTime()]);
   worker.alertVolume = alertRows[0] || { total: 0, sent: 0, dead: 0 };
 
+  const targetWorkspaces = Number(process.env.POSTSTEWARD_CAPACITY_TARGET_WORKSPACES || highWater.workspaces);
   const evaluated = buildCapacityObservation({ highWater, workerAnalytics: worker, d1Analytics: d1,
     providerQuota: optionalJson(process.env.POSTSTEWARD_PROVIDER_QUOTA_EVIDENCE, "provider quota"),
-    pricing: optionalJson(process.env.POSTSTEWARD_PRICING_EVIDENCE, "pricing"), windowDays });
+    pricing: optionalJson(process.env.POSTSTEWARD_PRICING_EVIDENCE, "pricing"), windowDays,
+    targetWorkspaces });
   demand(isDeepStrictEqual(context, await readCapacityRuntime(origin, expectedRelease)),
     "Capacity runtime changed while collecting evidence.");
   const report = bindCapacityObservation(evaluated, context, highWater);
