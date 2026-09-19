@@ -42,9 +42,17 @@ test("capacity observation uses the established hourly schedule without adding a
   assert.match(edge, /sweepWorkspaceCapacityObservations\(env\)/);
 });
 
-test("internal capacity snapshot is not exposed as a public Worker route", () => {
+test("internal capacity snapshot is not exposed publicly and does not manufacture workspace identity", () => {
   assert.match(edge, /path === "\/capacity\/snapshot"/);
-  assert.match(edge, /input\.workspace !== workspace/);
+  assert.match(edge, /workspace && requested !== workspace/);
+  assert.match(edge, /workspaceCapacitySnapshot/);
+  assert.doesNotMatch(edge, /capacity\/snapshot[\\s\\S]{0,1600}put\(["']workspace["']/);
   const publicWorker = readFileSync("src/worker.ts", "utf8");
   assert.doesNotMatch(publicWorker, /\/api\/capacity\/snapshot/);
+});
+
+test("capacity sweep excludes completed deletion tombstones before Durable Object observation", () => {
+  assert.match(capacity, /workspace_deletions deletion/);
+  assert.match(capacity, /deletion\.state='completed'/);
+  assert.match(capacity, /WHERE deletion\.workspace IS NULL/);
 });

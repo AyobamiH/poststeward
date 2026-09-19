@@ -136,11 +136,20 @@ export async function sweepWorkspaceCapacityObservations(
   now = Date.now(),
 ) {
   const count = await env.IDENTITY.prepare(
-    "SELECT count(*) AS count FROM workspace_registry",
+    `SELECT count(*) AS count
+       FROM workspace_registry registry
+       LEFT JOIN workspace_deletions deletion
+         ON deletion.workspace=registry.workspace AND deletion.state='completed'
+       WHERE deletion.workspace IS NULL`,
   ).first<{ count: number }>();
   const total = Number(count?.count || 0);
   const rows = await env.IDENTITY.prepare(
-    "SELECT workspace FROM workspace_registry ORDER BY workspace LIMIT ?",
+    `SELECT registry.workspace AS workspace
+       FROM workspace_registry registry
+       LEFT JOIN workspace_deletions deletion
+         ON deletion.workspace=registry.workspace AND deletion.state='completed'
+       WHERE deletion.workspace IS NULL
+       ORDER BY registry.workspace LIMIT ?`,
   )
     .bind(observationLimit)
     .all<{ workspace: string }>();
