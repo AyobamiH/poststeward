@@ -25,6 +25,7 @@ jobs:
       environment: staging
       run_pitr_diagnostic: false
       advanced_rollout_request: environment
+      signup_mode_request: restricted
     # Pass only explicitly named fallbacks, never every repository secret.
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
