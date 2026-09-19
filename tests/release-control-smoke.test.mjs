@@ -23,6 +23,7 @@ function readiness(overrides = {}) {
       protected_root_cutover: { state: "live_verified" },
       exact_recovery_checkpoints: { state: "live_verified" },
       github_main_ruleset: { state: "live_verified", blocking: false },
+      capacity_cost_calibration: { state: "live_verified", blocking: false },
       public_signup: {
         state: "disabled_policy",
         scope: "public_launch",
@@ -54,6 +55,7 @@ function gates(overrides = {}) {
     ["approximate_timestamp_pitr", "blocked_external", false, "restricted_staging"],
     ["native_webmcp", "unavailable_capability", false, "restricted_staging"],
     ["github_main_ruleset", "live_verified", false, "production"],
+    ["capacity_cost_calibration", "live_verified", false, "production"],
     ["public_signup", "disabled_policy", true, "public_launch"],
   ].map(([id, state, blocking, scope]) => ({ id, state, blocking, scope }));
   return { schemaVersion: 1, gates: rows, ...overrides };

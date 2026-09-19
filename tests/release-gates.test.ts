@@ -49,6 +49,21 @@ test("release gate identifiers are unique and external evidence is derived from 
   assert.ok(ids.includes("github_main_ruleset"));
   assert.ok(!externalEvidenceGateIds().includes("private_github_authority"));
   assert.ok(!externalEvidenceGateIds().includes("threads_oauth_callback"));
+  assert.ok(!externalEvidenceGateIds().includes("capacity_cost_calibration"));
+  assert.deepEqual(
+    releaseGateDefinitions.find((gate) => gate.id === "capacity_cost_calibration"),
+    {
+      id: "capacity_cost_calibration",
+      state: "live_verified",
+      scope: "production",
+      blocking: false,
+      summary: "Exact-release staging and production observations project the reviewed first-100 workload with at least 30% product headroom and inside the reviewed Cloudflare/provider cost envelope.",
+      evidence: [
+        "docs/capacity-cost-live-evidence-2026-09-19.md",
+        "actions/35442767724",
+      ],
+    },
+  );
   assert.equal(
     releaseGateDefinitions.find((gate) => gate.id === "public_signup")?.scope,
     "public_launch",
