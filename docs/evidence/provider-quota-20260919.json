@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "provider_observation",
+  "observedAt": 1789803000000,
+  "scope": "free_launch_required_provider",
+  "providers": [
+    {
+      "provider": "threads",
+      "source": "Meta official Threads API Postman workspace: GET /me/threads_publishing_limit",
+      "sourceUrl": "https://www.postman.com/meta/threads/request/34203612-f4590341-9bee-44f5-901b-606078a03c96",
+      "quotaTotalPerUser": 250,
+      "quotaDurationSeconds": 86400,
+      "poststewardDailyDeliveryCeilingPerWorkspace": 20,
+      "minimumQuotaHeadroomFraction": 0.92,
+      "observed": true
+    }
+  ],
+  "excludedOptionalProviders": [
+    {
+      "provider": "x",
+      "reason": "X is provider-optional for launch capacity. Endpoint rate limits are documented, but commercial product caps remain account-plan-specific and are not inferred."
+    }
+  ]
+}
