@@ -164,7 +164,7 @@ function publicAdmissionLimit(value: string, name: string, maximum: number) {
   return parsed;
 }
 
-async function resolveOwnerPrincipal(
+export async function resolveOwnerPrincipal(
   env: Env,
   subject: string,
   now = Date.now(),
