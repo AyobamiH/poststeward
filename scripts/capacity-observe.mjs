@@ -124,12 +124,54 @@ export function buildCapacityObservation({ highWater, workerAnalytics, d1Analyti
     providerQuota?.evidenceClass === "provider_observation" &&
     Number.isFinite(providerQuota?.observedAt) &&
     Array.isArray(providerQuota?.providers) && providerQuota.providers.length > 0;
+  const providerQuotaHeadroomSatisfied =
+    providerQuotaObserved &&
+    providerQuota.providers.every((entry) => {
+      const total = Number(entry?.quotaTotalPerUser);
+      const ceiling = Number(entry?.poststewardDailyDeliveryCeilingPerWorkspace);
+      return Number.isFinite(total) && total > 0 &&
+        Number.isFinite(ceiling) && ceiling >= 0 &&
+        1 - ceiling / total >= 0.3;
+    });
   const pricingObserved = pricing?.evidenceClass === "reviewed_pricing" &&
     Number.isFinite(pricing?.monthlyEstimate) && pricing.monthlyEstimate >= 0;
+  const projectedMonthlyRequests = calibrated.projectedDailyRequests * 30;
+  const observedWorkerRequests = Number(workerAnalytics?.requests || 0);
+  const requestScale = observedWorkerRequests > 0
+    ? projectedMonthlyRequests / observedWorkerRequests
+    : Infinity;
+  const projectedUsage = {
+    workerRequests: projectedMonthlyRequests,
+    workerCpuMsAtObservedP99:
+      projectedMonthlyRequests * Number(workerAnalytics?.cpuTimeP99 || 0),
+    d1RowsRead:
+      Number.isFinite(requestScale) ? Number(d1Analytics?.rowsRead || 0) * requestScale : Infinity,
+    d1RowsWritten:
+      Number.isFinite(requestScale) ? Number(d1Analytics?.rowsWritten || 0) * requestScale : Infinity,
+  };
+  const model = pricing?.model || {};
+  const pricingEnvelopeSatisfied =
+    pricingObserved &&
+    observedWorkerRequests > 0 &&
+    Number.isFinite(Number(model.includedWorkerRequestsPerMonth)) &&
+    Number.isFinite(Number(model.includedWorkerCpuMsPerMonth)) &&
+    Number.isFinite(Number(model.includedD1RowsReadPerMonth)) &&
+    Number.isFinite(Number(model.includedD1RowsWrittenPerMonth)) &&
+    projectedUsage.workerRequests <= Number(model.includedWorkerRequestsPerMonth) &&
+    projectedUsage.workerCpuMsAtObservedP99 <= Number(model.includedWorkerCpuMsPerMonth) &&
+    projectedUsage.d1RowsRead <= Number(model.includedD1RowsReadPerMonth) &&
+    projectedUsage.d1RowsWritten <= Number(model.includedD1RowsWrittenPerMonth);
   const costEvidence = {
-    cloudflareObserved: true, providerQuotaObserved, alarmWebhookVolumeObserved: true,
+    cloudflareObserved: true,
+    providerQuotaObserved,
+    providerQuotaHeadroomSatisfied,
+    alarmWebhookVolumeObserved: true,
     estimateRecorded: pricingObserved,
-    monthlyEstimate: pricingObserved ? pricing.monthlyEstimate : null,
+    pricingEnvelopeSatisfied,
+    monthlyEstimate: pricingObserved && pricingEnvelopeSatisfied
+      ? pricing.monthlyEstimate
+      : null,
+    projectedUsage,
   };
   return {
     schemaVersion: 1, evidenceClass: "hosted_observation", windowDays, ...observation,
@@ -150,8 +192,12 @@ export function buildCapacityObservation({ highWater, workerAnalytics, d1Analyti
     pricing: pricingObserved ? pricing : null,
     costEvidence,
     ready: calibrated.verdict === "calibrated_with_30pct_headroom" &&
-      costEvidence.cloudflareObserved && costEvidence.providerQuotaObserved &&
-      costEvidence.alarmWebhookVolumeObserved && costEvidence.estimateRecorded,
+      costEvidence.cloudflareObserved &&
+      costEvidence.providerQuotaObserved &&
+      costEvidence.providerQuotaHeadroomSatisfied &&
+      costEvidence.alarmWebhookVolumeObserved &&
+      costEvidence.estimateRecorded &&
+      costEvidence.pricingEnvelopeSatisfied,
   };
 }
 
