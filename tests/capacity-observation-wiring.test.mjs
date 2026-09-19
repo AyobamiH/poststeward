@@ -8,6 +8,7 @@ const migration = readFileSync(
 );
 const capacity = readFileSync("src/capacity-observation.ts", "utf8");
 const edge = readFileSync("src/canary-edge.ts", "utf8");
+const store = readFileSync("src/store.ts", "utf8");
 const wrangler = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 
 test("capacity observation table stores fingerprint and aggregates, never raw workspace id", () => {
@@ -24,6 +25,12 @@ test("capacity observation table stores fingerprint and aggregates, never raw wo
     "alarm_cycles",
   ])
     assert.ok(migration.includes(column));
+});
+
+test("capacity snapshot reads the canonical SQLiteStore usage row key", () => {
+  assert.match(store, /record_usage \(id INTEGER PRIMARY KEY CHECK\(id=1\)/);
+  assert.match(capacity, /SELECT records,bytes FROM record_usage WHERE id=1/);
+  assert.doesNotMatch(capacity, /record_usage WHERE singleton=1/);
 });
 
 test("capacity sweep hashes registry identity before writing observations", () => {
