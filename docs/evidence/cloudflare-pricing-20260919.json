@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "reviewed_pricing",
+  "observedAt": 1789803000000,
+  "source": "Cloudflare Workers pricing, reviewed 2026-09-19",
+  "sourceUrl": "https://developers.cloudflare.com/workers/platform/pricing/",
+  "monthlyEstimate": 5,
+  "model": {
+    "workersPaidBaseMonthlyUsd": 5,
+    "includedWorkerRequestsPerMonth": 10000000,
+    "workerRequestOverageUsdPerMillion": 0.3,
+    "includedWorkerCpuMsPerMonth": 30000000,
+    "workerCpuOverageUsdPerMillionMs": 0.02,
+    "includedD1RowsReadPerMonth": 25000000000,
+    "d1RowsReadOverageUsdPerMillion": 0.001,
+    "includedD1RowsWrittenPerMonth": 50000000,
+    "d1RowsWrittenOverageUsdPerMillion": 1
+  },
+  "note": "The $5 value is the minimum Workers Paid account charge. Hosted usage observation is collected separately and must remain within the reviewed included-usage envelope or the estimate is revised before public limits change."
+}
