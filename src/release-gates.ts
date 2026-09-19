@@ -101,11 +101,12 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "threads_oauth_callback",
-    state: "blocked_external",
+    state: "external_setup_required",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Meta currently rejects persistence of the exact Threads callback allowlist.",
-    evidence: ["docs/live-external-gates-2026-09-13.md"],
+    summary: "Meta accepted the exact Threads callback allowlist; owner OAuth consent, code exchange and stable-identity persistence remain to be accepted.",
+    evidence: ["docs/threads-oauth-callback-live-evidence-2026-09-19.md"],
+    ownerAction: "Complete one real owner Threads OAuth connection and preserve the resulting stable identity/capability evidence.",
   },
   {
     id: "native_webmcp",
