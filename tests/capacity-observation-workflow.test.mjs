@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 const workflow = readFileSync(".github/workflows/staging-capacity-observation.yml", "utf8");
-test("capacity observer is staging-only, read-only and exact-release bound", () => {
+test("capacity observer covers staging and production, stays read-only and exact-release bound", () => {
   assert.match(workflow, /environment:\n      name: staging/);
   assert.match(workflow, /permissions:\n  contents: read/);
   assert.match(workflow, /readiness\.json/);
