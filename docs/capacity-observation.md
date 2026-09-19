@@ -26,7 +26,7 @@ Alarm cycles are deliberately labelled as an upper-bound proxy for provider poll
 
 - Worker requests, subrequests and errors;
 - Worker CPU p50/p99;
-- D1 read/write queries, rows read/written, response bytes and query time;
+- D1 read/write queries, rows read/written, response bytes and p90 query time;
 - operational-alert volume from D1.
 
 The resulting JSON is compatible with `scripts/capacity-calibration.mjs` and the release promotion controller.
