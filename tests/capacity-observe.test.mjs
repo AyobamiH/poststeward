@@ -23,7 +23,13 @@ function highWater(overrides = {}) {
   };
 }
 
-const worker = { requests: 1000, subrequests: 100, errors: 0, cpuTimeP50: 2, cpuTimeP99: 10 };
+const worker = {
+  requests: 1000,
+  subrequests: 100,
+  errors: 0,
+  cpuTimeP50Us: 2_000,
+  cpuTimeP99Us: 10_000,
+};
 const d1 = { readQueries: 100, writeQueries: 20, rowsRead: 1000, rowsWritten: 100 };
 
 function providerQuota() {
@@ -67,6 +73,10 @@ test("complete hosted observation can satisfy calibration and cost evidence", ()
   assert.equal(report.costEvidence.providerQuotaHeadroomSatisfied, true);
   assert.equal(report.costEvidence.estimateRecorded, true);
   assert.equal(report.costEvidence.pricingEnvelopeSatisfied, true);
+  assert.equal(
+    report.costEvidence.projectedUsage.workerCpuMsAtObservedP99,
+    900_000,
+  );
   assert.equal(report.ready, true);
   assert.equal(
     report.providerPollObservation.method,
@@ -93,6 +103,33 @@ test("hosted per-workspace high-water can be projected to the reviewed first-100
     "hosted_per_workspace_high_water_projected_to_target",
   );
   assert.equal(report.calibration.workspaces, 100);
+  assert.equal(report.ready, true);
+});
+
+test("Cloudflare Worker CPU quantiles are converted from microseconds to pricing milliseconds", () => {
+  const report = buildCapacityObservation({
+    highWater: highWater({
+      workspaces: 1,
+      requestsPerWorkspaceDay: 36,
+    }),
+    workerAnalytics: {
+      requests: 2782,
+      subrequests: 1947,
+      errors: 0,
+      cpuTimeP50Us: 842,
+      cpuTimeP99Us: 8858,
+    },
+    d1Analytics: d1,
+    providerQuota: providerQuota(),
+    pricing: pricing(),
+    windowDays: 7,
+    targetWorkspaces: 100,
+  });
+  assert.equal(
+    report.costEvidence.projectedUsage.workerCpuMsAtObservedP99,
+    956_664,
+  );
+  assert.equal(report.costEvidence.pricingEnvelopeSatisfied, true);
   assert.equal(report.ready, true);
 });
 
