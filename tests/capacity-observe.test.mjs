@@ -58,7 +58,30 @@ test("complete hosted observation can satisfy calibration and cost evidence", ()
     report.providerPollObservation.method,
     "workspace_alarm_cycles_upper_bound",
   );
+  assert.equal(report.sampledWorkspaces, 6);
+  assert.equal(report.projection.targetWorkspaces, 6);
 });
+test("hosted per-workspace high-water can be projected to the reviewed first-100 target", () => {
+  const report = buildCapacityObservation({
+    highWater: highWater({ workspaces: 3 }),
+    workerAnalytics: worker,
+    d1Analytics: d1,
+    providerQuota: providerQuota(),
+    pricing: pricing(),
+    windowDays: 7,
+    targetWorkspaces: 100,
+  });
+  assert.equal(report.sampledWorkspaces, 3);
+  assert.equal(report.workspaces, 100);
+  assert.equal(report.projection.targetWorkspaces, 100);
+  assert.equal(
+    report.projection.method,
+    "hosted_per_workspace_high_water_projected_to_target",
+  );
+  assert.equal(report.calibration.workspaces, 100);
+  assert.equal(report.ready, true);
+});
+
 
 test("Cloudflare metrics alone never invent provider quota or reviewed pricing", () => {
   const report = buildCapacityObservation({
