@@ -33,7 +33,7 @@ test("fire drill writes the raw hosted observation for independent re-evaluation
   assert.deepEqual(alertOutputDocument("surface", { observed: 0 }), { observed: 0 });
   assert.match(script, /writeFileSync\(process\.env\.POSTSTEWARD_ALERT_OUTPUT, output/);
 });
-test("workflow is out-of-band, staging protected, issue-write only and never deploys", () => {
+test("workflow is out-of-band across staging and production, issue-write only and never deploys", () => {
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /issues: write/);
   assert.match(workflow, /environment:\n      name: staging/);
