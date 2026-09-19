@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildCapacityObservation,
   capacityAnalyticsRequest,
+  capacityFailureCode,
   classifyCapacitySampleAbsence,
   insufficientCapacityObservation,
 } from "../scripts/capacity-observe.mjs";
@@ -164,6 +165,31 @@ test("Cloudflare Workers and D1 analytics use their distinct time filter contrac
   assert.doesNotMatch(
     request.query,
     /d1AnalyticsAdaptiveGroups[\s\S]*datetime_geq/,
+  );
+  assert.match(
+    request.query,
+    /d1AnalyticsAdaptiveGroups[\s\S]*sum \{[^}]*queryBatchResponseBytes[^}]*\}[\s\S]*quantiles \{ queryBatchTimeMsP90 \}/,
+  );
+  assert.doesNotMatch(
+    request.query,
+    /sum \{[^}]*queryBatchTimeMs(?:\s|\})/,
+  );
+});
+
+test("capacity observer emits bounded failure codes without reflecting exception text", () => {
+  assert.equal(
+    capacityFailureCode(new Error("Cloudflare observation failed with HTTP 403.")),
+    "cloudflare_http_403",
+  );
+  assert.equal(
+    capacityFailureCode(
+      new Error("Cloudflare GraphQL capacity query returned errors."),
+    ),
+    "cloudflare_graphql_query_rejected",
+  );
+  assert.equal(
+    capacityFailureCode(new Error("protected-value-must-not-be-reflected")),
+    "invalid_input_or_observation",
   );
 });
 
