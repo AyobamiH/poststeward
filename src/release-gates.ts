@@ -264,6 +264,8 @@ export function runtimeCapabilitySnapshot(env: Env) {
     operationalAlertWebhookConfigured: Boolean(env.OPERATIONAL_ALERT_WEBHOOK_URL),
     policies: {
       signupMode: env.SIGNUP_MODE,
+      publicWorkspaceLimit: Number(env.PUBLIC_WORKSPACE_LIMIT || "0"),
+      publicSignupsPerHour: Number(env.PUBLIC_SIGNUPS_PER_HOUR || "0"),
       advancedEnabled: env.ADVANCED_ENABLED === "true",
       advancedRolloutMode: rolloutMode(env),
       advancedCanaryBps: rolloutBps(env),
@@ -284,6 +286,12 @@ export function releasePolicyViolations(env: Env) {
     !reviewedGateAccepted("public_signup")
   )
     violations.push("public_signup_enabled_before_public_launch_gate");
+  if (
+    runtime.policies.signupMode === "public" &&
+    (runtime.policies.publicWorkspaceLimit !== 100 ||
+      runtime.policies.publicSignupsPerHour !== 10)
+  )
+    violations.push("public_admission_bounds_drift");
 
   const advanced = runtime.policies.advancedEnabled;
   const mode = runtime.policies.advancedRolloutMode;
