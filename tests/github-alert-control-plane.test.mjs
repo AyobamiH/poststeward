@@ -36,7 +36,9 @@ test("fire drill writes the raw hosted observation for independent re-evaluation
 test("workflow is out-of-band across staging and production, issue-write only and never deploys", () => {
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /issues: write/);
-  assert.match(workflow, /environment:\n      name: staging/);
+  assert.match(workflow, /environment:\n      name: \$\{\{ matrix\.environment \}\}/);
+  assert.match(workflow, /- environment: staging/);
+  assert.match(workflow, /- environment: production/);
   assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /secrets\.GITHUB_TOKEN/);
   assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
