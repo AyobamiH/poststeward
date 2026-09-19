@@ -28,7 +28,7 @@ function readiness(overrides = {}) {
         scope: "public_launch",
         blocking: true,
       },
-      threads_oauth_callback: { state: "external_setup_required" },
+      threads_oauth_callback: { state: "live_verified" },
       advanced_rollout: { state: "disabled_policy" },
     },
     runtimeCapabilities: {
