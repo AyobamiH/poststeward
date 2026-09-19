@@ -115,6 +115,44 @@ test("deployment rejects hostile and ambiguous configuration before touching Clo
   unsafe.vars.MPP_ENABLED = "true";
   assert.throws(() => validateConfiguration(unsafe), /Purchases/);
 });
+test("public admission is production-only, custom-domain-only and fixed to first-100 bounds", () => {
+  const publicProduction = buildConfiguration(base, {
+    ...environment,
+    DEPLOY_ENV: "production",
+    D1_ID: "22222222-2222-4222-8222-222222222222",
+    APP_ORIGIN: "https://app.poststeward.com",
+    SIGNUP_MODE: "public",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
+  });
+  assert.equal(publicProduction.vars.SIGNUP_MODE, "public");
+  assert.equal(publicProduction.vars.PUBLIC_WORKSPACE_LIMIT, "100");
+  assert.equal(publicProduction.vars.PUBLIC_SIGNUPS_PER_HOUR, "10");
+  assert.equal(publicProduction.workers_dev, false);
+
+  assert.throws(
+    () => buildConfiguration(base, {
+      ...environment,
+      SIGNUP_MODE: "public",
+      PUBLIC_WORKSPACE_LIMIT: "100",
+      PUBLIC_SIGNUPS_PER_HOUR: "10",
+    }),
+    /Public signup is allowed only/,
+  );
+  assert.throws(
+    () => buildConfiguration(base, {
+      ...environment,
+      DEPLOY_ENV: "production",
+      D1_ID: "22222222-2222-4222-8222-222222222222",
+      APP_ORIGIN: "https://app.poststeward.com",
+      SIGNUP_MODE: "public",
+      PUBLIC_WORKSPACE_LIMIT: "101",
+      PUBLIC_SIGNUPS_PER_HOUR: "10",
+    }),
+    /first-100/,
+  );
+});
+
 test("custom domains disable workers.dev and only route the exact chosen hostname", () => {
   const config = buildConfiguration(base, {
     ...environment,

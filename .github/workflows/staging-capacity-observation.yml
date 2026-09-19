@@ -19,16 +19,29 @@ concurrency:
 jobs:
   observe:
     if: github.repository == 'AyobamiH/poststeward'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: staging
+            default_origin: https://poststeward-staging.woeinvests.workers.dev
+            worker: poststeward-staging
+          - environment: production
+            default_origin: https://app.poststeward.com
+            worker: poststeward
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
-      name: staging
+      name: ${{ matrix.environment }}
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.D1_ID }}
-      POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN || 'https://poststeward-staging.woeinvests.workers.dev' }}
-      POSTSTEWARD_WORKER_NAME: poststeward-staging
+      POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN || matrix.default_origin }}
+      POSTSTEWARD_WORKER_NAME: ${{ matrix.worker }}
       POSTSTEWARD_CAPACITY_WINDOW_DAYS: "7"
+      POSTSTEWARD_CAPACITY_TARGET_WORKSPACES: "100"
+      POSTSTEWARD_PROVIDER_QUOTA_EVIDENCE: docs/evidence/provider-quota-20260919.json
+      POSTSTEWARD_PRICING_EVIDENCE: docs/evidence/cloudflare-pricing-20260919.json
       POSTSTEWARD_CAPACITY_OUTPUT: /tmp/poststeward-capacity.json
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -37,11 +50,13 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-      - name: Resolve exact hosted staging release
+      - name: Resolve exact hosted release
+        env:
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
         shell: bash
         run: |
           set -euo pipefail
-          release="$(node --input-type=module -e 'const r=await fetch(process.env.POSTSTEWARD_ORIGIN+"/readiness.json",{redirect:"error"});if(!r.ok)process.exit(1);const j=await r.json();if(j.environment!=="staging"||!/^[a-f0-9]{40}$/.test(j.release||""))process.exit(1);process.stdout.write(j.release)')"
+          release="$(node --input-type=module -e 'const r=await fetch(process.env.POSTSTEWARD_ORIGIN+"/readiness.json",{redirect:"error",headers:{"Cache-Control":"no-cache"}});if(!r.ok)process.exit(1);const j=await r.json();if(j.environment!==process.env.MATRIX_ENVIRONMENT||!/^[a-f0-9]{40}$/.test(j.release||""))process.exit(1);process.stdout.write(j.release)')"
           echo "POSTSTEWARD_EXPECTED_RELEASE=$release" >> "$GITHUB_ENV"
       - name: Collect exact-release hosted capacity evidence
         env:

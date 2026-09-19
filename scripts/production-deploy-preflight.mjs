@@ -138,7 +138,13 @@ export async function preflightProductionDeploy(
     operationalAlertDestinationConfigured: Boolean(
       alertSecrets.OPERATIONAL_ALERT_WEBHOOK_URL,
     ),
-    restrictedSignup: true,
+    signupMode: configuration.vars.SIGNUP_MODE,
+    restrictedSignup: configuration.vars.SIGNUP_MODE === "restricted",
+    publicSignup: configuration.vars.SIGNUP_MODE === "public",
+    publicAdmission: {
+      workspaceLimit: Number(configuration.vars.PUBLIC_WORKSPACE_LIMIT),
+      signupsPerHour: Number(configuration.vars.PUBLIC_SIGNUPS_PER_HOUR),
+    },
     advancedDisabled: true,
     mppDisabled: true,
     stripeSandboxDisabled: true,

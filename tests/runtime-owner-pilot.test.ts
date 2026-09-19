@@ -236,7 +236,12 @@ test("Google callback refuses an unavailable POST method before any code exchang
 });
 
 test("public verified Google owner retains workspace authority while pilot stays restricted", async () => {
-  const f = await googleFixture({ SIGNUP_MODE: "public", ALLOWED_OWNER_EMAILS: "" });
+  const f = await googleFixture({
+    SIGNUP_MODE: "public",
+    ALLOWED_OWNER_EMAILS: "",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
+  });
   try {
     const auth = await f.signin();
     const recovery = await f.call(auth, "/api/recovery/status");
@@ -250,5 +255,94 @@ test("public verified Google owner retains workspace authority while pilot stays
     const denied = await f.call(auth, "/api/recovery/status");
     assert.equal(denied.status, 409);
     assert.equal((await denied.json() as any).error.code, "OWNER_SIGNIN_REQUIRED");
+  } finally { await f.mf.dispose(); }
+});
+
+test("public admission rejects unverified Google email before workspace creation", async () => {
+  const f = await googleFixture({
+    SIGNUP_MODE: "public",
+    ALLOWED_OWNER_EMAILS: "",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
+  });
+  try {
+    const denied = await (await f.begin("unverified"))();
+    assert.equal(denied.status, 403);
+    assert.equal((await denied.json() as any).error.code, "OWNER_EMAIL_UNVERIFIED");
+    assert.equal((await f.db.prepare("SELECT count(*) AS n FROM principals").first<any>())?.n, 0);
+  } finally { await f.mf.dispose(); }
+});
+
+test("public admission caps new workspaces without locking out returning owners", async () => {
+  const f = await googleFixture({
+    SIGNUP_MODE: "public",
+    ALLOWED_OWNER_EMAILS: "",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
+  });
+  try {
+    const owner = await f.signin();
+    const old = Date.now() - 2 * 60 * 60_000;
+    for (let i = 0; i < 99; i++)
+      await f.db.batch([
+        f.db.prepare(
+          "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+        ).bind(`seed-subject-${i}`, `seed-workspace-${i}`, old),
+        f.db.prepare(
+          "INSERT INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'preexisting')",
+        ).bind(`seed-workspace-${i}`, old),
+      ]);
+    assert.equal((await f.db.prepare("SELECT count(*) AS n FROM principals").first<any>())?.n, 100);
+
+    const returning = await f.signin(owner.cookie);
+    assert.equal((await f.call(returning, "/api/recovery/status")).status, 200);
+
+    await f.db.prepare("DELETE FROM principals WHERE subject NOT IN (SELECT actor FROM sessions)").run();
+  } finally { await f.mf.dispose(); }
+
+  const capped = await googleFixture({
+    SIGNUP_MODE: "public",
+    ALLOWED_OWNER_EMAILS: "",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
+  });
+  try {
+    const old = Date.now() - 2 * 60 * 60_000;
+    for (let i = 0; i < 100; i++)
+      await capped.db.batch([
+        capped.db.prepare(
+          "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+        ).bind(`cap-subject-${i}`, `cap-workspace-${i}`, old),
+        capped.db.prepare(
+          "INSERT INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'preexisting')",
+        ).bind(`cap-workspace-${i}`, old),
+      ]);
+    const denied = await (await capped.begin())();
+    assert.equal(denied.status, 503);
+    assert.equal((await denied.json() as any).error.code, "PUBLIC_WORKSPACE_LIMIT_REACHED");
+  } finally { await capped.mf.dispose(); }
+});
+
+test("public admission globally bounds new workspace velocity", async () => {
+  const f = await googleFixture({
+    SIGNUP_MODE: "public",
+    ALLOWED_OWNER_EMAILS: "",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
+  });
+  try {
+    const now = Date.now();
+    for (let i = 0; i < 10; i++)
+      await f.db.batch([
+        f.db.prepare(
+          "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+        ).bind(`recent-subject-${i}`, `recent-workspace-${i}`, now),
+        f.db.prepare(
+          "INSERT INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'public')",
+        ).bind(`recent-workspace-${i}`, now),
+      ]);
+    const denied = await (await f.begin())();
+    assert.equal(denied.status, 429);
+    assert.equal((await denied.json() as any).error.code, "PUBLIC_SIGNUP_RATE_LIMIT");
   } finally { await f.mf.dispose(); }
 });

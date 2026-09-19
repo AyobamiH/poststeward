@@ -184,7 +184,9 @@ export function buildConfiguration(base, env) {
     OIDC_CLIENT_ID: env.OIDC_CLIENT_ID,
     DEPLOY_ENV: env.DEPLOY_ENV,
     ENCRYPTION_ROOT_WRITE: env.ENCRYPTION_ROOT_WRITE || "legacy",
-    SIGNUP_MODE: "restricted",
+    SIGNUP_MODE: env.SIGNUP_MODE === "public" ? "public" : "restricted",
+    PUBLIC_WORKSPACE_LIMIT: String(env.PUBLIC_WORKSPACE_LIMIT || "100"),
+    PUBLIC_SIGNUPS_PER_HOUR: String(env.PUBLIC_SIGNUPS_PER_HOUR || "10"),
     STRIPE_SANDBOX_ENABLED: env.STRIPE_SANDBOX_ENABLED || "false",
     STRIPE_PRICE_ID: env.STRIPE_SANDBOX_ENABLED === "true" ? (env.STRIPE_SANDBOX_PRICE_ID || "") : "",
     ADVANCED_ENABLED: advanced.enabled,
@@ -272,9 +274,26 @@ export function validateConfiguration(c) {
     "Request rate bindings are required.",
   );
   demand(
-    c.vars.SIGNUP_MODE === "restricted",
-    "Initial deployment requires restricted owner access.",
+    ["restricted", "public"].includes(c.vars.SIGNUP_MODE),
+    "SIGNUP_MODE must be restricted or public.",
   );
+  const publicWorkspaceLimit = Number(c.vars.PUBLIC_WORKSPACE_LIMIT);
+  const publicSignupsPerHour = Number(c.vars.PUBLIC_SIGNUPS_PER_HOUR);
+  demand(
+    Number.isInteger(publicWorkspaceLimit) &&
+      publicWorkspaceLimit === 100 &&
+      Number.isInteger(publicSignupsPerHour) &&
+      publicSignupsPerHour === 10,
+    "Public admission bounds must remain at the reviewed first-100 and 10-per-hour limits.",
+  );
+  if (c.vars.SIGNUP_MODE === "public")
+    demand(
+      environment === "production" &&
+        c.workers_dev === false &&
+        c.vars.ADVANCED_ENABLED === "false" &&
+        c.vars.MPP_ENABLED === "false",
+      "Public signup is allowed only on the custom production origin with Advanced and MPP disabled.",
+    );
   const advancedEnabled = c.vars.ADVANCED_ENABLED === "true";
   const rolloutMode = c.vars.ADVANCED_ROLLOUT_MODE;
   const canaryBps = Number(c.vars.ADVANCED_CANARY_BPS);

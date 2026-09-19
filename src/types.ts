@@ -138,6 +138,8 @@ export interface Env {
   LOGIN_LIMITER: RateLimit;
   SIGNUP_MODE: "restricted" | "public";
   ALLOWED_OWNER_EMAILS: string;
+  PUBLIC_WORKSPACE_LIMIT: string;
+  PUBLIC_SIGNUPS_PER_HOUR: string;
   WORKSPACE_REQUEST_LIMIT: string;
   WORKSPACES: DurableObjectNamespace;
   IDENTITY: D1Database;

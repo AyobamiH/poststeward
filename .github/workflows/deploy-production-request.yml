@@ -31,6 +31,9 @@ jobs:
       WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}
       D1_ID: ${{ vars.D1_ID }}
       APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+      SIGNUP_MODE: restricted
+      PUBLIC_WORKSPACE_LIMIT: "100"
+      PUBLIC_SIGNUPS_PER_HOUR: "10"
       OIDC_ISSUER: ${{ vars.OIDC_ISSUER }}
       OIDC_CLIENT_ID: ${{ vars.OIDC_CLIENT_ID }}
       GITHUB_APP_CLIENT_ID: ${{ vars.POSTSTEWARD_GITHUB_APP_CLIENT_ID }}
@@ -75,6 +78,7 @@ jobs:
       run_pitr_diagnostic: false
       advanced_rollout_request: environment
       production_deploy_request: true
+      signup_mode_request: restricted
     secrets:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}

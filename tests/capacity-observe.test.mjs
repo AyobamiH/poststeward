@@ -29,14 +29,25 @@ function providerQuota() {
   return {
     evidenceClass: "provider_observation",
     observedAt: Date.UTC(2026, 8, 15),
-    providers: [{ provider: "threads", observed: true }],
+    providers: [{
+      provider: "threads",
+      observed: true,
+      quotaTotalPerUser: 250,
+      poststewardDailyDeliveryCeilingPerWorkspace: 20,
+    }],
   };
 }
 function pricing() {
   return {
     evidenceClass: "reviewed_pricing",
     observedAt: Date.UTC(2026, 8, 15),
-    monthlyEstimate: 12.5,
+    monthlyEstimate: 5,
+    model: {
+      includedWorkerRequestsPerMonth: 10_000_000,
+      includedWorkerCpuMsPerMonth: 30_000_000,
+      includedD1RowsReadPerMonth: 25_000_000_000,
+      includedD1RowsWrittenPerMonth: 50_000_000,
+    },
   };
 }
 
@@ -52,13 +63,38 @@ test("complete hosted observation can satisfy calibration and cost evidence", ()
   assert.equal(report.calibration.verdict, "calibrated_with_30pct_headroom");
   assert.equal(report.costEvidence.cloudflareObserved, true);
   assert.equal(report.costEvidence.providerQuotaObserved, true);
+  assert.equal(report.costEvidence.providerQuotaHeadroomSatisfied, true);
   assert.equal(report.costEvidence.estimateRecorded, true);
+  assert.equal(report.costEvidence.pricingEnvelopeSatisfied, true);
   assert.equal(report.ready, true);
   assert.equal(
     report.providerPollObservation.method,
     "workspace_alarm_cycles_upper_bound",
   );
+  assert.equal(report.sampledWorkspaces, 6);
+  assert.equal(report.projection.targetWorkspaces, 6);
 });
+test("hosted per-workspace high-water can be projected to the reviewed first-100 target", () => {
+  const report = buildCapacityObservation({
+    highWater: highWater({ workspaces: 3 }),
+    workerAnalytics: worker,
+    d1Analytics: d1,
+    providerQuota: providerQuota(),
+    pricing: pricing(),
+    windowDays: 7,
+    targetWorkspaces: 100,
+  });
+  assert.equal(report.sampledWorkspaces, 3);
+  assert.equal(report.workspaces, 100);
+  assert.equal(report.projection.targetWorkspaces, 100);
+  assert.equal(
+    report.projection.method,
+    "hosted_per_workspace_high_water_projected_to_target",
+  );
+  assert.equal(report.calibration.workspaces, 100);
+  assert.equal(report.ready, true);
+});
+
 
 test("Cloudflare metrics alone never invent provider quota or reviewed pricing", () => {
   const report = buildCapacityObservation({
@@ -71,7 +107,9 @@ test("Cloudflare metrics alone never invent provider quota or reviewed pricing",
   });
   assert.equal(report.costEvidence.cloudflareObserved, true);
   assert.equal(report.costEvidence.providerQuotaObserved, false);
+  assert.equal(report.costEvidence.providerQuotaHeadroomSatisfied, false);
   assert.equal(report.costEvidence.estimateRecorded, false);
+  assert.equal(report.costEvidence.pricingEnvelopeSatisfied, false);
   assert.equal(report.costEvidence.monthlyEstimate, null);
   assert.equal(report.ready, false);
 });

@@ -132,6 +132,14 @@ export function allowOwner(
   claims: Record<string, unknown>,
   env: Pick<Env, "SIGNUP_MODE" | "ALLOWED_OWNER_EMAILS">,
 ) {
+  requireValue(
+    claims.email_verified === true &&
+      typeof claims.email === "string" &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(claims.email),
+    "OWNER_EMAIL_UNVERIFIED",
+    "Use a provider account with a verified email address.",
+    403,
+  );
   if (env.SIGNUP_MODE === "public") return;
   const allowed = (env.ALLOWED_OWNER_EMAILS || "")
     .split(",")
@@ -139,14 +147,131 @@ export function allowOwner(
     .filter(Boolean);
   requireValue(
     env.SIGNUP_MODE === "restricted" &&
-      claims.email_verified === true &&
-      typeof claims.email === "string" &&
       allowed.includes(claims.email.toLowerCase()),
     "SIGNUP_RESTRICTED",
     "This deployment is limited to invited owners.",
     403,
   );
 }
+function publicAdmissionLimit(value: string, name: string, maximum: number) {
+  const parsed = Number(value);
+  requireValue(
+    Number.isInteger(parsed) && parsed >= 1 && parsed <= maximum,
+    "PUBLIC_ADMISSION_UNCONFIGURED",
+    `${name} is not configured safely.`,
+    503,
+  );
+  return parsed;
+}
+
+export async function resolveOwnerPrincipal(
+  env: Env,
+  subject: string,
+  now = Date.now(),
+) {
+  const existing = await env.IDENTITY.prepare(
+    "SELECT workspace,created_at FROM principals WHERE subject=?",
+  )
+    .bind(subject)
+    .first<{ workspace: string; created_at: number }>();
+  if (existing) {
+    await env.IDENTITY.prepare(
+      "INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode) VALUES (?,?,'preexisting')",
+    )
+      .bind(existing.workspace, existing.created_at)
+      .run();
+    return { workspace: existing.workspace };
+  }
+
+  const workspace = uid();
+  if (env.SIGNUP_MODE !== "public") {
+    await env.IDENTITY.batch([
+      env.IDENTITY.prepare(
+        "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
+      ).bind(subject, workspace, now),
+      env.IDENTITY.prepare(
+        `INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode)
+         SELECT workspace,created_at,'restricted' FROM principals WHERE subject=?`,
+      ).bind(subject),
+    ]);
+  } else {
+    const workspaceLimit = publicAdmissionLimit(
+      env.PUBLIC_WORKSPACE_LIMIT,
+      "PUBLIC_WORKSPACE_LIMIT",
+      10_000,
+    );
+    const hourlyLimit = publicAdmissionLimit(
+      env.PUBLIC_SIGNUPS_PER_HOUR,
+      "PUBLIC_SIGNUPS_PER_HOUR",
+      1_000,
+    );
+    await env.IDENTITY.batch([
+      env.IDENTITY.prepare(
+        `INSERT INTO principals(subject,workspace,created_at)
+         SELECT ?,?,?
+         WHERE (SELECT count(*) FROM workspace_admissions) < ?
+           AND (SELECT count(*) FROM workspace_admissions WHERE created_at>=?) < ?
+         ON CONFLICT(subject) DO NOTHING`,
+      ).bind(
+        subject,
+        workspace,
+        now,
+        workspaceLimit,
+        now - 60 * 60_000,
+        hourlyLimit,
+      ),
+      env.IDENTITY.prepare(
+        `INSERT OR IGNORE INTO workspace_admissions(workspace,created_at,admission_mode)
+         SELECT workspace,created_at,'public' FROM principals WHERE subject=?`,
+      ).bind(subject),
+    ]);
+  }
+
+  const principal = await env.IDENTITY.prepare(
+    "SELECT workspace FROM principals WHERE subject=?",
+  )
+    .bind(subject)
+    .first<{ workspace: string }>();
+  if (principal) return principal;
+
+  if (env.SIGNUP_MODE === "public") {
+    const workspaceLimit = publicAdmissionLimit(
+      env.PUBLIC_WORKSPACE_LIMIT,
+      "PUBLIC_WORKSPACE_LIMIT",
+      10_000,
+    );
+    const hourlyLimit = publicAdmissionLimit(
+      env.PUBLIC_SIGNUPS_PER_HOUR,
+      "PUBLIC_SIGNUPS_PER_HOUR",
+      1_000,
+    );
+    const counts = await env.IDENTITY.prepare(
+      `SELECT
+         (SELECT count(*) FROM workspace_admissions) AS total,
+         (SELECT count(*) FROM workspace_admissions WHERE created_at>=?) AS recent`,
+    )
+      .bind(now - 60 * 60_000)
+      .first<{ total: number; recent: number }>();
+    requireValue(
+      Number(counts?.total || 0) < workspaceLimit,
+      "PUBLIC_WORKSPACE_LIMIT_REACHED",
+      "New workspace admission is temporarily closed.",
+      503,
+    );
+    requireValue(
+      Number(counts?.recent || 0) < hourlyLimit,
+      "PUBLIC_SIGNUP_RATE_LIMIT",
+      "New workspace admission is temporarily rate limited.",
+      429,
+    );
+  }
+  throw new Fault(
+    "WORKSPACE_CREATION_FAILED",
+    "Unable to create workspace.",
+    500,
+  );
+}
+
 export async function login(request: Request, env: Env): Promise<Response> {
   const returnPath = new URL(request.url).searchParams.get("return") || "/app";
   requireValue(["/app", "/pilot"].includes(returnPath), "RETURN_NOT_ALLOWED", "Choose a documented sign-in destination.");
@@ -262,23 +387,12 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     allowOwner(claims, env);
     stage = "principal";
     const subject = await digest({ issuer: as.issuer, subject: claims.sub });
-    await env.IDENTITY.batch([env.IDENTITY.prepare(
-      "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?) ON CONFLICT(subject) DO NOTHING",
+    const principal = await resolveOwnerPrincipal(env, subject);
+    await env.IDENTITY.prepare(
+      "INSERT OR IGNORE INTO workspace_registry(workspace) VALUES (?)",
     )
-      .bind(subject, uid(), Date.now()),
-      env.IDENTITY.prepare("INSERT OR IGNORE INTO workspace_registry(workspace) SELECT workspace FROM principals WHERE subject=?").bind(subject),
-    ]);
-    const principal = await env.IDENTITY.prepare(
-      "SELECT workspace FROM principals WHERE subject=?",
-    )
-      .bind(subject)
-      .first<{ workspace: string }>();
-    requireValue(
-      principal,
-      "WORKSPACE_CREATION_FAILED",
-      "Unable to create workspace.",
-      500,
-    );
+      .bind(principal.workspace)
+      .run();
     stage = "session";
     const session = token(), csrf = token(), at = Date.now();
     const sessionHash = await digest(session);

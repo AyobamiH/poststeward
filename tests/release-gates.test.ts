@@ -13,6 +13,8 @@ function env(overrides: Record<string, string | undefined> = {}) {
     RELEASE_SHA: "a".repeat(40),
     DEPLOY_ENV: "staging",
     SIGNUP_MODE: "restricted",
+    PUBLIC_WORKSPACE_LIMIT: "100",
+    PUBLIC_SIGNUPS_PER_HOUR: "10",
     ADVANCED_ENABLED: "false",
     ADVANCED_ROLLOUT_MODE: "disabled",
     ADVANCED_CANARY_BPS: "0",
@@ -117,6 +119,25 @@ test("policy contradictions are visible instead of silently broadening claims", 
   assert.equal(readiness.policy.healthy, false);
   assert.equal(readiness.gates.private_github_authority.state, "live_verified");
   assert.equal(readiness.gates.advanced_rollout.state, "disabled_policy");
+});
+
+test("public admission bounds fail closed when they drift from the reviewed first-100 policy", () => {
+  assert.deepEqual(
+    releasePolicyViolations(
+      env({
+        SIGNUP_MODE: "public",
+        PUBLIC_WORKSPACE_LIMIT: "101",
+        PUBLIC_SIGNUPS_PER_HOUR: "10",
+      }),
+    ).sort(),
+    [
+      "public_admission_bounds_drift",
+      "public_signup_enabled_before_public_launch_gate",
+    ],
+  );
+  const snapshot = runtimeCapabilitySnapshot(env());
+  assert.equal(snapshot.policies.publicWorkspaceLimit, 100);
+  assert.equal(snapshot.policies.publicSignupsPerHour, 10);
 });
 
 test("malformed or contradictory rollout state fails closed in readiness", () => {
