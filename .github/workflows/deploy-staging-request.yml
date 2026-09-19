@@ -1,6 +1,6 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-19-threads-callback-evidence-reconciled
+# Deployment request: 2026-09-19-threads-release-control-reconciled
 # Updating this file on main is an explicit staging deployment request.
 # Deploy the exact reviewed revision containing the signed Threads uninstall/data-deletion callbacks,
 # provider identity index, deletion confirmation ledger and hosted callback probes from PR #120.

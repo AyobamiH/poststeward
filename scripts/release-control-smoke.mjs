@@ -44,7 +44,7 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
     value.gates?.github_main_ruleset?.blocking === false &&
     value.gates?.public_signup?.scope === "public_launch" &&
     value.gates?.public_signup?.state === "disabled_policy" &&
-    value.gates?.threads_oauth_callback?.state === "blocked_external" &&
+    value.gates?.threads_oauth_callback?.state === "external_setup_required" &&
     value.gates?.advanced_rollout?.state === "disabled_policy" &&
     value.runtimeCapabilities?.policies?.advancedEnabled === false &&
     value.runtimeCapabilities?.policies?.advancedRolloutMode === "disabled" &&
