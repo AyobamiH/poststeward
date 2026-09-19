@@ -10,6 +10,7 @@ import {
 } from "./auth.ts";
 import { Billing, stripeWebhook } from "./billing.ts";
 import {
+  digest,
   errorResponse,
   explicitTime,
   Fault,
