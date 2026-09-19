@@ -2,7 +2,7 @@ name: Staging capacity and cost observation
 on:
   workflow_dispatch:
   schedule:
-    - cron: "41 3 * * *"
+    - cron: "41 * * * *"
   push:
     branches: [main]
     paths:
@@ -75,10 +75,15 @@ jobs:
           fi
       - name: Evaluate bounded observation summary
         if: always()
+        env:
+          REQUIRE_CAPACITY_READY: ${{ github.event_name == 'push' && 'true' || 'false' }}
         shell: bash
         run: |
           if [[ -f /tmp/poststeward-capacity.json ]]; then
-            node --input-type=module -e 'import fs from "node:fs";const j=JSON.parse(fs.readFileSync("/tmp/poststeward-capacity.json","utf8"));console.log("POSTSTEWARD_CAPACITY_SUMMARY "+JSON.stringify({release:j.release,environment:j.environment,observedAt:j.observedAt,workspaces:j.workspaces,calibration:j.calibration?.verdict,costEvidence:j.costEvidence,ready:j.ready}));'
+            node --input-type=module -e 'import fs from "node:fs";const j=JSON.parse(fs.readFileSync("/tmp/poststeward-capacity.json","utf8"));console.log("POSTSTEWARD_CAPACITY_SUMMARY "+JSON.stringify({release:j.release,environment:j.environment,observedAt:j.observedAt,workspaces:j.workspaces,sampledWorkspaces:j.sampledWorkspaces,projection:j.projection,calibration:j.calibration?.verdict,costEvidence:j.costEvidence,ready:j.ready}));if(process.env.REQUIRE_CAPACITY_READY==="true"&&j.ready!==true)process.exit(2);'
           else
             echo "POSTSTEWARD_CAPACITY_SUMMARY unavailable"
+            if [[ "$REQUIRE_CAPACITY_READY" == "true" ]]; then
+              exit 2
+            fi
           fi

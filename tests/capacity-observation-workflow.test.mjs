@@ -15,6 +15,10 @@ test("capacity observer covers staging and production, stays read-only and exact
   assert.match(workflow, /POSTSTEWARD_CAPACITY_TARGET_WORKSPACES: "100"/);
   assert.match(workflow, /provider-quota-20260919\.json/);
   assert.match(workflow, /cloudflare-pricing-20260919\.json/);
+  assert.match(workflow, /cron: "41 \* \* \* \*"/);
+  assert.match(workflow, /REQUIRE_CAPACITY_READY/);
+  assert.match(workflow, /github\.event_name == 'push'/);
+  assert.match(workflow, /j\.ready!==true/);
   assert.doesNotMatch(
     workflow,
     /contents: write|actions: write|secrets: inherit|wrangler deploy|publish_now|schedule_create/,
