@@ -23,18 +23,29 @@ async function phase(zoneId, name, token) {
   const result = await cf(`/zones/${encodeURIComponent(zoneId)}/rulesets/phases/${name}/entrypoint`, token);
   return Array.isArray(result?.rules) ? result.rules.filter((rule) => rule.enabled !== false) : [];
 }
-export function evaluateEdgeEvidence({ readiness, headers, dnsRecords, customFirewallRules,
-  managedFirewallRules, rateLimitRules }) {
+export function evaluateEdgeEvidence({ readiness, headers, workerDomains, customFirewallRules,
+  rateLimitRules, hostname, workerName }) {
   const hsts = headers.get("strict-transport-security") || "";
   const csp = headers.get("content-security-policy") || "";
-  const dnsProxied = dnsRecords.some((record) => record.proxied === true);
-  const firewallRules = customFirewallRules.length + managedFirewallRules.length;
+  const customDomain = workerDomains.some(
+    (domain) =>
+      domain.hostname === hostname &&
+      domain.service === workerName &&
+      typeof domain.cert_id === "string" &&
+      domain.cert_id.length > 0,
+  );
+  // Cloudflare Custom Domains create/manage the DNS record and certificate for
+  // the Worker origin. This is stronger evidence for this originless Worker
+  // than a separate DNS-record read and needs only Workers Scripts read access.
+  const dnsProxied = customDomain;
+  const firewallRules = customFirewallRules.length;
   const result = {
     releasePinned: /^[a-f0-9]{40}$/.test(String(readiness?.release || "")),
     restrictedSignup: readiness?.access?.signupMode === "restricted",
     advancedDisabled: readiness?.payments?.advancedEnabled === false,
     mppDisabled: readiness?.payments?.mppEnabled === false,
-    hsts: /max-age=\d+/.test(hsts), csp: csp.length > 0, dnsProxied,
+    hsts: /max-age=\d+/.test(hsts), csp: csp.length > 0,
+    customDomain, dnsProxied,
     firewallRules, rateLimitRules: rateLimitRules.length,
   };
   return { ...result, ready: result.releasePinned && result.restrictedSignup &&
@@ -48,14 +59,23 @@ async function readHostedReadiness(origin) {
   if (!response.ok) throw new Error(`Production readiness returned HTTP ${response.status}.`);
   return response.json();
 }
-export async function inspectProductionEdge({ origin, zoneName, cloudflareToken, expectedRelease }) {
+export async function inspectProductionEdge({
+  origin,
+  zoneName,
+  cloudflareToken,
+  accountId,
+  workerName = "poststeward",
+  expectedRelease,
+}) {
   const parsed = exactHttpsOrigin(origin);
   if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(zoneName || ""))
     throw new Error("CLOUDFLARE_ZONE_NAME must be the exact active zone name.");
   if (parsed.hostname !== zoneName && !parsed.hostname.endsWith("." + zoneName))
     throw new Error("Production origin is outside the reviewed zone.");
   if (!cloudflareToken || cloudflareToken.length < 20)
-    throw new Error("CLOUDFLARE_API_TOKEN with Zone/DNS/Rulesets read access is required.");
+    throw new Error("CLOUDFLARE_API_TOKEN with Workers Scripts and Zone Rulesets read access is required.");
+  if (!/^[a-f0-9]{32}$/.test(accountId || ""))
+    throw new Error("CLOUDFLARE_ACCOUNT_ID must be the exact Workers account.");
   const home = await fetch(parsed.origin + "/", {
     redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(15_000),
   });
@@ -69,10 +89,12 @@ export async function inspectProductionEdge({ origin, zoneName, cloudflareToken,
   if (!Array.isArray(zones) || zones.length !== 1)
     throw new Error("Expected exactly one active Cloudflare zone for production.");
   const zoneId = zones[0].id;
-  const dnsRecords = await cf(`/zones/${encodeURIComponent(zoneId)}/dns_records?name=${encodeURIComponent(parsed.hostname)}`, cloudflareToken);
-  const [customFirewallRules, managedFirewallRules, rateLimitRules] = await Promise.all([
+  const [workerDomains, customFirewallRules, rateLimitRules] = await Promise.all([
+    cf(
+      `/accounts/${encodeURIComponent(accountId)}/workers/domains?hostname=${encodeURIComponent(parsed.hostname)}`,
+      cloudflareToken,
+    ),
     phase(zoneId, "http_request_firewall_custom", cloudflareToken),
-    phase(zoneId, "http_request_firewall_managed", cloudflareToken),
     phase(zoneId, "http_ratelimit", cloudflareToken),
   ]);
   const after = await readHostedReadiness(parsed.origin);
@@ -80,9 +102,15 @@ export async function inspectProductionEdge({ origin, zoneName, cloudflareToken,
       after.policy?.healthy !== true)
     throw new Error("Production runtime changed during edge observation.");
   return {
-    ...evaluateEdgeEvidence({ readiness, headers: home.headers,
-      dnsRecords: Array.isArray(dnsRecords) ? dnsRecords : [],
-      customFirewallRules, managedFirewallRules, rateLimitRules }),
+    ...evaluateEdgeEvidence({
+      readiness,
+      headers: home.headers,
+      workerDomains: Array.isArray(workerDomains) ? workerDomains : [],
+      customFirewallRules,
+      rateLimitRules,
+      hostname: parsed.hostname,
+      workerName,
+    }),
     schemaVersion: 1, evidenceClass: "hosted_observation", origin: parsed.origin,
     release: readiness.release, environment: readiness.environment,
     observedAt: new Date().toISOString(),
@@ -93,6 +121,8 @@ async function main() {
     origin: process.env.POSTSTEWARD_PRODUCTION_ORIGIN || "",
     zoneName: process.env.CLOUDFLARE_ZONE_NAME || "",
     cloudflareToken: process.env.CLOUDFLARE_API_TOKEN || "",
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID || "",
+    workerName: process.env.POSTSTEWARD_WORKER_NAME || "poststeward",
     expectedRelease: process.env.POSTSTEWARD_EXPECTED_RELEASE ?? process.env.GITHUB_SHA,
   });
   console.log(JSON.stringify(result, null, 2));

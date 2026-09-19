@@ -4,6 +4,7 @@ import { inspectProductionEdge } from "../scripts/production-edge-check.mjs";
 const origin = "https://service.example.com";
 const release = "a".repeat(40);
 const secret = "fixture-cloudflare-read-authority";
+const accountId = "a".repeat(32);
 function runtime(overrides = {}) {
   return { schemaVersion: 2, release, environment: "production", policy: { healthy: true, violations: [] },
     access: { signupMode: "restricted" }, payments: { advancedEnabled: false, mppEnabled: false }, ...overrides };
@@ -26,12 +27,19 @@ async function scenario(options = {}) {
     assert.equal(parsed.origin, "https://api.cloudflare.com");
     assert.equal(new Headers(init.headers).get("authorization"), `Bearer ${secret}`);
     if (parsed.pathname.endsWith("/zones")) return Response.json({ success: true, result: [{ id: "zone-fixture" }] });
-    if (parsed.pathname.endsWith("/dns_records")) return Response.json({ success: true, result: [{ proxied: true }] });
+    if (parsed.pathname.endsWith("/workers/domains"))
+      return Response.json({ success: true, result: [{ hostname: "service.example.com", service: "poststeward", cert_id: "cert-fixture" }] });
     return Response.json({ success: true, result: { rules: [{ enabled: true }] } });
   };
   try {
-    const result = await inspectProductionEdge({ origin, zoneName: options.zoneName || "example.com",
-      cloudflareToken: secret, expectedRelease: release });
+    const result = await inspectProductionEdge({
+      origin,
+      zoneName: options.zoneName || "example.com",
+      cloudflareToken: secret,
+      accountId,
+      workerName: "poststeward",
+      expectedRelease: release,
+    });
     return { result, calls };
   } finally { globalThis.fetch = original; }
 }
