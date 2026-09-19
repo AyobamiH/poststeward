@@ -346,7 +346,7 @@ export class Workspace extends BaseWorkspace {
         typeof input.workspace === "string" &&
         input.workspace.length >= 1 &&
         input.workspace.length <= 128 &&
-        !/[\\s\\x00-\\x1f]/.test(input.workspace)
+        !/[\s\x00-\x1f]/.test(input.workspace)
           ? input.workspace
           : "";
       if (!requested)
