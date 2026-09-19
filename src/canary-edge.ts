@@ -341,8 +341,22 @@ export class Workspace extends BaseWorkspace {
       } catch {
         return Response.json({ error: "invalid_request" }, { status: 400 });
       }
+      const requested =
+        typeof input.workspace === "string" &&
+        input.workspace.length >= 1 &&
+        input.workspace.length <= 128 &&
+        !/[\\s\\x00-\\x1f]/.test(input.workspace)
+          ? input.workspace
+          : "";
+      if (!requested)
+        return Response.json({ error: "invalid_workspace" }, { status: 400 });
       const workspace = storedWorkspace(this.operationalCtx);
-      if (!workspace || input.workspace !== workspace)
+      // Admission creates the authoritative D1 registry row before a customer
+      // necessarily invokes the workspace Durable Object. The sweep addresses
+      // this object by idFromName(requested), so an uninitialised object may be
+      // observed without manufacturing business state. Once local identity
+      // exists, mismatch remains fail-closed.
+      if (workspace && requested !== workspace)
         return Response.json({ error: "workspace_mismatch" }, { status: 403 });
       return Response.json(
         workspaceCapacitySnapshot(
