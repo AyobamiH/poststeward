@@ -1,6 +1,6 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-19-cloudflare-token-diagnostic
+# Production deployment request: 2026-09-19-threads-callback-evidence-reconciled
 # This file is the only reviewed push-triggered production deployment request.
 # This request includes the signed Threads uninstall/data-deletion callbacks from PR #120.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
