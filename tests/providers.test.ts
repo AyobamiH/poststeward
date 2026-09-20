@@ -63,6 +63,21 @@ test("LinkedIn organization identity keeps denied page access distinct from memb
   });
 });
 
+test("LinkedIn organization identity rejects contradictory page-author evidence", async () => {
+  const actor = "urn:li:organization:146607525";
+  const p = new SocialProviders((async (url) => {
+    if (String(url) === "https://api.linkedin.com/v2/userinfo")
+      return Response.json({ sub: "member-123", name: "Owner" });
+    return Response.json({
+      paging: { start: 0, count: 1, links: [] },
+      elements: [{ author: "urn:li:organization:999" }],
+    });
+  }) as typeof fetch);
+  await assert.rejects(p.identity("linkedin", credential, actor), {
+    code: "IDENTITY_UNVERIFIED",
+  });
+});
+
 test("LinkedIn preserves the creation URN and independently reads back exact author and commentary", async () => {
   let payload: any;
   let writes = 0;

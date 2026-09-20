@@ -238,6 +238,32 @@ test("creation ID remains durable when readback fails", async () => {
   assert.equal(d.status, "published_unverified");
   assert.equal(d.postId, "post-1");
 });
+test("LinkedIn Page dispatch rechecks the bound organization actor", async () => {
+  const h = harness();
+  await h.setup("linkedin");
+  const actorUrn = "urn:li:organization:146607525";
+  const account = h.store.get<Account>("account:account")!;
+  account.identity = { id: actorUrn, username: actorUrn };
+  account.capabilities = { oauth: true, refresh: false, readback: true };
+  h.store.put("account:account", account);
+  const actors: Array<string | undefined> = [];
+  h.provider.identity = async (_provider, _credential, actor) => {
+    actors.push(actor);
+    return actor
+      ? { id: actor, username: actor }
+      : { id: "urn:li:person:member-123", username: "Owner" };
+  };
+  const c = await h.campaign("A Page-bound dispatch.");
+  await h.run("publish_now", {
+    campaign: c.id,
+    idempotencyKey: "linkedin-page-dispatch-001",
+  });
+
+  await h.engine.tick();
+
+  assert.deepEqual(actors, [actorUrn]);
+  assert.equal(h.calls.publish, 1);
+});
 test("Threads waits through delayed visibility and only publishes a FINISHED container", async () => {
   const h = harness();
   await h.setup("threads");

@@ -11,6 +11,7 @@ import {
 } from "./common.ts";
 import { credentialRoots, seal, unseal } from "./crypto.ts";
 import {
+  providerActorForIdentity,
   validateText,
   type Credential,
   type ProviderAPI,
@@ -504,7 +505,7 @@ export class Engine {
       requireValue(account.provider === delivery.provider && account.version === delivery.binding && account.identity.id === delivery.identity.id,
         "ACCOUNT_DRIFT", "The connection no longer matches the recorded publication.", 409);
       requireValue(delivery.provider !== "linkedin" || account.capabilities?.readback === true,
-        "READBACK_AUTHORITY_CHANGED", "LinkedIn member readback authority is unavailable.", 409);
+        "READBACK_AUTHORITY_CHANGED", "LinkedIn readback authority is unavailable.", 409);
       return account;
     };
     const account = demandBinding();
@@ -1113,7 +1114,11 @@ export class Engine {
         409,
       );
       const credential = await this.credential(a),
-        identity = await this.providers.identity(d.provider, credential);
+        identity = await this.providers.identity(
+          d.provider,
+          credential,
+          providerActorForIdentity(d.provider, d.identity),
+        );
       demandClaim();
       requireValue(
         identity.id === d.identity.id,

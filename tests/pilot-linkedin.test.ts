@@ -61,6 +61,31 @@ test("controlled LinkedIn acceptance is enabled only by an explicit readback cap
   assert.equal(allowed.calls.publish, 0);
 });
 
+test("controlled LinkedIn Page acceptance rechecks the bound organization actor", async () => {
+  const h = await linkedInPilot(true);
+  const actorUrn = "urn:li:organization:146607525";
+  const account = h.store.get<Account>("account:account")!;
+  account.identity = { id: actorUrn, username: actorUrn };
+  h.store.put("account:account", account);
+  const actors: Array<string | undefined> = [];
+  h.provider.identity = async (_provider, _credential, actor) => {
+    actors.push(actor);
+    return actor
+      ? { id: actor, username: actor }
+      : { id: "urn:li:person:member-123", username: "Owner" };
+  };
+
+  const preview: any = await h.pilot.run(
+    "prepare",
+    { alias: "account", text: "Exact LinkedIn Page acceptance copy." },
+    owner,
+    h.authority,
+  );
+
+  assert.equal(preview.record.account.identity.id, actorUrn);
+  assert.deepEqual(actors, [actorUrn]);
+});
+
 test("losing LinkedIn readback authority after review blocks confirmation before publication", async () => {
   const h = await linkedInPilot(true);
   const preview: any = await h.pilot.run(

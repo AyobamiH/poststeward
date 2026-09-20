@@ -6,7 +6,7 @@ PostSteward treats social-provider authorisation as a separate security boundary
 
 - **X** uses OAuth 2.0 Authorization Code with PKCE, requests `tweet.read`, `tweet.write`, `users.read` and `offline.access`, and requires a refresh token. PostSteward refreshes before access-token expiry and retains the account binding version when the stable provider identity and capability set are unchanged.
 - **Threads** requests `threads_basic` and `threads_content_publish`, exchanges the short-lived code token for a long-lived token server-side, then refreshes the long-lived token before expiry. Refresh evidence must include a usable replacement token and lifetime; an empty or malformed response does not extend the stored expiry.
-- **LinkedIn** uses three-legged OAuth for `openid`, `profile` and `w_member_social`. `r_member_social` is requested only when `LINKEDIN_MEMBER_READBACK=true` and the LinkedIn application has actually been approved for that restricted permission. Programmatic refresh is used only when LinkedIn returns a refresh token; otherwise PostSteward surfaces reauthorisation before expiry instead of pretending refresh support exists.
+- **LinkedIn** uses three-legged OAuth. A member-profile connection requests `openid`, `profile` and `w_member_social`; restricted `r_member_social` is requested only when `LINKEDIN_MEMBER_READBACK=true` and the application actually has that approval. A Page connection instead binds an exact organisation actor in one-use OAuth state and requests `openid`, `profile`, `w_organization_social` and `r_organization_social`. Programmatic refresh is used only when LinkedIn returns a refresh token; otherwise PostSteward surfaces reauthorisation before expiry instead of pretending refresh support exists.
 
 Provider application secrets remain Worker secrets. Client IDs are non-secret deployment variables. Authorisation codes, tokens, refresh tokens and OAuth state values are never placed in application logs, repository content or browser storage. OAuth state is one-use, bound to the current owner session, workspace, provider and alias, and expires after ten minutes.
 
@@ -20,6 +20,8 @@ Disconnect is locally authoritative: PostSteward immediately removes OAuth refre
 
 ## LinkedIn verification boundary
 
-The Posts API can retrieve a post by its durable URN, but member readback requires LinkedIn's restricted `r_member_social` permission. When that capability is present, PostSteward verifies the creation URN, stable author URN, exact commentary and `PUBLISHED` lifecycle through a separate GET. Without that permission, LinkedIn can still be used by the normal publisher, but the controlled first-publication acceptance does not offer LinkedIn as an independently verifiable destination.
+The member-profile and organisation/Page paths have different readback authority. Member-profile readback requires restricted `r_member_social`. The reviewed Page path uses `r_organization_social`, which is role-gated to Pages the authenticated member administers or manages. Before storing a Page connection, PostSteward verifies the member through OpenID Connect and performs an author finder for the exact state-bound Page URN. Every later identity recheck carries that same Page actor rather than falling back to the member profile.
+
+For either path with granted readback authority, PostSteward verifies the creation URN, stable author URN, exact commentary and `PUBLISHED` lifecycle through a separate GET. The organisation path does not depend on or enable member-profile `r_member_social`.
 
 This distinction is deliberate: code support is not represented as permission approval. External provider application review, billing or plan eligibility and real user consent remain evidence gates outside the repository.

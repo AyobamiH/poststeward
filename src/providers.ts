@@ -68,6 +68,18 @@ function safeLinkedInUrl(id: string) {
   return `https://www.linkedin.com/feed/update/${encodeURIComponent(id)}/`;
 }
 const validId = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 256;
+const linkedInOrganizationActor =
+  /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/;
+
+/** Keep a reviewed LinkedIn Page actor attached to every identity recheck. */
+export function providerActorForIdentity(
+  provider: Provider,
+  identity: Pick<Identity, "id">,
+) {
+  return provider === "linkedin" && linkedInOrganizationActor.test(identity.id)
+    ? identity.id
+    : undefined;
+}
 
 export class SocialProviders implements ProviderAPI {
   constructor(private http: typeof fetch = fetch, private linkedinVersion = "202608") {}
@@ -123,7 +135,7 @@ export class SocialProviders implements ProviderAPI {
     const member = { id: `urn:li:person:${data.sub}`, username: String(data.name || data.sub) };
     if (!actorUrn) return member;
     requireValue(
-      /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(actorUrn),
+      linkedInOrganizationActor.test(actorUrn),
       "LINKEDIN_ACTOR_INVALID",
       "LinkedIn page actor must be an organization or organizationBrand URN.",
       400,
@@ -138,13 +150,25 @@ export class SocialProviders implements ProviderAPI {
       viewContext: "AUTHOR",
       sortBy: "LAST_MODIFIED",
     }).toString();
-    await this.request(finder.href, c.accessToken, {
+    const { data: authored } = await this.request(finder.href, c.accessToken, {
       headers: {
         "LinkedIn-Version": this.linkedinVersion,
         "X-Restli-Protocol-Version": "2.0.0",
         "X-RestLi-Method": "FINDER",
       },
     });
+    requireValue(
+      Array.isArray(authored.elements) &&
+        authored.elements.every(
+          (post: unknown) =>
+            post !== null &&
+            typeof post === "object" &&
+            (post as { author?: unknown }).author === actorUrn,
+        ),
+      "IDENTITY_UNVERIFIED",
+      "LinkedIn returned contradictory Page-author evidence.",
+      502,
+    );
     return { id: actorUrn, username: actorUrn };
   }
   async createContainer(d: Delivery, c: Credential): Promise<string> {
@@ -214,7 +238,7 @@ export class SocialProviders implements ProviderAPI {
   }
   async metrics(d: Delivery, c: Credential): Promise<unknown> {
     if (!d.postId) return { availability: "unavailable", reason: "No durable provider post ID." };
-    if (d.provider === "linkedin") return { availability: "unavailable", reason: "Member analytics permissions have not been enabled." };
+    if (d.provider === "linkedin") return { availability: "unavailable", reason: "LinkedIn analytics permissions have not been enabled." };
     try {
       if (d.provider === "x") {
         const { data } = await this.request(`https://api.x.com/2/tweets/${encodeURIComponent(d.postId)}?tweet.fields=public_metrics`, c.accessToken);

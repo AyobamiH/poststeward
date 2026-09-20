@@ -3,7 +3,12 @@ import { digest, Fault, requireValue, uid } from "./common.ts";
 import { credentialRoots, unseal } from "./crypto.ts";
 import { Engine } from "./engine.ts";
 import { demandFreshOwner, type OwnerAuthority, type OwnerProof } from "./owner-proof.ts";
-import { validateText, type Credential, type ProviderAPI } from "./providers.ts";
+import {
+  providerActorForIdentity,
+  validateText,
+  type Credential,
+  type ProviderAPI,
+} from "./providers.ts";
 import type { Account, Actor, Campaign, Delivery, Env, Store } from "./types.ts";
 
 const slot = "pilot:first";
@@ -97,11 +102,15 @@ export class Pilot {
         account.provider === "x" ||
         (account.provider === "linkedin" && account.capabilities?.readback === true),
       "READBACK_UNSUPPORTED",
-      "Choose X, Threads, or a LinkedIn connection with approved member readback. Independent readback is required for this milestone.",
+      "Choose X, Threads, or a LinkedIn connection with granted readback authority. Independent readback is required for this milestone.",
       409,
     );
     validateText(account.provider, input.text);
-    const liveIdentity = await this.providers.identity(account.provider, await this.credential(account));
+    const liveIdentity = await this.providers.identity(
+      account.provider,
+      await this.credential(account),
+      providerActorForIdentity(account.provider, account.identity),
+    );
     requireValue(liveIdentity.id === account.identity.id, "ACCOUNT_DRIFT", "The provider identity changed. Reconnect before preparing a review.", 409);
     const base = {
       id: uid(), state: "prepared" as const, owner: authority.proof, release: this.env.RELEASE_SHA,
