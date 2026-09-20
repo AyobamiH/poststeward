@@ -10,15 +10,27 @@ export interface Published {
   id: string;
   url?: string;
 }
+export interface PublicationContext {
+  text: string;
+  replyToId?: string;
+}
 export interface ProviderAPI {
   identity(
     provider: Provider,
     credential: Credential,
     actorUrn?: string,
   ): Promise<Identity>;
-  createContainer(delivery: Delivery, credential: Credential): Promise<string>;
+  createContainer(
+    delivery: Delivery,
+    credential: Credential,
+    context?: PublicationContext,
+  ): Promise<string>;
   containerStatus(id: string, credential: Credential): Promise<string>;
-  publish(delivery: Delivery, credential: Credential): Promise<Published>;
+  publish(
+    delivery: Delivery,
+    credential: Credential,
+    context?: PublicationContext,
+  ): Promise<Published>;
   verify(
     delivery: Delivery,
     credential: Credential,
@@ -298,7 +310,12 @@ export class SocialProviders implements ProviderAPI {
       username: String(data.name || data.sub),
     };
   }
-  async createContainer(d: Delivery, c: Credential): Promise<string> {
+  async createContainer(
+    d: Delivery,
+    c: Credential,
+    context?: PublicationContext,
+  ): Promise<string> {
+    const content = context || { text: d.text };
     const { data } = await this.request(
       `https://graph.threads.net/v1.0/${encodeURIComponent(d.identity.id)}/threads`,
       c.accessToken,
@@ -306,8 +323,9 @@ export class SocialProviders implements ProviderAPI {
         method: "POST",
         body: new URLSearchParams({
           media_type: "TEXT",
-          text: d.text,
+          text: content.text,
           auto_publish_text: "false",
+          ...(content.replyToId ? { reply_to_id: content.replyToId } : {}),
         }),
       },
     );
@@ -340,7 +358,12 @@ export class SocialProviders implements ProviderAPI {
       throw e;
     }
   }
-  async publish(d: Delivery, c: Credential): Promise<Published> {
+  async publish(
+    d: Delivery,
+    c: Credential,
+    context?: PublicationContext,
+  ): Promise<Published> {
+    const content = context || { text: d.text };
     if (d.provider === "x") {
       const { data } = await this.request(
         "https://api.x.com/2/tweets",
@@ -348,7 +371,12 @@ export class SocialProviders implements ProviderAPI {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: d.text }),
+          body: JSON.stringify({
+            text: content.text,
+            ...(content.replyToId
+              ? { reply: { in_reply_to_tweet_id: content.replyToId } }
+              : {}),
+          }),
         },
         true,
       );
@@ -398,7 +426,7 @@ export class SocialProviders implements ProviderAPI {
         },
         body: JSON.stringify({
           author: d.identity.id,
-          commentary: d.text,
+          commentary: content.text,
           visibility: "PUBLIC",
           distribution: {
             feedDistribution: "MAIN_FEED",

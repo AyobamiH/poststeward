@@ -104,7 +104,9 @@ https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/#pitr-p
 
 ## Gate 4 — authenticated native WebMCP
 
-**State: PostSteward engineering and hardened staging deployment are complete; authenticated native invocation remains open because the owner's ordinary browser does not expose the native API.**
+**State: live verified on 20 September 2026 in an authenticated supporting browser.**
+
+The follow-up evidence is recorded in [native WebMCP live evidence](native-webmcp-live-evidence-2026-09-20.md). Native `workspace_status`, `accounts_list`, `projects_list` and `receipts_list` calls succeeded and matched exact production release `7a7f0fa698b1f21b01c5ad2971f13174d4249def`. This closes read-only native registration/execution only; it does not imply provider writes or other live gates.
 
 Evidence on 14 September 2026:
 
@@ -114,7 +116,7 @@ Evidence on 14 September 2026:
 - PR #59 hardened the native path so registered tools abort on page teardown and the read-only native `workspace_status` check must match both the authenticated workspace and the exact current `/readiness.json` release;
 - protected deployment `34851168519` successfully deployed release `93b526bb31f6de39c2386b51063532e2bf4282b9`, including the updated `/webmcp.js`; hosted smoke remained green and did not manufacture an owner session or native invocation.
 
-The earlier supporting cloud browser observation showed that native WebMCP can be exposed by a suitable browser. The remaining evidence is therefore one real authenticated owner session **in a supporting browser**, followed by native discovery and one harmless read-only `workspace_status` invocation. Preserve the returned JSON receipt.
+The earlier supporting cloud browser observation showed that native WebMCP can be exposed by a suitable browser. The required authenticated read-only invocation has now completed; do not repeat it merely to obtain a newer receipt.
 
 Do not substitute the already accepted HTTP/remote-MCP proof, a JavaScript shim, a signed-out capability observation or another browser that explicitly reports native WebMCP unavailable.
 
@@ -162,7 +164,7 @@ Primary LinkedIn contracts:
 
 ## Execution order and stop conditions
 
-Continue without reopening completed acceptance. Threads remains parked until Meta accepts the exact callback. PITR remains parked until the hosted target-bookmark primitive succeeds or a deliberate, owner-visible checkpoint fallback is implemented and verified. Continue now with authenticated native WebMCP in a supporting browser, then X application/grant, then LinkedIn application/grant/readback approval. Private GitHub is complete and must not be repeated merely for evidence.
+Continue without reopening completed acceptance. Threads OAuth, X OAuth/publication and authenticated native WebMCP are complete and must not be repeated merely for evidence. PITR remains parked until the hosted target-bookmark primitive succeeds or a deliberate, owner-visible checkpoint fallback is implemented and verified. The remaining provider application/grant path is LinkedIn organisation approval and exact Page consent.
 
 Advanced live product-path acceptance and production/public readiness remain separate from these external gates. Stripe sandbox and protected root cutover are already accepted and are not reasons to replay payment or cryptographic effects.
 

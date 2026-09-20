@@ -24,6 +24,30 @@
     }
   },
   {
+    "name": "publishing_capabilities",
+    "description": "Inspect implemented publication formats, live provider-app configuration, connected stable identities, owner-approval behavior and the one-shot acceptance URL.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "publishing_capabilities",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "accounts_list",
     "description": "Read verified account identities and binding versions. Credentials are never returned.",
     "scope": "read",
@@ -218,7 +242,7 @@
           "additionalProperties": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 5000
+            "maxLength": 12500
           }
         },
         "idempotencyKey": {
@@ -425,6 +449,94 @@
     "example": {
       "delivery": "delivery-id",
       "idempotencyKey": "cancel-001"
+    },
+    "inspection": "receipt_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "delivery",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "delivery_approve",
+    "description": "Owner-review an agent-created delivery and release its immutable account, identity, text and schedule reservation. The original agent authority is still rechecked at dispatch.",
+    "scope": "publish",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "delivery": "delivery-id",
+      "idempotencyKey": "approve-001"
+    },
+    "inspection": "receipt_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "delivery",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "delivery_reject",
+    "description": "Owner-reject an agent-created delivery before any provider write.",
+    "scope": "publish",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "delivery": "delivery-id",
+      "idempotencyKey": "reject-001"
     },
     "inspection": "receipt_get",
     "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
@@ -812,7 +924,7 @@
           "additionalProperties": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 5000
+            "maxLength": 12500
           }
         },
         "family": {

@@ -122,4 +122,9 @@ export function validZone(zone: string): void {
     throw new Fault("INVALID_TIMEZONE", "Use an IANA timezone.");
   }
 }
-export const active = new Set(["scheduled", "executing", "waiting_container"]);
+export const active = new Set([
+  "pending_approval",
+  "scheduled",
+  "executing",
+  "waiting_container",
+]);

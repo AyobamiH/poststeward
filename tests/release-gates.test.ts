@@ -213,7 +213,7 @@ test("readiness keeps legacy fields while exposing the typed control plane", () 
     "disabled",
   );
   assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 0);
-  assert.ok(readiness.evidenceStillExternal.includes("native_webmcp"));
+  assert.ok(!readiness.evidenceStillExternal.includes("native_webmcp"));
   assert.ok(
     !readiness.evidenceStillExternal.includes("stripe_sandbox_lifecycle"),
   );

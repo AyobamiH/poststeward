@@ -6,7 +6,11 @@ const accounts = ["x", "threads", "linkedin"].map((provider, i) => ({
   active: true,
   identity: { username: `fixture_${provider}`, id: `stable-${i}` },
   verifiedAt: now - 60_000,
-  capabilities: { oauth: true, readback: provider !== "linkedin", refresh: provider !== "linkedin" },
+  capabilities: {
+    oauth: true,
+    readback: provider !== "linkedin",
+    refresh: provider !== "linkedin",
+  },
 }));
 const states = [
   "scheduled",
@@ -27,7 +31,8 @@ const receipts = states.map((status, i) => ({
   status,
   text:
     i === 5
-      ? '<img src=x onerror="window.unsafe=true"> reviewed text ' + "long".repeat(70)
+      ? '<img src=x onerror="window.unsafe=true"> reviewed text ' +
+        "long".repeat(70)
       : `Synthetic reviewed copy ${i}`,
   dueAt: now + i * 1000,
   updatedAt: now,
@@ -60,7 +65,11 @@ export const fixture = {
   },
   "/api/grants": [
     { actor: "Expired fixture", scopes: '["read"]', expires_at: now - 1000 },
-    { actor: "Active fixture", scopes: '["read"]', expires_at: now + 3_600_000 },
+    {
+      actor: "Active fixture",
+      scopes: '["read"]',
+      expires_at: now + 3_600_000,
+    },
     {
       actor: "Revoked fixture",
       scopes: '["publish"]',
@@ -137,6 +146,27 @@ export const fixture = {
     accounts: accounts.map((account) => account.alias),
   })),
   "/api/operations/receipts_list": receipts,
+  "/api/operations/publishing_capabilities": {
+    interfaces: {
+      workspace: "https://publish.example/app",
+      oneShotPilot: "https://publish.example/pilot",
+    },
+    identityRule:
+      "The stable provider identity on the active connection is the public author; an alias is only a workspace routing label.",
+    providers: {},
+    publishing: {
+      text: true,
+      multipart: { x: true, threads: true, linkedin: false },
+      media: false,
+      replies: false,
+      linkPreviewManagement: false,
+      editDeletionMonitoring: false,
+    },
+    automation: {
+      sourceMonitoring: true,
+      rolloutEnabled: false,
+    },
+  },
   "/api/operations/automation_inspect": {
     profiles,
     deliveries: receipts.slice(0, 3),

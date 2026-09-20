@@ -97,6 +97,16 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
       .bind(owner.id, owner.workspace, Date.now())
       .run();
     await db
+      .prepare("INSERT INTO sessions VALUES (?,?,?,?,?)")
+      .bind(
+        await digest("owner-session"),
+        owner.workspace,
+        owner.id,
+        Date.now() + 3600000,
+        "owner-csrf",
+      )
+      .run();
+    await db
       .prepare("INSERT INTO grants VALUES (?,?,?,?,?,NULL)")
       .bind(
         await digest("test-agent"),
@@ -133,13 +143,26 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
         },
         ...(input !== undefined ? { body: JSON.stringify(input) } : {}),
       });
+    const ownerCall = (path: string, input: unknown) =>
+      mf.dispatchFetch("https://publish.example" + path, {
+        method: "POST",
+        headers: {
+          Cookie: "__Host-session=owner-session",
+          Origin: "https://publish.example",
+          "X-CSRF-Token": "owner-csrf",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(input),
+      });
     const discovery = await mf.dispatchFetch(
       "https://publish.example/help.json",
     );
     assert.equal(discovery.status, 200);
     const operations = ((await discovery.json()) as any).operations;
-    assert.equal(operations.length, 27);
-    assert.ok(operations.some((operation: any) => operation.name === "receipt_recheck"));
+    assert.equal(operations.length, 30);
+    assert.ok(
+      operations.some((operation: any) => operation.name === "receipt_recheck"),
+    );
     const unauth = await mf.dispatchFetch(
       "https://publish.example/api/operations/workspace_status",
       {
@@ -211,6 +234,12 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
         idempotencyKey: "publish-runtime-001",
       })
     ).json();
+    assert.equal(reserved.deliveries[0].status, "pending_approval");
+    const approval = await ownerCall("/api/operations/delivery_approve", {
+      delivery: reserved.deliveries[0].id,
+      idempotencyKey: "owner-approve-runtime-001",
+    });
+    assert.equal(approval.status, 200, await approval.text());
     let receipt: any;
     for (let attempt = 0; attempt < 20; attempt++) {
       receipt = await (

@@ -29,6 +29,41 @@ test("a successful response without a creation ID cannot be called failed or ret
     code: "AMBIGUOUS_PROVIDER_WRITE",
   });
 });
+test("X multipart context creates a reply without changing the frozen part text", async () => {
+  let body: any;
+  const p = new SocialProviders((async (_url, init) => {
+    body = JSON.parse(String(init?.body));
+    return Response.json({ data: { id: "101" } });
+  }) as typeof fetch);
+  await p.publish(delivery, credential, {
+    text: "Second exact part",
+    replyToId: "100",
+  });
+  assert.deepEqual(body, {
+    text: "Second exact part",
+    reply: { in_reply_to_tweet_id: "100" },
+  });
+});
+test("Threads multipart context binds the next container to the prior post", async () => {
+  let body: URLSearchParams | undefined;
+  const p = new SocialProviders((async (_url, init) => {
+    body = init?.body as URLSearchParams;
+    return Response.json({ id: "container-2" });
+  }) as typeof fetch);
+  const threads = {
+    ...delivery,
+    provider: "threads",
+    identity: { id: "42", username: "me" },
+  } as Delivery;
+  await p.createContainer(threads, credential, {
+    text: "Second exact part",
+    replyToId: "thread-1",
+  });
+  assert.equal(body?.get("media_type"), "TEXT");
+  assert.equal(body?.get("text"), "Second exact part");
+  assert.equal(body?.get("reply_to_id"), "thread-1");
+  assert.equal(body?.get("auto_publish_text"), "false");
+});
 test("LinkedIn organization identity verifies exact page author access without OpenID", async () => {
   const actor = "urn:li:organization:146607525";
   const seen: string[] = [];

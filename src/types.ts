@@ -1,3 +1,5 @@
+import type { FrozenPublication } from "./publications.ts";
+
 export type Provider = "x" | "threads" | "linkedin";
 export type Scope =
   | "read"
@@ -46,17 +48,21 @@ export interface Campaign {
   id: string;
   project: string;
   text: Record<string, string>;
+  /** Immutable provider-specific part boundaries for every destination. */
+  publications?: Record<string, FrozenPublication>;
   digest: string;
   createdAt: number;
   source?: { profile: string; sha: string; family: string };
 }
 export type DeliveryStatus =
+  | "pending_approval"
   | "scheduled"
   | "executing"
   | "waiting_container"
   | "cancelled"
   | "published_verified"
   | "published_unverified"
+  | "partial_effect"
   | "ambiguous_effect"
   | "failed"
   | "drift_blocked";
@@ -71,6 +77,10 @@ export interface Delivery {
   binding: number;
   text: string;
   digest: string;
+  publication?: FrozenPublication;
+  partIds?: string[];
+  verifiedParts?: number;
+  failedPartIndex?: number;
   dueAt: number;
   timezone: string;
   status: DeliveryStatus;
@@ -78,6 +88,13 @@ export interface Delivery {
   updatedAt: number;
   actor: Actor;
   automatic: boolean;
+  approval?: {
+    required: boolean;
+    status: "pending" | "approved" | "rejected";
+    requestedAt: number;
+    reviewedAt?: number;
+    reviewer?: string;
+  };
   policy?: string;
   policyVersion?: number;
   phase?:

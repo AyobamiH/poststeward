@@ -17,30 +17,43 @@ Private GitHub source access is separate from agent publication authority. When 
 Use `accounts_list` and `projects_list` to resolve explicit destinations. Create a campaign using exact approved text per account alias:
 
 ```json
-{"project":"product","text":{"product_x":"The exact approved update."},"idempotencyKey":"campaign-2026-001"}
+{
+  "project": "product",
+  "text": { "product_x": "The exact approved update." },
+  "idempotencyKey": "campaign-2026-001"
+}
 ```
 
 Call `campaign_validate` with the returned campaign ID, then `publish_now` or `schedule_create`. For HTTP, each is `POST /api/operations/{name}` with a JSON body. Every consequential mutation has an idempotency key: reuse the same key and identical inputs only when recovering transport delivery.
 
+Long X and Threads copy is deterministically split into at most 25 frozen parts before reservation. `campaign_validate` returns the exact part boundaries and digests. X parts are published as a reply chain; Threads parts each pass through their own observable container stage and are then chained with `reply_to_id`. LinkedIn remains a single post with its provider limit. PostSteward never continues or replays a chain blindly after an uncertain part.
+
 ```json
-{"campaign":"RETURNED_CAMPAIGN_ID","at":"2026-10-01T12:00:00Z","timezone":"UTC","idempotencyKey":"schedule-2026-001"}
+{
+  "campaign": "RETURNED_CAMPAIGN_ID",
+  "at": "2026-10-01T12:00:00Z",
+  "timezone": "UTC",
+  "idempotencyKey": "schedule-2026-001"
+}
 ```
 
-The response reserves deliveries. Durable alarms execute future work after the agent disconnects. Poll `receipt_get` or `receipts_list` for provider evidence. PostSteward does not promise exactly-once behaviour inside an external provider; it prevents blind repetition when a provider write may already have happened.
+The response reserves deliveries. A delivery created with an agent token starts at `pending_approval`: the signed-in owner must call `delivery_approve` (or reject it) after inspecting the frozen account, stable identity, parts and time. Approval does not replace the original grant—the agent token is checked again at dispatch, so revocation still blocks the effect. Durable alarms execute approved future work after the agent disconnects. Poll `receipt_get` or `receipts_list` for provider evidence. PostSteward does not promise exactly-once behaviour inside an external provider; it prevents blind repetition when a provider write may already have happened.
 
 ## Receipt states
 
-| State | Meaning |
-| --- | --- |
-| scheduled | Durable reservation; no provider publication claimed |
-| waiting_container | Threads container created; readiness checks pending |
-| executing | Dispatch owns the durable execution claim |
-| published_verified | Provider ID, stable author and exact content independently read back |
-| published_unverified | Creation evidence stored; exact readback not established |
-| ambiguous_effect | Provider may have accepted the write; blind retry blocked |
-| drift_blocked | Captured account, payload or authority no longer matches reviewed work |
-| failed | Known rejection or pre-effect failure |
-| cancelled | Unclaimed reservation cancelled |
+| State                | Meaning                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| pending_approval     | Agent-created reservation is frozen but cannot reach a provider until owner review               |
+| scheduled            | Durable reservation; no provider publication claimed                                             |
+| waiting_container    | Threads container created; readiness checks pending                                              |
+| executing            | Dispatch owns the durable execution claim                                                        |
+| published_verified   | Provider ID, stable author and exact content independently read back                             |
+| published_unverified | Creation evidence stored; exact readback not established                                         |
+| partial_effect       | One or more multipart IDs are durable, but the chain stopped; completed parts are never replayed |
+| ambiguous_effect     | Provider may have accepted the write; blind retry blocked                                        |
+| drift_blocked        | Captured account, payload or authority no longer matches reviewed work                           |
+| failed               | Known rejection or pre-effect failure                                                            |
+| cancelled            | Unclaimed reservation cancelled                                                                  |
 
 Cancellation cannot undo an in-flight provider effect. `schedule_replace` requires a reviewed replacement campaign. On-demand metrics report unavailable data explicitly; unavailable provider metrics are never represented as a fabricated zero. LinkedIn member readback and analytics depend on the actual deployed LinkedIn application permissions.
 
