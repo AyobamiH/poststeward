@@ -170,6 +170,7 @@ async function refresh() {
     profiles,
     grants,
     readiness,
+    capabilities,
   ] = await Promise.all([
     invoke("workspace_status"),
     invoke("accounts_list"),
@@ -179,6 +180,7 @@ async function refresh() {
     invoke("automation_inspect"),
     api("/api/grants"),
     api("/readiness.json"),
+    invoke("publishing_capabilities"),
   ]);
   paused = status.publishingPaused;
   $("plan").textContent =
@@ -190,6 +192,11 @@ async function refresh() {
   ).size;
   $("readiness").textContent =
     `Release ${readiness.release.slice(0, 12)} · ${readiness.access.signupMode} signup · provider apps ${Object.values(readiness.providers).filter((x) => x.oauth).length}/3 · active connections ${activeAccounts.length} across ${connectedProviders} provider(s) · Advanced ${readiness.payments.advancedEnabled ? "enabled" : "disabled"}`;
+  $("publishing-capabilities").textContent = JSON.stringify(
+    capabilities,
+    null,
+    2,
+  );
   try {
     oauthInfo = await api("/api/connections/oauth/status");
   } catch {
@@ -233,7 +240,12 @@ async function refresh() {
     );
   records("receipts", receipts, (r, d) => {
     line(r, `${d.provider} · ${d.account} · ${d.status}`, true);
-    line(r, `${new Date(d.dueAt).toLocaleString()} · ${d.reason || ""}`);
+    const partCount = d.publication?.parts?.length || 1;
+    const completedParts = d.partIds?.length || (d.postId ? 1 : 0);
+    line(
+      r,
+      `${new Date(d.dueAt).toLocaleString()} · ${d.publication?.type || "single"} ${completedParts}/${partCount} part${partCount === 1 ? "" : "s"} · ${d.reason || ""}`,
+    );
     const copy = document.createElement("p");
     copy.textContent = d.text;
     r.append(copy);
@@ -247,6 +259,26 @@ async function refresh() {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       r.append(link);
+    }
+    if (d.status === "pending_approval") {
+      button(r, "Approve agent delivery", async () => {
+        show(
+          await invoke("delivery_approve", {
+            delivery: d.id,
+            idempotencyKey: key(),
+          }),
+        );
+        await refresh();
+      });
+      button(r, "Reject", async () => {
+        show(
+          await invoke("delivery_reject", {
+            delivery: d.id,
+            idempotencyKey: key(),
+          }),
+        );
+        await refresh();
+      });
     }
     if (["scheduled", "waiting_container"].includes(d.status))
       button(r, "Cancel", async () => {
@@ -461,11 +493,22 @@ for (const id of [
         });
         await invoke("campaign_validate", { campaign: selectedCampaign.id });
         $("campaign-preview").hidden = false;
-        $("campaign-preview").textContent = Object.entries(
-          selectedCampaign.text,
-        )
-          .map(([a, t]) => a + "\n" + t)
-          .join("\n\n");
+        $("campaign-preview").textContent = selectedCampaign.publications
+          ? Object.entries(selectedCampaign.publications)
+              .map(
+                ([alias, publication]) =>
+                  `${alias} · ${publication.type} · ${publication.parts.length} part${publication.parts.length === 1 ? "" : "s"}\n` +
+                  publication.parts
+                    .map(
+                      (part) =>
+                        `[${part.index}/${publication.parts.length}] ${part.text}`,
+                    )
+                    .join("\n\n"),
+              )
+              .join("\n\n")
+          : Object.entries(selectedCampaign.text)
+              .map(([alias, text]) => `${alias}\n${text}`)
+              .join("\n\n");
         $("delivery").hidden = false;
         show(
           "Campaign stored and validated. Review the exact copy before submitting.",

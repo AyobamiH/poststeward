@@ -42,7 +42,7 @@ The exact revision passed 84 provider/connection-focused tests after a clean loc
 1. X: complete one real owner OAuth consent, persist and inspect the stable identity and granted scopes, observe refresh authority, then perform one deliberately approved publication/readback only if X is claimed as end-to-end supported.
 2. LinkedIn: configure the application and exact callbacks, obtain organization permissions, complete owner consent for `urn:li:organization:146607525`, verify Page access and then perform one controlled Page publication/readback if LinkedIn is in release scope.
 3. Threads: preserve the active connection and existing accepted publication evidence. A single combined OAuth-connected publication receipt is optional strengthening, not a reason to create an unnecessary public post.
-4. Native WebMCP: the supporting browser advertised 27 tools, but the page's authenticated read-only `workspace_status` check still returned “tool is not registered”; the gate remains open.
+4. Native WebMCP was still open at the time of this audit; the 20 September authenticated execution evidence supersedes this point-in-time finding.
 
 Public signup remains disabled by policy. Production infrastructure gates marked `live_verified` do not imply that all three social providers are connected or accepted.
 
@@ -50,4 +50,4 @@ Public signup remains disabled by policy. Production infrastructure gates marked
 
 The X rows and remaining action above are a point-in-time record from the read-only 19 September audit. They are superseded for X by `docs/x-oauth-publication-live-evidence-2026-09-20.md`.
 
-The owner subsequently configured the dedicated application authority, authorised the production callback as `@poststeward`, verified the stable identity and active connection, and approved one controlled publication with independent provider-page readback. A real token-expiry refresh rotation was not forced and remains a separately visible, non-blocking follow-up. LinkedIn and native WebMCP findings are unchanged.
+The owner subsequently configured the dedicated application authority, authorised the production callback as `@poststeward`, verified the stable identity and active connection, approved one controlled publication with independent provider-page readback, and observed a natural token refresh rotation. LinkedIn remains unchanged. Native WebMCP was subsequently accepted through authenticated read-only native calls recorded in `docs/native-webmcp-live-evidence-2026-09-20.md`.

@@ -13,7 +13,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `exact_recovery_checkpoints` | `live_verified` | `restricted_staging` | no | Exact checkpoint capture, real restore, reconciliation, resume and disposable erasure are accepted on restricted staging. |
 | `approximate_timestamp_pitr` | `blocked_external` | `restricted_staging` | no | Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it. |
 | `threads_oauth_callback` | `live_verified` | `restricted_staging` | no | Meta callback persistence, one real production owner Threads OAuth journey and one current healthy long-lived owner connection are accepted; publication/readback evidence remains a separate gate. |
-| `native_webmcp` | `unavailable_capability` | `restricted_staging` | no | Native WebMCP is deployed and tool registration is advertised, but the authenticated page's read-only workspace_status execution check still reports that the tool is not registered. |
+| `native_webmcp` | `live_verified` | `restricted_staging` | no | An authenticated supporting browser executed native workspace_status, accounts_list, projects_list and receipts_list against the exact production release. |
 | `x_oauth` | `live_verified` | `provider_optional` | no | Dedicated X application authority, the real @poststeward production OAuth grant, exact callback return, stable identity and current active connection are accepted. |
 | `x_publication_readback` | `live_verified` | `provider_optional` | no | One owner-approved @poststeward X publication, verified PostSteward receipt and independent provider-page readback are accepted. |
 | `x_token_refresh_rotation` | `live_verified` | `provider_optional` | no | A natural production alarm completed a real X token refresh, persisted the new lifecycle state and reverified the unchanged @poststeward publishing identity without consent or publication. |
@@ -40,7 +40,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `exact_recovery_checkpoints`: `docs/recovery.md`, `docs/exact-recovery-live-evidence-2026-09-14.md`, `actions/34890295276`
 - `approximate_timestamp_pitr`: `docs/live-external-gates-2026-09-13.md`
 - `threads_oauth_callback`: `docs/threads-oauth-callback-live-evidence-2026-09-19.md`, `docs/provider-connection-audit-2026-09-19.md`
-- `native_webmcp`: `docs/live-external-gates-2026-09-13.md`, `docs/provider-connection-audit-2026-09-19.md`; owner action: Use one authenticated supporting browser for the read-only workspace_status proof when available.
+- `native_webmcp`: `docs/native-webmcp-live-evidence-2026-09-20.md`
 - `x_oauth`: `docs/x-oauth-publication-live-evidence-2026-09-20.md`, `docs/provider-connection-audit-2026-09-19.md`
 - `x_publication_readback`: `docs/x-oauth-publication-live-evidence-2026-09-20.md`
 - `x_token_refresh_rotation`: `docs/x-oauth-publication-live-evidence-2026-09-20.md`

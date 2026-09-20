@@ -15,7 +15,7 @@ const id = z
 const key = z.string().min(8).max(128);
 const empty = z.strictObject({});
 const campaign = z.strictObject({ campaign: id });
-const text = z.record(id, z.string().min(1).max(5000));
+const text = z.record(id, z.string().min(1).max(12500));
 const when = z.string().max(80);
 export interface Operation {
   name: string;
@@ -61,6 +61,15 @@ export const catalog: Operation[] = [
     empty,
     {},
     "workspace_status",
+  ),
+  op(
+    "publishing_capabilities",
+    "Inspect implemented publication formats, live provider-app configuration, connected stable identities, owner-approval behavior and the one-shot acceptance URL.",
+    "read",
+    ["READ_ONLY"],
+    empty,
+    {},
+    "publishing_capabilities",
   ),
   op(
     "accounts_list",
@@ -174,6 +183,24 @@ export const catalog: Operation[] = [
     ["STATE_WRITE", "FUTURE_CONSEQUENCE"],
     z.strictObject({ delivery: id, idempotencyKey: key }),
     { delivery: "delivery-id", idempotencyKey: "cancel-001" },
+    "receipt_get",
+  ),
+  op(
+    "delivery_approve",
+    "Owner-review an agent-created delivery and release its immutable account, identity, text and schedule reservation. The original agent authority is still rechecked at dispatch.",
+    "publish",
+    ["AUTHORITY_CHANGE", "FUTURE_CONSEQUENCE"],
+    z.strictObject({ delivery: id, idempotencyKey: key }),
+    { delivery: "delivery-id", idempotencyKey: "approve-001" },
+    "receipt_get",
+  ),
+  op(
+    "delivery_reject",
+    "Owner-reject an agent-created delivery before any provider write.",
+    "publish",
+    ["AUTHORITY_CHANGE", "FUTURE_CONSEQUENCE"],
+    z.strictObject({ delivery: id, idempotencyKey: key }),
+    { delivery: "delivery-id", idempotencyKey: "reject-001" },
     "receipt_get",
   ),
   op(

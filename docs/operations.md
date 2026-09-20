@@ -18,6 +18,22 @@ Example:
 {}
 ```
 
+## publishing_capabilities
+
+Inspect implemented publication formats, live provider-app configuration, connected stable identities, owner-approval behavior and the one-shot acceptance URL.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: publishing_capabilities
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{}
+```
+
 ## accounts_list
 
 Read verified account identities and binding versions. Credentials are never returned.
@@ -206,6 +222,44 @@ Example:
 {
   "delivery": "delivery-id",
   "idempotencyKey": "cancel-001"
+}
+```
+
+## delivery_approve
+
+Owner-review an agent-created delivery and release its immutable account, identity, text and schedule reservation. The original agent authority is still rechecked at dispatch.
+
+- Tier: free
+- Required scope: publish
+- Effects: AUTHORITY_CHANGE, FUTURE_CONSEQUENCE
+- Inspect with: receipt_get
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "delivery": "delivery-id",
+  "idempotencyKey": "approve-001"
+}
+```
+
+## delivery_reject
+
+Owner-reject an agent-created delivery before any provider write.
+
+- Tier: free
+- Required scope: publish
+- Effects: AUTHORITY_CHANGE, FUTURE_CONSEQUENCE
+- Inspect with: receipt_get
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "delivery": "delivery-id",
+  "idempotencyKey": "reject-001"
 }
 ```
 

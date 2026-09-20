@@ -16,6 +16,12 @@ import {
   type Credential,
   type ProviderAPI,
 } from "./providers.ts";
+import {
+  freezePublication,
+  publicationParts,
+  validateFrozenPublication,
+  type FrozenPublication,
+} from "./publications.ts";
 import type {
   Account,
   Actor,
@@ -65,6 +71,91 @@ export class Engine {
         },
         prices: plans,
       }),
+      publishing_capabilities: () => {
+        const accounts = this.store
+          .list<Account>("account:")
+          .filter((account) => account.active)
+          .map(({ secret, ...account }) => account);
+        const connected = (provider: Account["provider"]) =>
+          accounts
+            .filter((account) => account.provider === provider)
+            .map((account) => ({
+              alias: account.alias,
+              identity: account.identity,
+              binding: account.version,
+              capabilities: account.capabilities || null,
+            }));
+        const configured = (id?: string, secret?: string) =>
+          Boolean(id && secret);
+        return {
+          workspaceUrl: `${this.env.PUBLIC_ORIGIN}/app`,
+          oneShotPilotUrl: `${this.env.PUBLIC_ORIGIN}/pilot`,
+          identityRule:
+            "The stable identity returned by the provider—not the local alias and not PostSteward—is the public author.",
+          providers: {
+            x: {
+              applicationConfigured: configured(
+                this.env.X_OAUTH_CLIENT_ID,
+                this.env.X_OAUTH_CLIENT_SECRET,
+              ),
+              connections: connected("x"),
+              formats: {
+                text: "implemented",
+                multipartText: "implemented",
+                images: "not_implemented",
+                video: "not_implemented",
+                replies: "not_implemented",
+              },
+            },
+            threads: {
+              applicationConfigured: configured(
+                this.env.THREADS_OAUTH_CLIENT_ID,
+                this.env.THREADS_OAUTH_CLIENT_SECRET,
+              ),
+              connections: connected("threads"),
+              formats: {
+                text: "implemented",
+                multipartText: "implemented",
+                images: "not_implemented",
+                video: "not_implemented",
+                replies: "not_implemented",
+              },
+            },
+            linkedin: {
+              memberApplicationConfigured: configured(
+                this.env.LINKEDIN_OAUTH_CLIENT_ID,
+                this.env.LINKEDIN_OAUTH_CLIENT_SECRET,
+              ),
+              pageApplicationConfigured: configured(
+                this.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID,
+                this.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET,
+              ),
+              connections: connected("linkedin"),
+              formats: {
+                memberText: "implemented_app_configuration_required",
+                pageText: "implemented_external_approval_required",
+                images: "not_implemented",
+                video: "not_implemented",
+                carousel: "not_implemented",
+                replies: "not_implemented",
+              },
+            },
+          },
+          controls: {
+            immutableCampaigns: "implemented",
+            contentDigests: "implemented",
+            explicitScheduling: "implemented",
+            providerReadback: "implemented_permission_dependent",
+            agentOwnerApproval: "implemented",
+            linkPreviewManagement: "not_implemented",
+            editDeletionMonitoring: "not_implemented",
+            sourceMonitoring:
+              this.env.ADVANCED_ENABLED === "true"
+                ? "enabled_for_workspace"
+                : "implemented_rollout_disabled",
+          },
+        };
+      },
       accounts_list: () =>
         this.store.list<Account>("account:").map(({ secret, ...a }) => a),
       account_disconnect: (i) =>
@@ -76,7 +167,9 @@ export class Engine {
           for (const d of this.deliveries().filter(
             (d) =>
               d.account === a.alias &&
-              ["scheduled", "waiting_container"].includes(d.status),
+              ["pending_approval", "scheduled", "waiting_container"].includes(
+                d.status,
+              ),
           ))
             this.update(d, {
               status: "drift_blocked",
@@ -97,31 +190,39 @@ export class Engine {
       projects_list: () => this.store.list<Project>("project:"),
       campaign_create: async (i) => {
         const p = this.get<Project>("project:", i.project);
-        for (const alias of Object.keys(i.text)) {
-          requireValue(
-            p.accounts.includes(alias),
-            "ACCOUNT_NOT_BOUND",
-            "Campaign account is not bound to this project.",
-          );
-          validateText(this.connected(alias).provider, i.text[alias]);
-        }
         requireValue(
           Object.keys(i.text).length > 0,
           "EMPTY_CAMPAIGN",
           "Provide at least one destination.",
         );
+        const text: Record<string, string> = {};
+        const publications: Record<string, FrozenPublication> = {};
+        for (const [alias, value] of Object.entries<string>(i.text)) {
+          requireValue(
+            p.accounts.includes(alias),
+            "ACCOUNT_NOT_BOUND",
+            "Campaign account is not bound to this project.",
+          );
+          const publication = await freezePublication(
+            this.connected(alias).provider,
+            value,
+          );
+          text[alias] = publication.text;
+          publications[alias] = publication;
+        }
         const c: Campaign = {
           id: uid(),
           project: p.id,
-          text: i.text,
-          digest: await digest(i.text),
+          text,
+          publications,
+          digest: await digest(text),
           createdAt: this.now(),
         };
         this.store.put("campaign:" + c.id, c);
         return c;
       },
       campaign_get: (i) => this.get<Campaign>("campaign:", i.campaign),
-      campaign_validate: (i) =>
+      campaign_validate: async (i) =>
         this.validate(this.get<Campaign>("campaign:", i.campaign)),
       publish_now: async (i, a) =>
         this.reserve(i.campaign, this.now(), "UTC", a),
@@ -147,10 +248,24 @@ export class Engine {
               delivery: this.publicDelivery(d),
               reason: "already_executing",
             };
-          if (["scheduled", "waiting_container"].includes(d.status)) {
+          if (
+            ["pending_approval", "scheduled", "waiting_container"].includes(
+              d.status,
+            )
+          ) {
             this.update(d, {
               status: "cancelled",
               reason: "Cancelled by authorised actor.",
+              ...(d.approval?.status === "pending"
+                ? {
+                    approval: {
+                      ...d.approval,
+                      status: "rejected" as const,
+                      reviewedAt: this.now(),
+                      reviewer: "cancelled",
+                    },
+                  }
+                : {}),
             });
             return { cancelled: true, delivery: this.publicDelivery(d) };
           }
@@ -163,6 +278,81 @@ export class Engine {
                 : "already_terminal",
           };
         }),
+      delivery_approve: async (i, a) => {
+        requireValue(
+          !a.grant && a.scopes.includes("admin"),
+          "OWNER_APPROVAL_REQUIRED",
+          "A signed-in workspace owner must approve agent deliveries.",
+          403,
+        );
+        const candidate = this.get<Delivery>("delivery:", i.delivery);
+        requireValue(
+          candidate.status === "pending_approval" &&
+            candidate.approval?.required === true &&
+            candidate.approval.status === "pending",
+          "APPROVAL_NOT_PENDING",
+          "This delivery is not awaiting owner approval.",
+          409,
+        );
+        requireValue(
+          await this.options.authorized(candidate.actor),
+          "AUTHORITY_CHANGED",
+          "The requesting agent authority was revoked or expired.",
+          409,
+        );
+        const result = this.store.tx(() => {
+          const d = this.get<Delivery>("delivery:", i.delivery);
+          requireValue(
+            d.status === "pending_approval" &&
+              d.approval?.status === "pending" &&
+              d.fingerprint === candidate.fingerprint,
+            "APPROVAL_CHANGED",
+            "The approval request changed before review completed.",
+            409,
+          );
+          this.update(d, {
+            status: "scheduled",
+            approval: {
+              ...d.approval,
+              status: "approved",
+              reviewedAt: this.now(),
+              reviewer: a.id,
+            },
+            reason: undefined,
+          });
+          return this.publicDelivery(d);
+        });
+        await this.options.wake(Math.max(this.now() + 1, candidate.dueAt));
+        return result;
+      },
+      delivery_reject: (i, a) => {
+        requireValue(
+          !a.grant && a.scopes.includes("admin"),
+          "OWNER_APPROVAL_REQUIRED",
+          "A signed-in workspace owner must reject agent deliveries.",
+          403,
+        );
+        return this.store.tx(() => {
+          const d = this.get<Delivery>("delivery:", i.delivery);
+          requireValue(
+            d.status === "pending_approval" && d.approval?.status === "pending",
+            "APPROVAL_NOT_PENDING",
+            "This delivery is not awaiting owner approval.",
+            409,
+          );
+          this.update(d, {
+            status: "cancelled",
+            approval: {
+              ...d.approval,
+              status: "rejected",
+              reviewedAt: this.now(),
+              reviewer: a.id,
+            },
+            reason: "Rejected by workspace owner before provider dispatch.",
+          });
+          return this.publicDelivery(d);
+        });
+      },
       schedule_replace: async (i, a) => {
         const at = explicitTime(i.at);
         requireValue(
@@ -190,7 +380,9 @@ export class Engine {
         const result = this.store.tx(() => {
           const d = this.get<Delivery>("delivery:", i.delivery);
           requireValue(
-            ["scheduled", "waiting_container"].includes(d.status),
+            ["pending_approval", "scheduled", "waiting_container"].includes(
+              d.status,
+            ),
             "ALREADY_EXECUTING",
             "This delivery can no longer be replaced.",
             409,
@@ -392,10 +584,15 @@ export class Engine {
       this.env.ENCRYPTION_KEY_VERSION,
     );
     return this.store.tx(() => {
-      requireValue(JSON.stringify([
-        this.store.get("account:" + input.alias),
-        this.store.get("oauth:" + input.alias),
-      ]) === expected, "CONNECTION_CHANGED", "Connection changed during identity verification. Review the current connection before reconnecting.", 409);
+      requireValue(
+        JSON.stringify([
+          this.store.get("account:" + input.alias),
+          this.store.get("oauth:" + input.alias),
+        ]) === expected,
+        "CONNECTION_CHANGED",
+        "Connection changed during identity verification. Review the current connection before reconnecting.",
+        409,
+      );
       const old = this.store.get<Account>("account:" + input.alias);
       const a: Account = {
         alias: input.alias,
@@ -467,8 +664,12 @@ export class Engine {
       return undefined;
     });
     if (prior) {
-      requireValue(prior.status !== "archived", "OPERATION_ARCHIVED",
-        "This completed operation was archived. Inspect the saved archive; it will not be executed again.", 409);
+      requireValue(
+        prior.status !== "archived",
+        "OPERATION_ARCHIVED",
+        "This completed operation was archived. Inspect the saved archive; it will not be executed again.",
+        409,
+      );
       if (prior.status === "failed")
         throw new Fault(prior.code, prior.message, prior.httpStatus);
       return prior.status === "complete"
@@ -481,7 +682,12 @@ export class Engine {
     }
     try {
       const result = await this.handlers[name](data, actor);
-      this.store.put(key, { hash, status: "complete", result, completedAt: this.now() });
+      this.store.put(key, {
+        hash,
+        status: "complete",
+        result,
+        completedAt: this.now(),
+      });
       return result;
     } catch (e) {
       if (e instanceof Fault)
@@ -495,71 +701,180 @@ export class Engine {
       throw e;
     }
   }
+  private async deliveryPublication(delivery: Delivery) {
+    return delivery.publication
+      ? validateFrozenPublication(delivery.provider, delivery.publication)
+      : freezePublication(delivery.provider, delivery.text);
+  }
+  private async verifyRecordedPublication(
+    delivery: Delivery,
+    credential: Credential,
+  ) {
+    const publication = await this.deliveryPublication(delivery);
+    const ids = delivery.partIds?.length
+      ? delivery.partIds
+      : delivery.postId
+        ? [delivery.postId]
+        : [];
+    if (ids.length !== publication.parts.length)
+      return { verified: false, verifiedParts: 0, url: delivery.url };
+    let verifiedParts = 0;
+    let url = delivery.url;
+    for (let index = 0; index < publication.parts.length; index++) {
+      const part = publication.parts[index];
+      const evidence = await this.providers.verify(
+        {
+          ...delivery,
+          postId: ids[index],
+          text: part.text,
+          digest: part.digest,
+        },
+        credential,
+      );
+      if (!evidence.verified) break;
+      verifiedParts++;
+      if (index === 0 && evidence.url) url = evidence.url;
+    }
+    return {
+      verified: verifiedParts === publication.parts.length,
+      verifiedParts,
+      url,
+    };
+  }
   private async recheckReceipt(id: string) {
     const delivery = this.get<Delivery>("delivery:", id);
-    requireValue(delivery.postId && ["published_unverified", "published_verified"].includes(delivery.status),
-      "NO_READBACK_TARGET", "Inspect the existing receipt. A recorded publication ID is required; never republish an uncertain write.", 409);
-    if (delivery.status === "published_verified") return this.publicDelivery(delivery);
+    requireValue(
+      delivery.postId &&
+        ["published_unverified", "published_verified"].includes(
+          delivery.status,
+        ),
+      "NO_READBACK_TARGET",
+      "Inspect the existing receipt. A recorded publication ID is required; never republish an uncertain write.",
+      409,
+    );
+    if (delivery.status === "published_verified")
+      return this.publicDelivery(delivery);
     const demandBinding = () => {
       const account = this.connected(delivery.account);
-      requireValue(account.provider === delivery.provider && account.version === delivery.binding && account.identity.id === delivery.identity.id,
-        "ACCOUNT_DRIFT", "The connection no longer matches the recorded publication.", 409);
-      requireValue(delivery.provider !== "linkedin" || account.capabilities?.readback === true,
-        "READBACK_AUTHORITY_CHANGED", "LinkedIn readback authority is unavailable.", 409);
+      requireValue(
+        account.provider === delivery.provider &&
+          account.version === delivery.binding &&
+          account.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT",
+        "The connection no longer matches the recorded publication.",
+        409,
+      );
+      requireValue(
+        delivery.provider !== "linkedin" ||
+          account.capabilities?.readback === true,
+        "READBACK_AUTHORITY_CHANGED",
+        "LinkedIn readback authority is unavailable.",
+        409,
+      );
       return account;
     };
     const account = demandBinding();
     const attempt = this.store.tx(() => {
       const current = this.get<Delivery>("delivery:", id);
-      requireValue((current.readbackAttempts || 0) < 8 && (current.nextReadbackAt || 0) <= this.now(),
-        "READBACK_LIMIT", "Readback recovery permits eight attempts, at least sixty seconds apart.", 429);
+      requireValue(
+        (current.readbackAttempts || 0) < 8 &&
+          (current.nextReadbackAt || 0) <= this.now(),
+        "READBACK_LIMIT",
+        "Readback recovery permits eight attempts, at least sixty seconds apart.",
+        429,
+      );
       const attempt = (current.readbackAttempts || 0) + 1;
-      this.update(current, { readbackAttempts: attempt, nextReadbackAt: this.now() + 60000 });
+      this.update(current, {
+        readbackAttempts: attempt,
+        nextReadbackAt: this.now() + 60000,
+      });
       return attempt;
     });
-    let evidence: { verified: boolean; url?: string } = { verified: false };
+    let evidence: {
+      verified: boolean;
+      verifiedParts: number;
+      url?: string;
+    } = { verified: false, verifiedParts: 0 };
     try {
       const credential = await this.credential(account);
       demandBinding();
-      evidence = await this.providers.verify(delivery, credential);
+      evidence = await this.verifyRecordedPublication(delivery, credential);
     } catch {
       // A failed read cannot erase the durable creation ID or enable a write.
     }
     demandBinding();
     return this.store.tx(() => {
       const current = this.get<Delivery>("delivery:", id);
-      requireValue(current.postId === delivery.postId && current.fingerprint === delivery.fingerprint && current.readbackAttempts === attempt,
-        "READBACK_CHANGED", "A newer readback owns this receipt.", 409);
-      if (current.status !== "published_unverified") return this.publicDelivery(current);
+      requireValue(
+        current.postId === delivery.postId &&
+          current.fingerprint === delivery.fingerprint &&
+          current.readbackAttempts === attempt,
+        "READBACK_CHANGED",
+        "A newer readback owns this receipt.",
+        409,
+      );
+      if (current.status !== "published_unverified")
+        return this.publicDelivery(current);
       this.update(current, {
-        status: evidence.verified ? "published_verified" : "published_unverified",
+        status: evidence.verified
+          ? "published_verified"
+          : "published_unverified",
+        verifiedParts: evidence.verifiedParts,
         url: evidence.url || current.url,
         lastReadbackAt: this.now(),
-        reason: evidence.verified ? undefined : "Provider creation ID retained; exact readback not confirmed.",
+        reason: evidence.verified
+          ? undefined
+          : "Provider creation ID retained; exact readback not confirmed.",
       });
       return this.publicDelivery(current);
     });
   }
-  private validate(c: Campaign) {
+  private async publication(
+    c: Campaign,
+    alias: string,
+    provider: Account["provider"],
+  ) {
+    const frozen = c.publications?.[alias];
+    if (frozen) return validateFrozenPublication(provider, frozen);
+    return freezePublication(provider, c.text[alias]);
+  }
+  private async validate(c: Campaign) {
     const p = this.get<Project>("project:", c.project);
+    requireValue(
+      c.digest === (await digest(c.text)),
+      "PAYLOAD_DRIFT",
+      "Campaign integrity check failed.",
+      409,
+    );
     return {
       campaign: c.id,
       digest: c.digest,
-      targets: Object.entries(c.text).map(([alias, text]) => {
-        requireValue(
-          p.accounts.includes(alias),
-          "ACCOUNT_NOT_BOUND",
-          "Project routing changed.",
-          409,
-        );
-        const a = this.connected(alias);
-        return {
-          alias,
-          identity: a.identity,
-          binding: a.version,
-          ...validateText(a.provider, text),
-        };
-      }),
+      targets: await Promise.all(
+        Object.entries(c.text).map(async ([alias]) => {
+          requireValue(
+            p.accounts.includes(alias),
+            "ACCOUNT_NOT_BOUND",
+            "Project routing changed.",
+            409,
+          );
+          const a = this.connected(alias);
+          const publication = await this.publication(c, alias, a.provider);
+          return {
+            alias,
+            identity: a.identity,
+            binding: a.version,
+            provider: a.provider,
+            publicationType: publication.type,
+            partCount: publication.parts.length,
+            publicationDigest: publication.publicationDigest,
+            parts: publication.parts.map(({ index, digest, text }) => ({
+              index,
+              digest,
+              ...validateText(a.provider, text),
+            })),
+          };
+        }),
+      ),
     };
   }
   private async prepare(
@@ -571,22 +886,24 @@ export class Engine {
     policy?: string,
     aliases = Object.keys(c.text),
   ): Promise<Delivery[]> {
-    this.validate(c);
-    requireValue(
-      c.digest === (await digest(c.text)),
-      "PAYLOAD_DRIFT",
-      "Campaign integrity check failed.",
-      409,
-    );
+    await this.validate(c);
     return Promise.all(
       aliases.map(async (alias) => {
         const a = this.connected(alias);
+        const publication = await this.publication(c, alias, a.provider);
+        const approval = actor.grant
+          ? {
+              required: true,
+              status: "pending" as const,
+              requestedAt: this.now(),
+            }
+          : undefined;
         return {
           id: uid(),
           fingerprint: await digest({
             provider: a.provider,
             identity: a.identity.id,
-            text: c.text[alias],
+            text: publication.text,
           }),
           campaign: c.id,
           project: c.project,
@@ -594,15 +911,19 @@ export class Engine {
           provider: a.provider,
           identity: a.identity,
           binding: a.version,
-          text: c.text[alias],
-          digest: await digest(c.text[alias]),
+          text: publication.text,
+          digest: publication.digest,
+          publication,
           dueAt: at,
           timezone,
-          status: "scheduled" as const,
+          status: actor.grant
+            ? ("pending_approval" as const)
+            : ("scheduled" as const),
           createdAt: this.now(),
           updatedAt: this.now(),
           actor,
           automatic,
+          ...(approval ? { approval } : {}),
           policy,
           policyVersion: policy
             ? this.get<Profile>("profile:", policy).revision
@@ -736,7 +1057,12 @@ export class Engine {
       policy,
     );
     const result = this.store.tx(() => this.reservePrepared(prepared));
-    await this.options.wake(Math.max(this.now() + 1, at));
+    if (
+      result.deliveries.some((delivery) =>
+        ["scheduled", "waiting_container"].includes(delivery.status),
+      )
+    )
+      await this.options.wake(Math.max(this.now() + 1, at));
     return result;
   }
   private pauseProfile(id: string, reason: string) {
@@ -746,7 +1072,9 @@ export class Engine {
     for (const d of this.deliveries().filter(
       (d) =>
         d.policy === id &&
-        ["scheduled", "waiting_container"].includes(d.status),
+        ["pending_approval", "scheduled", "waiting_container"].includes(
+          d.status,
+        ),
     ))
       this.update(d, { status: "cancelled", reason });
     return { id, enabled: false };
@@ -769,7 +1097,7 @@ export class Engine {
         "UNKNOWN_TEMPLATE_FIELD",
         "Allowed substitutions: {repository}, {commit}, {source_url}.",
       );
-      validateText(
+      publicationParts(
         this.connected(alias).provider,
         text
           .replaceAll("{repository}", p.repository)
@@ -812,10 +1140,14 @@ export class Engine {
     const credential = await this.credential(account);
     const demandBinding = () => {
       const current = this.connected(delivery.account);
-      requireValue(current.provider === delivery.provider &&
-        current.version === delivery.binding &&
-        current.identity.id === delivery.identity.id,
-        "ACCOUNT_DRIFT", "Account changed since publication.", 409);
+      requireValue(
+        current.provider === delivery.provider &&
+          current.version === delivery.binding &&
+          current.identity.id === delivery.identity.id,
+        "ACCOUNT_DRIFT",
+        "Account changed since publication.",
+        409,
+      );
     };
     demandBinding();
     const metrics = await this.providers.metrics(delivery, credential);
@@ -830,11 +1162,7 @@ export class Engine {
       .sort((a, b) => b.dueAt - a.dueAt)
       .slice(0, 10)) {
       const current = this.get<Profile>("profile:", p.id);
-      if (
-        !current.enabled ||
-        current.revision !== p.revision ||
-        !this.paid()
-      )
+      if (!current.enabled || current.revision !== p.revision || !this.paid())
         return false;
       try {
         const a = this.connected(d.account);
@@ -846,14 +1174,14 @@ export class Engine {
         );
         const metrics = await this.captureMetrics(d, a);
         const latest = this.get<Profile>("profile:", p.id);
-        if (
-          !latest.enabled ||
-          latest.revision !== p.revision ||
-          !this.paid()
-        )
+        if (!latest.enabled || latest.revision !== p.revision || !this.paid())
           return false;
         this.update(this.get<Delivery>("delivery:", d.id), { metrics });
-        if ((metrics as { availability?: string } | null)?.availability !== "available") failures++;
+        if (
+          (metrics as { availability?: string } | null)?.availability !==
+          "available"
+        )
+          failures++;
       } catch {
         failures++;
       }
@@ -900,7 +1228,9 @@ export class Engine {
             for (const d of this.deliveries().filter(
               (d) =>
                 d.policy === p.id &&
-                ["scheduled", "waiting_container"].includes(d.status),
+                ["pending_approval", "scheduled", "waiting_container"].includes(
+                  d.status,
+                ),
             ))
               this.update(d, {
                 status: "cancelled",
@@ -918,15 +1248,27 @@ export class Engine {
                   ),
               ]),
             );
+            const publications = Object.fromEntries(
+              await Promise.all(
+                Object.entries(text).map(async ([alias, value]) => [
+                  alias,
+                  await freezePublication(
+                    this.connected(alias).provider,
+                    value,
+                  ),
+                ]),
+              ),
+            );
             const c: Campaign = {
               id: await digest({ profile: p.id, sha: source.sha }),
               project: p.project,
               text,
+              publications,
               digest: await digest(text),
               createdAt: this.now(),
               source: { profile: p.id, sha: source.sha, family: p.family },
             };
-            this.validate(c);
+            await this.validate(c);
             this.store.put("campaign:" + c.id, c);
             this.store.put("inventory:" + p.id, {
               campaign: c.id,
@@ -949,10 +1291,15 @@ export class Engine {
             let remaining = false;
             for (const alias of Object.keys(c.text)) {
               const account = this.connected(alias);
+              const publication = await this.publication(
+                c,
+                alias,
+                account.provider,
+              );
               const fingerprint = await digest({
                 provider: account.provider,
                 identity: account.identity.id,
-                text: c.text[alias],
+                text: publication.text,
               });
               const existingId = this.store.get<string>(
                 "fingerprint:" + fingerprint,
@@ -986,8 +1333,7 @@ export class Engine {
                 );
                 return this.reservePrepared(prepared);
               });
-              slot +=
-                Math.max(p.minSpacingMinutes, p.intervalMinutes) * 60000;
+              slot += Math.max(p.minSpacingMinutes, p.intervalMinutes) * 60000;
             }
             if (!remaining) this.store.delete("inventory:" + p.id);
           }
@@ -1014,14 +1360,20 @@ export class Engine {
     let d = this.get<Delivery>("delivery:", id);
     if (d.status === "executing") {
       if ((d.claimUntil || 0) > this.now()) return;
+      const completed = d.partIds?.length || (d.postId ? 1 : 0);
+      const partCount = d.publication?.parts.length || 1;
       this.update(d, {
-        status: d.postId
-          ? "published_unverified"
+        status: completed
+          ? completed === partCount
+            ? "published_unverified"
+            : "partial_effect"
           : d.phase === "publish"
             ? "ambiguous_effect"
             : "failed",
-        reason: d.postId
-          ? "Creation ID survived interruption; readback was not completed."
+        reason: completed
+          ? completed === partCount
+            ? "Every provider creation ID survived interruption; readback was not completed."
+            : `Execution stopped after ${completed}/${partCount} durable thread parts. No completed part will be replayed.`
           : d.phase === "publish"
             ? "Execution interrupted after write boundary. Do not resubmit."
             : "Execution interrupted before publication. No automatic retry.",
@@ -1113,6 +1465,13 @@ export class Engine {
         "Captured content integrity failed.",
         409,
       );
+      const publication = await this.deliveryPublication(d);
+      requireValue(
+        publication.digest === d.digest,
+        "PAYLOAD_DRIFT",
+        "Captured publication no longer matches its text digest.",
+        409,
+      );
       const credential = await this.credential(a),
         identity = await this.providers.identity(
           d.provider,
@@ -1132,13 +1491,28 @@ export class Engine {
         "The runtime changed after owner approval.",
         409,
       );
+      const completedParts = d.partIds?.length || 0;
+      requireValue(
+        completedParts < publication.parts.length,
+        "PUBLICATION_COMPLETE",
+        "All provider part IDs are already recorded. Use receipt readback; never publish again.",
+        409,
+      );
+      const part = publication.parts[completedParts];
+      const replyToId = completedParts
+        ? d.partIds?.[completedParts - 1]
+        : undefined;
       if (d.provider === "threads") {
         if (!d.containerId) {
           this.update(d, {
             phase: "container_create",
             claimUntil: this.now() + 60000,
           });
-          const containerId = await this.providers.createContainer(d, credential);
+          const containerId = await this.providers.createContainer(
+            d,
+            credential,
+            { text: part.text, ...(replyToId ? { replyToId } : {}) },
+          );
           demandClaim();
           this.update(d, {
             containerId,
@@ -1204,32 +1578,70 @@ export class Engine {
           409,
         );
       this.update(d, { phase: "publish", claimUntil: this.now() + 60000 });
-      const published = await this.providers.publish(d, credential);
+      const published = await this.providers.publish(d, credential, {
+        text: part.text,
+        ...(replyToId ? { replyToId } : {}),
+      });
       const current = this.get<Delivery>("delivery:", id);
       if (current.claimId !== claimId) return;
       d = current;
+      const partIds = [...(d.partIds || []), published.id];
       this.update(d, {
-        postId: published.id,
-        url: published.url,
+        partIds,
+        postId: d.postId || published.id,
+        url: d.url || published.url,
+        containerId: undefined,
+        containerChecks: undefined,
+        nextCheck: undefined,
         phase: "readback",
         status: "published_unverified",
       });
+      let verified = false;
       try {
-        const evidence = await this.providers.verify(d, credential);
+        const evidence = await this.providers.verify(
+          {
+            ...d,
+            postId: published.id,
+            text: part.text,
+            digest: part.digest,
+          },
+          credential,
+        );
+        verified = evidence.verified;
+        const contiguous = d.verifiedParts || 0;
         this.update(d, {
-          status: evidence.verified
-            ? "published_verified"
-            : "published_unverified",
-          url: evidence.url || d.url,
-          reason: evidence.verified
-            ? undefined
-            : "Provider creation ID recorded; exact readback unavailable.",
+          verifiedParts:
+            evidence.verified && contiguous === completedParts
+              ? contiguous + 1
+              : contiguous,
+          url: completedParts === 0 ? evidence.url || d.url : d.url,
         });
       } catch {
-        this.update(d, {
-          reason: "Provider creation ID recorded; readback unavailable.",
-        });
+        // The durable provider ID remains authoritative even if this read fails.
       }
+      d = this.get<Delivery>("delivery:", id);
+      if (partIds.length < publication.parts.length) {
+        this.update(d, {
+          status: "scheduled",
+          phase: "identity",
+          claimId: undefined,
+          claimUntil: undefined,
+          reason: verified
+            ? `Thread part ${partIds.length}/${publication.parts.length} published and verified; the next frozen part remains.`
+            : `Thread part ${partIds.length}/${publication.parts.length} has a durable provider ID; readback is pending while the next frozen part remains.`,
+        });
+        await this.options.wake(this.now() + 1);
+        return;
+      }
+      const allVerified = (d.verifiedParts || 0) === publication.parts.length;
+      this.update(d, {
+        status: allVerified ? "published_verified" : "published_unverified",
+        claimId: undefined,
+        claimUntil: undefined,
+        reason: allVerified
+          ? undefined
+          : "Every provider creation ID is recorded; one or more exact part readbacks remain unverified.",
+      });
     } catch (e) {
       const code = e instanceof Fault ? e.code : "UNEXPECTED_FAILURE";
       const latest = this.get<Delivery>("delivery:", id);
@@ -1239,20 +1651,27 @@ export class Engine {
         latest.status !== "executing"
       )
         return;
-      this.update(d, {
+      const completed = latest.partIds?.length || 0;
+      this.update(latest, {
         status:
           code === "AMBIGUOUS_PROVIDER_WRITE" ||
-          (!(e instanceof Fault) && d.phase === "publish")
+          (!(e instanceof Fault) && latest.phase === "publish")
             ? "ambiguous_effect"
-            : [
-                  "ACCOUNT_DRIFT",
-                  "PAYLOAD_DRIFT",
-                  "AUTHORITY_CHANGED",
-                  "CONNECTION_INACTIVE",
-                ].includes(code)
-              ? "drift_blocked"
-              : "failed",
-        reason: code,
+            : completed > 0
+              ? "partial_effect"
+              : [
+                    "ACCOUNT_DRIFT",
+                    "PAYLOAD_DRIFT",
+                    "AUTHORITY_CHANGED",
+                    "CONNECTION_INACTIVE",
+                  ].includes(code)
+                ? "drift_blocked"
+                : "failed",
+        failedPartIndex: completed + 1,
+        reason:
+          completed > 0 && code !== "AMBIGUOUS_PROVIDER_WRITE"
+            ? `Thread stopped after ${completed} durable part(s): ${code}. Completed parts will not be replayed.`
+            : code,
       });
     }
   }
@@ -1273,7 +1692,9 @@ export class Engine {
   }
   async scheduleNext() {
     const times = this.deliveries()
-      .filter((d) => active.has(d.status))
+      .filter((d) =>
+        ["scheduled", "waiting_container", "executing"].includes(d.status),
+      )
       .map((d) =>
         d.status === "scheduled"
           ? d.dueAt

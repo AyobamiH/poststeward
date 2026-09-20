@@ -40,10 +40,7 @@ function readiness(overrides = {}) {
         signupMode: "restricted",
       },
     },
-    evidenceStillExternal: [
-      "native_webmcp",
-      "public_signup",
-    ],
+    evidenceStillExternal: ["public_signup"],
     ...overrides,
   };
 }
@@ -51,9 +48,19 @@ function readiness(overrides = {}) {
 function gates(overrides = {}) {
   const rows = [
     ["owner_google_signin", "live_verified", false, "restricted_staging"],
-    ["exact_recovery_checkpoints", "live_verified", false, "restricted_staging"],
-    ["approximate_timestamp_pitr", "blocked_external", false, "restricted_staging"],
-    ["native_webmcp", "unavailable_capability", false, "restricted_staging"],
+    [
+      "exact_recovery_checkpoints",
+      "live_verified",
+      false,
+      "restricted_staging",
+    ],
+    [
+      "approximate_timestamp_pitr",
+      "blocked_external",
+      false,
+      "restricted_staging",
+    ],
+    ["native_webmcp", "live_verified", false, "restricted_staging"],
     ["github_main_ruleset", "live_verified", false, "production"],
     ["capacity_cost_calibration", "live_verified", false, "production"],
     ["public_signup", "disabled_policy", true, "public_launch"],
@@ -64,10 +71,9 @@ function gates(overrides = {}) {
 test("hosted release control accepts matching healthy runtime and reviewed gate ledger", async () => {
   const report = await verifyReleaseControl(origin, release, async (url) => {
     const path = new URL(url).pathname;
-    return Response.json(
-      path === "/readiness.json" ? readiness() : gates(),
-      { headers: secureHeaders },
-    );
+    return Response.json(path === "/readiness.json" ? readiness() : gates(), {
+      headers: secureHeaders,
+    });
   });
   assert.equal(report.passed, true);
   assert.equal(report.checks.length, 2);
@@ -78,7 +84,12 @@ test("hosted release control fails closed on an unsafe runtime policy contradict
     const path = new URL(url).pathname;
     return Response.json(
       path === "/readiness.json"
-        ? readiness({ policy: { healthy: false, violations: ["advanced_globally_enabled_before_canary_gate"] } })
+        ? readiness({
+            policy: {
+              healthy: false,
+              violations: ["advanced_globally_enabled_before_canary_gate"],
+            },
+          })
         : gates(),
       { headers: secureHeaders },
     );
@@ -128,9 +139,7 @@ test("hosted release control rejects public admission incorrectly coupled to tec
       return Response.json(readiness(), { headers: secureHeaders });
     const value = gates();
     value.gates = value.gates.map((gate) =>
-      gate.id === "public_signup"
-        ? { ...gate, scope: "production" }
-        : gate,
+      gate.id === "public_signup" ? { ...gate, scope: "production" } : gate,
     );
     return Response.json(value, { headers: secureHeaders });
   });

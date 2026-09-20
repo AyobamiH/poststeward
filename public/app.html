@@ -4,8 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
-    <meta name="theme-color" content="#f4f4f0" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0f110f" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="theme-color"
+      content="#f4f4f0"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0f110f"
+      media="(prefers-color-scheme: dark)"
+    />
     <title>PostSteward workspace</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/style.css" />
@@ -29,7 +37,10 @@
           <button id="signout" type="button">Sign out</button>
           <details class="product-menu">
             <summary>Navigate</summary>
-            <nav class="product-menu-panel" aria-label="Mobile product navigation">
+            <nav
+              class="product-menu-panel"
+              aria-label="Mobile product navigation"
+            >
               <a href="/app" aria-current="page">Workspace</a>
               <a href="/pilot">Acceptance</a>
               <a href="/advanced-inventory.html">Inventory</a>
@@ -67,8 +78,9 @@
               <p class="eyebrow">OWNER CONTROL PLANE</p>
               <h1 id="plan">Free publishing</h1>
               <p class="page-description">
-                Configure trusted destinations, route exact approved copy, inspect provider
-                evidence and decide what authority an agent may exercise.
+                Configure trusted destinations, route exact approved copy,
+                inspect provider evidence and decide what authority an agent may
+                exercise.
               </p>
               <div class="page-state-row">
                 <p id="readiness" class="muted"></p>
@@ -80,41 +92,76 @@
             </div>
           </section>
 
-          <section class="product-status-strip" aria-label="Browser transport status">
+          <section
+            class="product-status-strip"
+            aria-label="Browser transport status"
+          >
             <div>
               <p class="machine-label">BROWSER TRANSPORT</p>
-              <p>Native WebMCP is additive. HTTP and remote MCP remain the stable agent surfaces.</p>
+              <p>
+                Native WebMCP is additive. HTTP and remote MCP remain the stable
+                agent surfaces.
+              </p>
               <pre id="webmcp-observation" class="preview" hidden></pre>
             </div>
-            <button id="webmcp-check" type="button" disabled>Check native WebMCP</button>
+            <button id="webmcp-check" type="button" disabled>
+              Check native WebMCP
+            </button>
           </section>
 
           <div class="sequence-rail" aria-label="Workspace operating sequence">
-            <div class="sequence-step"><span>01 · DESTINATION</span><strong>Verify where work may go</strong></div>
-            <div class="sequence-step"><span>02 · INTENT</span><strong>Capture exact approved copy</strong></div>
-            <div class="sequence-step"><span>03 · EFFECT</span><strong>Publish or reserve once</strong></div>
-            <div class="sequence-step"><span>04 · EVIDENCE</span><strong>Inspect what actually happened</strong></div>
+            <div class="sequence-step">
+              <span>01 · DESTINATION</span
+              ><strong>Verify where work may go</strong>
+            </div>
+            <div class="sequence-step">
+              <span>02 · INTENT</span
+              ><strong>Capture exact approved copy</strong>
+            </div>
+            <div class="sequence-step">
+              <span>03 · EFFECT</span><strong>Publish or reserve once</strong>
+            </div>
+            <div class="sequence-step">
+              <span>04 · EVIDENCE</span
+              ><strong>Inspect what actually happened</strong>
+            </div>
           </div>
+          <details class="preview">
+            <summary>Inspect live publishing capability matrix</summary>
+            <p class="muted">
+              This separates code support, deployed provider applications,
+              connected stable identities and rollout-gated features. A local
+              alias never determines the public author.
+            </p>
+            <pre id="publishing-capabilities">Loading…</pre>
+          </details>
 
           <section class="work-zone" aria-labelledby="publishing-work-heading">
             <div class="work-zone-head">
               <div>
                 <p class="eyebrow">SETUP → PUBLISH</p>
-                <h2 id="publishing-work-heading">Route approved intent to one explicit destination.</h2>
+                <h2 id="publishing-work-heading">
+                  Route approved intent to one explicit destination.
+                </h2>
               </div>
               <p>
-                Destination identity is established first. Projects then bind those accounts,
-                and campaigns preserve the exact reviewed text used at dispatch.
+                Destination identity is established first. Projects then bind
+                those accounts, and campaigns preserve the exact reviewed text
+                used at dispatch.
               </p>
             </div>
 
             <div class="work-zone-grid">
-              <section id="destinations" class="work-pane secondary" aria-labelledby="accounts-heading">
+              <section
+                id="destinations"
+                class="work-pane secondary"
+                aria-labelledby="accounts-heading"
+              >
                 <p class="eyebrow">DESTINATIONS</p>
                 <h2 id="accounts-heading">1. Connect a social account</h2>
                 <p class="muted">
-                  Provider OAuth is the primary path. Account identity is verified before
-                  PostSteward stores the connection.
+                  Provider OAuth is the primary path. Account identity is
+                  verified before PostSteward stores the connection.
                 </p>
                 <form id="oauth" autocomplete="off">
                   <label
@@ -125,8 +172,12 @@
                       placeholder="product_x"
                   /></label>
                   <label
-                    >LinkedIn publishing destination<select name="linkedinDestination">
-                      <option value="organization" selected>Company Page</option>
+                    >LinkedIn publishing destination<select
+                      name="linkedinDestination"
+                    >
+                      <option value="organization" selected>
+                        Company Page
+                      </option>
                       <option value="member">Personal profile</option>
                     </select></label
                   >
@@ -139,24 +190,39 @@
                       spellcheck="false"
                   /></label>
                   <p id="linkedin-connection-help" class="muted">
-                    Enter the numeric Page ID or exact Page URN. PostSteward supplies the application;
-                    the authorising member must hold an eligible role on that Page.
+                    Enter the numeric Page ID or exact Page URN. PostSteward
+                    supplies the application; the authorising member must hold
+                    an eligible role on that Page.
                   </p>
                   <div class="row" id="oauth-buttons">
-                    <button type="button" data-provider="x" disabled>Connect X</button>
-                    <button type="button" data-provider="threads" disabled>Connect Threads</button>
-                    <button type="button" data-provider="linkedin" disabled>Connect LinkedIn</button>
+                    <button type="button" data-provider="x" disabled>
+                      Connect X
+                    </button>
+                    <button type="button" data-provider="threads" disabled>
+                      Connect Threads
+                    </button>
+                    <button type="button" data-provider="linkedin" disabled>
+                      Connect LinkedIn
+                    </button>
                   </div>
-                  <p id="oauth-status" class="muted">Checking provider applications…</p>
+                  <p id="oauth-status" class="muted">
+                    Checking provider applications…
+                  </p>
                 </form>
                 <details>
                   <summary>Manual token import fallback</summary>
                   <p class="muted">
-                    Use only an already-authorised user token. Manual import does not claim
-                    refresh support. Tokens are cleared from the browser form after each attempt.
+                    Use only an already-authorised user token. Manual import
+                    does not claim refresh support. Tokens are cleared from the
+                    browser form after each attempt.
                   </p>
                   <form id="connection" autocomplete="off">
-                    <label>Account alias<input name="alias" required pattern="[A-Za-z0-9_-]+" /></label>
+                    <label
+                      >Account alias<input
+                        name="alias"
+                        required
+                        pattern="[A-Za-z0-9_-]+"
+                    /></label>
                     <label
                       >Provider<select name="provider">
                         <option value="x">X</option>
@@ -171,10 +237,15 @@
                         autocomplete="off"
                         required
                     /></label>
-                    <label>Token expires at<input name="expiry" type="datetime-local" /></label>
+                    <label
+                      >Token expires at<input
+                        name="expiry"
+                        type="datetime-local"
+                    /></label>
                     <label class="check"
-                      ><input name="funding" type="checkbox" /> For X manual import, these
-                      credentials use my own funded developer app.</label
+                      ><input name="funding" type="checkbox" /> For X manual
+                      import, these credentials use my own funded developer
+                      app.</label
                     >
                     <button>Verify and connect</button>
                   </form>
@@ -182,38 +253,71 @@
                 <div id="accounts" class="record-list"></div>
               </section>
 
-              <section id="publishing" class="work-pane" aria-labelledby="publishing-heading">
+              <section
+                id="publishing"
+                class="work-pane"
+                aria-labelledby="publishing-heading"
+              >
                 <p class="eyebrow">EXACT INTENT</p>
                 <h2 id="publishing-heading">2. Bind a project</h2>
                 <p class="muted">
-                  Routes are explicit. Existing deliveries retain the account binding captured
-                  when they were reserved.
+                  Routes are explicit. Existing deliveries retain the account
+                  binding captured when they were reserved.
                 </p>
                 <form id="project">
-                  <label>Project ID<input name="id" required pattern="[A-Za-z0-9_-]+" /></label>
+                  <label
+                    >Project ID<input
+                      name="id"
+                      required
+                      pattern="[A-Za-z0-9_-]+"
+                  /></label>
                   <label>Name<input name="name" required /></label>
-                  <label>Account aliases, comma separated<input name="accounts" required /></label>
+                  <label
+                    >Account aliases, comma separated<input
+                      name="accounts"
+                      required
+                  /></label>
                   <button>Create project</button>
                 </form>
                 <div id="projects" class="record-list"></div>
 
                 <h2>3. Submit exact copy</h2>
                 <p class="muted">
-                  The campaign stores reviewed text as the claim boundary. Dispatch does not
-                  generate, shorten or rewrite it.
+                  The campaign stores reviewed text as the claim boundary.
+                  Dispatch does not generate, shorten or rewrite it. Long X or
+                  Threads copy is split at stable boundaries, shown here part by
+                  part, and frozen as one reply chain before it can be
+                  scheduled.
                 </p>
                 <form id="campaign">
-                  <label>Project<select name="project" id="project-select" required></select></label>
                   <label
-                    >Destination account<select name="alias" id="account-select" required></select></label
-                  >
-                  <label>Approved text<textarea name="text" rows="5" required></textarea></label>
+                    >Project<select
+                      name="project"
+                      id="project-select"
+                      required
+                    ></select
+                  ></label>
+                  <label
+                    >Destination account<select
+                      name="alias"
+                      id="account-select"
+                      required
+                    ></select
+                  ></label>
+                  <label
+                    >Approved text<textarea
+                      name="text"
+                      rows="5"
+                      required
+                    ></textarea>
+                  </label>
                   <button>Create and validate campaign</button>
                 </form>
                 <div id="campaign-preview" class="preview" hidden></div>
                 <form id="delivery" hidden>
                   <label
-                    >Schedule time with UTC offset (empty means publish now)<input
+                    >Schedule time with UTC offset (empty means publish
+                    now)<input
                       name="at"
                       type="text"
                       placeholder="2026-10-01T12:00:00Z"
@@ -224,16 +328,21 @@
             </div>
           </section>
 
-          <section id="evidence-panel" class="work-zone" aria-labelledby="receipts-heading">
+          <section
+            id="evidence-panel"
+            class="work-zone"
+            aria-labelledby="receipts-heading"
+          >
             <div class="evidence-zone">
               <div class="zone-header">
                 <div>
                   <p class="eyebrow">EXTERNAL EFFECT EVIDENCE</p>
                   <h2 id="receipts-heading">Delivery receipts</h2>
                   <p>
-                    A reservation is not publication proof. Verified, unverified, ambiguous,
-                    blocked and failed outcomes remain distinct so transport uncertainty cannot
-                    become a duplicate write.
+                    A reservation is not publication proof. Verified,
+                    unverified, ambiguous, blocked and failed outcomes remain
+                    distinct so transport uncertainty cannot become a duplicate
+                    write.
                   </p>
                 </div>
                 <button id="export">Export workspace</button>
@@ -248,11 +357,14 @@
             <div class="work-zone-head">
               <div>
                 <p class="eyebrow">AUTHORITY & SOURCES</p>
-                <h2 id="authority-heading">Delegate narrowly, then attach reviewed evidence.</h2>
+                <h2 id="authority-heading">
+                  Delegate narrowly, then attach reviewed evidence.
+                </h2>
               </div>
               <p>
-                Agent authority and source access are separate concerns. A source can be readable
-                without granting an agent permission to publish it.
+                Agent authority and source access are separate concerns. A
+                source can be readable without granting an agent permission to
+                publish it.
               </p>
             </div>
 
@@ -261,21 +373,56 @@
                 <p class="eyebrow">DELEGATED AUTHORITY</p>
                 <h2 id="agent-access-heading">Agent access</h2>
                 <p class="muted">
-                  Issue the smallest useful grant. Tokens are scoped, expiring and revocable;
-                  owner-only controls are not delegated here.
+                  Issue the smallest useful grant. Tokens are scoped, expiring
+                  and revocable; owner-only controls are not delegated here.
+                  Every delivery created with an agent token waits for an owner
+                  to approve its frozen destination, identity, text and time
+                  before dispatch.
                 </p>
                 <form id="grant">
                   <fieldset>
                     <legend>Allowed operations</legend>
-                    <label class="check"><input type="checkbox" name="scope" value="read" checked /> Inspect</label>
-                    <label class="check"><input type="checkbox" name="scope" value="campaign:write" /> Create campaigns and routes</label>
-                    <label class="check"><input type="checkbox" name="scope" value="publish" /> Publish now</label>
-                    <label class="check"><input type="checkbox" name="scope" value="schedule" /> Schedule and cancel</label>
-                    <label class="check"><input type="checkbox" name="scope" value="automation" /> Manage automation</label>
-                    <label class="check"><input type="checkbox" name="scope" value="billing" /> Make purchases</label>
+                    <label class="check"
+                      ><input
+                        type="checkbox"
+                        name="scope"
+                        value="read"
+                        checked
+                      />
+                      Inspect</label
+                    >
+                    <label class="check"
+                      ><input
+                        type="checkbox"
+                        name="scope"
+                        value="campaign:write"
+                      />
+                      Create campaigns and routes</label
+                    >
+                    <label class="check"
+                      ><input type="checkbox" name="scope" value="publish" />
+                      Publish now</label
+                    >
+                    <label class="check"
+                      ><input type="checkbox" name="scope" value="schedule" />
+                      Schedule and cancel</label
+                    >
+                    <label class="check"
+                      ><input type="checkbox" name="scope" value="automation" />
+                      Manage automation</label
+                    >
+                    <label class="check"
+                      ><input type="checkbox" name="scope" value="billing" />
+                      Make purchases</label
+                    >
                   </fieldset>
                   <label
-                    >Expires in hours<input type="number" name="hours" min="1" max="720" value="168"
+                    >Expires in hours<input
+                      type="number"
+                      name="hours"
+                      min="1"
+                      max="720"
+                      value="168"
                   /></label>
                   <button>Create agent token</button>
                 </form>
@@ -287,18 +434,23 @@
                 <p class="eyebrow">REVIEWED SOURCES</p>
                 <div class="row">
                   <h2 id="source-heading">Private GitHub sources</h2>
-                  <button id="github-source-connect" type="button" disabled>Connect repositories</button>
+                  <button id="github-source-connect" type="button" disabled>
+                    Connect repositories
+                  </button>
                 </div>
                 <p class="muted">
-                  Optional for private repositories. PostSteward accepts selected repositories
-                  with read-only Contents access and keeps GitHub credentials out of the browser.
+                  Optional for private repositories. PostSteward accepts
+                  selected repositories with read-only Contents access and keeps
+                  GitHub credentials out of the browser.
                 </p>
-                <p id="github-source-status" class="muted" role="status">Checking GitHub source access…</p>
+                <p id="github-source-status" class="muted" role="status">
+                  Checking GitHub source access…
+                </p>
                 <div id="github-sources" class="record-list"></div>
                 <h3>Check private source access</h3>
                 <p class="muted">
-                  Read the latest commit for a linked repository. This creates no automation and
-                  is available without a subscription.
+                  Read the latest commit for a linked repository. This creates
+                  no automation and is available without a subscription.
                 </p>
                 <form id="github-source-probe">
                   <label
@@ -306,32 +458,58 @@
                       id="github-probe-repository"
                       name="repository"
                       required
-                    ></select></label
-                  >
-                  <label>Branch<input name="branch" value="main" required maxlength="200" /></label>
-                  <label>Path<input name="path" value="README.md" required maxlength="300" /></label>
-                  <button id="github-probe-submit" disabled>Check source access</button>
+                    ></select
+                  ></label>
+                  <label
+                    >Branch<input
+                      name="branch"
+                      value="main"
+                      required
+                      maxlength="200"
+                  /></label>
+                  <label
+                    >Path<input
+                      name="path"
+                      value="README.md"
+                      required
+                      maxlength="300"
+                  /></label>
+                  <button id="github-probe-submit" disabled>
+                    Check source access
+                  </button>
                 </form>
-                <pre id="github-probe-result" class="preview" role="status" hidden></pre>
+                <pre
+                  id="github-probe-result"
+                  class="preview"
+                  role="status"
+                  hidden
+                ></pre>
               </section>
             </div>
           </section>
 
-          <section id="advanced" class="work-zone" aria-labelledby="advanced-heading">
+          <section
+            id="advanced"
+            class="work-zone"
+            aria-labelledby="advanced-heading"
+          >
             <div class="advanced-zone">
               <div class="zone-header">
                 <div>
                   <p class="eyebrow">CONTINUING OPERATION</p>
                   <h2 id="advanced-heading">Advanced · $5 per month</h2>
                   <p>
-                    Add reviewed source monitoring, inventory replenishment and spaced future
-                    delivery. Payment never grants posting authority by itself.
+                    Add reviewed source monitoring, inventory replenishment and
+                    spaced future delivery. Payment never grants posting
+                    authority by itself.
                   </p>
                 </div>
                 <div class="status-cluster">
                   <button id="subscribe">Get subscription quote</button>
                   <button id="portal">Manage billing</button>
-                  <a class="button" href="/advanced-inventory.html">Open inventory</a>
+                  <a class="button" href="/advanced-inventory.html"
+                    >Open inventory</a
+                  >
                 </div>
               </div>
               <div class="zone-body">
@@ -339,23 +517,71 @@
                 <div id="quote" class="preview" hidden></div>
                 <h3>Automation profile</h3>
                 <form id="profile">
-                  <label>Profile ID<input name="id" required pattern="[A-Za-z0-9_-]+" /></label>
-                  <label>Project<select name="project" id="profile-project" required></select></label>
+                  <label
+                    >Profile ID<input
+                      name="id"
+                      required
+                      pattern="[A-Za-z0-9_-]+"
+                  /></label>
+                  <label
+                    >Project<select
+                      name="project"
+                      id="profile-project"
+                      required
+                    ></select
+                  ></label>
                   <label
                     >Repository<input
                       name="repository"
                       required
                       list="github-repositories"
-                      placeholder="owner/repository"
-                    /><datalist id="github-repositories"></datalist></label
-                  >
-                  <label>Branch<input name="branch" required value="main" /></label>
-                  <label>Path<input name="path" required value="README.md" /></label>
-                  <label>Family<input name="family" required value="development" pattern="[A-Za-z0-9_-]+" /></label>
-                  <label>Destination<select name="alias" id="profile-account" required></select></label>
-                  <label>Exact reviewed template<textarea name="template" rows="4" required></textarea></label>
-                  <label>Interval minutes<input name="interval" type="number" min="15" max="10080" value="60" /></label>
-                  <label>Minimum spacing minutes<input name="spacing" type="number" min="15" max="10080" value="60" /></label>
+                      placeholder="owner/repository" /><datalist
+                      id="github-repositories"
+                    ></datalist
+                  ></label>
+                  <label
+                    >Branch<input name="branch" required value="main"
+                  /></label>
+                  <label
+                    >Path<input name="path" required value="README.md"
+                  /></label>
+                  <label
+                    >Family<input
+                      name="family"
+                      required
+                      value="development"
+                      pattern="[A-Za-z0-9_-]+"
+                  /></label>
+                  <label
+                    >Destination<select
+                      name="alias"
+                      id="profile-account"
+                      required
+                    ></select
+                  ></label>
+                  <label
+                    >Exact reviewed template<textarea
+                      name="template"
+                      rows="4"
+                      required
+                    ></textarea>
+                  </label>
+                  <label
+                    >Interval minutes<input
+                      name="interval"
+                      type="number"
+                      min="15"
+                      max="10080"
+                      value="60"
+                  /></label>
+                  <label
+                    >Minimum spacing minutes<input
+                      name="spacing"
+                      type="number"
+                      min="15"
+                      max="10080"
+                      value="60"
+                  /></label>
                   <button id="profile-configure">Store reviewed profile</button>
                 </form>
                 <div id="profiles" class="record-list"></div>
@@ -363,15 +589,22 @@
             </div>
           </section>
 
-          <section id="recovery-safety" class="work-zone" aria-labelledby="recovery-heading">
+          <section
+            id="recovery-safety"
+            class="work-zone"
+            aria-labelledby="recovery-heading"
+          >
             <div class="safety-zone danger-zone">
               <div class="zone-header">
                 <div>
                   <p class="eyebrow">OWNER-ONLY SAFETY CONTROL</p>
-                  <h2 id="recovery-heading">Recovery and external-effect safety</h2>
+                  <h2 id="recovery-heading">
+                    Recovery and external-effect safety
+                  </h2>
                   <p>
-                    Recovery is an authority transition, not a retry. Preparing quarantines the
-                    workspace; execution and undo require exact typed confirmation.
+                    Recovery is an authority transition, not a retry. Preparing
+                    quarantines the workspace; execution and undo require exact
+                    typed confirmation.
                   </p>
                 </div>
                 <a class="button" href="/recovery">Recovery details</a>
@@ -379,19 +612,44 @@
               <div class="zone-body">
                 <div id="recovery-status" class="preview"></div>
                 <form id="recovery-prepare">
-                  <label>Restore target, previous 30 days<input name="at" type="datetime-local" required /></label>
-                  <label>Reason<input name="reason" required minlength="3" maxlength="240" /></label>
+                  <label
+                    >Restore target, previous 30 days<input
+                      name="at"
+                      type="datetime-local"
+                      required
+                  /></label>
+                  <label
+                    >Reason<input
+                      name="reason"
+                      required
+                      minlength="3"
+                      maxlength="240"
+                  /></label>
                   <button>Prepare recovery plan</button>
                 </form>
                 <div id="recovery-actions" hidden>
                   <p id="recovery-instruction" class="muted"></p>
-                  <label>Typed confirmation<input id="recovery-confirmation" autocomplete="off" /></label>
+                  <label
+                    >Typed confirmation<input
+                      id="recovery-confirmation"
+                      autocomplete="off"
+                  /></label>
                   <div class="row">
-                    <button id="recovery-execute" class="danger" type="button">Execute restore</button>
-                    <button id="recovery-reconcile" type="button">Reconcile restarted workspace</button>
-                    <button id="recovery-resume" type="button">Resume after reconciliation</button>
-                    <button id="recovery-undo" class="danger" type="button">Undo reconciled restore</button>
-                    <button id="recovery-cancel" type="button">Cancel prepared plan</button>
+                    <button id="recovery-execute" class="danger" type="button">
+                      Execute restore
+                    </button>
+                    <button id="recovery-reconcile" type="button">
+                      Reconcile restarted workspace
+                    </button>
+                    <button id="recovery-resume" type="button">
+                      Resume after reconciliation
+                    </button>
+                    <button id="recovery-undo" class="danger" type="button">
+                      Undo reconciled restore
+                    </button>
+                    <button id="recovery-cancel" type="button">
+                      Cancel prepared plan
+                    </button>
                   </div>
                 </div>
               </div>
@@ -404,7 +662,10 @@
         <footer class="product-footer">
           <div class="product-footer-inner">
             <span>PostSteward · Owner control plane.</span>
-            <span><a href="/docs/operations.md">Operations</a> · <a href="/help.json">Machine help</a></span>
+            <span
+              ><a href="/docs/operations.md">Operations</a> ·
+              <a href="/help.json">Machine help</a></span
+            >
           </div>
         </footer>
       </main>

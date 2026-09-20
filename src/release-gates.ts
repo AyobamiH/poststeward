@@ -123,17 +123,12 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "native_webmcp",
-    state: "unavailable_capability",
+    state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
     summary:
-      "Native WebMCP is deployed and tool registration is advertised, but the authenticated page's read-only workspace_status execution check still reports that the tool is not registered.",
-    evidence: [
-      "docs/live-external-gates-2026-09-13.md",
-      "docs/provider-connection-audit-2026-09-19.md",
-    ],
-    ownerAction:
-      "Use one authenticated supporting browser for the read-only workspace_status proof when available.",
+      "An authenticated supporting browser executed native workspace_status, accounts_list, projects_list and receipts_list against the exact production release.",
+    evidence: ["docs/native-webmcp-live-evidence-2026-09-20.md"],
   },
   {
     id: "x_oauth",
