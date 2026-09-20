@@ -100,7 +100,7 @@ export function providerApplicationCapabilities(
     };
   if (options.linkedinOrganizationActor)
     return {
-      identity: connected(["openid", "profile"]),
+      identity: connected(["r_organization_social"]),
       publish: connected(["w_organization_social"]),
       readback: connected(["r_organization_social"]),
       refresh: connected(),
@@ -111,9 +111,7 @@ export function providerApplicationCapabilities(
     publish: connected(["w_member_social"]),
     readback: options.linkedinMemberReadbackApproved
       ? connected(["r_member_social"])
-      : required("r_member_social_closed_to_new_requests", [
-          "r_member_social",
-        ]),
+      : required("r_member_social_closed_to_new_requests", ["r_member_social"]),
     refresh: connected(),
     metrics: unavailable("member_analytics_not_enabled"),
   };
@@ -146,10 +144,7 @@ export function negotiatedProviderCapabilities(
     return {
       identity,
       publish: scoped(["tweet.write"], "tweet_write_not_granted"),
-      readback: scoped(
-        ["tweet.read", "users.read"],
-        "tweet_read_not_granted",
-      ),
+      readback: scoped(["tweet.read", "users.read"], "tweet_read_not_granted"),
       refresh:
         scopes.has("offline.access") && options.refreshable
           ? proven
@@ -204,9 +199,7 @@ export function negotiatedProviderCapabilities(
       ? proven
         ? available(["r_member_social"])
         : unknown("r_member_social_not_proven", ["r_member_social"])
-      : required("r_member_social_closed_to_new_requests", [
-          "r_member_social",
-        ]),
+      : required("r_member_social_closed_to_new_requests", ["r_member_social"]),
     refresh: options.refreshable
       ? available()
       : unavailable("provider_refresh_token_not_issued"),

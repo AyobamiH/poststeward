@@ -1,8 +1,8 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-20-linkedin-page-actor-path
+# Production deployment request: 2026-09-20-linkedin-community-app-separation
 # This file is the only reviewed push-triggered production deployment request.
-# This request deploys the reviewed LinkedIn Page actor propagation and readback-drift safeguards.
+# This request deploys the reviewed LinkedIn Page application separation, actor propagation and readback-drift safeguards.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
 # Production uses its own D1, APP_ORIGIN and OIDC. PRODUCTION_CREDENTIAL_MODE may explicitly
@@ -41,6 +41,7 @@ jobs:
       X_OAUTH_CLIENT_ID: ${{ vars.X_OAUTH_CLIENT_ID }}
       THREADS_OAUTH_CLIENT_ID: ${{ vars.THREADS_OAUTH_CLIENT_ID }}
       LINKEDIN_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: ${{ vars.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID }}
       LINKEDIN_MEMBER_READBACK: ${{ vars.LINKEDIN_MEMBER_READBACK }}
       STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
       STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
@@ -57,6 +58,7 @@ jobs:
       X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
       THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET }}
       OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
       OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}
     steps:
@@ -89,6 +91,7 @@ jobs:
       X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
       THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET }}
       STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
       STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
       OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}

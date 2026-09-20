@@ -9,23 +9,25 @@ function demand(condition, message) {
 }
 
 export function portalConfigurationMatches(config, origin) {
-  const allowed = new Set(config?.features?.customer_update?.allowed_updates || []);
+  const allowed = new Set(
+    config?.features?.customer_update?.allowed_updates || [],
+  );
   return Boolean(
     config?.id &&
-      config.active === true &&
-      config.livemode === false &&
-      config.metadata?.application === portalApplication &&
-      config.metadata?.environment === portalEnvironment &&
-      config.default_return_url === `${origin}/app` &&
-      config.features?.customer_update?.enabled === true &&
-      allowed.has("email") &&
-      allowed.has("name") &&
-      config.features?.invoice_history?.enabled === true &&
-      config.features?.payment_method_update?.enabled === true &&
-      config.features?.subscription_cancel?.enabled === true &&
-      config.features?.subscription_cancel?.mode === "at_period_end" &&
-      config.features?.subscription_cancel?.proration_behavior === "none" &&
-      config.features?.subscription_update?.enabled === false,
+    config.active === true &&
+    config.livemode === false &&
+    config.metadata?.application === portalApplication &&
+    config.metadata?.environment === portalEnvironment &&
+    config.default_return_url === `${origin}/app` &&
+    config.features?.customer_update?.enabled === true &&
+    allowed.has("email") &&
+    allowed.has("name") &&
+    config.features?.invoice_history?.enabled === true &&
+    config.features?.payment_method_update?.enabled === true &&
+    config.features?.subscription_cancel?.enabled === true &&
+    config.features?.subscription_cancel?.mode === "at_period_end" &&
+    config.features?.subscription_cancel?.proration_behavior === "none" &&
+    config.features?.subscription_update?.enabled === false,
   );
 }
 
@@ -43,9 +45,12 @@ export function portalConfigurationBody(origin) {
     "features[subscription_cancel][mode]": "at_period_end",
     "features[subscription_cancel][proration_behavior]": "none",
     "features[subscription_cancel][cancellation_reason][enabled]": "true",
-    "features[subscription_cancel][cancellation_reason][options][0]": "too_expensive",
-    "features[subscription_cancel][cancellation_reason][options][1]": "missing_features",
-    "features[subscription_cancel][cancellation_reason][options][2]": "switched_service",
+    "features[subscription_cancel][cancellation_reason][options][0]":
+      "too_expensive",
+    "features[subscription_cancel][cancellation_reason][options][1]":
+      "missing_features",
+    "features[subscription_cancel][cancellation_reason][options][2]":
+      "switched_service",
     "features[subscription_cancel][cancellation_reason][options][3]": "unused",
     "features[subscription_cancel][cancellation_reason][options][4]": "other",
     "features[subscription_update][enabled]": "false",
@@ -57,25 +62,35 @@ export function portalConfigurationBody(origin) {
 }
 
 async function stripeJson(url, secret, init = {}, send = fetch) {
-  demand(/^rk_test_[A-Za-z0-9_]+$/.test(secret || ""),
-    "Stripe staging operator key must be a restricted test key.");
+  demand(
+    /^rk_test_[A-Za-z0-9_]+$/.test(secret || ""),
+    "Stripe staging operator key must be a restricted test key.",
+  );
   const response = await send(url, {
     ...init,
     headers: {
       Authorization: `Bearer ${secret}`,
-      ...(init.body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+      ...(init.body
+        ? { "Content-Type": "application/x-www-form-urlencoded" }
+        : {}),
       ...(init.headers || {}),
     },
     redirect: "error",
     signal: AbortSignal.timeout(15000),
   });
   const data = await response.json().catch(() => null);
-  demand(response.ok && data && !data.error,
-    `Stripe staging configuration request failed (HTTP ${response.status}).`);
+  demand(
+    response.ok && data && !data.error,
+    `Stripe staging configuration request failed (HTTP ${response.status}).`,
+  );
   return data;
 }
 
-export async function ensureStripePortalConfiguration({ secret, origin, send = fetch }) {
+export async function ensureStripePortalConfiguration({
+  secret,
+  origin,
+  send = fetch,
+}) {
   if (!secret)
     return {
       state: "blocked_missing_protected_operator_key",
@@ -89,15 +104,19 @@ export async function ensureStripePortalConfiguration({ secret, origin, send = f
     {},
     send,
   );
-  demand(list.has_more !== true,
-    "Stripe portal inventory is incomplete; refuse mutation until all configurations are reviewed.");
+  demand(
+    list.has_more !== true,
+    "Stripe portal inventory is incomplete; refuse mutation until all configurations are reviewed.",
+  );
   const owned = (list.data || []).filter(
     (config) =>
       config?.metadata?.application === portalApplication &&
       config?.metadata?.environment === portalEnvironment,
   );
-  demand(owned.length <= 1,
-    "Multiple active PostSteward staging portal configurations exist; refuse ambiguous mutation.");
+  demand(
+    owned.length <= 1,
+    "Multiple active PostSteward staging portal configurations exist; refuse ambiguous mutation.",
+  );
   if (owned.length === 1 && portalConfigurationMatches(owned[0], origin))
     return {
       state: "present",
@@ -116,8 +135,10 @@ export async function ensureStripePortalConfiguration({ secret, origin, send = f
     { method: "POST", body: portalConfigurationBody(origin) },
     send,
   );
-  demand(portalConfigurationMatches(configured, origin),
-    "Stripe returned a portal configuration that does not match the reviewed staging contract.");
+  demand(
+    portalConfigurationMatches(configured, origin),
+    "Stripe returned a portal configuration that does not match the reviewed staging contract.",
+  );
   return {
     state: owned.length ? "updated" : "created",
     created: owned.length === 0,
@@ -128,7 +149,9 @@ export async function ensureStripePortalConfiguration({ secret, origin, send = f
 }
 
 export async function stagingExternalPreflight(env, send = fetch) {
-  const origin = env.POSTSTEWARD_ORIGIN || "https://poststeward-staging.woeinvests.workers.dev";
+  const origin =
+    env.POSTSTEWARD_ORIGIN ||
+    "https://poststeward-staging.woeinvests.workers.dev";
   const portal = await ensureStripePortalConfiguration({
     secret: env.STRIPE_SANDBOX_OPERATOR_KEY || "",
     origin,
@@ -138,7 +161,9 @@ export async function stagingExternalPreflight(env, send = fetch) {
     observedAt: new Date().toISOString(),
     origin,
     githubPrivateSources: {
-      publicConfigurationPresent: Boolean(env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_SLUG),
+      publicConfigurationPresent: Boolean(
+        env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_SLUG,
+      ),
       protectedClientSecretPresent: env.HAS_GITHUB_APP_CLIENT_SECRET === "true",
       configured:
         Boolean(env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_SLUG) &&
@@ -149,25 +174,55 @@ export async function stagingExternalPreflight(env, send = fetch) {
       nextPresent: env.HAS_ENCRYPTION_KEY_NEXT === "true",
       writeRoot: env.ENCRYPTION_ROOT_WRITE || "legacy",
     },
-    providerApplications: Object.fromEntries(["X", "THREADS", "LINKEDIN"].map(provider => [provider.toLowerCase(), {
-      clientIdPresent: Boolean(env[provider + "_OAUTH_CLIENT_ID"]),
-      protectedClientSecretPresent: env["HAS_" + provider + "_OAUTH_CLIENT_SECRET"] === "true",
-      configured: Boolean(env[provider + "_OAUTH_CLIENT_ID"]) && env["HAS_" + provider + "_OAUTH_CLIENT_SECRET"] === "true",
-      ...(provider === "LINKEDIN" ? { memberReadbackDeclared: env.LINKEDIN_MEMBER_READBACK === "true" } : {}),
-      liveGrantVerified: false,
-    }])),
+    providerApplications: {
+      ...Object.fromEntries(
+        ["X", "THREADS", "LINKEDIN"].map((provider) => [
+          provider.toLowerCase(),
+          {
+            clientIdPresent: Boolean(env[provider + "_OAUTH_CLIENT_ID"]),
+            protectedClientSecretPresent:
+              env["HAS_" + provider + "_OAUTH_CLIENT_SECRET"] === "true",
+            configured:
+              Boolean(env[provider + "_OAUTH_CLIENT_ID"]) &&
+              env["HAS_" + provider + "_OAUTH_CLIENT_SECRET"] === "true",
+            ...(provider === "LINKEDIN"
+              ? {
+                  memberReadbackDeclared:
+                    env.LINKEDIN_MEMBER_READBACK === "true",
+                }
+              : {}),
+            liveGrantVerified: false,
+          },
+        ]),
+      ),
+      linkedinOrganization: {
+        clientIdPresent: Boolean(env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID),
+        protectedClientSecretPresent:
+          env.HAS_LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET === "true",
+        configured:
+          Boolean(env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID) &&
+          env.HAS_LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET === "true",
+        liveGrantVerified: false,
+      },
+    },
     stripeSandbox: {
       enabledVariable: env.STRIPE_SANDBOX_ENABLED === "true",
-      priceVariablePresent: /^price_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_PRICE_ID || ""),
+      priceVariablePresent: /^price_[A-Za-z0-9_]+$/.test(
+        env.STRIPE_SANDBOX_PRICE_ID || "",
+      ),
       protectedRuntimeKeyPresent: env.HAS_STRIPE_SANDBOX_SECRET_KEY === "true",
       protectedOperatorKeyPresent: Boolean(env.STRIPE_SANDBOX_OPERATOR_KEY),
-      protectedWebhookSecretPresent: env.HAS_STRIPE_SANDBOX_WEBHOOK_SECRET === "true",
+      protectedWebhookSecretPresent:
+        env.HAS_STRIPE_SANDBOX_WEBHOOK_SECRET === "true",
       portal,
     },
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const report = await stagingExternalPreflight(process.env);
   const serialized = JSON.stringify(report);
   for (const secret of [
@@ -178,6 +233,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.env.STRIPE_SANDBOX_SECRET_KEY,
     process.env.STRIPE_SANDBOX_WEBHOOK_SECRET,
   ].filter(Boolean))
-    demand(!serialized.includes(secret), "External-gate preflight attempted to emit protected material.");
+    demand(
+      !serialized.includes(secret),
+      "External-gate preflight attempted to emit protected material.",
+    );
   console.log("POSTSTEWARD_EXTERNAL_GATE_PREFLIGHT " + serialized);
 }

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { unseal } from "../src/crypto.ts";
-import { ProviderOAuthConnections, oauthConfiguration } from "../src/provider-oauth.ts";
+import {
+  ProviderOAuthConnections,
+  oauthConfiguration,
+} from "../src/provider-oauth.ts";
 import { harness, owner } from "./helpers.ts";
 import type { Account } from "../src/types.ts";
 import type { Credential } from "../src/providers.ts";
@@ -16,6 +19,9 @@ function configuredHarness() {
   h.env.THREADS_OAUTH_CLIENT_SECRET = "threads-secret-value";
   h.env.LINKEDIN_OAUTH_CLIENT_ID = "linkedin-client";
   h.env.LINKEDIN_OAUTH_CLIENT_SECRET = "linkedin-secret-value";
+  h.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID = "linkedin-organization-client";
+  h.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET =
+    "linkedin-organization-secret-value";
   return h;
 }
 
@@ -54,7 +60,10 @@ test("OAuth connection encrypts access and refresh material and exposes only cap
     owner.workspace + ":oauth:social",
   );
   assert.equal(refresh.refreshToken, "refresh-token-private-001");
-  assert.doesNotMatch(JSON.stringify(oauth.status()), /access-token-private|refresh-token-private|secret/);
+  assert.doesNotMatch(
+    JSON.stringify(oauth.status()),
+    /access-token-private|refresh-token-private|secret/,
+  );
 });
 
 test("X token rotation keeps captured routing stable when identity and capabilities are unchanged", async () => {
@@ -134,7 +143,10 @@ test("refreshed credentials that resolve to a different stable identity deactiva
     },
   });
   const before = h.store.get<Account>("account:social")!;
-  h.provider.identity = async () => ({ id: "different-user", username: "different" });
+  h.provider.identity = async () => ({
+    id: "different-user",
+    username: "different",
+  });
   h.advance(420000);
   await oauth.refreshDue();
   const after = h.store.get<Account>("account:social")!;
@@ -159,12 +171,7 @@ test("LinkedIn organization connection binds the exact reviewed page actor and o
       provider: "linkedin",
       accessToken: "linkedin-organization-access-001",
       expiresAt: h.now() + 3600000,
-      scopes: [
-        "openid",
-        "profile",
-        "w_organization_social",
-        "r_organization_social",
-      ],
+      scopes: ["w_organization_social", "r_organization_social"],
       scopeEvidence: "provider",
       obtainedAt: h.now(),
     },
@@ -280,7 +287,9 @@ test("disconnect scrubs locally stored OAuth credentials even when provider revo
 
 function latch<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 function testToken(now: number, suffix = "001") {
@@ -299,25 +308,51 @@ for (const outcome of ["success", "failure", "identity_drift"] as const) {
       const h = configuredHarness();
       const started = latch<void>();
       const response = latch<Response>();
-      const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now,
-        (async () => { started.resolve(); return response.promise; }) as typeof fetch);
-      await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
+      const oauth = new ProviderOAuthConnections(
+        h.store,
+        h.env,
+        h.provider,
+        h.now,
+        (async () => {
+          started.resolve();
+          return response.promise;
+        }) as typeof fetch,
+      );
+      await oauth.connect(owner, {
+        alias: "social",
+        token: testToken(h.now()),
+      });
       h.advance(420000);
       const pending = oauth.refreshDue();
       await started.promise;
       if (change === "disconnect") {
         const account = h.store.get<Account>("account:social")!;
-        h.store.put("account:social", { ...account, active: false, version: account.version + 1 });
+        h.store.put("account:social", {
+          ...account,
+          active: false,
+          version: account.version + 1,
+        });
         h.store.delete("oauth:social");
       } else {
-        await oauth.connect(owner, { alias: "social", token: testToken(h.now(), "replacement") });
+        await oauth.connect(owner, {
+          alias: "social",
+          token: testToken(h.now(), "replacement"),
+        });
       }
       const expectedAccount = h.store.get("account:social");
       const expectedMeta = h.store.get("oauth:social");
-      if (outcome === "identity_drift") h.provider.identity = async () => ({ id: "other", username: "other" });
-      response.resolve(outcome === "failure" ? new Response(null, { status: 503 }) : Response.json({
-        access_token: "late-refreshed-access", refresh_token: "late-refreshed-secret", expires_in: 7200, scope: xScopes.join(" "),
-      }));
+      if (outcome === "identity_drift")
+        h.provider.identity = async () => ({ id: "other", username: "other" });
+      response.resolve(
+        outcome === "failure"
+          ? new Response(null, { status: 503 })
+          : Response.json({
+              access_token: "late-refreshed-access",
+              refresh_token: "late-refreshed-secret",
+              expires_in: 7200,
+              scope: xScopes.join(" "),
+            }),
+      );
       await pending;
       assert.deepEqual(h.store.get("account:social"), expectedAccount);
       assert.deepEqual(h.store.get("oauth:social"), expectedMeta);
@@ -329,14 +364,29 @@ test("late provider revocation cleanup cannot erase a replacement connection", a
   const h = configuredHarness();
   const started = latch<void>();
   const response = latch<Response>();
-  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now,
-    (async () => { started.resolve(); return response.promise; }) as typeof fetch);
+  const oauth = new ProviderOAuthConnections(
+    h.store,
+    h.env,
+    h.provider,
+    h.now,
+    (async () => {
+      started.resolve();
+      return response.promise;
+    }) as typeof fetch,
+  );
   await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
   const account = h.store.get<Account>("account:social")!;
-  h.store.put("account:social", { ...account, active: false, version: account.version + 1 });
+  h.store.put("account:social", {
+    ...account,
+    active: false,
+    version: account.version + 1,
+  });
   const pending = oauth.afterDisconnect("social");
   await started.promise;
-  await oauth.connect(owner, { alias: "social", token: testToken(h.now(), "replacement") });
+  await oauth.connect(owner, {
+    alias: "social",
+    token: testToken(h.now(), "replacement"),
+  });
   const expectedAccount = h.store.get("account:social");
   const expectedMeta = h.store.get("oauth:social");
   response.resolve(Response.json({ revoked: true }));
@@ -350,16 +400,38 @@ test("overlapping refresh callers send one provider request", async () => {
   const started = latch<void>();
   const response = latch<Response>();
   let calls = 0;
-  const http = (async () => { calls++; started.resolve(); return response.promise; }) as typeof fetch;
-  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now, http);
+  const http = (async () => {
+    calls++;
+    started.resolve();
+    return response.promise;
+  }) as typeof fetch;
+  const oauth = new ProviderOAuthConnections(
+    h.store,
+    h.env,
+    h.provider,
+    h.now,
+    http,
+  );
   await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
   h.advance(420000);
   const pending = oauth.refreshDue();
   await started.promise;
-  const another = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now, http);
+  const another = new ProviderOAuthConnections(
+    h.store,
+    h.env,
+    h.provider,
+    h.now,
+    http,
+  );
   await another.refreshDue();
   assert.equal(calls, 1);
-  response.resolve(Response.json({ access_token: "refreshed-access-token", expires_in: 7200, scope: xScopes.join(" ") }));
+  response.resolve(
+    Response.json({
+      access_token: "refreshed-access-token",
+      expires_in: 7200,
+      scope: xScopes.join(" "),
+    }),
+  );
   await pending;
   assert.equal(oauth.status()[0].status, "healthy");
 });
@@ -370,12 +442,22 @@ test("connection verification cannot overwrite a disconnect while identity is pe
   await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
   const started = latch<void>();
   const identity = latch<{ id: string; username: string }>();
-  h.provider.identity = async () => { started.resolve(); return identity.promise; };
-  const pending = oauth.connect(owner, { alias: "social", token: testToken(h.now(), "replacement") });
+  h.provider.identity = async () => {
+    started.resolve();
+    return identity.promise;
+  };
+  const pending = oauth.connect(owner, {
+    alias: "social",
+    token: testToken(h.now(), "replacement"),
+  });
   const rejection = assert.rejects(pending, /Connection changed/);
   await started.promise;
   const account = h.store.get<Account>("account:social")!;
-  const disconnected = { ...account, active: false, version: account.version + 1 };
+  const disconnected = {
+    ...account,
+    active: false,
+    version: account.version + 1,
+  };
   h.store.put("account:social", disconnected);
   identity.resolve(account.identity);
   await rejection;
@@ -386,7 +468,12 @@ test("manual replacement removes the previous OAuth refresh grant", async () => 
   const h = configuredHarness();
   const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
   await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
-  await h.engine.connect(owner, { alias: "social", provider: "x", accessToken: "manual-replacement-token", funding: "customer_app" });
+  await h.engine.connect(owner, {
+    alias: "social",
+    provider: "x",
+    accessToken: "manual-replacement-token",
+    funding: "customer_app",
+  });
   assert.equal(h.store.get("oauth:social"), undefined);
   assert.equal(oauth.nextWake(), undefined);
   assert.equal(h.store.get<Account>("account:social")!.active, true);
@@ -398,12 +485,24 @@ test("manual identity verification cannot overwrite an intervening disconnect", 
   await oauth.connect(owner, { alias: "social", token: testToken(h.now()) });
   const started = latch<void>();
   const identity = latch<{ id: string; username: string }>();
-  h.provider.identity = async () => { started.resolve(); return identity.promise; };
-  const pending = h.engine.connect(owner, { alias: "social", provider: "x", accessToken: "manual-replacement-token", funding: "customer_app" });
+  h.provider.identity = async () => {
+    started.resolve();
+    return identity.promise;
+  };
+  const pending = h.engine.connect(owner, {
+    alias: "social",
+    provider: "x",
+    accessToken: "manual-replacement-token",
+    funding: "customer_app",
+  });
   const rejection = assert.rejects(pending, /Connection changed/);
   await started.promise;
   const account = h.store.get<Account>("account:social")!;
-  const disconnected = { ...account, active: false, version: account.version + 1 };
+  const disconnected = {
+    ...account,
+    active: false,
+    version: account.version + 1,
+  };
   h.store.put("account:social", disconnected);
   identity.resolve(account.identity);
   await rejection;
@@ -411,19 +510,40 @@ test("manual identity verification cannot overwrite an intervening disconnect", 
 });
 
 for (const insights of [false, true]) {
-  test("Threads publishing connects with optional insights scope: " + insights, async () => {
-    const h = configuredHarness();
-    assert.ok(oauthConfiguration(h.env).threads.scopes.includes("threads_manage_insights"));
-    const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
-    const result: any = await oauth.connect(owner, {
-      alias: "threads",
-      token: {
-        provider: "threads", accessToken: "threads-access-private-001",
-        expiresAt: h.now() + 3600000, obtainedAt: h.now(),
-        scopes: ["threads_basic", "threads_content_publish", ...(insights ? ["threads_manage_insights"] : [])],
-      },
-    });
-    assert.equal(result.account.active, true);
-    assert.equal(result.account.capabilities.metrics, insights ? true : undefined);
-  });
+  test(
+    "Threads publishing connects with optional insights scope: " + insights,
+    async () => {
+      const h = configuredHarness();
+      assert.ok(
+        oauthConfiguration(h.env).threads.scopes.includes(
+          "threads_manage_insights",
+        ),
+      );
+      const oauth = new ProviderOAuthConnections(
+        h.store,
+        h.env,
+        h.provider,
+        h.now,
+      );
+      const result: any = await oauth.connect(owner, {
+        alias: "threads",
+        token: {
+          provider: "threads",
+          accessToken: "threads-access-private-001",
+          expiresAt: h.now() + 3600000,
+          obtainedAt: h.now(),
+          scopes: [
+            "threads_basic",
+            "threads_content_publish",
+            ...(insights ? ["threads_manage_insights"] : []),
+          ],
+        },
+      });
+      assert.equal(result.account.active, true);
+      assert.equal(
+        result.account.capabilities.metrics,
+        insights ? true : undefined,
+      );
+    },
+  );
 }

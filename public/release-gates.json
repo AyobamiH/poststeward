@@ -153,8 +153,9 @@
       "state": "external_setup_required",
       "scope": "provider_optional",
       "blocking": false,
-      "summary": "LinkedIn OAuth implementation exists, but provider application/client authority and a real owner Page grant/connection are not configured.",
+      "summary": "The Page OAuth path is implemented with dedicated Community Management credentials and exact actor verification. The existing OpenID-only app cannot hold Community Management; a dedicated app, provider approval and real owner Page grant remain external.",
       "evidence": [
+        "docs/linkedin-community-application-separation-2026-09-20.md",
         "docs/live-external-gates-2026-09-13.md",
         "docs/provider-connection-audit-2026-09-19.md"
       ]

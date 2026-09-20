@@ -50,11 +50,11 @@ Acceptance requires the real owner consent path, OAuth 2.0 Authorization Code + 
 
 ### 3. LinkedIn provider application and grant
 
-Staging has no LinkedIn application client/secret yet. Register the real app with exact callback:
+Staging has no approved LinkedIn Community Management application client/secret yet. Configure a dedicated Page application with exact callback:
 
 `https://poststeward-staging.woeinvests.workers.dev/connections/oauth/linkedin/callback`
 
-The intended PostSteward Page path uses `openid`, `profile`, `w_organization_social` and `r_organization_social` for the exact actor `urn:li:organization:146607525`. The same member signs in and PostSteward must verify Page access before binding it. `r_member_social` and `LINKEDIN_MEMBER_READBACK=true` concern member-profile posts only and must remain absent until LinkedIn actually approves that separate capability.
+The intended PostSteward Page path uses only `w_organization_social` and `r_organization_social` for the exact actor `urn:li:organization:146607525`. The same member authorises as Page administrator and PostSteward must verify Page access before binding it. LinkedIn's portal requires Community Management to be the only product on this application, so member OpenID credentials and Page credentials remain separate. `r_member_social` and `LINKEDIN_MEMBER_READBACK=true` concern member-profile posts only and must remain absent until LinkedIn actually approves that separate capability.
 
 ### 4. Threads connection — accepted and preserved
 

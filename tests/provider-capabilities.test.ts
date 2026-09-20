@@ -42,7 +42,7 @@ test("LinkedIn organization actors use organization publish/read scopes rather t
 
   const negotiated = negotiatedProviderCapabilities(
     "linkedin",
-    ["openid", "profile", "w_organization_social", "r_organization_social"],
+    ["w_organization_social", "r_organization_social"],
     {
       refreshable: false,
       scopeEvidence: "provider",
@@ -53,6 +53,27 @@ test("LinkedIn organization actors use organization publish/read scopes rather t
   assert.equal(negotiated.publish.state, "available");
   assert.equal(negotiated.readback.state, "available");
   assert.equal(negotiated.metrics.reason, "organization_analytics_not_enabled");
+});
+
+test("LinkedIn Community Management credentials never imply member OpenID authority", () => {
+  const h = harness();
+  h.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID = "linkedin-organization-client";
+  h.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET =
+    "linkedin-organization-secret-value";
+  const configured = oauthConfiguration(h.env);
+  assert.equal(configured.linkedin.available, true);
+  assert.equal(configured.linkedin.memberAvailable, false);
+  assert.equal(configured.linkedin.organizationAvailable, true);
+  assert.equal(configured.linkedin.capabilities.identity.state, "unavailable");
+  assert.deepEqual(configured.linkedin.organizationScopes, [
+    "w_organization_social",
+    "r_organization_social",
+  ]);
+  assert.ok(configured.linkedin.organizationCapabilities);
+  assert.deepEqual(
+    configured.linkedin.organizationCapabilities.identity.requiredScopes,
+    ["r_organization_social"],
+  );
 });
 
 test("negotiation never invents optional LinkedIn readback or Threads insights from an omitted scope response", () => {
@@ -90,21 +111,26 @@ test("OAuth status exposes negotiated evidence while account compatibility flags
   h.env.THREADS_OAUTH_CLIENT_SECRET = "threads-secret-value";
   h.env.LINKEDIN_OAUTH_CLIENT_ID = "linkedin-client";
   h.env.LINKEDIN_OAUTH_CLIENT_SECRET = "linkedin-secret-value";
+  h.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID = "linkedin-organization-client";
+  h.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET =
+    "linkedin-organization-secret-value";
 
   const configured = oauthConfiguration(h.env);
   assert.deepEqual(configured.x.requiredScopes, xScopes);
-  assert.deepEqual(configured.threads.optionalScopes, ["threads_manage_insights"]);
+  assert.deepEqual(configured.threads.optionalScopes, [
+    "threads_manage_insights",
+  ]);
   assert.deepEqual(configured.linkedin.optionalScopes, []);
   assert.equal(
     configured.linkedin.capabilities.readback.state,
     "external_approval_required",
   );
   assert.deepEqual(configured.linkedin.organizationScopes, [
-    "openid",
-    "profile",
     "w_organization_social",
     "r_organization_social",
   ]);
+  assert.equal(configured.linkedin.memberAvailable, true);
+  assert.equal(configured.linkedin.organizationAvailable, true);
   assert.ok(configured.linkedin.organizationCapabilities);
   assert.equal(
     configured.linkedin.organizationCapabilities.readback.state,

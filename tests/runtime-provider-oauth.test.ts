@@ -227,7 +227,6 @@ test("real Workers/D1 X OAuth binds state to the owner session, verifies PKCE an
 test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor through state and callback", async () => {
   const actorUrn = "urn:li:organization:146607525";
   let tokenExchanges = 0;
-  let memberReads = 0;
   let actorReads = 0;
   const { mf, db } = await runtime(
     async (request) => {
@@ -243,18 +242,7 @@ test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor throu
         return RuntimeResponse.json({
           access_token: "linkedin-org-access-private-001",
           expires_in: 3600,
-          scope:
-            "openid profile w_organization_social r_organization_social",
-        });
-      }
-      if (
-        url.hostname === "api.linkedin.com" &&
-        url.pathname === "/v2/userinfo"
-      ) {
-        memberReads++;
-        return RuntimeResponse.json({
-          sub: "member-123",
-          name: "Owner",
+          scope: "w_organization_social r_organization_social",
         });
       }
       if (
@@ -274,13 +262,28 @@ test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor throu
     },
     {
       OIDC_ISSUER: "https://accounts.google.com",
-      LINKEDIN_OAUTH_CLIENT_ID: "linkedin-client",
-      LINKEDIN_OAUTH_CLIENT_SECRET: "linkedin-client-secret",
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: "linkedin-organization-client",
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET:
+        "linkedin-organization-client-secret",
     },
     100,
   );
   try {
     const owner = await seedOwner(db);
+    const memberStart = await mf.dispatchFetch(
+      `${origin}/api/connections/oauth/linkedin/start`,
+      {
+        method: "POST",
+        headers: ownerHeaders(owner),
+        body: JSON.stringify({ alias: "member-profile" }),
+      },
+    );
+    assert.equal(memberStart.status, 503);
+    assert.equal(
+      ((await memberStart.json()) as any).error.code,
+      "OAUTH_NOT_CONFIGURED",
+    );
+
     const start = await mf.dispatchFetch(
       `${origin}/api/connections/oauth/linkedin/start`,
       {
@@ -296,15 +299,13 @@ test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor throu
     const started: any = await start.json();
     assert.equal(started.actorUrn, actorUrn);
     assert.deepEqual(started.requiredScopes, [
-      "openid",
-      "profile",
       "w_organization_social",
       "r_organization_social",
     ]);
     const authorization = new URL(started.authorizationUrl);
     assert.equal(
       authorization.searchParams.get("scope"),
-      "openid profile w_organization_social r_organization_social",
+      "w_organization_social r_organization_social",
     );
     const state = authorization.searchParams.get("state")!;
     const stored = await db
@@ -326,7 +327,6 @@ test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor throu
     assert.equal(callback.status, 302, await callback.clone().text());
     assert.equal(callback.headers.get("location"), "/pilot?connected=linkedin");
     assert.equal(tokenExchanges, 1);
-    assert.equal(memberReads, 1);
     assert.equal(actorReads, 1);
 
     const accounts = await mf.dispatchFetch(

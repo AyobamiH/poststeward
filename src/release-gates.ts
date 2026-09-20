@@ -44,7 +44,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Controlled Threads publication and independent provider readback accepted.",
+    summary:
+      "Controlled Threads publication and independent provider readback accepted.",
     evidence: ["docs/p0-live-evidence-2026-09-12.md"],
   },
   {
@@ -52,7 +53,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Inspect-only HTTP and remote MCP accepted before revoke and denied after revoke.",
+    summary:
+      "Inspect-only HTTP and remote MCP accepted before revoke and denied after revoke.",
     evidence: ["docs/p0-live-evidence-2026-09-12.md"],
   },
   {
@@ -60,7 +62,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Sandbox Checkout, paid state, refund/revocation, cancellation and webhook ledger accepted.",
+    summary:
+      "Sandbox Checkout, paid state, refund/revocation, cancellation and webhook ledger accepted.",
     evidence: ["docs/live-external-gates-2026-09-13.md"],
   },
   {
@@ -68,15 +71,20 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Protected next-root writer and complete readback traversal accepted; legacy root intentionally retained.",
-    evidence: ["docs/protected-root-cutover.md", "docs/live-external-gates-2026-09-13.md"],
+    summary:
+      "Protected next-root writer and complete readback traversal accepted; legacy root intentionally retained.",
+    evidence: [
+      "docs/protected-root-cutover.md",
+      "docs/live-external-gates-2026-09-13.md",
+    ],
   },
   {
     id: "private_github_authority",
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Selected private repository read and provider-side revoke/fail-closed proof accepted.",
+    summary:
+      "Selected private repository read and provider-side revoke/fail-closed proof accepted.",
     evidence: ["docs/live-external-gates-2026-09-13.md"],
   },
   {
@@ -84,7 +92,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Exact checkpoint capture, real restore, reconciliation, resume and disposable erasure are accepted on restricted staging.",
+    summary:
+      "Exact checkpoint capture, real restore, reconciliation, resume and disposable erasure are accepted on restricted staging.",
     evidence: [
       "docs/recovery.md",
       "docs/exact-recovery-live-evidence-2026-09-14.md",
@@ -96,7 +105,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "blocked_external",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it.",
+    summary:
+      "Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it.",
     evidence: ["docs/live-external-gates-2026-09-13.md"],
   },
   {
@@ -104,32 +114,46 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Meta callback persistence, one real production owner Threads OAuth journey and one current healthy long-lived owner connection are accepted; publication/readback evidence remains a separate gate.",
-    evidence: ["docs/threads-oauth-callback-live-evidence-2026-09-19.md", "docs/provider-connection-audit-2026-09-19.md"],
+    summary:
+      "Meta callback persistence, one real production owner Threads OAuth journey and one current healthy long-lived owner connection are accepted; publication/readback evidence remains a separate gate.",
+    evidence: [
+      "docs/threads-oauth-callback-live-evidence-2026-09-19.md",
+      "docs/provider-connection-audit-2026-09-19.md",
+    ],
   },
   {
     id: "native_webmcp",
     state: "unavailable_capability",
     scope: "restricted_staging",
     blocking: false,
-    summary: "Native WebMCP is deployed and tool registration is advertised, but the authenticated page's read-only workspace_status execution check still reports that the tool is not registered.",
-    evidence: ["docs/live-external-gates-2026-09-13.md", "docs/provider-connection-audit-2026-09-19.md"],
-    ownerAction: "Use one authenticated supporting browser for the read-only workspace_status proof when available.",
+    summary:
+      "Native WebMCP is deployed and tool registration is advertised, but the authenticated page's read-only workspace_status execution check still reports that the tool is not registered.",
+    evidence: [
+      "docs/live-external-gates-2026-09-13.md",
+      "docs/provider-connection-audit-2026-09-19.md",
+    ],
+    ownerAction:
+      "Use one authenticated supporting browser for the read-only workspace_status proof when available.",
   },
   {
     id: "x_oauth",
     state: "live_verified",
     scope: "provider_optional",
     blocking: false,
-    summary: "Dedicated X application authority, the real @poststeward production OAuth grant, exact callback return, stable identity and current active connection are accepted.",
-    evidence: ["docs/x-oauth-publication-live-evidence-2026-09-20.md", "docs/provider-connection-audit-2026-09-19.md"],
+    summary:
+      "Dedicated X application authority, the real @poststeward production OAuth grant, exact callback return, stable identity and current active connection are accepted.",
+    evidence: [
+      "docs/x-oauth-publication-live-evidence-2026-09-20.md",
+      "docs/provider-connection-audit-2026-09-19.md",
+    ],
   },
   {
     id: "x_publication_readback",
     state: "live_verified",
     scope: "provider_optional",
     blocking: false,
-    summary: "One owner-approved @poststeward X publication, verified PostSteward receipt and independent provider-page readback are accepted.",
+    summary:
+      "One owner-approved @poststeward X publication, verified PostSteward receipt and independent provider-page readback are accepted.",
     evidence: ["docs/x-oauth-publication-live-evidence-2026-09-20.md"],
   },
   {
@@ -137,7 +161,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "provider_optional",
     blocking: false,
-    summary: "A natural production alarm completed a real X token refresh, persisted the new lifecycle state and reverified the unchanged @poststeward publishing identity without consent or publication.",
+    summary:
+      "A natural production alarm completed a real X token refresh, persisted the new lifecycle state and reverified the unchanged @poststeward publishing identity without consent or publication.",
     evidence: ["docs/x-oauth-publication-live-evidence-2026-09-20.md"],
   },
   {
@@ -145,7 +170,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "provider_optional",
     blocking: false,
-    summary: "PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate.",
+    summary:
+      "PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate.",
     evidence: ["docs/live-external-gates-2026-09-13.md"],
   },
   {
@@ -153,15 +179,21 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "external_setup_required",
     scope: "provider_optional",
     blocking: false,
-    summary: "LinkedIn OAuth implementation exists, but provider application/client authority and a real owner Page grant/connection are not configured.",
-    evidence: ["docs/live-external-gates-2026-09-13.md", "docs/provider-connection-audit-2026-09-19.md"],
+    summary:
+      "The Page OAuth path is implemented with dedicated Community Management credentials and exact actor verification. The existing OpenID-only app cannot hold Community Management; a dedicated app, provider approval and real owner Page grant remain external.",
+    evidence: [
+      "docs/linkedin-community-application-separation-2026-09-20.md",
+      "docs/live-external-gates-2026-09-13.md",
+      "docs/provider-connection-audit-2026-09-19.md",
+    ],
   },
   {
     id: "linkedin_member_readback",
     state: "external_setup_required",
     scope: "provider_optional",
     blocking: false,
-    summary: "Independent member-profile post readback remains unavailable until LinkedIn grants the restricted permission; it is separate from and does not block the organization/Page path.",
+    summary:
+      "Independent member-profile post readback remains unavailable until LinkedIn grants the restricted permission; it is separate from and does not block the organization/Page path.",
     evidence: ["docs/live-external-gates-2026-09-13.md"],
   },
   {
@@ -169,7 +201,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "disabled_policy",
     scope: "advanced",
     blocking: false,
-    summary: "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
+    summary:
+      "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
     evidence: ["docs/production-readiness-acceptance.md"],
   },
   {
@@ -177,7 +210,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "disabled_policy",
     scope: "advanced",
     blocking: false,
-    summary: "MPP is a separate optional settlement stream and remains disabled.",
+    summary:
+      "MPP is a separate optional settlement stream and remains disabled.",
     evidence: ["docs/production-readiness-acceptance.md"],
   },
   {
@@ -185,7 +219,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "disabled_policy",
     scope: "public_launch",
     blocking: true,
-    summary: "Public signup remains restricted until production/support/abuse controls are accepted.",
+    summary:
+      "Public signup remains restricted until production/support/abuse controls are accepted.",
     evidence: ["docs/production-readiness-acceptance.md"],
   },
   {
@@ -193,15 +228,20 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "production",
     blocking: false,
-    summary: "The exact production custom domain, Worker binding, security headers, canonical WAF rule and auth rate-limit rule are independently read back and accepted.",
-    evidence: ["docs/production-edge-live-evidence-2026-09-19.md", "actions/35440149519"],
+    summary:
+      "The exact production custom domain, Worker binding, security headers, canonical WAF rule and auth rate-limit rule are independently read back and accepted.",
+    evidence: [
+      "docs/production-edge-live-evidence-2026-09-19.md",
+      "actions/35440149519",
+    ],
   },
   {
     id: "github_main_ruleset",
     state: "live_verified",
     scope: "production",
     blocking: false,
-    summary: "Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy.",
+    summary:
+      "Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy.",
     evidence: [
       "docs/github-main-ruleset-live-evidence-2026-09-15.md",
       "ruleset/23461973",
@@ -212,15 +252,20 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "production",
     blocking: false,
-    summary: "Production operator alert delivery is accepted through the out-of-band GitHub issue control plane, including all reviewed alert classes and a deliberately failed-path escalation drill.",
-    evidence: ["docs/operational-alert-live-evidence-2026-09-19.md", "actions/35440129849"],
+    summary:
+      "Production operator alert delivery is accepted through the out-of-band GitHub issue control plane, including all reviewed alert classes and a deliberately failed-path escalation drill.",
+    evidence: [
+      "docs/operational-alert-live-evidence-2026-09-19.md",
+      "actions/35440129849",
+    ],
   },
   {
     id: "capacity_cost_calibration",
     state: "live_verified",
     scope: "production",
     blocking: false,
-    summary: "Exact-release staging and production observations project the reviewed first-100 workload with at least 30% product headroom and inside the reviewed Cloudflare/provider cost envelope.",
+    summary:
+      "Exact-release staging and production observations project the reviewed first-100 workload with at least 30% product headroom and inside the reviewed Cloudflare/provider cost envelope.",
     evidence: [
       "docs/capacity-cost-live-evidence-2026-09-19.md",
       "actions/35442767724",
@@ -231,7 +276,8 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
     state: "live_verified",
     scope: "production",
     blocking: false,
-    summary: "Hosted two-workspace isolation, hostile-Origin denial and ephemeral grant cleanup are accepted on the exact staged release.",
+    summary:
+      "Hosted two-workspace isolation, hostile-Origin denial and ephemeral grant cleanup are accepted on the exact staged release.",
     evidence: [
       "docs/hosted-cross-tenant-live-evidence-2026-09-15.md",
       "actions/35029954430",
@@ -249,7 +295,7 @@ function rolloutMode(env: Env) {
   return ["disabled", "canary", "global"].includes(
     env.ADVANCED_ROLLOUT_MODE || "disabled",
   )
-    ? (env.ADVANCED_ROLLOUT_MODE || "disabled")
+    ? env.ADVANCED_ROLLOUT_MODE || "disabled"
     : "invalid";
 }
 
@@ -267,20 +313,34 @@ export function runtimeCapabilitySnapshot(env: Env) {
   return {
     providerApplications: {
       x: Boolean(env.X_OAUTH_CLIENT_ID && env.X_OAUTH_CLIENT_SECRET),
-      threads: Boolean(env.THREADS_OAUTH_CLIENT_ID && env.THREADS_OAUTH_CLIENT_SECRET),
-      linkedin: Boolean(env.LINKEDIN_OAUTH_CLIENT_ID && env.LINKEDIN_OAUTH_CLIENT_SECRET),
+      threads: Boolean(
+        env.THREADS_OAUTH_CLIENT_ID && env.THREADS_OAUTH_CLIENT_SECRET,
+      ),
+      linkedin: Boolean(
+        (env.LINKEDIN_OAUTH_CLIENT_ID && env.LINKEDIN_OAUTH_CLIENT_SECRET) ||
+        (env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID &&
+          env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET),
+      ),
+      linkedinOrganization: Boolean(
+        env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID &&
+        env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET,
+      ),
       linkedinMemberReadback: env.LINKEDIN_MEMBER_READBACK === "true",
     },
     privateGitHubConfigured: Boolean(
-      env.GITHUB_APP_CLIENT_ID && env.GITHUB_APP_CLIENT_SECRET && env.GITHUB_APP_SLUG,
+      env.GITHUB_APP_CLIENT_ID &&
+      env.GITHUB_APP_CLIENT_SECRET &&
+      env.GITHUB_APP_SLUG,
     ),
     stripeSandboxConfigured: Boolean(
       env.STRIPE_SANDBOX_ENABLED === "true" &&
-        env.STRIPE_SECRET_KEY &&
-        env.STRIPE_PRICE_ID &&
-        env.STRIPE_WEBHOOK_SECRET,
+      env.STRIPE_SECRET_KEY &&
+      env.STRIPE_PRICE_ID &&
+      env.STRIPE_WEBHOOK_SECRET,
     ),
-    operationalAlertWebhookConfigured: Boolean(env.OPERATIONAL_ALERT_WEBHOOK_URL),
+    operationalAlertWebhookConfigured: Boolean(
+      env.OPERATIONAL_ALERT_WEBHOOK_URL,
+    ),
     policies: {
       signupMode: env.SIGNUP_MODE,
       publicWorkspaceLimit: Number(env.PUBLIC_WORKSPACE_LIMIT || "0"),
@@ -292,7 +352,8 @@ export function runtimeCapabilitySnapshot(env: Env) {
         env.ADVANCED_CANARY_SEED && env.ADVANCED_CANARY_SEED.length >= 8,
       ),
       mppEnabled: env.MPP_ENABLED === "true",
-      encryptionRootWrite: env.ENCRYPTION_ROOT_WRITE === "next" ? "next" : "legacy",
+      encryptionRootWrite:
+        env.ENCRYPTION_ROOT_WRITE === "next" ? "next" : "legacy",
     },
   };
 }
@@ -337,7 +398,9 @@ export function releasePolicyViolations(env: Env) {
     runtime.providerApplications.linkedinMemberReadback &&
     !reviewedGateAccepted("linkedin_member_readback")
   )
-    violations.push("linkedin_readback_enabled_without_live_permission_evidence");
+    violations.push(
+      "linkedin_readback_enabled_without_live_permission_evidence",
+    );
   return violations;
 }
 
