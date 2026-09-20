@@ -1,12 +1,12 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-20-publication-parity
+# Deployment request: 2026-09-20-advanced-canary-10-percent
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision with immutable provider-specific publication parts,
-# durable X/Threads reply chains, per-part verification and owner approval of agent deliveries.
+# Deploy the exact reviewed publication-parity revision and start the bounded 10% Advanced canary.
+# The stable staging cohort seed is configured separately in the protected environment.
 # LinkedIn remains fail-closed until the central Community Management app is approved and configured.
 # Alert delivery remains inert unless a protected webhook destination is configured.
-# This normal deployment preserves the current Advanced policy; the bounded canary remains a separate control.
+# The reusable deployment fails closed and redeploys Advanced stopped if canary acceptance fails.
 # This deployment is non-destructive: it does not initiate provider consent, refresh a token, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
 # Existing accepted evidence is not repeated by deployment. The timestamp PITR diagnostic remains disabled.
@@ -25,7 +25,7 @@ jobs:
     with:
       environment: staging
       run_pitr_diagnostic: false
-      advanced_rollout_request: environment
+      advanced_rollout_request: start_1000bps
       signup_mode_request: restricted
     # Pass only explicitly named fallbacks, never every repository secret.
     secrets:
