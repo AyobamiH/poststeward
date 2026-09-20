@@ -1,4 +1,13 @@
-export async function verifyReleaseControl(origin, release, send = fetch) {
+export async function verifyReleaseControl(
+  origin,
+  release,
+  send = fetch,
+  expectedAdvanced = {
+    enabled: false,
+    mode: "disabled",
+    bps: 0,
+  },
+) {
   const checks = [];
   const secure = (response) =>
     response.headers.get("strict-transport-security")?.includes("max-age=") &&
@@ -51,9 +60,12 @@ export async function verifyReleaseControl(origin, release, send = fetch) {
       value.gates?.public_signup?.state === "disabled_policy" &&
       value.gates?.threads_oauth_callback?.state === "live_verified" &&
       value.gates?.advanced_rollout?.state === "disabled_policy" &&
-      value.runtimeCapabilities?.policies?.advancedEnabled === false &&
-      value.runtimeCapabilities?.policies?.advancedRolloutMode === "disabled" &&
-      value.runtimeCapabilities?.policies?.advancedCanaryBps === 0 &&
+      value.runtimeCapabilities?.policies?.advancedEnabled ===
+        expectedAdvanced.enabled &&
+      value.runtimeCapabilities?.policies?.advancedRolloutMode ===
+        expectedAdvanced.mode &&
+      value.runtimeCapabilities?.policies?.advancedCanaryBps ===
+        expectedAdvanced.bps &&
       value.runtimeCapabilities?.policies?.signupMode === "restricted" &&
       Array.isArray(value.evidenceStillExternal) &&
       !value.evidenceStillExternal.includes("private_github_authority") &&

@@ -2,9 +2,20 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { demand, validateConfiguration } from "./deployment-config.mjs";
 
-export async function inspectRecoveryBoundary(origin, expectedRelease, send = fetch) {
+export async function inspectRecoveryBoundary(
+  origin,
+  expectedRelease,
+  send = fetch,
+  expectedAdvancedEnabled = false,
+) {
   const checks = [];
-  async function check(name, path, expected, init = {}, inspect = async () => true) {
+  async function check(
+    name,
+    path,
+    expected,
+    init = {},
+    inspect = async () => true,
+  ) {
     let status = 0;
     let passed = false;
     try {
@@ -37,7 +48,7 @@ export async function inspectRecoveryBoundary(origin, expectedRelease, send = fe
       const data = await response.json();
       return (
         data.release === expectedRelease &&
-        data.advancedEnabled === false &&
+        data.advancedEnabled === expectedAdvancedEnabled &&
         data.providerOAuth &&
         ["x", "threads", "linkedin"].every(
           (provider) => typeof data.providerOAuth[provider] === "boolean",
@@ -50,14 +61,16 @@ export async function inspectRecoveryBoundary(origin, expectedRelease, send = fe
     "/recovery",
     200,
     {},
-    async (response) => (await response.text()).includes("Exact recovery checkpoints"),
+    async (response) =>
+      (await response.text()).includes("Exact recovery checkpoints"),
   );
   await check(
     "exact recovery checkpoint client is deployed",
     "/recovery-checkpoints.js",
     200,
     {},
-    async (response) => (await response.text()).includes("/api/recovery/checkpoints"),
+    async (response) =>
+      (await response.text()).includes("/api/recovery/checkpoints"),
   );
   await check(
     "unauthenticated recovery status rejected",
@@ -137,16 +150,19 @@ export async function inspectRecoveryBoundary(origin, expectedRelease, send = fe
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
   validateConfiguration(config);
   const report = await inspectRecoveryBoundary(
     config.vars.PUBLIC_ORIGIN,
     config.vars.RELEASE_SHA,
+    fetch,
+    config.vars.ADVANCED_ENABLED === "true",
   );
-  console.log(
-    "POSTSTEWARD_RECOVERY_BOUNDARY_REPORT " + JSON.stringify(report),
-  );
+  console.log("POSTSTEWARD_RECOVERY_BOUNDARY_REPORT " + JSON.stringify(report));
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,

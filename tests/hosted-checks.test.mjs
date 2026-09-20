@@ -10,6 +10,10 @@ const c = {
     RELEASE_SHA: release,
     OIDC_ISSUER: "https://accounts.google.com",
     OIDC_CLIENT_ID: "test-client",
+    ADVANCED_ENABLED: "false",
+    ADVANCED_ROLLOUT_MODE: "disabled",
+    ADVANCED_CANARY_BPS: "0",
+    ADVANCED_CANARY_SEED: "",
   },
 };
 const headers = {
@@ -40,9 +44,25 @@ function service(appStatus = 200) {
         {
           release,
           credential: "PRIVATE_NOT_FOR_REPORT",
-          providers: { x: { oauth: true, token: "PRIVATE_NOT_FOR_REPORT" }, threads: { oauth: false }, linkedin: { oauth: false } },
+          providers: {
+            x: { oauth: true, token: "PRIVATE_NOT_FOR_REPORT" },
+            threads: { oauth: false },
+            linkedin: { oauth: false },
+          },
           access: { signupMode: "restricted", publicSignup: false },
-          payments: { sandboxEnabled: false, advancedEnabled: false, mppEnabled: false },
+          payments: {
+            sandboxEnabled: false,
+            advancedEnabled: false,
+            mppEnabled: false,
+          },
+          runtimeCapabilities: {
+            policies: {
+              advancedEnabled: false,
+              advancedRolloutMode: "disabled",
+              advancedCanaryBps: 0,
+              advancedCanarySeedConfigured: false,
+            },
+          },
           sources: {
             github: {
               privateRepositories: false,
@@ -176,10 +196,14 @@ test("hosted report checks 28 surfaces and does not disclose login state or cook
     providerOAuth: { x: true, threads: false, linkedin: false },
   });
   assert.ok(
-    report.checks.some((item) => item.name === "public resource: /app-client.js"),
+    report.checks.some(
+      (item) => item.name === "public resource: /app-client.js",
+    ),
   );
   assert.ok(
-    report.checks.some((item) => item.name === "public resource: /github-sources-ui.js"),
+    report.checks.some(
+      (item) => item.name === "public resource: /github-sources-ui.js",
+    ),
   );
   assert.ok(
     report.checks.some(
@@ -189,6 +213,49 @@ test("hosted report checks 28 surfaces and does not disclose login state or cook
   assert.doesNotMatch(JSON.stringify(report), /PRIVATE_|test-client/);
   assert.ok(report.notVerified.includes("completed owner sign-in"));
   assert.ok(report.notVerified.includes("private GitHub source installation"));
+});
+test("hosted report accepts an exact bounded Advanced canary policy", async () => {
+  const canary = {
+    enabled: true,
+    mode: "canary",
+    bps: 1000,
+    seedConfigured: true,
+  };
+  const canaryConfig = {
+    vars: {
+      ...c.vars,
+      ADVANCED_ENABLED: "true",
+      ADVANCED_ROLLOUT_MODE: "canary",
+      ADVANCED_CANARY_BPS: "1000",
+      ADVANCED_CANARY_SEED: "reviewed-canary-seed",
+    },
+  };
+  const stable = service();
+  const report = await verifyHosted(canaryConfig, {
+    sleep,
+    send: async (url, options) => {
+      const path = new URL(url).pathname;
+      if (path === "/health")
+        return Response.json(
+          { status: "ok", release, advancedEnabled: true },
+          { headers },
+        );
+      if (path === "/readiness.json") {
+        const response = await stable(url, options);
+        const value = await response.json();
+        value.payments.advancedEnabled = true;
+        value.runtimeCapabilities.policies = {
+          advancedEnabled: canary.enabled,
+          advancedRolloutMode: canary.mode,
+          advancedCanaryBps: canary.bps,
+          advancedCanarySeedConfigured: canary.seedConfigured,
+        };
+        return Response.json(value, { headers });
+      }
+      return stable(url, options);
+    },
+  });
+  assert.equal(report.passed, true);
 });
 test("version-bound read-only surfaces converge independently during edge propagation", async () => {
   const stable = service();
@@ -258,19 +325,39 @@ test("a workspace self-redirect fails acceptance rather than being followed", as
 });
 
 test("hosted catalogue follows the built operation contract and rejects missing or substituted names", async () => {
-  assert.ok(catalogue.some((operation) => operation.name === "receipt_recheck"));
+  assert.ok(
+    catalogue.some((operation) => operation.name === "receipt_recheck"),
+  );
   for (const operations of [
     catalogue.filter((operation) => operation.name !== "receipt_recheck"),
-    catalogue.map((operation) => operation.name === "receipt_recheck" ? { name: "unknown_replacement" } : operation),
-    catalogue.map((operation) => operation.name === "receipt_recheck" ? { name: "workspace_status" } : operation),
+    catalogue.map((operation) =>
+      operation.name === "receipt_recheck"
+        ? { name: "unknown_replacement" }
+        : operation,
+    ),
+    catalogue.map((operation) =>
+      operation.name === "receipt_recheck"
+        ? { name: "workspace_status" }
+        : operation,
+    ),
   ]) {
     const stable = service();
-    const report = await verifyHosted(c, { sleep,
-      send: (url, options) => new URL(url).pathname === "/help.json"
-        ? Promise.resolve(Response.json({ release, operations, payment: { enabled: false } }, { headers }))
-        : stable(url, options),
+    const report = await verifyHosted(c, {
+      sleep,
+      send: (url, options) =>
+        new URL(url).pathname === "/help.json"
+          ? Promise.resolve(
+              Response.json(
+                { release, operations, payment: { enabled: false } },
+                { headers },
+              ),
+            )
+          : stable(url, options),
     });
     assert.equal(report.passed, false);
-    assert.equal(report.checks.find((check) => check.name.includes("catalogue")).passed, false);
+    assert.equal(
+      report.checks.find((check) => check.name.includes("catalogue")).passed,
+      false,
+    );
   }
 });

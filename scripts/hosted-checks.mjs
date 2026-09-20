@@ -1,5 +1,7 @@
 import catalogue from "../public/catalog.json" with { type: "json" };
-const expectedOperationNames = catalogue.map((operation) => operation.name).sort();
+const expectedOperationNames = catalogue
+  .map((operation) => operation.name)
+  .sort();
 
 import { setTimeout as delay } from "node:timers/promises";
 import { demand, httpsUrl } from "./deployment-config.mjs";
@@ -52,6 +54,14 @@ export async function waitForRevision(
 export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
   const origin = c.vars.PUBLIC_ORIGIN;
   const release = c.vars.RELEASE_SHA;
+  const expectedAdvanced = {
+    enabled: c.vars.ADVANCED_ENABLED === "true",
+    mode: c.vars.ADVANCED_ROLLOUT_MODE || "disabled",
+    bps: Number(c.vars.ADVANCED_CANARY_BPS || "0"),
+    seedConfigured: Boolean(
+      c.vars.ADVANCED_CANARY_SEED && c.vars.ADVANCED_CANARY_SEED.length >= 8,
+    ),
+  };
   const readiness = await waitForRevision(origin, release, { send, sleep });
   const checks = [];
   let configuredCapabilities = null;
@@ -96,7 +106,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     r.headers.get("x-content-type-options") === "nosniff" &&
     r.headers.get("x-frame-options") === "DENY";
   await check(
-    "exact healthy revision; Advanced disabled",
+    "exact healthy revision; reviewed Advanced policy",
     "/health",
     200,
     {},
@@ -106,7 +116,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         secure(r) &&
         b.status === "ok" &&
         b.release === release &&
-        b.advancedEnabled === false
+        b.advancedEnabled === expectedAdvanced.enabled
       );
     },
     true,
@@ -122,7 +132,9 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         secure(r) &&
         b.release === release &&
         Array.isArray(b.operations) &&
-        JSON.stringify(b.operations.map((operation) => operation.name).sort()) === JSON.stringify(expectedOperationNames) &&
+        JSON.stringify(
+          b.operations.map((operation) => operation.name).sort(),
+        ) === JSON.stringify(expectedOperationNames) &&
         b.payment?.enabled === false
       );
     },
@@ -136,12 +148,22 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     async (r) => {
       const b = await r.json();
       configuredCapabilities = {
-        stripeSandbox: typeof b.payments?.sandboxEnabled === "boolean" ? b.payments.sandboxEnabled : null,
-        githubPrivateSources: typeof b.sources?.github?.privateRepositories === "boolean"
-          ? b.sources.github.privateRepositories : null,
-        providerOAuth: Object.fromEntries(["x", "threads", "linkedin"].map((name) => [
-          name, typeof b.providers?.[name]?.oauth === "boolean" ? b.providers[name].oauth : null,
-        ])),
+        stripeSandbox:
+          typeof b.payments?.sandboxEnabled === "boolean"
+            ? b.payments.sandboxEnabled
+            : null,
+        githubPrivateSources:
+          typeof b.sources?.github?.privateRepositories === "boolean"
+            ? b.sources.github.privateRepositories
+            : null,
+        providerOAuth: Object.fromEntries(
+          ["x", "threads", "linkedin"].map((name) => [
+            name,
+            typeof b.providers?.[name]?.oauth === "boolean"
+              ? b.providers[name].oauth
+              : null,
+          ]),
+        ),
       };
       return (
         secure(r) &&
@@ -149,9 +171,18 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.release === release &&
         b.access?.signupMode === "restricted" &&
         b.access?.publicSignup === false &&
-        b.payments?.sandboxEnabled === (c.vars.STRIPE_SANDBOX_ENABLED === "true") &&
-        b.payments?.advancedEnabled === false &&
+        b.payments?.sandboxEnabled ===
+          (c.vars.STRIPE_SANDBOX_ENABLED === "true") &&
+        b.payments?.advancedEnabled === expectedAdvanced.enabled &&
         b.payments?.mppEnabled === false &&
+        b.runtimeCapabilities?.policies?.advancedEnabled ===
+          expectedAdvanced.enabled &&
+        b.runtimeCapabilities?.policies?.advancedRolloutMode ===
+          expectedAdvanced.mode &&
+        b.runtimeCapabilities?.policies?.advancedCanaryBps ===
+          expectedAdvanced.bps &&
+        b.runtimeCapabilities?.policies?.advancedCanarySeedConfigured ===
+          expectedAdvanced.seedConfigured &&
         typeof b.sources?.github?.privateRepositories === "boolean" &&
         b.sources?.github?.ownerOnly === true &&
         b.sources?.github?.repositorySelection === "selected_only" &&
@@ -249,7 +280,11 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repository: "probe/denied", branch: "main", path: "README.md" }),
+      body: JSON.stringify({
+        repository: "probe/denied",
+        branch: "main",
+        path: "README.md",
+      }),
     },
     unauthenticated,
   );
