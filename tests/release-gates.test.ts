@@ -49,7 +49,13 @@ test("release gate identifiers are unique and external evidence is derived from 
   assert.ok(ids.includes("github_main_ruleset"));
   assert.ok(!externalEvidenceGateIds().includes("private_github_authority"));
   assert.ok(!externalEvidenceGateIds().includes("threads_oauth_callback"));
+  assert.ok(!externalEvidenceGateIds().includes("x_oauth"));
+  assert.ok(!externalEvidenceGateIds().includes("x_publication_readback"));
   assert.ok(!externalEvidenceGateIds().includes("capacity_cost_calibration"));
+  assert.equal(
+    releaseGateDefinitions.find((gate) => gate.id === "x_token_refresh_rotation")?.state,
+    "implemented",
+  );
   assert.deepEqual(
     releaseGateDefinitions.find((gate) => gate.id === "capacity_cost_calibration"),
     {

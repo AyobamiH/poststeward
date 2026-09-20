@@ -25,6 +25,7 @@ const actionCatalog = Object.freeze({
   threads_oauth_callback: { class: "external_wait", action: "wait_for_meta_callback_persistence" },
   native_webmcp: { class: "owner_browser", action: "run_authenticated_native_webmcp_when_supported" },
   x_oauth: { class: "owner_provider", action: "configure_or_authorize_x" },
+  x_token_refresh_rotation: { class: "owner_provider", action: "observe_safe_x_token_refresh_rotation" },
   linkedin_oauth: { class: "owner_provider", action: "configure_or_authorize_linkedin" },
   linkedin_member_readback: {
     class: "external_permission", action: "obtain_linkedin_member_readback_permission_if_available",

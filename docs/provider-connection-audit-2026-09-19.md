@@ -45,3 +45,9 @@ The exact revision passed 84 provider/connection-focused tests after a clean loc
 4. Native WebMCP: the supporting browser advertised 27 tools, but the page's authenticated read-only `workspace_status` check still returned “tool is not registered”; the gate remains open.
 
 Public signup remains disabled by policy. Production infrastructure gates marked `live_verified` do not imply that all three social providers are connected or accepted.
+
+## X follow-up — 20 September 2026
+
+The X rows and remaining action above are a point-in-time record from the read-only 19 September audit. They are superseded for X by `docs/x-oauth-publication-live-evidence-2026-09-20.md`.
+
+The owner subsequently configured the dedicated application authority, authorised the production callback as `@poststeward`, verified the stable identity and active connection, and approved one controlled publication with independent provider-page readback. A real token-expiry refresh rotation was not forced and remains a separately visible, non-blocking follow-up. LinkedIn and native WebMCP findings are unchanged.

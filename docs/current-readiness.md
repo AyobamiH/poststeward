@@ -14,7 +14,9 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `approximate_timestamp_pitr` | `blocked_external` | `restricted_staging` | no | Cloudflare hosted timestamp-to-bookmark resolution is failing; exact checkpoints do not depend on it. |
 | `threads_oauth_callback` | `live_verified` | `restricted_staging` | no | Meta callback persistence, one real production owner Threads OAuth journey and one current healthy long-lived owner connection are accepted; publication/readback evidence remains a separate gate. |
 | `native_webmcp` | `unavailable_capability` | `restricted_staging` | no | Native WebMCP is deployed and tool registration is advertised, but the authenticated page's read-only workspace_status execution check still reports that the tool is not registered. |
-| `x_oauth` | `external_setup_required` | `provider_optional` | no | X application/client authority is configured in staging and production; the real owner OAuth grant, stable identity, refresh lifecycle and active connection remain unaccepted. |
+| `x_oauth` | `live_verified` | `provider_optional` | no | Dedicated X application authority, the real @poststeward production OAuth grant, exact callback return, stable identity and current active connection are accepted. |
+| `x_publication_readback` | `live_verified` | `provider_optional` | no | One owner-approved @poststeward X publication, verified PostSteward receipt and independent provider-page readback are accepted. |
+| `x_token_refresh_rotation` | `implemented` | `provider_optional` | no | X offline refresh authority and refresh capability are present, but a real token-expiry refresh rotation has not been deliberately exercised. |
 | `linkedin_poststeward_page_identity` | `live_verified` | `provider_optional` | no | PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate. |
 | `linkedin_oauth` | `external_setup_required` | `provider_optional` | no | LinkedIn OAuth implementation exists, but provider application/client authority and a real owner Page grant/connection are not configured. |
 | `linkedin_member_readback` | `external_setup_required` | `provider_optional` | no | Independent member-profile post readback remains unavailable until LinkedIn grants the restricted permission; it is separate from and does not block the organization/Page path. |
@@ -39,7 +41,9 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `approximate_timestamp_pitr`: `docs/live-external-gates-2026-09-13.md`
 - `threads_oauth_callback`: `docs/threads-oauth-callback-live-evidence-2026-09-19.md`, `docs/provider-connection-audit-2026-09-19.md`
 - `native_webmcp`: `docs/live-external-gates-2026-09-13.md`, `docs/provider-connection-audit-2026-09-19.md`; owner action: Use one authenticated supporting browser for the read-only workspace_status proof when available.
-- `x_oauth`: `docs/live-external-gates-2026-09-13.md`, `docs/provider-connection-audit-2026-09-19.md`
+- `x_oauth`: `docs/x-oauth-publication-live-evidence-2026-09-20.md`, `docs/provider-connection-audit-2026-09-19.md`
+- `x_publication_readback`: `docs/x-oauth-publication-live-evidence-2026-09-20.md`
+- `x_token_refresh_rotation`: `docs/x-oauth-publication-live-evidence-2026-09-20.md`; owner action: Observe one safe refresh rotation after natural expiry or through a controlled non-publishing drill.
 - `linkedin_poststeward_page_identity`: `docs/live-external-gates-2026-09-13.md`
 - `linkedin_oauth`: `docs/live-external-gates-2026-09-13.md`, `docs/provider-connection-audit-2026-09-19.md`
 - `linkedin_member_readback`: `docs/live-external-gates-2026-09-13.md`

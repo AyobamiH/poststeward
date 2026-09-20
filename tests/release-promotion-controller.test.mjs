@@ -125,8 +125,11 @@ test("production next actions cannot be displaced by optional provider setup", (
   assert.deepEqual(report.nextActions.map((entry) => entry.gate), productionIds);
   assert.equal(report.nextAction.gate, "capacity_cost_calibration");
   assert.equal(report.providerContracts.x.callback, "https://production.example.com/connections/oauth/x/callback");
-  assert.equal(report.optionalActions.find((entry) => entry.gate === "x_oauth").action,
-    "register_x_application_and_store_protected_client_authority");
+  assert.equal(report.optionalActions.some((entry) => entry.gate === "x_oauth"), false);
+  assert.equal(report.optionalActions.find((entry) => entry.gate === "x_token_refresh_rotation").action,
+    "observe_safe_x_token_refresh_rotation");
+  assert.equal(report.optionalActions.find((entry) => entry.gate === "linkedin_oauth").action,
+    "register_linkedin_application_and_store_protected_client_authority");
 });
 test("SLO file collection uses the actual evaluator verdict and event-window timestamp", async () => {
   const directory = mkdtempSync(join(tmpdir(), "poststeward-promotion-"));
