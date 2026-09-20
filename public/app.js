@@ -1,6 +1,7 @@
 import { renderOwnerSnapshot, showFeedback } from "./owner-ui.js";
 import { registerWebMCP, checkNativeWebMCP } from "./webmcp.js";
 import {
+  linkedinConnectionPlan,
   oauthHosts,
   providerPostHosts,
   trustedExternal,
@@ -103,20 +104,28 @@ function navigateExternal(value, hosts) {
   location.assign(destination);
 }
 function renderOAuth() {
-  const actorUrn = String($("oauth").elements.actorUrn?.value || "").trim();
+  const form = $("oauth");
+  const linkedin = linkedinConnectionPlan(
+    form.elements.linkedinDestination?.value,
+    form.elements.actorUrn?.value,
+    oauthInfo?.providers?.linkedin,
+  );
+  form.elements.actorUrn.disabled = linkedin.actorDisabled;
+  form.elements.actorUrn.required = linkedin.actorRequired;
+  $("linkedin-actor-field").hidden = linkedin.actorDisabled;
+  $("linkedin-connection-help").textContent = linkedin.help;
   for (const b of $("oauth-buttons").querySelectorAll(
     "button[data-provider]",
   )) {
     const configuration = oauthInfo?.providers?.[b.dataset.provider];
     b.disabled =
       b.dataset.provider === "linkedin"
-        ? (actorUrn
-            ? configuration?.organizationAvailable
-            : configuration?.memberAvailable) !== true
+        ? !linkedin.enabled
         : configuration?.available !== true;
+    if (b.dataset.provider === "linkedin") b.textContent = linkedin.label;
   }
   $("oauth-status").textContent = oauthInfo
-    ? `Provider status loaded.${oauthInfo.providers?.linkedin ? ` LinkedIn member app ${oauthInfo.providers.linkedin.memberAvailable ? "configured" : "not configured"}; dedicated Page app ${oauthInfo.providers.linkedin.organizationAvailable ? "configured" : "not configured"}.` : ""}`
+    ? `Provider status loaded.${oauthInfo.providers?.linkedin ? ` LinkedIn member app ${oauthInfo.providers.linkedin.memberAvailable ? "configured" : "not configured"}; PostSteward-managed Page app ${oauthInfo.providers.linkedin.organizationAvailable ? "configured" : "awaiting approval or configuration"}.` : ""}`
     : "Provider status unavailable. No connection capability is inferred.";
 }
 function renderRecovery() {
@@ -384,15 +393,20 @@ for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]"))
       if (!/^[A-Za-z0-9_-]{1,100}$/.test(alias))
         throw new Error("Choose an account alias first.");
       const provider = b.dataset.provider;
-      const actorUrn = String(form.get("actorUrn") || "").trim();
+      const linkedin = linkedinConnectionPlan(
+        form.get("linkedinDestination"),
+        form.get("actorUrn"),
+        oauthInfo?.providers?.linkedin,
+      );
       const started = await api(`/api/connections/oauth/${provider}/start`, {
         alias,
         returnPath: "/app",
-        ...(provider === "linkedin" && actorUrn ? { actorUrn } : {}),
+        ...(provider === "linkedin" ? linkedin.payload : {}),
       });
       navigateExternal(started.authorizationUrl, oauthHosts(provider));
     });
 $("oauth").elements.actorUrn.addEventListener("input", renderOAuth);
+$("oauth").elements.linkedinDestination.addEventListener("change", renderOAuth);
 for (const id of [
   "connection",
   "project",

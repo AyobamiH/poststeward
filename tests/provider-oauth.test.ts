@@ -188,6 +188,31 @@ test("LinkedIn organization connection binds the exact reviewed page actor and o
   });
 });
 
+test("LinkedIn organization connection normalizes a numeric Page ID before identity binding", async () => {
+  const h = configuredHarness();
+  let observedActor: string | undefined;
+  h.provider.identity = async (_provider, _credential, actor) => {
+    observedActor = actor;
+    return { id: actor!, username: actor! };
+  };
+  const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);
+  const result: any = await oauth.connect(owner, {
+    alias: "linkedin-page-id",
+    actorUrn: "146607525",
+    token: {
+      provider: "linkedin",
+      accessToken: "linkedin-organization-access-002",
+      expiresAt: h.now() + 3600000,
+      scopes: ["w_organization_social", "r_organization_social"],
+      scopeEvidence: "provider",
+      obtainedAt: h.now(),
+    },
+  });
+  assert.equal(observedActor, "urn:li:organization:146607525");
+  assert.equal(result.account.identity.id, "urn:li:organization:146607525");
+  assert.equal(result.oauth.actorUrn, "urn:li:organization:146607525");
+});
+
 test("LinkedIn organization connection rejects member-only scope grants", async () => {
   const h = configuredHarness();
   const oauth = new ProviderOAuthConnections(h.store, h.env, h.provider, h.now);

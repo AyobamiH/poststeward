@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
+  linkedinConnectionPlan,
   oauthHosts,
   providerPostHosts,
   trustedExternal,
@@ -13,7 +14,10 @@ test("external navigation accepts only exact HTTPS provider hosts", () => {
     "https://x.com/i/oauth2/authorize?x=1",
   );
   assert.equal(
-    trustedExternal("https://threads.net/oauth/authorize", oauthHosts("threads")),
+    trustedExternal(
+      "https://threads.net/oauth/authorize",
+      oauthHosts("threads"),
+    ),
     "https://threads.net/oauth/authorize",
   );
   assert.equal(
@@ -29,7 +33,8 @@ test("external navigation accepts only exact HTTPS provider hosts", () => {
     "https://user:secret@x.com/i/oauth2/authorize",
     "https://x.com:8443/i/oauth2/authorize",
     "javascript:alert(1)",
-  ]) assert.equal(trustedExternal(value, oauthHosts("x")), undefined);
+  ])
+    assert.equal(trustedExternal(value, oauthHosts("x")), undefined);
 });
 
 test("provider receipt navigation is provider-specific", () => {
@@ -52,18 +57,57 @@ test("provider receipt navigation is provider-specific", () => {
     "https://www.linkedin.com/feed/update/urn:li:share:123/",
   );
   assert.equal(
-    trustedExternal("https://www.linkedin.com/post/123", providerPostHosts("x")),
+    trustedExternal(
+      "https://www.linkedin.com/post/123",
+      providerPostHosts("x"),
+    ),
     undefined,
   );
 });
 
+test("LinkedIn Page onboarding is central-app, page-first and explicit about customer authority", () => {
+  const unavailable = linkedinConnectionPlan("organization", "146607525", {
+    organizationAvailable: false,
+  });
+  assert.equal(unavailable.enabled, false);
+  assert.equal(unavailable.actorRequired, true);
+  assert.match(unavailable.help, /PostSteward's central application/);
+  assert.match(unavailable.help, /do not need their own developer app/);
+
+  const page = linkedinConnectionPlan("organization", "146607525", {
+    organizationAvailable: true,
+  });
+  assert.equal(page.enabled, true);
+  assert.equal(page.label, "Connect LinkedIn Page");
+  assert.deepEqual(page.payload, { actorUrn: "146607525" });
+  assert.match(page.help, /Page admin/);
+
+  const invalid = linkedinConnectionPlan("organization", "poststeward", {
+    organizationAvailable: true,
+  });
+  assert.equal(invalid.enabled, false);
+  assert.deepEqual(invalid.payload, {});
+
+  const member = linkedinConnectionPlan("member", "146607525", {
+    memberAvailable: true,
+  });
+  assert.equal(member.enabled, true);
+  assert.equal(member.actorDisabled, true);
+  assert.deepEqual(member.payload, {});
+  assert.match(member.help, /separate from Page publishing/);
+});
+
 test("Stripe redirects are constrained before the owner browser navigates", () => {
   assert.equal(
-    trustedExternal("https://checkout.stripe.com/c/pay/test", ["checkout.stripe.com"]),
+    trustedExternal("https://checkout.stripe.com/c/pay/test", [
+      "checkout.stripe.com",
+    ]),
     "https://checkout.stripe.com/c/pay/test",
   );
   assert.equal(
-    trustedExternal("https://billing.stripe.com/p/session/test", ["billing.stripe.com"]),
+    trustedExternal("https://billing.stripe.com/p/session/test", [
+      "billing.stripe.com",
+    ]),
     "https://billing.stripe.com/p/session/test",
   );
   assert.equal(
@@ -76,10 +120,17 @@ test("Stripe redirects are constrained before the owner browser navigates", () =
 
 test("owner workspace keeps credentials out of browser storage and bounds API waits", () => {
   const source = readFileSync("public/app.js", "utf8");
-  assert.doesNotMatch(source, /localStorage|sessionStorage|document\.cookie|innerHTML/);
+  const html = readFileSync("public/app.html", "utf8");
+  assert.doesNotMatch(
+    source,
+    /localStorage|sessionStorage|document\.cookie|innerHTML/,
+  );
   assert.match(source, /form\.elements\.accessToken\.value = ""/);
   assert.match(source, /AbortSignal\.timeout\(20000\)/);
   assert.match(source, /trustedExternal/);
+  assert.match(source, /linkedinConnectionPlan/);
+  assert.match(html, /LinkedIn Page ID or URN/);
+  assert.match(html, /Company Page/);
   assert.doesNotMatch(source, /location\.assign\(started\.authorizationUrl\)/);
   assert.doesNotMatch(source, /location\.assign\(checkout\.url\)/);
 });

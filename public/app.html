@@ -125,15 +125,22 @@
                       placeholder="product_x"
                   /></label>
                   <label
-                    >LinkedIn Page URN (optional)<input
+                    >LinkedIn publishing destination<select name="linkedinDestination">
+                      <option value="organization" selected>Company Page</option>
+                      <option value="member">Personal profile</option>
+                    </select></label
+                  >
+                  <label id="linkedin-actor-field"
+                    >LinkedIn Page ID or URN<input
                       name="actorUrn"
-                      pattern="urn:li:(organization|organizationBrand):[1-9][0-9]{0,29}"
-                      placeholder="urn:li:organization:123456"
+                      required
+                      pattern="([1-9][0-9]{0,29}|urn:li:(organization|organizationBrand):[1-9][0-9]{0,29})"
+                      placeholder="123456 or urn:li:organization:123456"
                       spellcheck="false"
                   /></label>
-                  <p class="muted">
-                    Leave blank for your member profile. For a Page, enter the exact organisation URN;
-                    the same member signs in and PostSteward verifies access to that Page before binding it.
+                  <p id="linkedin-connection-help" class="muted">
+                    Enter the numeric Page ID or exact Page URN. PostSteward supplies the application;
+                    the authorising member must hold an eligible role on that Page.
                   </p>
                   <div class="row" id="oauth-buttons">
                     <button type="button" data-provider="x" disabled>Connect X</button>

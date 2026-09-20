@@ -35,6 +35,7 @@ export function releaseReadiness(env: Env) {
             ? {
                 memberOauth: value.memberAvailable,
                 organizationOauth: value.organizationAvailable,
+                organizationConnection: value.organizationConnection,
                 organizationRequiredScopes: value.organizationScopes,
                 organizationCapabilities: value.organizationCapabilities,
               }

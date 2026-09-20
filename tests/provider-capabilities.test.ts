@@ -64,6 +64,12 @@ test("LinkedIn Community Management credentials never imply member OpenID author
   assert.equal(configured.linkedin.available, true);
   assert.equal(configured.linkedin.memberAvailable, false);
   assert.equal(configured.linkedin.organizationAvailable, true);
+  assert.deepEqual(configured.linkedin.organizationConnection, {
+    model: "poststeward_managed",
+    customerAppRequired: false,
+    customerRequirement: "eligible_page_role",
+    actorSelection: "page_id_or_urn",
+  });
   assert.equal(configured.linkedin.capabilities.identity.state, "unavailable");
   assert.deepEqual(configured.linkedin.organizationScopes, [
     "w_organization_social",
