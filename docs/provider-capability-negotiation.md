@@ -8,7 +8,8 @@ The provider application surface reports what can be requested. A completed owne
 
 - **X** requires `tweet.read`, `tweet.write`, `users.read` and `offline.access`. A usable refresh token is required. Readback and public metrics use the `tweet.read` grant.
 - **Threads** requires `threads_basic` and `threads_content_publish`. `threads_manage_insights` is optional. If Meta omits scope echoing, publishing/readback remain operational under the requested baseline but the detailed capability state stays `unknown`; insights remain unavailable unless explicitly echoed.
-- **LinkedIn** requires `openid`, `profile` and `w_member_social` for member identity and publishing. `r_member_social` is optional and never inferred. Without explicit grant evidence, PostSteward remains publish-capable but readback is unavailable and controlled acceptance cannot claim independent verification.
+- **LinkedIn member profile** requires `openid`, `profile` and `w_member_social`. Restricted `r_member_social` is optional and never inferred; without it, controlled acceptance cannot claim independent member-post readback.
+- **LinkedIn organisation/Page** requires `openid`, `profile`, `w_organization_social` and `r_organization_social` for the exact reviewed Page actor. The member is the OAuth subject, while the Page URN is state-bound and independently rechecked. Page publishing/readback does not require `r_member_social`.
 
 The compatibility `Account.capabilities` booleans remain deliberately small so existing delivery bindings do not change merely because richer evidence metadata was added. Detailed negotiation evidence is stored with OAuth metadata and exposed without tokens or refresh secrets through the owner-only OAuth status endpoint.
 

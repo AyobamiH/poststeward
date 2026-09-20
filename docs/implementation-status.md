@@ -1,10 +1,10 @@
-# PostSteward implementation status — 19 September 2026
+# PostSteward implementation status — 20 September 2026
 
 ## Executive state
 
 PostSteward's restricted-staging product is substantially implemented. The remaining work is no longer a general product rewrite: it is a small set of genuine browser/provider/platform gates plus a separate production/paid-launch acceptance layer.
 
-The reconciled staging and production release is `bf74c0a442acba18e41a1faf4d5d793bd4a36981`. Exact current runtime identity should always be read from `/readiness.json` rather than inferred from this document. Provider application state, owner connection state and publication/readback evidence are deliberately separate; see the [provider connection audit](provider-connection-audit-2026-09-19.md).
+The reconciled staging and production release before the LinkedIn correction branch is `80e3af5529cbe96163e7baed0a53c180cba2187b`. Exact current runtime identity should always be read from `/readiness.json` rather than inferred from this document. Provider application state, owner connection state and publication/readback evidence are deliberately separate; see the [provider connection audit](provider-connection-audit-2026-09-19.md).
 
 The authoritative generated ledger is [current release gates](current-readiness.md). The dated [live external gates](live-external-gates-2026-09-13.md) and other completion documents remain historical evidence and must not reopen accepted effects.
 
@@ -15,6 +15,7 @@ Do not repeat any of these merely to create a newer receipt:
 - **Owner Google sign-in:** accepted from the real owner browser journey.
 - **Threads controlled publication and independent readback:** accepted from the existing owner receipt.
 - **Threads owner connection:** accepted from a real production OAuth callback/code exchange and a current healthy long-lived connection. The current production workspace has no delivery receipt, so connection and publication remain separate evidence.
+- **X owner connection and publication:** accepted for the dedicated application, real `@poststeward` Page identity, production OAuth callback, exact controlled publication/readback and natural token refresh rotation.
 - **Inspect-only agent authority:** accepted over HTTP and remote MCP, including denial of the same token after owner revocation.
 - **Stripe sandbox lifecycle:** accepted for subscription Checkout, paid application state, full refund with entitlement revocation, operator cancellation and completed signed-webhook ledger evidence.
 - **Protected root cutover:** accepted. The active writer is `next`; the legacy root remains intentionally retained for recovery and is not to be retired merely for another receipt.
@@ -26,7 +27,6 @@ Do not repeat any of these merely to create a newer receipt:
 | --- | --- | --- |
 | Cloudflare PITR | **Blocked at hosted target-bookmark resolution.** `getCurrentBookmark()` succeeds; `getBookmarkForTime()` returns the bounded `RECOVERY_PITR_TARGET_BOOKMARK_FAILED`. No restore has been armed. | Park destructive rehearsal. Retry only after the hosted primitive works, or after an explicit owner-visible fallback is deliberately designed and verified. |
 | Native WebMCP | **Engineering deployed; live execution open.** A supporting browser advertised 27 tools, but the authenticated page's `workspace_status` check reported the tool was not registered. | Diagnose the registration/execution boundary and accept only a successful read-only round trip bound to the current workspace and release. |
-| X owner connection | Application credentials are configured in staging and production; no real owner connection is accepted. | Complete OAuth/identity/refresh proof with the existing application. Publish/read back once only if X is claimed end-to-end. |
 | LinkedIn Page connection | Application credentials and owner Page grant are absent. The Page identity alone is not authority. | Configure the app, request organization scopes, verify exact Page access and complete the owner connection. Member-profile readback is separate and optional. |
 
 ## Implemented product foundation
@@ -39,7 +39,7 @@ Do not repeat any of these merely to create a newer receipt:
 | Controlled publication | Owner-only `/pilot`, stable provider identity, immutable expiring review, explicit approval, one-shot reservation and 30-second cancellation boundary |
 | Effect safety | Idempotency, fingerprint dedupe, claim fencing, ambiguous-effect preservation, known creation-ID retention and no blind retry across the write boundary |
 | Readback | Separate bounded provider GET with exact post ID, stable author ID and exact text verification, plus ordinary `receipt_recheck` recovery without republishing |
-| Provider OAuth | X PKCE, Threads long-lived/refresh flow and LinkedIn OAuth with capability-gated member readback |
+| Provider OAuth | X PKCE, Threads long-lived/refresh flow, LinkedIn member OAuth and an exact state-bound LinkedIn organisation/Page path with separate capability-gated readback |
 | Free publishing | Explicit project routing, immutable campaigns, publish now, explicit schedules, cancel/replace, receipts, export and on-demand metrics |
 | Agent transports | One generated operation catalogue shared by HTTP, remote MCP and browser WebMCP, with generated help/OpenAPI/reference/discovery |
 | Private GitHub | Owner-only selected-repository authority, read-only Contents/Metadata, encrypted rotating user credential, per-read revalidation, unlink/revoke/lifecycle cleanup and fail-closed private reads; live acceptance preserved |

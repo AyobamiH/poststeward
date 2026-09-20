@@ -2,7 +2,7 @@
 
 ## Scope and completion rule
 
-Continue the accepted restricted staging deployment. Do not recreate Cloudflare resources, rotate the stored encryption key, enable billing, open public signup, import another product's credentials, or publish to a guessed account. This milestone is one owner-approved, text-only publication to one verified X or Threads identity through PostSteward's existing durable engine. LinkedIn may enter this path only when its actual application has r_member_social and LINKEDIN_MEMBER_READBACK is enabled; otherwise its member-post readback remains unavailable. Prefer a configured X or Threads identity for the first acceptance.
+Continue the accepted restricted staging deployment. Do not recreate Cloudflare resources, rotate the stored encryption key, enable billing, open public signup, import another product's credentials, or publish to a guessed account. This milestone is one owner-approved, text-only publication to one verified X, Threads or LinkedIn identity through PostSteward's existing durable engine. A LinkedIn member-profile destination requires restricted `r_member_social`; a LinkedIn Page destination instead requires the exact reviewed organisation actor plus `w_organization_social` and `r_organization_social`. These authorities are separate and neither may be inferred from a known profile or Page URL.
 
 Completion requires four separate records: a successful OIDC callback and usable owner session; a fresh provider identity read; the owner's exact destination/content approval; and a separate provider GET matching the creation ID, stable author ID and exact text. Deployment, mocked provider responses, a login redirect, an HTTP 2xx write, or a screenshot alone cannot substitute for these records.
 

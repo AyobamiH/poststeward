@@ -152,8 +152,12 @@ export class EffectLedgerProviders implements ProviderAPI {
     private now: () => number = Date.now,
   ) {}
 
-  identity(provider: Provider, credential: Credential): Promise<Identity> {
-    return this.inner.identity(provider, credential);
+  identity(
+    provider: Provider,
+    credential: Credential,
+    actorUrn?: string,
+  ): Promise<Identity> {
+    return this.inner.identity(provider, credential, actorUrn);
   }
   containerStatus(id: string, credential: Credential): Promise<string> {
     return this.inner.containerStatus(id, credential);

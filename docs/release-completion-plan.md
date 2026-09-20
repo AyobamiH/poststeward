@@ -9,7 +9,7 @@ The current detailed evidence ledger is [live external gates](live-external-gate
 - Restricted Google OIDC owner sign-in and session-bound controlled publication approval.
 - X, Threads and LinkedIn publishing adapters with explicit uncertain-outcome handling and durable external-effect fences.
 - Provider OAuth architecture for X, Threads and LinkedIn, encrypted access/refresh storage, background refresh and identity-drift blocking.
-- Capability-gated LinkedIn member-post readback. It remains disabled unless the LinkedIn app actually has `r_member_social`.
+- Capability-gated LinkedIn readback: restricted `r_member_social` for member posts, or role-gated `r_organization_social` for an exact state-bound Page actor.
 - Owner-authorised private GitHub sources with selected-repository/read-only enforcement, encrypted rotating user authority, per-read revalidation, owner controls and deletion cleanup.
 - Workspace PITR coordination, quarantine, restored-authority invalidation, exact undo and D1 effect fences outside restored Durable Object state.
 - Free explicit publishing/scheduling/receipts and Advanced source-monitoring foundations, including independently scheduled metrics.
@@ -28,14 +28,14 @@ These gates are closed for restricted staging and must be preserved rather than 
 4. selected-private-repository GitHub installation/OAuth/read/provider-revocation/fail-closed journey;
 5. Stripe sandbox subscription Checkout, paid application state, refund/revoked entitlement, operator cancellation and completed webhook ledger;
 6. protected encryption-root cutover with `next` as active writer and legacy root retained for recovery.
+7. Threads OAuth callback and current healthy owner connection.
+8. X application authority, `@poststeward` owner connection, controlled publication/readback and natural token refresh rotation.
 
 ## External/browser/platform gates still open
 
-1. **Threads OAuth callback:** parked until Meta accepts the exact callback allowlist. This is not permission to weaken redirect validation or publish again.
-2. **Cloudflare PITR:** parked because the hosted runtime can read the current bookmark but fails target resolution at `getBookmarkForTime()` before any restore is armed.
-3. **Native WebMCP:** one authenticated read-only invocation in a browser that actually implements the native API. The owner's ordinary authenticated browser has already been observed to lack native WebMCP support.
-4. **X provider app/grant:** real application registration, protected credentials, owner consent, stable identity/capability and refresh evidence.
-5. **LinkedIn app/grant:** real application registration and owner consent; member readback remains separately gated on actual restricted permission approval.
+1. **Cloudflare approximate-time PITR:** parked because the hosted runtime can read the current bookmark but fails target resolution at `getBookmarkForTime()` before any restore is armed. Exact checkpoint recovery is separately accepted.
+2. **Native WebMCP:** one authenticated read-only invocation in a browser that actually implements the native API. The owner's ordinary authenticated browser has already been observed to lack native WebMCP support.
+3. **LinkedIn Page app/grant:** real application registration, protected client authority, owner consent for `urn:li:organization:146607525`, stored Page connection and controlled Page publication/readback. Restricted member-profile readback remains separate and does not block this path.
 
 ## Paid product and production are separate
 
