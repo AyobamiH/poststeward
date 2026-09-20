@@ -6,6 +6,7 @@ import {
   receiptState,
   operationSummary,
   accountReadbackLabel,
+  providerConnectionCapabilityLabel,
 } from "../public/owner-ui.js";
 
 const ui = readFileSync("public/owner-ui.js", "utf8");
@@ -65,6 +66,27 @@ test("Threads baseline readback omission is labelled as unconfirmed scope eviden
     ),
     "Available to this grant",
   );
+});
+
+test("provider cards distinguish application setup from active connection capability", () => {
+  const account = {
+    alias: "primary",
+    active: true,
+    capabilities: { readback: true, refresh: true, metrics: false },
+  };
+  const connection = {
+    alias: "primary",
+    capabilities: {
+      publish: { state: "available" },
+      readback: { state: "unknown", reason: "scope_response_absent" },
+      refresh: { state: "available" },
+      metrics: { state: "unavailable" },
+    },
+  };
+  assert.equal(providerConnectionCapabilityLabel("publish", [account], [connection]), "Available on 1 active connection");
+  assert.equal(providerConnectionCapabilityLabel("readback", [account], [connection]), "Available on 1 active connection");
+  assert.equal(providerConnectionCapabilityLabel("metrics", [account], [connection]), "Unavailable on 1 active connection");
+  assert.equal(providerConnectionCapabilityLabel("publish", [], []), undefined);
 });
 
 test("response summaries do not promote reservation or uncertainty to success", () => {

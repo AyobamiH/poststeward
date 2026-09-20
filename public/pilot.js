@@ -56,7 +56,7 @@ function renderOAuth() {
   const labels = Object.entries(oauthInfo.providers || {}).map(
     ([provider, value]) => {
       const capability = value.available
-        ? "ready"
+        ? "app configured"
         : "provider app not configured";
       const readback =
         provider === "linkedin"

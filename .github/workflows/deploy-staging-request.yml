@@ -1,14 +1,14 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-19-capacity-cost-live-acceptance
+# Deployment request: 2026-09-20-provider-connection-readiness
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision containing the signed Threads uninstall/data-deletion callbacks,
-# provider identity index, deletion confirmation ledger and hosted callback probes from PR #120.
+# Deploy the exact reviewed revision that separates configured provider applications from active
+# owner connections and reconciles X, Threads, LinkedIn and native WebMCP acceptance evidence.
 # Alert delivery remains inert unless a protected webhook destination is configured.
 # Protected staging retains its existing disabled Advanced policy; no canary start is requested.
 # This deployment is non-destructive: it does not initiate provider consent, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
-# Existing accepted evidence is not repeated. The timestamp PITR diagnostic remains disabled.
+# Existing accepted evidence is not repeated by deployment. The timestamp PITR diagnostic remains disabled.
 on:
   push:
     branches: [main]

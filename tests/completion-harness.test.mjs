@@ -16,20 +16,22 @@ const json = (body, status = 200, headers = {}) =>
     headers: { "Content-Type": "application/json", ...headers },
   });
 
-test("readiness acceptance requires Threads-first restricted staging", async () => {
+test("readiness acceptance requires Threads but permits independently configured optional providers", async () => {
   const result = await checkReadiness("https://staging.example", async () =>
     json({
       release: "a".repeat(40),
       access: { signupMode: "restricted" },
       providers: {
         threads: { oauth: true },
-        x: { oauth: false },
+        x: { oauth: true },
         linkedin: { oauth: false },
       },
       payments: { advancedEnabled: false, mppEnabled: false },
     }),
   );
   assert.equal(result.threadsOAuth, true);
+  assert.equal(result.xOAuth, true);
+  assert.equal(result.linkedinOAuth, false);
   await assert.rejects(
     checkReadiness("https://staging.example", async () =>
       json({
