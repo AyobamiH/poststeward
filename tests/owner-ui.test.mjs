@@ -6,6 +6,7 @@ import {
   receiptState,
   operationSummary,
   accountReadbackLabel,
+  oauthRefreshEvidence,
   providerConnectionCapabilityLabel,
 } from "../public/owner-ui.js";
 
@@ -87,6 +88,36 @@ test("provider cards distinguish application setup from active connection capabi
   assert.equal(providerConnectionCapabilityLabel("readback", [account], [connection]), "Available on 1 active connection");
   assert.equal(providerConnectionCapabilityLabel("metrics", [account], [connection]), "Unavailable on 1 active connection");
   assert.equal(providerConnectionCapabilityLabel("publish", [], []), undefined);
+});
+
+test("owner refresh evidence exposes bounded lifecycle metadata without credentials", () => {
+  assert.deepEqual(
+    oauthRefreshEvidence({
+      status: "healthy",
+      strategy: "refresh_token",
+      lastRefreshAt: 123,
+      nextRefreshAt: 456,
+      lastError: "OAUTH_REFRESH_FAILED",
+      secret: "must-not-render",
+    }),
+    {
+      health: "healthy",
+      strategy: "refresh token",
+      lastRefreshAt: 123,
+      nextRefreshAt: 456,
+      lastError: "OAUTH_REFRESH_FAILED",
+    },
+  );
+  assert.deepEqual(oauthRefreshEvidence(), {
+    health: "Not recorded",
+    strategy: "Not recorded",
+    lastRefreshAt: undefined,
+    nextRefreshAt: undefined,
+    lastError: undefined,
+  });
+  assert.doesNotMatch(JSON.stringify(oauthRefreshEvidence({
+    status: "<script>", strategy: "refresh-token", lastError: "private value",
+  })), /script|private value/);
 });
 
 test("response summaries do not promote reservation or uncertainty to success", () => {

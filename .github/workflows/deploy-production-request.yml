@@ -1,13 +1,13 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-20-x-live-evidence
+# Production deployment request: 2026-09-20-x-refresh-observability
 # This file is the only reviewed push-triggered production deployment request.
-# This request deploys the reviewed @poststeward X OAuth and publication/readback evidence.
+# This request adds owner-only X refresh health and timestamp observability without exposing credentials.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
 # Production uses its own D1, APP_ORIGIN and OIDC. PRODUCTION_CREDENTIAL_MODE may explicitly
 # record temporary reuse of staging credential values while signup remains restricted. No provider
-# consent, repeat publication, payment, public admission or recovery effect is requested by deployment.
+# consent, token refresh, repeat publication, payment, public admission or recovery effect is requested by deployment.
 on:
   push:
     branches: [main]

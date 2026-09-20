@@ -107,6 +107,27 @@ export function accountReadbackLabel(account, connection) {
     ? "Reported supported; inspect receipt evidence"
     : "Unknown / unavailable";
 }
+export function oauthRefreshEvidence(connection) {
+  const safeLabel = (value, fallback) =>
+    typeof value === "string" && /^[a-z_]{1,40}$/.test(value)
+      ? value.replaceAll("_", " ")
+      : fallback;
+  return {
+    health: safeLabel(connection?.status, "Not recorded"),
+    strategy: safeLabel(connection?.strategy, "Not recorded"),
+    lastRefreshAt: Number.isFinite(connection?.lastRefreshAt)
+      ? connection.lastRefreshAt
+      : undefined,
+    nextRefreshAt: Number.isFinite(connection?.nextRefreshAt)
+      ? connection.nextRefreshAt
+      : undefined,
+    lastError:
+      typeof connection?.lastError === "string" &&
+      /^[A-Z0-9_.:-]{1,80}$/.test(connection.lastError)
+        ? connection.lastError
+        : undefined,
+  };
+}
 function renderProviders(snapshot) {
   const anchor = document.getElementById("oauth-status"); if (!anchor) return;
   let grid = document.getElementById("ux-provider-grid");
@@ -155,7 +176,18 @@ export function renderOwnerSnapshot(snapshot) {
     title(row, account.alias, [[providers[account.provider] || "Unknown provider"], [account.active === true ? "Connected" : "Disconnected", account.active === true ? "connected" : "disconnected"]]);
     row.querySelector(":scope > span")?.remove();
     const connection = snapshot.oauthInfo?.connections?.find((item) => item.alias === account.alias);
-    row.append(fields([["Account", account.identity?.username], ["Stable author ID", account.identity?.id], ["Connection verified", time(account.verifiedAt)], ["Readback permission", accountReadbackLabel(account, connection)]]));
+    const refresh = oauthRefreshEvidence(connection);
+    row.append(fields([
+      ["Account", account.identity?.username],
+      ["Stable author ID", account.identity?.id],
+      ["Connection verified", time(account.verifiedAt)],
+      ["Readback permission", accountReadbackLabel(account, connection)],
+      ["OAuth health", refresh.health],
+      ["Credential strategy", refresh.strategy],
+      ["Last token refresh", refresh.lastRefreshAt ? time(refresh.lastRefreshAt) : "Not yet observed"],
+      ["Next token refresh", refresh.nextRefreshAt ? time(refresh.nextRefreshAt) : "Not scheduled"],
+      ...(refresh.lastError ? [["Last refresh error", refresh.lastError]] : []),
+    ]));
   });
   enrichRows("receipts", snapshot.receipts, (row, receipt) => {
     title(row, receipt.account, [[providers[receipt.provider] || "Unknown provider"], receiptState(receipt.status)]);
