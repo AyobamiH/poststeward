@@ -79,6 +79,29 @@ test("hosted release control accepts matching healthy runtime and reviewed gate 
   assert.equal(report.checks.length, 2);
 });
 
+test("hosted release control accepts the exact bounded canary requested by deployment", async () => {
+  const canaryReadiness = readiness();
+  canaryReadiness.runtimeCapabilities.policies = {
+    advancedEnabled: true,
+    advancedRolloutMode: "canary",
+    advancedCanaryBps: 1000,
+    signupMode: "restricted",
+  };
+  const report = await verifyReleaseControl(
+    origin,
+    release,
+    async (url) => {
+      const path = new URL(url).pathname;
+      return Response.json(
+        path === "/readiness.json" ? canaryReadiness : gates(),
+        { headers: secureHeaders },
+      );
+    },
+    { enabled: true, mode: "canary", bps: 1000 },
+  );
+  assert.equal(report.passed, true);
+});
+
 test("hosted release control fails closed on an unsafe runtime policy contradiction", async () => {
   const report = await verifyReleaseControl(origin, release, async (url) => {
     const path = new URL(url).pathname;
