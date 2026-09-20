@@ -4,7 +4,7 @@
 
 This record separates application configuration, an active owner connection, a verified publication/readback and long-running token refresh. Those are different claims.
 
-The provider effect occurred on 19 September 2026 UTC and was reviewed on 20 September 2026. No credential or token value is stored here.
+The provider effect occurred on 20 September 2026 UTC and was reviewed on the same date. No credential or token value is stored here.
 
 ## Dedicated application and deployed authority
 
@@ -49,7 +49,7 @@ After the connection was verified, the owner explicitly approved one immediate p
 - receipt ID: `3456691d-254c-4a93-a72b-862bd22787a8`;
 - provider creation/status ID: `2101493362620502160`;
 - provider URL: `https://x.com/i/web/status/2101493362620502160`;
-- provider effect time: 19 September 2026 at 19:07 UTC.
+- provider effect time: `2026-09-20T02:07:16.164Z`, independently derived from the X status ID.
 
 The approved copy was:
 
@@ -60,15 +60,36 @@ A separate provider-page load independently displayed:
 - author `PostSteward @poststeward`;
 - the exact approved text;
 - canonical status ID `2101493362620502160`;
-- visible provider timestamp 19 September 2026 at 19:07.
+- visible provider timestamp `7:07 PM · Sep 19, 2026` in the browser locale, consistent with the UTC status-ID timestamp above.
 
 The runtime receipt and provider page therefore agree on author, content and provider creation ID.
 
-## Refresh boundary
+## Natural refresh rotation
 
-The consent grant included `offline.access`, PostSteward persisted refresh capability and the active connection reports refresh as available. This proves refresh authority is present; it does not prove a token-expiry rotation actually occurred.
+The consent grant included `offline.access`, PostSteward persisted refresh capability and the active connection reported refresh as available. A separate observability-only revision was then merged in pull request `146` as `5a0ddd5d4b6ec57763bb8616ec15ea86585cb561` and deployed successfully through:
 
-No expiry was manufactured and no real refresh-token rotation was deliberately forced during this acceptance run. That longevity observation remains a separate, non-blocking gate so the reviewed ledger does not overstate what was tested.
+- staging run `35485750312`;
+- production run `35485750300`.
+
+That revision exposed only bounded owner-visible health, strategy and refresh timestamps; it exposed no credential value and did not invoke refresh, consent or publication.
+
+Immediately before the natural production alarm, the owner and read-only account surfaces showed:
+
+- alias `poststeward_x_test`, provider `x` and account `poststeward`;
+- active connection, binding version `1` and the same stable author-ID hash recorded above;
+- OAuth health `healthy`, credential strategy `refresh token` and publish/readback/refresh capabilities available;
+- connection verification time `2026-09-20T01:52:00.288Z`;
+- no previously observed token refresh;
+- next refresh scheduled for `2026-09-20T03:15:59Z`.
+
+Without a reconnect, force-refresh path, consent prompt or publication call, the production alarm completed the real X refresh at `2026-09-20T03:15:59.434Z`. The resulting persisted evidence showed:
+
+- connection verification and last-refresh time advanced to `2026-09-20T03:15:59.434Z`;
+- next refresh advanced to `2026-09-20T04:39:59Z`;
+- OAuth health remained `healthy`, with no displayed refresh error;
+- alias, provider, `poststeward` username, stable author ID, active state, binding version `1` and negotiated capabilities remained unchanged.
+
+After the refresh, a separate X page load still displayed the original accepted post at the same canonical status URL under `PostSteward @poststeward` with the exact approved text. No second post was created. This accepts the observed live happy path for provider refresh, credential persistence and identity continuity; it does not claim that every provider outage or crash timing has been exercised.
 
 ## Accepted state
 
@@ -76,5 +97,6 @@ The evidence advances:
 
 - `x_oauth` to `live_verified` for the dedicated application, real `@poststeward` grant, exact production callback, stable identity and active connection;
 - `x_publication_readback` to `live_verified` for the owner-approved dispatch, verified receipt and independent X-page readback.
+- `x_token_refresh_rotation` to `live_verified` for the natural production refresh, persisted lifecycle evidence and unchanged verified publishing identity.
 
-The separate `x_token_refresh_rotation` gate remains `implemented` until a safe real rotation is observed. This evidence does not advance LinkedIn, public signup or any unrelated provider gate.
+This evidence does not advance LinkedIn, public signup or any unrelated provider gate.

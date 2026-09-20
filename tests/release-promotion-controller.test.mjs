@@ -126,8 +126,7 @@ test("production next actions cannot be displaced by optional provider setup", (
   assert.equal(report.nextAction.gate, "capacity_cost_calibration");
   assert.equal(report.providerContracts.x.callback, "https://production.example.com/connections/oauth/x/callback");
   assert.equal(report.optionalActions.some((entry) => entry.gate === "x_oauth"), false);
-  assert.equal(report.optionalActions.find((entry) => entry.gate === "x_token_refresh_rotation").action,
-    "observe_safe_x_token_refresh_rotation");
+  assert.equal(report.optionalActions.some((entry) => entry.gate === "x_token_refresh_rotation"), false);
   assert.equal(report.optionalActions.find((entry) => entry.gate === "linkedin_oauth").action,
     "register_linkedin_application_and_store_protected_client_authority");
 });
