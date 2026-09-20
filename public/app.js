@@ -80,7 +80,9 @@ async function refresh() {
   paused = status.publishingPaused;
   $("plan").textContent = status.plan === "advanced" ? "Advanced workspace" : "Free publishing";
   $("pause").textContent = paused ? "Resume publishing" : "Pause publishing";
-  $("readiness").textContent = `Release ${readiness.release.slice(0, 12)} · ${readiness.access.signupMode} signup · provider OAuth ${Object.values(readiness.providers).filter((x) => x.oauth).length}/3 · Advanced ${readiness.payments.advancedEnabled ? "enabled" : "disabled"}`;
+  const activeAccounts = accounts.filter((account) => account.active === true);
+  const connectedProviders = new Set(activeAccounts.map((account) => account.provider)).size;
+  $("readiness").textContent = `Release ${readiness.release.slice(0, 12)} · ${readiness.access.signupMode} signup · provider apps ${Object.values(readiness.providers).filter((x) => x.oauth).length}/3 · active connections ${activeAccounts.length} across ${connectedProviders} provider(s) · Advanced ${readiness.payments.advancedEnabled ? "enabled" : "disabled"}`;
   try { oauthInfo = await api("/api/connections/oauth/status"); } catch { oauthInfo = undefined; }
   try { recovery = await api("/api/recovery/status"); } catch { recovery = undefined; }
   renderOAuth(); renderRecovery();

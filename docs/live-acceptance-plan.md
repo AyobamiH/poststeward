@@ -1,6 +1,6 @@
 # Live acceptance plan
 
-> **Current control plane:** this plan is reconciled to the 14 September 2026 state. The detailed evidence ledger is [live external gates](live-external-gates-2026-09-13.md). Older procedures are evidence/history, not instructions to repeat already accepted external effects.
+> **Current control plane:** this plan is reconciled to the 19 September 2026 deployed release. The generated ledger is [current release gates](current-readiness.md), and provider connection state is recorded in the [provider connection audit](provider-connection-audit-2026-09-19.md). Older procedures are evidence/history, not instructions to repeat accepted external effects.
 
 ## Preserve completed evidence
 
@@ -8,6 +8,7 @@ The following are accepted and must not be repeated merely for a fresher receipt
 
 - real owner Google sign-in;
 - one controlled Threads publication and independent exact provider readback;
+- one real production owner Threads OAuth callback/code exchange and a current healthy long-lived connection;
 - Inspect-only owner-to-agent grant over HTTP and remote MCP plus denial after owner revocation;
 - Stripe sandbox subscription Checkout, paid state, refund/revoked entitlement, operator cancellation and completed webhook ledger;
 - protected encryption-root cutover with `next` as the active writer and the legacy root intentionally retained;
@@ -19,11 +20,13 @@ A dated document that still describes any of those as pending is historical, not
 
 ### 1. Authenticated native WebMCP
 
-This is the first actionable browser gate while Threads and PITR are parked.
+This remains a browser gate independent of provider connections.
 
-The owner has already authenticated successfully in an ordinary browser on staging, but that browser reported:
+An earlier authenticated staging browser reported:
 
 `Remote MCP and HTTP are available. Native WebMCP is not available in this browser.`
+
+On 19 September, a supporting production browser advertised 27 PostSteward tools, but the page's live check still reported that `workspace_status` was not registered. Registration display alone is not execution proof.
 
 That result is not a PostSteward failure and must not be substituted with another HTTP/remote-MCP token proof. Use a browser that genuinely exposes `document.modelContext`, sign in as the existing owner, allow the page to register its authorised tools, then run **Check native WebMCP** once.
 
@@ -37,13 +40,11 @@ Acceptance requires:
 
 No publication, payment, provider connection or new agent token is required.
 
-### 2. X provider application and grant
+### 2. X owner connection
 
-Staging has no X application client/secret yet. Register the real provider application with exact callback:
+X application credentials are configured in staging and production. Do not register a second application merely because the older ledger said the client was absent. The remaining work is the real owner grant using the existing exact callback:
 
 `https://poststeward-staging.woeinvests.workers.dev/connections/oauth/x/callback`
-
-Store `X_OAUTH_CLIENT_ID` as protected configuration and `X_OAUTH_CLIENT_SECRET` as a protected secret. Never paste either secret into chat, source, logs or evidence documents.
 
 Acceptance requires the real owner consent path, OAuth 2.0 Authorization Code + PKCE, the required read/write/user/offline scopes, stable identity persistence and refresh authority. A manually imported token is not a substitute for this OAuth grant.
 
@@ -53,15 +54,15 @@ Staging has no LinkedIn application client/secret yet. Register the real app wit
 
 `https://poststeward-staging.woeinvests.workers.dev/connections/oauth/linkedin/callback`
 
-Base acceptance uses the application's supported `openid`, `profile` and `w_member_social` path. `r_member_social` and `LINKEDIN_MEMBER_READBACK=true` must remain absent until LinkedIn actually approves that restricted capability. Do not turn a configuration flag into a false provider-permission claim.
+The intended PostSteward Page path uses `openid`, `profile`, `w_organization_social` and `r_organization_social` for the exact actor `urn:li:organization:146607525`. The same member signs in and PostSteward must verify Page access before binding it. `r_member_social` and `LINKEDIN_MEMBER_READBACK=true` concern member-profile posts only and must remain absent until LinkedIn actually approves that separate capability.
 
-### 4. Threads OAuth callback — parked upstream
+### 4. Threads connection — accepted and preserved
 
-The Threads application credentials are already in protected staging. The remaining callback is:
+The Threads application credentials and callback are accepted, including a real production owner journey that completed code exchange and stable-identity persistence:
 
 `https://poststeward-staging.woeinvests.workers.dev/connections/oauth/threads/callback`
 
-Meta currently rejects saving the callback allowlist in its own dashboard. Do not change PostSteward's redirect validation, use another product's credentials or publish again. Resume only when Meta accepts the exact callback and PostSteward can complete its own code exchange/stable-identity persistence.
+The current production workspace has one healthy long-lived Threads connection and no delivery receipts. Preserve that connection. The earlier controlled publication/readback evidence remains valid and separate; do not publish again merely to combine the two receipts.
 
 ### 5. Cloudflare PITR — parked at hosted platform boundary
 
@@ -91,18 +92,9 @@ Use a deliberately controlled test target. Do not repeat the already accepted St
 
 MPP remains separate and optional.
 
-## Production readiness after restricted-staging acceptance
+## Production and public-launch separation
 
-Public/production launch requires its own evidence from [production readiness acceptance](production-readiness-acceptance.md):
-
-- representative capacity/cost observations and retention/limit calibration;
-- operational alert delivery plus a failed-notification escalation path;
-- hosted two-workspace cross-tenant checks;
-- custom production origin, DNS/TLS, WAF and rate-limit policy evidence;
-- real GitHub main protection/required checks;
-- public-signup support, abuse, privacy/deletion and incident ownership if unrestricted admission is chosen.
-
-The 14 September repository ruleset inventory is empty, so automatic merged-PR provenance must not be confused with server-side main protection.
+Production edge, GitHub main protection, operational alert delivery, capacity/cost calibration and hosted cross-tenant isolation are accepted on the reviewed release. That does not make public signup safe or enabled. Public admission remains restricted until support, abuse, privacy/deletion, provider-outage and incident ownership are explicitly accepted.
 
 ## Evidence rule
 

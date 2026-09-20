@@ -73,6 +73,26 @@ function capabilityState(value) {
   const labels = { available: "Available to this grant", unavailable: "Unavailable", connection_required: "Connection required", external_approval_required: "Approval required", unknown: "Unknown" };
   return Object.hasOwn(labels, value?.state) ? labels[value.state] : "Unknown";
 }
+function accountCapabilityAvailable(account, connection, capability) {
+  if (connection?.capabilities?.[capability]?.state === "available") return true;
+  if (capability === "publish") return account?.active === true;
+  if (capability === "readback") return account?.capabilities?.readback === true;
+  if (capability === "refresh") return account?.capabilities?.refresh === true;
+  if (capability === "metrics") return account?.capabilities?.metrics === true;
+  return false;
+}
+export function providerConnectionCapabilityLabel(capability, accounts = [], connections = []) {
+  if (!accounts.length) return undefined;
+  const available = accounts.filter((account) => accountCapabilityAvailable(
+    account,
+    connections.find((connection) => connection.alias === account.alias),
+    capability,
+  )).length;
+  const noun = accounts.length === 1 ? "active connection" : "active connections";
+  if (available === accounts.length) return `Available on ${available} ${noun}`;
+  if (available === 0) return `Unavailable on ${accounts.length} ${noun}`;
+  return `Available on ${available}/${accounts.length} active connections`;
+}
 export function accountReadbackLabel(account, connection) {
   const capability = connection?.capabilities?.readback;
   if (
@@ -97,13 +117,17 @@ function renderProviders(snapshot) {
   for (const provider of Object.keys(providers)) {
     const config = info.providers[provider];
     const accounts = snapshot.accounts.filter((a) => a.provider === provider && a.active === true);
+    const connections = info.connections || [];
     const card = node("section", "ux-provider-card"); card.setAttribute("aria-label", providers[provider] + " capabilities");
     const head = node("div", "ux-provider-card-head");
     head.append(node("strong", "", providers[provider]), badge(config?.available === true ? "App configured" : config?.available === false ? "OAuth unconfigured" : "Status unknown", config?.available === false ? "warning" : "neutral"));
-    card.append(head, node("p", "", `${accounts.length} connected account(s). Application configuration is not provider acceptance.`));
+    card.append(head, node("p", "", accounts.length
+      ? `${accounts.length} active connection(s). Per-account authority is shown here and in the account record below.`
+      : "No active connection. Application configuration alone cannot publish."));
     const list = node("ul", "ux-capability-list");
     for (const key of ["publish", "readback", "refresh", "metrics"]) {
-      const li = node("li"); li.append(node("span", "", key), node("span", "", capabilityState(config?.capabilities?.[key]))); list.append(li);
+      const state = providerConnectionCapabilityLabel(key, accounts, connections) || capabilityState(config?.capabilities?.[key]);
+      const li = node("li"); li.append(node("span", "", key), node("span", "", state)); list.append(li);
     }
     card.append(list); grid.append(card);
   }

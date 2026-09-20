@@ -89,9 +89,10 @@
       "state": "live_verified",
       "scope": "restricted_staging",
       "blocking": false,
-      "summary": "Meta callback persistence and one real production owner Threads OAuth journey are accepted; PostSteward completed the code exchange and persisted the verified stable provider identity.",
+      "summary": "Meta callback persistence, one real production owner Threads OAuth journey and one current healthy long-lived owner connection are accepted; publication/readback evidence remains a separate gate.",
       "evidence": [
-        "docs/threads-oauth-callback-live-evidence-2026-09-19.md"
+        "docs/threads-oauth-callback-live-evidence-2026-09-19.md",
+        "docs/provider-connection-audit-2026-09-19.md"
       ]
     },
     {
@@ -99,9 +100,10 @@
       "state": "unavailable_capability",
       "scope": "restricted_staging",
       "blocking": false,
-      "summary": "PostSteward native WebMCP is deployed; the owner's ordinary browser does not expose the native API.",
+      "summary": "Native WebMCP is deployed and tool registration is advertised, but the authenticated page's read-only workspace_status execution check still reports that the tool is not registered.",
       "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
+        "docs/live-external-gates-2026-09-13.md",
+        "docs/provider-connection-audit-2026-09-19.md"
       ],
       "ownerAction": "Use one authenticated supporting browser for the read-only workspace_status proof when available."
     },
@@ -110,9 +112,10 @@
       "state": "external_setup_required",
       "scope": "provider_optional",
       "blocking": false,
-      "summary": "X OAuth implementation is present; the real application/client authority is not configured in staging.",
+      "summary": "X application/client authority is configured in staging and production; the real owner OAuth grant, stable identity, refresh lifecycle and active connection remain unaccepted.",
       "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
+        "docs/live-external-gates-2026-09-13.md",
+        "docs/provider-connection-audit-2026-09-19.md"
       ]
     },
     {
@@ -130,9 +133,10 @@
       "state": "external_setup_required",
       "scope": "provider_optional",
       "blocking": false,
-      "summary": "LinkedIn OAuth implementation is present; the real application/client authority is not configured in staging.",
+      "summary": "LinkedIn OAuth implementation exists, but provider application/client authority and a real owner Page grant/connection are not configured.",
       "evidence": [
-        "docs/live-external-gates-2026-09-13.md"
+        "docs/live-external-gates-2026-09-13.md",
+        "docs/provider-connection-audit-2026-09-19.md"
       ]
     },
     {
@@ -140,7 +144,7 @@
       "state": "external_setup_required",
       "scope": "provider_optional",
       "blocking": false,
-      "summary": "Independent member-post readback remains unavailable until the actual LinkedIn application receives the restricted permission.",
+      "summary": "Independent member-profile post readback remains unavailable until LinkedIn grants the restricted permission; it is separate from and does not block the organization/Page path.",
       "evidence": [
         "docs/live-external-gates-2026-09-13.md"
       ]

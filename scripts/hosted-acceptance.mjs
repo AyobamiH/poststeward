@@ -109,17 +109,17 @@ export async function checkReadiness(baseInput, send = fetch) {
   const body = await readJson(response);
   if (body?.providers?.threads?.oauth !== true)
     throw new Error("Threads OAuth is not configured in this deployment.");
-  if (body?.providers?.x?.oauth === true || body?.providers?.linkedin?.oauth === true)
-    throw new Error("Threads-first acceptance expected X and LinkedIn to remain outside P0.");
+  if (typeof body?.providers?.x?.oauth !== "boolean" || typeof body?.providers?.linkedin?.oauth !== "boolean")
+    throw new Error("Optional provider application state is missing from readiness.");
   if (body?.payments?.advancedEnabled === true || body?.payments?.mppEnabled === true)
-    throw new Error("Advanced and MPP must remain disabled during Threads-first P0 acceptance.");
+    throw new Error("Advanced and MPP must remain disabled during restricted acceptance.");
   if (body?.access?.signupMode !== "restricted")
     throw new Error("Restricted staging signup is required for this acceptance run.");
   return {
     release: String(body.release || ""),
     threadsOAuth: true,
-    xOAuth: false,
-    linkedinOAuth: false,
+    xOAuth: body.providers.x.oauth,
+    linkedinOAuth: body.providers.linkedin.oauth,
     advancedEnabled: false,
     mppEnabled: false,
     signupMode: "restricted",

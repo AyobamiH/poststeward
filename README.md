@@ -2,9 +2,9 @@
 
 Reliable social publishing for AI agents, hosted on Cloudflare. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
 
-**Status: restricted staging. Live-accepted evidence now includes owner Google sign-in, one controlled Threads publication with independent provider readback, Inspect-only HTTP/remote-MCP grant plus post-revocation denial, the Stripe sandbox subscription/refund/cancellation/webhook lifecycle, protected encryption-root cutover, and selected-private-repository GitHub grant/read/provider-revocation/fail-closed behaviour. Threads OAuth callback completion is blocked by Meta's callback-save failure. Hosted Cloudflare PITR is parked because `getBookmarkForTime()` fails in the reviewed staging runtime before any restore is armed. Native WebMCP still needs one authenticated invocation in a browser that exposes the API. X and LinkedIn applications/grants remain external setup gates. Advanced, MPP and public signup remain disabled.**
+**Status: restricted admission on staging and production. Live-accepted evidence includes owner Google sign-in, one controlled Threads publication with independent provider readback, a real Threads OAuth callback/code exchange with a current healthy long-lived owner connection, Inspect-only HTTP/remote-MCP grant plus post-revocation denial, the Stripe sandbox lifecycle, protected encryption-root cutover, selected-private-repository GitHub authority, production edge/main-protection/alert/capacity controls and hosted cross-tenant isolation. X application credentials are configured but no owner X connection is accepted. LinkedIn application credentials and owner connection are absent; the verified PostSteward Page identity is not OAuth authority. Native WebMCP execution, approximate-time PITR, Advanced, MPP and public signup remain open or disabled.**
 
-Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststeward-staging.woeinvests.workers.dev). The current authoritative acceptance ledger is [live external gates](docs/live-external-gates-2026-09-13.md). Historical receipts and procedures remain useful evidence, but must not be used to repeat already accepted external effects.
+Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststeward-staging.woeinvests.workers.dev). The current authoritative generated ledger is [current release gates](docs/current-readiness.md). The dated [live external gates](docs/live-external-gates-2026-09-13.md) and other historical receipts remain useful evidence, but must not be used to repeat already accepted external effects.
 
 ## What runs
 
@@ -69,16 +69,16 @@ The historical Inspect-only HTTP/remote-MCP grant/revoke proof is already accept
 
 [AyobamiH/poststeward](https://github.com/AyobamiH/poststeward) is the standalone product repository with its own deployment lifecycle. Post Once remains separate.
 
-See [deployment](docs/deployment.md), [private GitHub source authority](docs/private-github-sources.md), [provenance](docs/provenance.md), [operating runbook](docs/operations-runbook.md), [security model](docs/security.md) and the [current external-gate ledger](docs/live-external-gates-2026-09-13.md).
+See [deployment](docs/deployment.md), [private GitHub source authority](docs/private-github-sources.md), [provenance](docs/provenance.md), [operating runbook](docs/operations-runbook.md), [security model](docs/security.md), the [provider connection audit](docs/provider-connection-audit-2026-09-19.md) and the generated [current release gates](docs/current-readiness.md).
 
 ## Current execution order
 
-1. Preserve every accepted live receipt. Do not repeat Google sign-in acceptance, Threads publication/readback, Inspect-only grant/revoke, Stripe sandbox lifecycle, private GitHub grant/read/revoke or protected root cutover merely for fresh evidence.
-2. Close authenticated native WebMCP in a supporting browser with one read-only `workspace_status` round trip bound to the current workspace and exact hosted release.
-3. Configure and accept the X provider application/grant if X is in release scope.
-4. Configure and accept the LinkedIn provider application/grant. Restricted staging now targets the verified PostSteward Page `urn:li:organization:146607525` with organization publish/read scopes and exact actor verification. Member-profile readback remains a separate restricted capability.
-5. Keep Threads OAuth parked until Meta accepts the exact callback. Keep PITR parked until Cloudflare target-bookmark resolution succeeds or an explicit owner-visible recovery fallback is deliberately implemented and verified.
-6. Before enabling Advanced, run its live source-change -> inventory/allocation -> provider/readback -> scheduled-metrics path without repeating the already accepted Stripe lifecycle.
-7. Production/public launch remains separate: capacity/cost, alert delivery, hosted cross-tenant evidence, custom production DNS/TLS/WAF/rate policy, GitHub main protection and public signup/support/abuse ownership must be accepted deliberately.
+1. Preserve every accepted live receipt. Do not repeat Google sign-in, Threads OAuth, Threads publication/readback, Inspect-only grant/revoke, Stripe sandbox, private GitHub, recovery, production-edge, alert, capacity or cross-tenant effects merely for newer evidence.
+2. If X is in release scope, complete one real owner X OAuth grant and inspect stable identity, scopes and refresh authority. A configured X application is not a connected account.
+3. If LinkedIn is in release scope, configure the application and complete owner consent for the exact Page `urn:li:organization:146607525` with organization publish/read scopes. Member-profile readback is a separate optional capability.
+4. Keep the existing Threads owner connection healthy. A combined OAuth-connection-to-publication receipt is optional strengthening, not a reason to repeat an unnecessary public post.
+5. Close native WebMCP only when the authenticated page's read-only `workspace_status` execution succeeds. Keep approximate-time PITR parked while the hosted primitive remains unavailable.
+6. Before enabling Advanced, run its live source-change -> inventory/allocation -> provider/readback -> scheduled-metrics path without repeating the accepted Stripe lifecycle.
+7. Public launch remains separately blocked by restricted signup and support/abuse/incident policy, regardless of production infrastructure gates already marked `live_verified`.
 
 MPP does not block Free or subscription-based Advanced unless it is deliberately added to launch scope.
