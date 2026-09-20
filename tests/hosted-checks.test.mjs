@@ -14,6 +14,7 @@ const c = {
     ADVANCED_ROLLOUT_MODE: "disabled",
     ADVANCED_CANARY_BPS: "0",
     ADVANCED_CANARY_SEED: "",
+    STRIPE_SANDBOX_ENABLED: "false",
   },
 };
 const headers = {
@@ -228,6 +229,7 @@ test("hosted report accepts an exact bounded Advanced canary policy", async () =
       ADVANCED_ROLLOUT_MODE: "canary",
       ADVANCED_CANARY_BPS: "1000",
       ADVANCED_CANARY_SEED: "reviewed-canary-seed",
+      STRIPE_SANDBOX_ENABLED: "true",
     },
   };
   const stable = service();
