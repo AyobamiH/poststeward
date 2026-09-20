@@ -1,12 +1,12 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-20-x-refresh-live-evidence
+# Deployment request: 2026-09-20-linkedin-page-actor-path
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that accepts the observed natural X refresh
-# while keeping token values private and preserving bounded owner-only lifecycle evidence.
+# Deploy the exact reviewed revision that preserves the state-bound LinkedIn Page actor
+# through identity verification, pilot preparation and dispatch rechecks.
 # Alert delivery remains inert unless a protected webhook destination is configured.
 # Protected staging retains its existing disabled Advanced policy; no canary start is requested.
-# This deployment is non-destructive: it does not repeat provider consent, refresh a token, publish,
+# This deployment is non-destructive: it does not initiate provider consent, refresh a token, publish,
 # schedule, make a payment, execute recovery, erase a workspace or grant entitlement.
 # Existing accepted evidence is not repeated by deployment. The timestamp PITR diagnostic remains disabled.
 on:
