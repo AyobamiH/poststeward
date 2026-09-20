@@ -172,7 +172,8 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         b.access?.signupMode === "restricted" &&
         b.access?.publicSignup === false &&
         b.payments?.sandboxEnabled ===
-          (c.vars.STRIPE_SANDBOX_ENABLED === "true") &&
+          (c.vars.STRIPE_SANDBOX_ENABLED === "true" &&
+            !expectedAdvanced.enabled) &&
         b.payments?.advancedEnabled === expectedAdvanced.enabled &&
         b.payments?.mppEnabled === false &&
         b.runtimeCapabilities?.policies?.advancedEnabled ===

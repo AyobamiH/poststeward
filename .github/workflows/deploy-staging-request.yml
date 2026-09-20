@@ -1,6 +1,6 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-20-advanced-canary-10-percent-smoke-fix
+# Deployment request: 2026-09-20-advanced-canary-10-percent-sandbox-fix
 # Updating this file on main is an explicit staging deployment request.
 # Deploy the exact reviewed publication-parity revision and start the bounded 10% Advanced canary.
 # The stable staging cohort seed is configured separately in the protected environment.
