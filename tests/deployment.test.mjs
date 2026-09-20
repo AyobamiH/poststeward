@@ -18,15 +18,50 @@ const environment = {
   OIDC_CLIENT_ID: "poststeward-staging",
 };
 test("next-root cutover is explicit, staging-only and requires a distinct canonical root", () => {
-  const secrets = { ...environment, ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
-    OIDC_CLIENT_SECRET: "test-owner-secret", ALLOWED_OWNER_EMAILS: "owner@example.com" };
-  assert.equal(buildConfiguration(base, environment).vars.ENCRYPTION_ROOT_WRITE, "legacy");
-  assert.throws(() => deploymentSecrets({ ...secrets, ENCRYPTION_ROOT_WRITE: "next" }), /Next-root/);
-  assert.throws(() => deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: secrets.ENCRYPTION_KEY }), /distinct/);
-  assert.throws(() => deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: "invalid" }), /32-byte/);
+  const secrets = {
+    ...environment,
+    ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+    OIDC_CLIENT_SECRET: "test-owner-secret",
+    ALLOWED_OWNER_EMAILS: "owner@example.com",
+  };
+  assert.equal(
+    buildConfiguration(base, environment).vars.ENCRYPTION_ROOT_WRITE,
+    "legacy",
+  );
+  assert.throws(
+    () => deploymentSecrets({ ...secrets, ENCRYPTION_ROOT_WRITE: "next" }),
+    /Next-root/,
+  );
+  assert.throws(
+    () =>
+      deploymentSecrets({
+        ...secrets,
+        ENCRYPTION_KEY_NEXT: secrets.ENCRYPTION_KEY,
+      }),
+    /distinct/,
+  );
+  assert.throws(
+    () => deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: "invalid" }),
+    /32-byte/,
+  );
   const next = Buffer.alloc(32, 23).toString("base64");
-  assert.equal(deploymentSecrets({ ...secrets, ENCRYPTION_KEY_NEXT: next, ENCRYPTION_ROOT_WRITE: "next" }).ENCRYPTION_KEY_NEXT, next);
-  assert.throws(() => buildConfiguration(base, { ...environment, DEPLOY_ENV: "production", ENCRYPTION_ROOT_WRITE: "next" }), /staging/);
+  assert.equal(
+    deploymentSecrets({
+      ...secrets,
+      ENCRYPTION_KEY_NEXT: next,
+      ENCRYPTION_ROOT_WRITE: "next",
+    }).ENCRYPTION_KEY_NEXT,
+    next,
+  );
+  assert.throws(
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        DEPLOY_ENV: "production",
+        ENCRYPTION_ROOT_WRITE: "next",
+      }),
+    /staging/,
+  );
 });
 test("deployment environments have separate Worker names, D1 names, origins and rate namespaces", () => {
   const staging = buildConfiguration(base, environment);
@@ -51,6 +86,7 @@ test("deployment environments have separate Worker names, D1 names, origins and 
   assert.equal(staging.vars.X_OAUTH_CLIENT_ID, "");
   assert.equal(staging.vars.THREADS_OAUTH_CLIENT_ID, "");
   assert.equal(staging.vars.LINKEDIN_OAUTH_CLIENT_ID, "");
+  assert.equal(staging.vars.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID, "");
   assert.equal(staging.vars.LINKEDIN_MEMBER_READBACK, "false");
   assert.equal(base.name, "poststeward");
 });
@@ -97,18 +133,20 @@ test("deployment rejects hostile and ambiguous configuration before touching Clo
       }),
     /configured together/,
   );
-  assert.throws(() =>
-    buildConfiguration(base, {
-      ...environment,
-      X_OAUTH_CLIENT_ID: "invalid client id",
-    }),
+  assert.throws(
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        X_OAUTH_CLIENT_ID: "invalid client id",
+      }),
     /X_OAUTH_CLIENT_ID/,
   );
-  assert.throws(() =>
-    buildConfiguration(base, {
-      ...environment,
-      LINKEDIN_MEMBER_READBACK: "true",
-    }),
+  assert.throws(
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        LINKEDIN_MEMBER_READBACK: "true",
+      }),
     /LinkedIn member readback/,
   );
   const unsafe = buildConfiguration(base, environment);
@@ -131,24 +169,26 @@ test("public admission is production-only, custom-domain-only and fixed to first
   assert.equal(publicProduction.workers_dev, false);
 
   assert.throws(
-    () => buildConfiguration(base, {
-      ...environment,
-      SIGNUP_MODE: "public",
-      PUBLIC_WORKSPACE_LIMIT: "100",
-      PUBLIC_SIGNUPS_PER_HOUR: "10",
-    }),
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        SIGNUP_MODE: "public",
+        PUBLIC_WORKSPACE_LIMIT: "100",
+        PUBLIC_SIGNUPS_PER_HOUR: "10",
+      }),
     /Public signup is allowed only/,
   );
   assert.throws(
-    () => buildConfiguration(base, {
-      ...environment,
-      DEPLOY_ENV: "production",
-      D1_ID: "22222222-2222-4222-8222-222222222222",
-      APP_ORIGIN: "https://app.poststeward.com",
-      SIGNUP_MODE: "public",
-      PUBLIC_WORKSPACE_LIMIT: "101",
-      PUBLIC_SIGNUPS_PER_HOUR: "10",
-    }),
+    () =>
+      buildConfiguration(base, {
+        ...environment,
+        DEPLOY_ENV: "production",
+        D1_ID: "22222222-2222-4222-8222-222222222222",
+        APP_ORIGIN: "https://app.poststeward.com",
+        SIGNUP_MODE: "public",
+        PUBLIC_WORKSPACE_LIMIT: "101",
+        PUBLIC_SIGNUPS_PER_HOUR: "10",
+      }),
     /first-100/,
   );
 });
@@ -242,12 +282,16 @@ test("provider application secrets are optional but fail closed unless paired wi
     THREADS_OAUTH_CLIENT_SECRET: "threads-client-secret",
     LINKEDIN_OAUTH_CLIENT_ID: "linkedin-client",
     LINKEDIN_OAUTH_CLIENT_SECRET: "linkedin-client-secret",
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: "linkedin-organization-client",
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET:
+      "linkedin-organization-client-secret",
     LINKEDIN_MEMBER_READBACK: "true",
   });
   assert.deepEqual(Object.keys(configured).sort(), [
     "ALLOWED_OWNER_EMAILS",
     "ENCRYPTION_KEY",
     "LINKEDIN_OAUTH_CLIENT_SECRET",
+    "LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET",
     "OIDC_CLIENT_SECRET",
     "THREADS_OAUTH_CLIENT_SECRET",
     "X_OAUTH_CLIENT_SECRET",
@@ -257,7 +301,19 @@ test("provider application secrets are optional but fail closed unless paired wi
     /configured as a pair/,
   );
   assert.throws(
-    () => deploymentSecrets({ ...mandatory, X_OAUTH_CLIENT_SECRET: "orphan-secret" }),
+    () =>
+      deploymentSecrets({
+        ...mandatory,
+        X_OAUTH_CLIENT_SECRET: "orphan-secret",
+      }),
+    /configured as a pair/,
+  );
+  assert.throws(
+    () =>
+      deploymentSecrets({
+        ...mandatory,
+        LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: "linkedin-organization-client",
+      }),
     /configured as a pair/,
   );
   assert.throws(
@@ -267,25 +323,45 @@ test("provider application secrets are optional but fail closed unless paired wi
 });
 
 test("sandbox deployment is explicit, staging-only, and keeps paid automation disabled", () => {
-  const sandbox = { ...environment, STRIPE_SANDBOX_ENABLED: "true", STRIPE_SANDBOX_PRICE_ID: "price_sandbox" };
+  const sandbox = {
+    ...environment,
+    STRIPE_SANDBOX_ENABLED: "true",
+    STRIPE_SANDBOX_PRICE_ID: "price_sandbox",
+  };
   const c = buildConfiguration(base, sandbox);
   assert.equal(c.vars.STRIPE_SANDBOX_ENABLED, "true");
   assert.equal(c.vars.STRIPE_PRICE_ID, "price_sandbox");
   assert.equal(c.vars.ADVANCED_ENABLED, "false");
   assert.equal(c.vars.MPP_ENABLED, "false");
-  assert.throws(() => buildConfiguration(base, { ...sandbox, DEPLOY_ENV: "production" }), /sandbox/);
-  assert.throws(() => buildConfiguration(base, { ...sandbox, STRIPE_SANDBOX_PRICE_ID: "" }), /sandbox/);
+  assert.throws(
+    () => buildConfiguration(base, { ...sandbox, DEPLOY_ENV: "production" }),
+    /sandbox/,
+  );
+  assert.throws(
+    () => buildConfiguration(base, { ...sandbox, STRIPE_SANDBOX_PRICE_ID: "" }),
+    /sandbox/,
+  );
 });
 test("sandbox preflight rejects live keys before network and rejects live or wrong-price objects", async () => {
-  const env = { ...environment, STRIPE_SANDBOX_ENABLED: "true",
-    STRIPE_SANDBOX_PRICE_ID: "price_sandbox", STRIPE_SANDBOX_SECRET_KEY: "sk_test_placeholder",
+  const env = {
+    ...environment,
+    STRIPE_SANDBOX_ENABLED: "true",
+    STRIPE_SANDBOX_PRICE_ID: "price_sandbox",
+    STRIPE_SANDBOX_SECRET_KEY: "sk_test_placeholder",
     STRIPE_SANDBOX_WEBHOOK_SECRET: "whsec_placeholder",
     ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
-    OIDC_CLIENT_SECRET: "test-secret-not-real", ALLOWED_OWNER_EMAILS: "owner@example.com",
+    OIDC_CLIENT_SECRET: "test-secret-not-real",
+    ALLOWED_OWNER_EMAILS: "owner@example.com",
   };
   let calls = 0;
-  let price = { id: "price_sandbox", livemode: false, active: true, currency: "usd", unit_amount: 500,
-    recurring: { interval: "month", interval_count: 1 } };
+  let price = {
+    id: "price_sandbox",
+    livemode: false,
+    active: true,
+    currency: "usd",
+    unit_amount: 500,
+    recurring: { interval: "month", interval_count: 1 },
+  };
   const send = async (url, init) => {
     calls++;
     assert.equal(url, "https://api.stripe.com/v1/prices/price_sandbox");
@@ -293,9 +369,19 @@ test("sandbox preflight rejects live keys before network and rejects live or wro
     assert.equal(init.headers.Authorization, "Bearer sk_test_placeholder");
     return Response.json(price);
   };
-  await assert.rejects(verifySandboxPrice({ ...env, STRIPE_SANDBOX_SECRET_KEY: "sk_live_placeholder" }, send), /test-only/);
+  await assert.rejects(
+    verifySandboxPrice(
+      { ...env, STRIPE_SANDBOX_SECRET_KEY: "sk_live_placeholder" },
+      send,
+    ),
+    /test-only/,
+  );
   assert.equal(calls, 0);
-  assert.deepEqual(await verifySandboxPrice(env, send), { enabled: true, priceVerified: true, livemode: false });
+  assert.deepEqual(await verifySandboxPrice(env, send), {
+    enabled: true,
+    priceVerified: true,
+    livemode: false,
+  });
   price = { ...price, livemode: true };
   await assert.rejects(verifySandboxPrice(env, send), /test-mode/);
   price = { ...price, livemode: false, unit_amount: 5000 };

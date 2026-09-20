@@ -7,6 +7,10 @@ export const providerSecretPairs = [
   ["X_OAUTH_CLIENT_ID", "X_OAUTH_CLIENT_SECRET"],
   ["THREADS_OAUTH_CLIENT_ID", "THREADS_OAUTH_CLIENT_SECRET"],
   ["LINKEDIN_OAUTH_CLIENT_ID", "LINKEDIN_OAUTH_CLIENT_SECRET"],
+  [
+    "LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID",
+    "LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET",
+  ],
 ];
 export function demand(condition, message) {
   if (!condition) throw new Error(message);
@@ -152,10 +156,7 @@ export function buildConfiguration(base, env) {
     typeof env.OIDC_CLIENT_ID === "string" && env.OIDC_CLIENT_ID.length > 0,
     "Configure OIDC_CLIENT_ID.",
   );
-  const github = githubAppPublic(
-    env.GITHUB_APP_CLIENT_ID,
-    env.GITHUB_APP_SLUG,
-  );
+  const github = githubAppPublic(env.GITHUB_APP_CLIENT_ID, env.GITHUB_APP_SLUG);
   const advanced = advancedRolloutValues(env);
   const c = structuredClone(base);
   c.name = env.DEPLOY_ENV === "staging" ? "poststeward-staging" : "poststeward";
@@ -188,7 +189,10 @@ export function buildConfiguration(base, env) {
     PUBLIC_WORKSPACE_LIMIT: String(env.PUBLIC_WORKSPACE_LIMIT || "100"),
     PUBLIC_SIGNUPS_PER_HOUR: String(env.PUBLIC_SIGNUPS_PER_HOUR || "10"),
     STRIPE_SANDBOX_ENABLED: env.STRIPE_SANDBOX_ENABLED || "false",
-    STRIPE_PRICE_ID: env.STRIPE_SANDBOX_ENABLED === "true" ? (env.STRIPE_SANDBOX_PRICE_ID || "") : "",
+    STRIPE_PRICE_ID:
+      env.STRIPE_SANDBOX_ENABLED === "true"
+        ? env.STRIPE_SANDBOX_PRICE_ID || ""
+        : "",
     ADVANCED_ENABLED: advanced.enabled,
     ADVANCED_ROLLOUT_MODE: advanced.mode,
     ADVANCED_CANARY_BPS: advanced.bps,
@@ -196,7 +200,10 @@ export function buildConfiguration(base, env) {
     MPP_ENABLED: "false",
     GITHUB_APP_CLIENT_ID: github.clientId,
     GITHUB_APP_SLUG: github.slug,
-    X_OAUTH_CLIENT_ID: providerClientId(env.X_OAUTH_CLIENT_ID, "X_OAUTH_CLIENT_ID"),
+    X_OAUTH_CLIENT_ID: providerClientId(
+      env.X_OAUTH_CLIENT_ID,
+      "X_OAUTH_CLIENT_ID",
+    ),
     THREADS_OAUTH_CLIENT_ID: providerClientId(
       env.THREADS_OAUTH_CLIENT_ID,
       "THREADS_OAUTH_CLIENT_ID",
@@ -205,6 +212,10 @@ export function buildConfiguration(base, env) {
       env.LINKEDIN_OAUTH_CLIENT_ID,
       "LINKEDIN_OAUTH_CLIENT_ID",
     ),
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: providerClientId(
+      env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID,
+      "LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID",
+    ),
     LINKEDIN_MEMBER_READBACK:
       env.LINKEDIN_MEMBER_READBACK === "true" ? "true" : "false",
   });
@@ -212,8 +223,15 @@ export function buildConfiguration(base, env) {
   return c;
 }
 export function validateConfiguration(c) {
-  demand(["legacy", "next"].includes(c.vars?.ENCRYPTION_ROOT_WRITE || "legacy"), "ENCRYPTION_ROOT_WRITE must be legacy or next.");
-  demand(c.vars?.ENCRYPTION_ROOT_WRITE !== "next" || c.vars?.DEPLOY_ENV === "staging", "Root cutover is currently restricted to staging.");
+  demand(
+    ["legacy", "next"].includes(c.vars?.ENCRYPTION_ROOT_WRITE || "legacy"),
+    "ENCRYPTION_ROOT_WRITE must be legacy or next.",
+  );
+  demand(
+    c.vars?.ENCRYPTION_ROOT_WRITE !== "next" ||
+      c.vars?.DEPLOY_ENV === "staging",
+    "Root cutover is currently restricted to staging.",
+  );
   httpsUrl(c.vars?.PUBLIC_ORIGIN, true);
   httpsUrl(c.vars?.OIDC_ISSUER);
   demand(
@@ -334,7 +352,8 @@ export function validateConfiguration(c) {
   demand(
     ["true", "false"].includes(c.vars.STRIPE_SANDBOX_ENABLED) &&
       (c.vars.STRIPE_SANDBOX_ENABLED !== "true" ||
-        (environment === "staging" && /^price_[A-Za-z0-9_]+$/.test(c.vars.STRIPE_PRICE_ID || ""))),
+        (environment === "staging" &&
+          /^price_[A-Za-z0-9_]+$/.test(c.vars.STRIPE_PRICE_ID || ""))),
     "Stripe sandbox requires restricted staging and a sandbox Price identifier.",
   );
   githubAppPublic(c.vars.GITHUB_APP_CLIENT_ID, c.vars.GITHUB_APP_SLUG);
@@ -369,13 +388,20 @@ export function deploymentSecrets(env) {
   );
   const next = env.ENCRYPTION_KEY_NEXT;
   if (next) {
-    demand(/^[A-Za-z0-9+/]{43}=$/.test(next) && Buffer.from(next, "base64").length === 32 &&
-      Buffer.from(next, "base64").toString("base64") === next && next !== key,
-      "ENCRYPTION_KEY_NEXT must be a distinct backed-up random 32-byte root.");
+    demand(
+      /^[A-Za-z0-9+/]{43}=$/.test(next) &&
+        Buffer.from(next, "base64").length === 32 &&
+        Buffer.from(next, "base64").toString("base64") === next &&
+        next !== key,
+      "ENCRYPTION_KEY_NEXT must be a distinct backed-up random 32-byte root.",
+    );
     values.ENCRYPTION_KEY_NEXT = next;
   }
-  demand(env.ENCRYPTION_ROOT_WRITE !== "next" || (env.DEPLOY_ENV === "staging" && next),
-    "Next-root writes require staging and ENCRYPTION_KEY_NEXT.");
+  demand(
+    env.ENCRYPTION_ROOT_WRITE !== "next" ||
+      (env.DEPLOY_ENV === "staging" && next),
+    "Next-root writes require staging and ENCRYPTION_KEY_NEXT.",
+  );
   demand(
     typeof values.ALLOWED_OWNER_EMAILS === "string" &&
       values.ALLOWED_OWNER_EMAILS.split(",").every((v) =>
@@ -383,10 +409,7 @@ export function deploymentSecrets(env) {
       ),
     "Set ALLOWED_OWNER_EMAILS to verified, invited owner addresses.",
   );
-  const github = githubAppPublic(
-    env.GITHUB_APP_CLIENT_ID,
-    env.GITHUB_APP_SLUG,
-  );
+  const github = githubAppPublic(env.GITHUB_APP_CLIENT_ID, env.GITHUB_APP_SLUG);
   const githubSecret = env.GITHUB_APP_CLIENT_SECRET || "";
   demand(
     (!github.clientId && !githubSecret) ||
@@ -408,7 +431,9 @@ export function deploymentSecrets(env) {
     if (id) {
       providerClientId(id, clientId);
       demand(
-        typeof secret === "string" && secret.trim().length >= 8 && secret.length <= 4096,
+        typeof secret === "string" &&
+          secret.trim().length >= 8 &&
+          secret.length <= 4096,
         `${clientSecret} is not a usable provider application secret.`,
       );
       values[clientSecret] = secret;
@@ -420,11 +445,15 @@ export function deploymentSecrets(env) {
     "LinkedIn member readback requires a configured LinkedIn OAuth application.",
   );
   if (env.STRIPE_SANDBOX_ENABLED === "true") {
-    demand(env.DEPLOY_ENV === "staging" &&
-      /^(sk|rk)_test_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_SECRET_KEY || "") &&
-      /^whsec_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_WEBHOOK_SECRET || "") &&
-      /^price_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_PRICE_ID || ""),
-      "Stripe sandbox requires staging, test-only credentials, a webhook signing secret and a Price.");
+    demand(
+      env.DEPLOY_ENV === "staging" &&
+        /^(sk|rk)_test_[A-Za-z0-9_]+$/.test(
+          env.STRIPE_SANDBOX_SECRET_KEY || "",
+        ) &&
+        /^whsec_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_WEBHOOK_SECRET || "") &&
+        /^price_[A-Za-z0-9_]+$/.test(env.STRIPE_SANDBOX_PRICE_ID || ""),
+      "Stripe sandbox requires staging, test-only credentials, a webhook signing secret and a Price.",
+    );
     values.STRIPE_SECRET_KEY = env.STRIPE_SANDBOX_SECRET_KEY;
     values.STRIPE_WEBHOOK_SECRET = env.STRIPE_SANDBOX_WEBHOOK_SECRET;
   }
@@ -436,18 +465,31 @@ export async function verifySandboxPrice(env, send = fetch) {
   // Validate the complete configuration before sending even a read-only request.
   const secrets = deploymentSecrets(env);
   const response = await send(
-    "https://api.stripe.com/v1/prices/" + encodeURIComponent(env.STRIPE_SANDBOX_PRICE_ID),
+    "https://api.stripe.com/v1/prices/" +
+      encodeURIComponent(env.STRIPE_SANDBOX_PRICE_ID),
     {
       headers: { Authorization: "Bearer " + secrets.STRIPE_SECRET_KEY },
-      redirect: "error", signal: AbortSignal.timeout(15000),
+      redirect: "error",
+      signal: AbortSignal.timeout(15000),
     },
-  ).catch(() => { throw new Error("Stripe sandbox Price verification request failed."); });
-  demand(response.ok, "Stripe sandbox Price verification was refused. No deployment performed.");
+  ).catch(() => {
+    throw new Error("Stripe sandbox Price verification request failed.");
+  });
+  demand(
+    response.ok,
+    "Stripe sandbox Price verification was refused. No deployment performed.",
+  );
   const price = await response.json().catch(() => null);
-  demand(price && price.id === env.STRIPE_SANDBOX_PRICE_ID &&
-    price.livemode === false && price.active === true &&
-    price.currency === "usd" && price.unit_amount === 500 &&
-    price.recurring?.interval === "month" && price.recurring.interval_count === 1,
-    "Stripe sandbox Price must be active, test-mode, USD 5 per month.");
+  demand(
+    price &&
+      price.id === env.STRIPE_SANDBOX_PRICE_ID &&
+      price.livemode === false &&
+      price.active === true &&
+      price.currency === "usd" &&
+      price.unit_amount === 500 &&
+      price.recurring?.interval === "month" &&
+      price.recurring.interval_count === 1,
+    "Stripe sandbox Price must be active, test-mode, USD 5 per month.",
+  );
   return { enabled: true, priceVerified: true, livemode: false };
 }

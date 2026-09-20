@@ -169,7 +169,9 @@ function linkedinActor(value: unknown): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   requireValue(
     typeof value === "string" &&
-      /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(value),
+      /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(
+        value,
+      ),
     "LINKEDIN_ACTOR_INVALID",
     "LinkedIn actor must be an organization or organizationBrand URN.",
     400,
@@ -205,16 +207,18 @@ function config(
       optionalScopes: ["threads_manage_insights"],
     },
     linkedin: {
-      clientId: env.LINKEDIN_OAUTH_CLIENT_ID || "",
-      clientSecret: env.LINKEDIN_OAUTH_CLIENT_SECRET || "",
+      // LinkedIn requires Community Management to be the only product on its
+      // application. Keep Page authority on a dedicated application instead
+      // of mixing organization scopes with the member/OpenID application.
+      clientId: organizationActor
+        ? env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID || ""
+        : env.LINKEDIN_OAUTH_CLIENT_ID || "",
+      clientSecret: organizationActor
+        ? env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET || ""
+        : env.LINKEDIN_OAUTH_CLIENT_SECRET || "",
       authorizationEndpoint: "https://www.linkedin.com/oauth/v2/authorization",
       requiredScopes: organizationActor
-        ? [
-            "openid",
-            "profile",
-            "w_organization_social",
-            "r_organization_social",
-          ]
+        ? ["w_organization_social", "r_organization_social"]
         : ["openid", "profile", "w_member_social"],
       optionalScopes: organizationActor
         ? []
@@ -237,11 +241,18 @@ export function oauthConfiguration(env: Env) {
   return Object.fromEntries(
     providerNames.map((provider) => {
       const c = config(env, provider);
-      const available = configured(c);
+      const memberAvailable = configured(c);
       const organization =
         provider === "linkedin"
           ? config(env, provider, "urn:li:organization:1")
           : undefined;
+      const organizationAvailable = Boolean(
+        organization && configured(organization),
+      );
+      const available =
+        provider === "linkedin"
+          ? memberAvailable || organizationAvailable
+          : memberAvailable;
       return [
         provider,
         {
@@ -250,19 +261,26 @@ export function oauthConfiguration(env: Env) {
           scopes: c.scopes,
           requiredScopes: c.requiredScopes,
           optionalScopes: c.optionalScopes,
+          ...(provider === "linkedin"
+            ? { memberAvailable, organizationAvailable }
+            : {}),
           readback:
             provider !== "linkedin" ||
             c.optionalScopes.includes("r_member_social"),
-          capabilities: providerApplicationCapabilities(provider, available, {
-            linkedinMemberReadbackApproved:
-              c.optionalScopes.includes("r_member_social"),
-          }),
+          capabilities: providerApplicationCapabilities(
+            provider,
+            provider === "linkedin" ? memberAvailable : available,
+            {
+              linkedinMemberReadbackApproved:
+                c.optionalScopes.includes("r_member_social"),
+            },
+          ),
           ...(organization
             ? {
                 organizationScopes: organization.scopes,
                 organizationCapabilities: providerApplicationCapabilities(
                   "linkedin",
-                  available,
+                  organizationAvailable,
                   {
                     linkedinMemberReadbackApproved: false,
                     linkedinOrganizationActor: true,
@@ -714,7 +732,10 @@ export class ProviderOAuthConnections {
       secret: encrypted,
       active: true,
       verifiedAt: this.now(),
-      capabilities: booleanCapabilities(input.token.provider, meta.capabilities),
+      capabilities: booleanCapabilities(
+        input.token.provider,
+        meta.capabilities,
+      ),
     };
     requireValue(
       this.commitCurrent(input.alias, expected, () => {
@@ -763,7 +784,8 @@ export class ProviderOAuthConnections {
     reason: string,
     expected?: string,
   ) {
-    if (expected !== undefined && this.snapshot(meta.alias) !== expected) return;
+    if (expected !== undefined && this.snapshot(meta.alias) !== expected)
+      return;
     account.active = false;
     account.version++;
     meta.status = status;
@@ -844,7 +866,11 @@ export class ProviderOAuthConnections {
           );
           continue;
         }
-        const updatedMeta = await this.metadata(meta.alias, fresh, meta.actorUrn);
+        const updatedMeta = await this.metadata(
+          meta.alias,
+          fresh,
+          meta.actorUrn,
+        );
         updatedMeta.lastRefreshAt = now;
         const updatedCapabilities = booleanCapabilities(
           meta.provider,

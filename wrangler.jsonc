@@ -54,6 +54,7 @@
     "X_OAUTH_CLIENT_ID": "",
     "THREADS_OAUTH_CLIENT_ID": "",
     "LINKEDIN_OAUTH_CLIENT_ID": "",
+    "LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID": "",
     "LINKEDIN_MEMBER_READBACK": "false"
   },
   "observability": {

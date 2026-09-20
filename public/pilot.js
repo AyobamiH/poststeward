@@ -27,8 +27,14 @@ function controls() {
   for (const form of [$("connection-form"), $("oauth-form"), $("prepare-form")])
     for (const element of form.elements) {
       if (element.dataset?.provider) {
+        const provider = element.dataset.provider;
+        const configuration = oauthInfo?.providers?.[provider];
         const available =
-          oauthInfo?.providers?.[element.dataset.provider]?.available === true;
+          provider === "linkedin"
+            ? ($("oauth-linkedin-actor").value.trim()
+                ? configuration?.organizationAvailable
+                : configuration?.memberAvailable) === true
+            : configuration?.available === true;
         element.disabled =
           busy ||
           !session ||
@@ -60,7 +66,7 @@ function renderOAuth() {
         : "provider app not configured";
       const readback =
         provider === "linkedin"
-          ? `, member readback ${value.readback ? "enabled" : "not approved"}, Page actor ${value.organizationCapabilities?.readback?.state === "connection_required" ? "ready for OAuth" : "not configured"}`
+          ? `, member app ${value.memberAvailable ? "configured" : "not configured"}, member readback ${value.readback ? "enabled" : "not approved"}, dedicated Page app ${value.organizationAvailable ? "ready for OAuth" : "not configured"}`
           : "";
       return `${provider}: ${capability}${readback}`;
     },
@@ -75,6 +81,10 @@ function renderOAuth() {
     [...labels, ...connections].join(" · ") ||
     "No provider applications are configured.";
 }
+$("oauth-linkedin-actor").addEventListener("input", () => {
+  renderOAuth();
+  controls();
+});
 function render() {
   const r = snapshot?.record,
     d = snapshot?.delivery;

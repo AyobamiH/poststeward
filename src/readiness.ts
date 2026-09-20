@@ -31,6 +31,14 @@ export function releaseReadiness(env: Env) {
           requiredScopes: value.requiredScopes,
           optionalScopes: value.optionalScopes,
           capabilities: value.capabilities,
+          ...(provider === "linkedin"
+            ? {
+                memberOauth: value.memberAvailable,
+                organizationOauth: value.organizationAvailable,
+                organizationRequiredScopes: value.organizationScopes,
+                organizationCapabilities: value.organizationCapabilities,
+              }
+            : {}),
         },
       ]),
     ),

@@ -31,7 +31,10 @@ export async function preflightProductionDeploy(
   send = fetch,
   base = JSON.parse(readFileSync("wrangler.jsonc", "utf8")),
 ) {
-  demand(env.DEPLOY_ENV === "production", "Production preflight requires DEPLOY_ENV=production.");
+  demand(
+    env.DEPLOY_ENV === "production",
+    "Production preflight requires DEPLOY_ENV=production.",
+  );
   demand(
     env.GITHUB_REF === "refs/heads/main" &&
       env.GITHUB_REPOSITORY === "AyobamiH/poststeward" &&
@@ -165,10 +168,14 @@ async function main() {
     process.env.X_OAUTH_CLIENT_SECRET,
     process.env.THREADS_OAUTH_CLIENT_SECRET,
     process.env.LINKEDIN_OAUTH_CLIENT_SECRET,
+    process.env.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET,
     process.env.OPERATIONAL_ALERT_WEBHOOK_URL,
     process.env.OPERATIONAL_ALERT_WEBHOOK_TOKEN,
   ].filter(Boolean))
-    demand(!serialized.includes(secret), "Production preflight attempted to emit protected material.");
+    demand(
+      !serialized.includes(secret),
+      "Production preflight attempted to emit protected material.",
+    );
   console.log("POSTSTEWARD_PRODUCTION_DEPLOY_PREFLIGHT " + serialized);
 }
 
@@ -176,7 +183,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   main().catch((error) => {
     console.error(
       "POSTSTEWARD_PRODUCTION_DEPLOY_PREFLIGHT_FAILED " +
-        JSON.stringify({ message: error instanceof Error ? error.message : "Unknown failure." }),
+        JSON.stringify({
+          message: error instanceof Error ? error.message : "Unknown failure.",
+        }),
     );
     process.exitCode = 1;
   });

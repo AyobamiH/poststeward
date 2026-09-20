@@ -21,6 +21,7 @@ const secretNames = [
   "X_OAUTH_CLIENT_SECRET",
   "THREADS_OAUTH_CLIENT_SECRET",
   "LINKEDIN_OAUTH_CLIENT_SECRET",
+  "LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET",
   "STRIPE_SANDBOX_SECRET_KEY",
   "STRIPE_SANDBOX_WEBHOOK_SECRET",
   "OPERATIONAL_ALERT_WEBHOOK_URL",
@@ -93,8 +94,10 @@ test("reviewed production workflow call requires merged-PR provenance before ver
     verification,
     /Require reviewed production caller provenance[\s\S]*inputs\.environment == 'production' && inputs\.production_deploy_request == true/,
   );
-  assert.ok(verification.includes("REQUIRE_MERGED_PR: \"true\""));
-  assert.ok(verification.includes("run: node scripts/assert-merge-provenance.mjs"));
+  assert.ok(verification.includes('REQUIRE_MERGED_PR: "true"'));
+  assert.ok(
+    verification.includes("run: node scripts/assert-merge-provenance.mjs"),
+  );
 });
 
 test("deployment still verifies before entering the protected environment", () => {

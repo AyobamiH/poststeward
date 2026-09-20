@@ -27,6 +27,8 @@ function env(overrides: Record<string, string | undefined> = {}) {
     THREADS_OAUTH_CLIENT_SECRET: "threads-secret",
     LINKEDIN_OAUTH_CLIENT_ID: "",
     LINKEDIN_OAUTH_CLIENT_SECRET: "",
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: "",
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET: "",
     LINKEDIN_MEMBER_READBACK: "false",
     GITHUB_APP_CLIENT_ID: "github-client",
     GITHUB_APP_CLIENT_SECRET: "github-secret",
@@ -53,17 +55,22 @@ test("release gate identifiers are unique and external evidence is derived from 
   assert.ok(!externalEvidenceGateIds().includes("x_publication_readback"));
   assert.ok(!externalEvidenceGateIds().includes("capacity_cost_calibration"));
   assert.equal(
-    releaseGateDefinitions.find((gate) => gate.id === "x_token_refresh_rotation")?.state,
+    releaseGateDefinitions.find(
+      (gate) => gate.id === "x_token_refresh_rotation",
+    )?.state,
     "live_verified",
   );
   assert.deepEqual(
-    releaseGateDefinitions.find((gate) => gate.id === "capacity_cost_calibration"),
+    releaseGateDefinitions.find(
+      (gate) => gate.id === "capacity_cost_calibration",
+    ),
     {
       id: "capacity_cost_calibration",
       state: "live_verified",
       scope: "production",
       blocking: false,
-      summary: "Exact-release staging and production observations project the reviewed first-100 workload with at least 30% product headroom and inside the reviewed Cloudflare/provider cost envelope.",
+      summary:
+        "Exact-release staging and production observations project the reviewed first-100 workload with at least 30% product headroom and inside the reviewed Cloudflare/provider cost envelope.",
       evidence: [
         "docs/capacity-cost-live-evidence-2026-09-19.md",
         "actions/35442767724",
@@ -82,6 +89,7 @@ test("runtime capabilities remain distinct from reviewed live evidence", () => {
     x: false,
     threads: true,
     linkedin: false,
+    linkedinOrganization: false,
     linkedinMemberReadback: false,
   });
   assert.equal(runtime.privateGitHubConfigured, true);
@@ -100,7 +108,9 @@ test("configured webhook remains runtime capability separate from reviewed alert
   );
   assert.equal(runtime.operationalAlertWebhookConfigured, true);
   assert.equal(
-    releaseGateDefinitions.find((gate) => gate.id === "operational_alert_delivery")?.state,
+    releaseGateDefinitions.find(
+      (gate) => gate.id === "operational_alert_delivery",
+    )?.state,
     "live_verified",
   );
   assert.ok(!externalEvidenceGateIds().includes("operational_alert_delivery"));
@@ -117,7 +127,10 @@ test("bounded staging canary is a permitted evidence mode, not a global rollout"
   const readiness = releaseReadiness(canary);
   assert.equal(readiness.policy.healthy, true);
   assert.equal(readiness.runtimeCapabilities.policies.advancedEnabled, true);
-  assert.equal(readiness.runtimeCapabilities.policies.advancedRolloutMode, "canary");
+  assert.equal(
+    readiness.runtimeCapabilities.policies.advancedRolloutMode,
+    "canary",
+  );
   assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 500);
 });
 
@@ -187,10 +200,21 @@ test("readiness keeps legacy fields while exposing the typed control plane", () 
   assert.equal(readiness.schemaVersion, 2);
   assert.equal(readiness.policy.healthy, true);
   assert.equal(readiness.recovery.exactCheckpoints, true);
-  assert.equal(readiness.gates.exact_recovery_checkpoints.state, "live_verified");
-  assert.equal(readiness.runtimeCapabilities.operationalAlertWebhookConfigured, false);
-  assert.equal(readiness.runtimeCapabilities.policies.advancedRolloutMode, "disabled");
+  assert.equal(
+    readiness.gates.exact_recovery_checkpoints.state,
+    "live_verified",
+  );
+  assert.equal(
+    readiness.runtimeCapabilities.operationalAlertWebhookConfigured,
+    false,
+  );
+  assert.equal(
+    readiness.runtimeCapabilities.policies.advancedRolloutMode,
+    "disabled",
+  );
   assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 0);
   assert.ok(readiness.evidenceStillExternal.includes("native_webmcp"));
-  assert.ok(!readiness.evidenceStillExternal.includes("stripe_sandbox_lifecycle"));
+  assert.ok(
+    !readiness.evidenceStillExternal.includes("stripe_sandbox_lifecycle"),
+  );
 });

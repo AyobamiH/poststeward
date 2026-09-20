@@ -37,6 +37,8 @@ function environment(overrides = {}) {
     THREADS_OAUTH_CLIENT_SECRET: "",
     LINKEDIN_OAUTH_CLIENT_ID: "",
     LINKEDIN_OAUTH_CLIENT_SECRET: "",
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: "",
+    LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET: "",
     LINKEDIN_MEMBER_READBACK: "false",
     STRIPE_SANDBOX_ENABLED: "false",
     STRIPE_SANDBOX_PRICE_ID: "",
@@ -55,7 +57,10 @@ function json(status, body) {
   });
 }
 
-function cloudflare({ d1Name = "poststeward-identity-production", workerStatus = 404 } = {}) {
+function cloudflare({
+  d1Name = "poststeward-identity-production",
+  workerStatus = 404,
+} = {}) {
   return async (url) => {
     const value = String(url);
     if (value === "https://api.cloudflare.com/client/v4/user/tokens/verify")
@@ -74,8 +79,15 @@ function cloudflare({ d1Name = "poststeward-identity-production", workerStatus =
           read_replication: { mode: "disabled" },
         },
       });
-    if (value.endsWith(`/accounts/${account}/workers/scripts/poststeward/settings`))
-      return json(workerStatus, workerStatus === 200 ? { success: true, result: { bindings: [] } } : {});
+    if (
+      value.endsWith(
+        `/accounts/${account}/workers/scripts/poststeward/settings`,
+      )
+    )
+      return json(
+        workerStatus,
+        workerStatus === 200 ? { success: true, result: { bindings: [] } } : {},
+      );
     throw new Error(`unexpected request ${value}`);
   };
 }
@@ -139,7 +151,9 @@ test("production preflight distinguishes an invalid Cloudflare token before D1 a
     const value = String(url);
     if (value === "https://api.cloudflare.com/client/v4/user/tokens/verify")
       return json(401, { success: false });
-    throw new Error("D1 should not be queried after invalid token verification");
+    throw new Error(
+      "D1 should not be queried after invalid token verification",
+    );
   };
   await assert.rejects(
     () => preflightProductionDeploy(environment(), send, base),
@@ -149,11 +163,15 @@ test("production preflight distinguishes an invalid Cloudflare token before D1 a
 
 test("production preflight refuses the wrong D1 identity", async () => {
   await assert.rejects(
-    () => preflightProductionDeploy(environment(), cloudflare({ d1Name: "wrong-db" }), base),
+    () =>
+      preflightProductionDeploy(
+        environment(),
+        cloudflare({ d1Name: "wrong-db" }),
+        base,
+      ),
     /Production D1 identity does not match/,
   );
 });
-
 
 test("production preflight requires an explicit credential isolation mode", async () => {
   await assert.rejects(
@@ -176,7 +194,6 @@ test("production preflight records isolated credentials without rotation debt", 
   assert.equal(report.credentialMode, "isolated");
   assert.equal(report.credentialRotationRequired, false);
 });
-
 
 test("production preflight does not require Cloudflare subdomain discovery when a valid production subdomain is pinned", async () => {
   let subdomainDiscoveryCalled = false;
@@ -206,8 +223,12 @@ test("production preflight rejects an invalid pinned Workers subdomain", async (
   );
 });
 
-
 test("production request passes the pinned Workers subdomain into preflight", () => {
-  const workflow = readFileSync(".github/workflows/deploy-production-request.yml", "utf8");
-  assert.ok(workflow.includes('WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}'));
+  const workflow = readFileSync(
+    ".github/workflows/deploy-production-request.yml",
+    "utf8",
+  );
+  assert.ok(
+    workflow.includes("WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}"),
+  );
 });

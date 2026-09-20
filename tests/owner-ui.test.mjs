@@ -22,7 +22,7 @@ test("owner presentation consumes structured snapshots without taking operationa
   assert.doesNotMatch(ui, /localStorage|sessionStorage|document\.cookie|innerHTML/);
   assert.match(
     readFileSync("public/app.js", "utf8"),
-    /renderOwnerSnapshot\(\{ accounts, receipts, profiles, grants, oauthInfo, recovery \}\)/,
+    /renderOwnerSnapshot\(\{\s*accounts,\s*receipts,\s*profiles,\s*grants,\s*oauthInfo,\s*recovery,?\s*\}\)/,
   );
 });
 

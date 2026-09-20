@@ -29,35 +29,37 @@ test("a successful response without a creation ID cannot be called failed or ret
     code: "AMBIGUOUS_PROVIDER_WRITE",
   });
 });
-test("LinkedIn organization identity verifies the member then exact page author access", async () => {
+test("LinkedIn organization identity verifies exact page author access without OpenID", async () => {
   const actor = "urn:li:organization:146607525";
   const seen: string[] = [];
   const p = new SocialProviders((async (url, init) => {
     seen.push(String(url));
-    if (String(url) === "https://api.linkedin.com/v2/userinfo")
-      return Response.json({ sub: "member-123", name: "Owner" });
     const parsed = new URL(String(url));
-    assert.equal(parsed.origin + parsed.pathname, "https://api.linkedin.com/rest/posts");
+    assert.equal(
+      parsed.origin + parsed.pathname,
+      "https://api.linkedin.com/rest/posts",
+    );
     assert.equal(parsed.searchParams.get("author"), actor);
     assert.equal(parsed.searchParams.get("q"), "author");
     assert.equal(parsed.searchParams.get("count"), "1");
     assert.equal(parsed.searchParams.get("viewContext"), "AUTHOR");
     assert.equal(new Headers(init?.headers).get("X-RestLi-Method"), "FINDER");
     assert.equal(new Headers(init?.headers).get("LinkedIn-Version"), "202608");
-    return Response.json({ paging: { start: 0, count: 1, links: [] }, elements: [] });
+    return Response.json({
+      paging: { start: 0, count: 1, links: [] },
+      elements: [],
+    });
   }) as typeof fetch);
   const identity = await p.identity("linkedin", credential, actor);
   assert.deepEqual(identity, { id: actor, username: actor });
-  assert.equal(seen.length, 2);
+  assert.equal(seen.length, 1);
 });
 
 test("LinkedIn organization identity keeps denied page access distinct from member identity", async () => {
   const actor = "urn:li:organization:146607525";
-  const p = new SocialProviders((async (url) => {
-    if (String(url) === "https://api.linkedin.com/v2/userinfo")
-      return Response.json({ sub: "member-123", name: "Owner" });
-    return new Response("{}", { status: 403 });
-  }) as typeof fetch);
+  const p = new SocialProviders(
+    (async () => new Response("{}", { status: 403 })) as typeof fetch,
+  );
   await assert.rejects(p.identity("linkedin", credential, actor), {
     code: "PROVIDER_HTTP_403",
   });
@@ -65,16 +67,24 @@ test("LinkedIn organization identity keeps denied page access distinct from memb
 
 test("LinkedIn organization identity rejects contradictory page-author evidence", async () => {
   const actor = "urn:li:organization:146607525";
-  const p = new SocialProviders((async (url) => {
-    if (String(url) === "https://api.linkedin.com/v2/userinfo")
-      return Response.json({ sub: "member-123", name: "Owner" });
-    return Response.json({
+  const p = new SocialProviders((async () =>
+    Response.json({
       paging: { start: 0, count: 1, links: [] },
       elements: [{ author: "urn:li:organization:999" }],
-    });
-  }) as typeof fetch);
+    })) as typeof fetch);
   await assert.rejects(p.identity("linkedin", credential, actor), {
     code: "IDENTITY_UNVERIFIED",
+  });
+});
+
+test("LinkedIn member identity still uses the separate OpenID userinfo path", async () => {
+  const p = new SocialProviders((async (url) => {
+    assert.equal(String(url), "https://api.linkedin.com/v2/userinfo");
+    return Response.json({ sub: "member-123", name: "Owner" });
+  }) as typeof fetch);
+  assert.deepEqual(await p.identity("linkedin", credential), {
+    id: "urn:li:person:member-123",
+    username: "Owner",
   });
 });
 
@@ -92,7 +102,10 @@ test("LinkedIn preserves the creation URN and independently reads back exact aut
       });
     }
     reads++;
-    assert.match(String(url), /\/rest\/posts\/urn%3Ali%3Ashare%3A123\?viewContext=AUTHOR$/);
+    assert.match(
+      String(url),
+      /\/rest\/posts\/urn%3Ali%3Ashare%3A123\?viewContext=AUTHOR$/,
+    );
     assert.equal(new Headers(init?.headers).get("LinkedIn-Version"), "202608");
     return Response.json({
       id: "urn:li:share:123",
@@ -114,7 +127,10 @@ test("LinkedIn preserves the creation URN and independently reads back exact aut
   assert.equal(payload.commentary, "Approved text");
   const evidence = await p.verify(d, credential);
   assert.equal(evidence.verified, true);
-  assert.equal(evidence.url, "https://www.linkedin.com/feed/update/urn%3Ali%3Ashare%3A123/");
+  assert.equal(
+    evidence.url,
+    "https://www.linkedin.com/feed/update/urn%3Ali%3Ashare%3A123/",
+  );
   assert.equal(writes, 1);
   assert.equal(reads, 1);
 });
@@ -126,13 +142,34 @@ test("LinkedIn readback rejects wrong author, text, lifecycle or post ID", async
     identity: { id: "urn:li:person:42", username: "Person" },
   } as Delivery;
   const samples = [
-    { id: "urn:li:share:999", author: base.identity.id, commentary: base.text, lifecycleState: "PUBLISHED" },
-    { id: base.postId, author: "urn:li:person:attacker", commentary: base.text, lifecycleState: "PUBLISHED" },
-    { id: base.postId, author: base.identity.id, commentary: "Changed", lifecycleState: "PUBLISHED" },
-    { id: base.postId, author: base.identity.id, commentary: base.text, lifecycleState: "DRAFT" },
+    {
+      id: "urn:li:share:999",
+      author: base.identity.id,
+      commentary: base.text,
+      lifecycleState: "PUBLISHED",
+    },
+    {
+      id: base.postId,
+      author: "urn:li:person:attacker",
+      commentary: base.text,
+      lifecycleState: "PUBLISHED",
+    },
+    {
+      id: base.postId,
+      author: base.identity.id,
+      commentary: "Changed",
+      lifecycleState: "PUBLISHED",
+    },
+    {
+      id: base.postId,
+      author: base.identity.id,
+      commentary: base.text,
+      lifecycleState: "DRAFT",
+    },
   ];
   for (const sample of samples) {
-    const p = new SocialProviders((async () => Response.json(sample)) as typeof fetch);
+    const p = new SocialProviders((async () =>
+      Response.json(sample)) as typeof fetch);
     assert.equal((await p.verify(base, credential)).verified, false);
   }
 });
