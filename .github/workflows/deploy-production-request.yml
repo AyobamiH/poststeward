@@ -1,8 +1,10 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-20-linkedin-community-app-separation
+# Production deployment request: 2026-09-20-linkedin-managed-multitenant-onboarding
 # This file is the only reviewed push-triggered production deployment request.
-# This request deploys the reviewed LinkedIn Page application separation, actor propagation and readback-drift safeguards.
+# This request deploys the reviewed central-app customer contract, Page-first onboarding,
+# Page ID normalisation, tenant isolation evidence and existing readback-drift safeguards.
+# LinkedIn remains fail-closed until the central Community Management app is approved and configured.
 # It keeps signup restricted, Advanced disabled, MPP disabled and Stripe sandbox off.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
 # Production uses its own D1, APP_ORIGIN and OIDC. PRODUCTION_CREDENTIAL_MODE may explicitly

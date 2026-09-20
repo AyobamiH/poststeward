@@ -1,9 +1,10 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-20-linkedin-community-app-separation
+# Deployment request: 2026-09-20-linkedin-managed-multitenant-onboarding
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed revision that routes the state-bound LinkedIn Page actor
-# through a dedicated Community Management application without invalid OpenID scopes.
+# Deploy the exact reviewed revision that makes the PostSteward-managed Page path explicit,
+# accepts a Page ID or URN and preserves tenant-bound actor verification.
+# LinkedIn remains fail-closed until the central Community Management app is approved and configured.
 # Alert delivery remains inert unless a protected webhook destination is configured.
 # Protected staging retains its existing disabled Advanced policy; no canary start is requested.
 # This deployment is non-destructive: it does not initiate provider consent, refresh a token, publish,
