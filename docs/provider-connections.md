@@ -22,6 +22,10 @@ Disconnect is locally authoritative: PostSteward immediately removes OAuth refre
 
 The member-profile and organisation/Page paths have different application credentials and readback authority. Member-profile readback requires restricted `r_member_social`. The reviewed Page path uses `r_organization_social`, which is role-gated to Pages the authenticated member administers or manages. Before storing a Page connection, PostSteward performs the permission-gated author finder for the exact state-bound Page URN; it does not request or depend on OpenID scopes that the Community Management application cannot hold. Every later identity recheck carries that same Page actor rather than falling back to the member profile.
 
+The Page path is a PostSteward-managed multi-tenant application model. LinkedIn approves the central PostSteward application; a customer does not supply or obtain approval for a separate developer application. Each customer still completes three-legged consent with a LinkedIn member who holds an eligible role on the selected Page. The owner workspace accepts either the numeric Page ID or the complete organisation URN and normalises both to the stable Page URN before OAuth state is created.
+
+PostSteward deliberately does not request `rw_organization_admin` merely to list Pages during onboarding. LinkedIn's organisation lookup and ACL discovery APIs require that broader permission, whereas the current publishing and readback contract needs only `w_organization_social` and `r_organization_social`. Page discovery can be introduced later as a separately reviewed authority expansion; it is not silently bundled into publishing consent.
+
 For either path with granted readback authority, PostSteward verifies the creation URN, stable author URN, exact commentary and `PUBLISHED` lifecycle through a separate GET. The organisation path does not depend on or enable member-profile `r_member_social`.
 
 This distinction is deliberate: code support is not represented as permission approval. External provider application review, billing or plan eligibility and real user consent remain evidence gates outside the repository.

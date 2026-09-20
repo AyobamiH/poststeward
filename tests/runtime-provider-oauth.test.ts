@@ -5,10 +5,21 @@ import { runtime } from "./runtime-fixture.ts";
 import { Response as RuntimeResponse } from "miniflare";
 
 const origin = "https://publish.example";
-async function seedOwner(db: D1Database, session = "owner-session") {
-  const subject = "owner-subject";
-  const workspace = "owner-workspace";
-  const csrf = "owner-csrf";
+async function seedOwner(
+  db: D1Database,
+  session = "owner-session",
+  identity: {
+    subject?: string;
+    workspace?: string;
+    csrf?: string;
+    email?: string;
+    proof?: string;
+  } = {},
+) {
+  const subject = identity.subject || "owner-subject";
+  const workspace = identity.workspace || "owner-workspace";
+  const csrf = identity.csrf || "owner-csrf";
+  const email = identity.email || "owner@example.com";
   const sessionHash = await digest(session);
   await db
     .prepare(
@@ -28,10 +39,10 @@ async function seedOwner(db: D1Database, session = "owner-session") {
     )
     .bind(
       sessionHash,
-      "owner-proof",
+      identity.proof || "owner-proof",
       "https://accounts.google.com",
       "poststeward-test",
-      await digest("owner@example.com"),
+      await digest(email),
       1,
       Date.now(),
       "test",
@@ -350,6 +361,161 @@ test("real Workers/D1 LinkedIn OAuth binds the reviewed organization actor throu
     assert.equal(value.connections[0].actorUrn, actorUrn);
     assert.equal(value.connections[0].capabilities.publish.state, "available");
     assert.equal(value.connections[0].capabilities.readback.state, "available");
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("one PostSteward LinkedIn application isolates two workspaces and two Page destinations", async () => {
+  const pages = {
+    "linkedin-a-code": {
+      token: "linkedin-a-access-private-001",
+      actor: "urn:li:organization:146607525",
+    },
+    "linkedin-b-code": {
+      token: "linkedin-b-access-private-001",
+      actor: "urn:li:organization:987654321",
+    },
+  } as const;
+  let tokenExchanges = 0;
+  let actorReads = 0;
+  const { mf, db } = await runtime(
+    async (request) => {
+      const url = new URL(request.url);
+      if (
+        url.hostname === "www.linkedin.com" &&
+        url.pathname === "/oauth/v2/accessToken"
+      ) {
+        tokenExchanges++;
+        const body = new URLSearchParams(await request.text());
+        const code = body.get("code") as keyof typeof pages;
+        assert.ok(pages[code]);
+        assert.equal(body.get("client_id"), "linkedin-organization-client");
+        assert.equal(
+          body.get("client_secret"),
+          "linkedin-organization-client-secret",
+        );
+        return RuntimeResponse.json({
+          access_token: pages[code].token,
+          expires_in: 3600,
+          scope: "w_organization_social r_organization_social",
+        });
+      }
+      if (
+        url.hostname === "api.linkedin.com" &&
+        url.pathname === "/rest/posts"
+      ) {
+        actorReads++;
+        const token = request.headers
+          .get("authorization")
+          ?.replace(/^Bearer /, "");
+        const expected = Object.values(pages).find(
+          (page) => page.token === token,
+        );
+        assert.ok(expected);
+        assert.equal(url.searchParams.get("author"), expected.actor);
+        return RuntimeResponse.json({
+          paging: { start: 0, count: 1, links: [] },
+          elements: [],
+        });
+      }
+      throw new Error(`Unexpected outbound provider endpoint ${url.href}`);
+    },
+    {
+      OIDC_ISSUER: "https://accounts.google.com",
+      ALLOWED_OWNER_EMAILS: "owner-a@example.com,owner-b@example.com",
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_ID: "linkedin-organization-client",
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET:
+        "linkedin-organization-client-secret",
+    },
+    100,
+  );
+  try {
+    const ownerA = await seedOwner(db, "owner-a-session", {
+      subject: "owner-a-subject",
+      workspace: "workspace-a",
+      csrf: "owner-a-csrf",
+      email: "owner-a@example.com",
+      proof: "owner-a-proof",
+    });
+    const ownerB = await seedOwner(db, "owner-b-session", {
+      subject: "owner-b-subject",
+      workspace: "workspace-b",
+      csrf: "owner-b-csrf",
+      email: "owner-b@example.com",
+      proof: "owner-b-proof",
+    });
+    const starts = await Promise.all(
+      [
+        [ownerA, "146607525"],
+        [ownerB, "987654321"],
+      ].map(async ([owner, pageId]) => {
+        const response = await mf.dispatchFetch(
+          `${origin}/api/connections/oauth/linkedin/start`,
+          {
+            method: "POST",
+            headers: ownerHeaders(owner as typeof ownerA),
+            body: JSON.stringify({ alias: "linkedin-page", actorUrn: pageId }),
+          },
+        );
+        assert.equal(response.status, 200, await response.clone().text());
+        const value: any = await response.json();
+        return {
+          state: new URL(value.authorizationUrl).searchParams.get("state")!,
+          actorUrn: value.actorUrn,
+        };
+      }),
+    );
+    assert.deepEqual(
+      starts.map((value) => value.actorUrn),
+      [pages["linkedin-a-code"].actor, pages["linkedin-b-code"].actor],
+    );
+    const stateRows = await db
+      .prepare(
+        "SELECT workspace,actor_urn FROM provider_oauth_states ORDER BY workspace",
+      )
+      .all<{ workspace: string; actor_urn: string }>();
+    assert.deepEqual(stateRows.results, [
+      { workspace: "workspace-a", actor_urn: pages["linkedin-a-code"].actor },
+      { workspace: "workspace-b", actor_urn: pages["linkedin-b-code"].actor },
+    ]);
+
+    for (const [index, owner] of [ownerA, ownerB].entries()) {
+      const code = index === 0 ? "linkedin-a-code" : "linkedin-b-code";
+      const callback = await mf.dispatchFetch(
+        `${origin}/connections/oauth/linkedin/callback?state=${encodeURIComponent(starts[index].state)}&code=${code}`,
+        {
+          redirect: "manual",
+          headers: {
+            Cookie: `__Host-session=${owner.session}; __Host-provider-oauth=${starts[index].state}`,
+          },
+        },
+      );
+      assert.equal(callback.status, 302, await callback.clone().text());
+    }
+    assert.equal(tokenExchanges, 2);
+    assert.equal(actorReads, 2);
+
+    for (const [index, owner] of [ownerA, ownerB].entries()) {
+      const accounts = await mf.dispatchFetch(
+        `${origin}/api/operations/accounts_list`,
+        {
+          method: "POST",
+          headers: ownerHeaders(owner),
+          body: "{}",
+        },
+      );
+      assert.equal(accounts.status, 200);
+      const rows = (await accounts.json()) as any[];
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].alias, "linkedin-page");
+      assert.equal(
+        rows[0].identity.id,
+        index === 0
+          ? pages["linkedin-a-code"].actor
+          : pages["linkedin-b-code"].actor,
+      );
+    }
   } finally {
     await mf.dispose();
   }

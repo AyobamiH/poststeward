@@ -167,16 +167,20 @@ function demandExpiry(value: unknown, now: number) {
 }
 function linkedinActor(value: unknown): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
+  const normalized =
+    typeof value === "string" && /^[1-9][0-9]{0,29}$/.test(value.trim())
+      ? `urn:li:organization:${value.trim()}`
+      : value;
   requireValue(
-    typeof value === "string" &&
+    typeof normalized === "string" &&
       /^urn:li:(?:organization|organizationBrand):[1-9][0-9]{0,29}$/.test(
-        value,
+        normalized,
       ),
     "LINKEDIN_ACTOR_INVALID",
-    "LinkedIn actor must be an organization or organizationBrand URN.",
+    "LinkedIn Page must be a numeric Page ID or an organization/organizationBrand URN.",
     400,
   );
-  return value;
+  return normalized;
 }
 
 function config(
@@ -262,7 +266,16 @@ export function oauthConfiguration(env: Env) {
           requiredScopes: c.requiredScopes,
           optionalScopes: c.optionalScopes,
           ...(provider === "linkedin"
-            ? { memberAvailable, organizationAvailable }
+            ? {
+                memberAvailable,
+                organizationAvailable,
+                organizationConnection: {
+                  model: "poststeward_managed",
+                  customerAppRequired: false,
+                  customerRequirement: "eligible_page_role",
+                  actorSelection: "page_id_or_urn",
+                },
+              }
             : {}),
           readback:
             provider !== "linkedin" ||
