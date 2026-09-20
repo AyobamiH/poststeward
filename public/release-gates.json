@@ -130,14 +130,13 @@
     },
     {
       "id": "x_token_refresh_rotation",
-      "state": "implemented",
+      "state": "live_verified",
       "scope": "provider_optional",
       "blocking": false,
-      "summary": "X offline refresh authority and refresh capability are present, but a real token-expiry refresh rotation has not been deliberately exercised.",
+      "summary": "A natural production alarm completed a real X token refresh, persisted the new lifecycle state and reverified the unchanged @poststeward publishing identity without consent or publication.",
       "evidence": [
         "docs/x-oauth-publication-live-evidence-2026-09-20.md"
-      ],
-      "ownerAction": "Observe one safe refresh rotation after natural expiry or through a controlled non-publishing drill."
+      ]
     },
     {
       "id": "linkedin_poststeward_page_identity",
