@@ -20,11 +20,14 @@ Turn owner-approved content into provider publication, explicit schedules, and i
 - Provider connections and publication/scheduling state for supported social platforms.
 - Immutable review/approval, cancellation boundaries, idempotency, effect reconciliation, and receipts.
 - Hosted HTTP, remote MCP, and supported browser-agent operation surfaces.
+- The public PostSteward Local distribution/onboarding surface for the reviewed
+  Post-Once-derived local runtime, while preserving separate local authority/state.
 - Advanced campaign monitoring/allocation features when separately enabled and proven.
 
 ## Does Not Own
 
-- post-once, the owner's separate local publishing utility.
+- The owner's historical post-once production installation or its private state.
+- Silent equivalence between hosted PostSteward authority and PostSteward Local authority.
 - Social-provider identity merely because credentials are configured.
 - Provider consent or account authority without a completed owner connection.
 - Public signup, Advanced automation, billing entitlement, or recovery capability merely because supporting infrastructure exists.
@@ -44,7 +47,8 @@ A publication is complete only when the authorised operation reaches an honest d
 
 ## Relationships
 
-- post-once: separate local portfolio publisher.
+- post-once: source lineage beneath PostSteward Local; the owner's historical
+  production installation remains separate and is never mutated by distribution.
 - Social providers: external authorities for account identity and provider-side effects.
 - GitHub/Stripe/Cloudflare: supporting integrations whose configuration does not by itself prove product acceptance.
 
