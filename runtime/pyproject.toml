@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Compatibility distribution identifier. The project identity is `post-once`;
+# changing this name is a separate packaging migration, not a documentation rename.
+name = "oneclickpostfactory-post-once"
+version = "0.28.29"
+description = "Agent-operable, receipt-backed social publishing, scheduling and portfolio GTM replenishment CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "coverage>=7,<8",
+  "jsonschema>=4.23,<5",
+  "mypy>=1.14,<2",
+  "ruff>=0.9,<1",
+]
+keyring = [
+  "keyring>=25,<26",
+]
+
+[project.scripts]
+post-once = "ocpf_post.product_entry:main"
+ocpf-post = "ocpf_post.product_entry:main"
+
+[tool.setuptools]
+package-dir = {'' = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ocpf_post = ["registry.json", "portfolio_sources.json", "portfolio_sources_extra.json", "portfolio_source_inventory_extensions.json", "campaigns/*/*.txt", "campaigns/*/*.json", "ui/*.html", "ui/*.css", "ui/*.js"]
+
+[tool.setuptools.data-files]
+"share/man/man1" = ["man/ocpf-post.1"]
+"share/bash-completion/completions" = ["completions/ocpf-post.bash"]
+"share/zsh/site-functions" = ["completions/_ocpf-post"]
+"share/fish/vendor_completions.d" = ["completions/ocpf-post.fish"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+# Repository-wide ratchet starts with correctness/syntax classes. The new
+# platform-consolidation modules are held to the broader E4/E7/E9/F set in CI.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+show_error_codes = true
