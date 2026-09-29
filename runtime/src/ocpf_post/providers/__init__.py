@@ -31,6 +31,14 @@ class _ReadbackBoundary:
 
 def get_provider(name: str, **kwargs):
     normalized = name.strip().lower()
+    from ocpf_post.product_runtime import standalone_product_active
+    if standalone_product_active():
+        from ocpf_post.providers.poststeward_relay import PostStewardRelayProvider
+        return PostStewardRelayProvider(
+            normalized,
+            account_id=kwargs.pop("account_id", None),
+            effect_scope=kwargs.pop("effect_scope", None),
+        )
     if normalized == "x":
         return XProvider(**kwargs)
     if normalized == "threads":
@@ -61,6 +69,16 @@ def for_account(name, account_id, *, factory=None, require_enabled=True, registe
 
     row = profile(normalized, identity)
     injected = factory is not None and factory not in (get_provider, get_extended_provider)
+    from ocpf_post.product_runtime import standalone_product_active
+    if standalone_product_active() and not injected:
+        from ocpf_post.providers.poststeward_relay import PostStewardRelayProvider
+        return _ReadbackBoundary(
+            PostStewardRelayProvider(
+                normalized,
+                account_id=identity,
+                effect_scope=kwargs.pop("effect_scope", None),
+            )
+        )
     if row:
         if require_enabled and unavailable(normalized, identity):
             raise ValueError("Additional account is inactive or disconnected")
@@ -90,4 +108,11 @@ def for_campaign(name, campaign, *, factory=None, **kwargs):
     binding = destination_binding(campaign, name)
     if not binding:
         raise ValueError(f"No destination account is bound for {campaign}/{name}")
-    return for_account(name, binding["account_id"], factory=factory, registered_identity=True, **kwargs)
+    kwargs.setdefault("effect_scope", str(campaign))
+    return for_account(
+        name,
+        binding["account_id"],
+        factory=factory,
+        registered_identity=True,
+        **kwargs,
+    )
