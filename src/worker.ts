@@ -763,6 +763,51 @@ async function internalValue(response: Response) {
   return value;
 }
 
+async function executorTransitionReview(
+  env: Env,
+  actor: Actor,
+  input: { mode: "hosted" | "local"; installationId?: string; reason: string },
+) {
+  const current = await executorStatus(env.IDENTITY, actor.workspace);
+  const external = await executorExternalBlockers(env.IDENTITY, actor.workspace);
+  const preflight = await internalValue(
+    await invoke(env, actor, "", { mode: input.mode }, "/runtime/executor/preflight"),
+  );
+  const installations = await listRuntimeInstallations(env.IDENTITY, actor.workspace);
+  const targetReady =
+    input.mode === "hosted" ||
+    installations.some(
+      (row: any) =>
+        row.installation_id === input.installationId &&
+        row.status === "active" &&
+        Number(row.token_expires_at) > Date.now(),
+    );
+  const blockers = [
+    ...external,
+    ...((preflight.blockers as string[] | undefined) || []),
+    ...(!targetReady ? ["target_runtime_installation_not_ready"] : []),
+  ].sort();
+  const review = {
+    schemaVersion: 1,
+    workspace: actor.workspace,
+    current,
+    target: {
+      mode: input.mode,
+      installationId: input.mode === "local" ? input.installationId : null,
+    },
+    reason: input.reason,
+    blockers,
+    hostedPreflight: preflight,
+  };
+  return {
+    ...review,
+    status: blockers.length ? "blocked" : "preview",
+    reviewSha256: await digest(review),
+    boundary:
+      "Executor transition review only. No provider, schedule or executor authority mutation occurs.",
+  };
+}
+
 async function route(
   request: Request,
   env: Env,
