@@ -1,0 +1,9 @@
+A global invoice is more than changing the currency symbol.
+
+The document can also need different locale formatting, numbering systems, payment details, paper conventions and RTL/LTR layout.
+
+Global Bill Forge is built around those international document differences rather than assuming one invoice shape fits every customer.
+
+I’m keeping the GTM claim narrower than the README’s old “production-ready” language until deployment evidence supports that.
+
+Which international invoicing edge case creates the most manual work for you?

@@ -1,0 +1,5 @@
+A global invoice should not make you fight the format every time the customer changes country.
+
+Currency, locale, numbering and RTL/LTR layout are part of the document.
+
+Which international invoicing edge case wastes the most time for you?

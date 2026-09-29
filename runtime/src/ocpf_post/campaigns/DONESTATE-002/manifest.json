@@ -1,0 +1,30 @@
+{
+  "campaign": "DONESTATE-002",
+  "project": "donestate",
+  "title": "A maintenance brief includes the boundaries",
+  "status": "COPY-READY",
+  "canonical_state": "DoneState project queue in Proof & State GTM vault",
+  "queue_batch": "gtm-replenishment-20260908",
+  "providers": ["x"],
+  "source": {
+    "type": "github_repository_evidence",
+    "source_id": "DONESTATE-OBJECTIVE-AUTHORITY-LIMITS-20260908",
+    "repository": "AyobamiH/donestate",
+    "path": "README.md",
+    "blob_sha": "fd17bff649224eb6a134447b87d852e94fd065b9",
+    "url": "https://github.com/AyobamiH/donestate/blob/main/README.md",
+    "sections": ["Why it exists", "Fast path", "Authority model"],
+    "revalidated_at": "2026-09-08",
+    "angle": "Specific maintenance objectives and explicit limits make a useful delegation brief."
+  },
+  "intent": {
+    "audience": "Repository owners considering AI-assisted maintenance",
+    "objective": "Collect concrete bounded maintenance use cases",
+    "cta": "Name one repository task you would delegate with clear boundaries"
+  },
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Product-model framing, not a new canary or release claim."},
+  "claim_boundary": "No directory approval, general availability for arbitrary repositories, automatic merge, measured time savings or customer outcome is claimed. Historical release-status paragraphs are not used as current distribution evidence.",
+  "payload_sha256": {"x": "66079478ed4d23c34c2a1e05228cd5b287a6d5f0eea979878357f480d92e2d02"},
+  "schedules": {},
+  "receipts": {}
+}

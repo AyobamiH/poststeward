@@ -1,0 +1,54 @@
+{
+  "campaign": "DONESTATE-001",
+  "project": "donestate",
+  "title": "VERIFIED did not consume merge authority",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "DoneState canary evidence",
+  "providers": ["x"],
+  "source": {
+    "type": "github_repository_evidence",
+    "source_id": "DONESTATE-CANARY-114-PR-115",
+    "repository": "AyobamiH/donestate",
+    "pull_request": 115,
+    "revalidated_at": "2026-09-08",
+    "angle": "Verification can complete while merge authority remains separate."
+  },
+  "evidence": {
+    "pull_request": "https://github.com/AyobamiH/donestate/pull/115",
+    "pull_request_state_at_revalidation": "open",
+    "merged_at_revalidation": false,
+    "head_sha": "41f1ae3b0fed670e64bd99f1bcb1aea9c9e7e869",
+    "run_id": "c4a07fa6-90b2-4597-a4c6-eae66de5a3e8",
+    "boundary": "The campaign describes the verified canary milestone and explicitly does not claim that PR #115 was merged."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_platform_adaptation",
+    "disclosure": "The X copy is derived from current DoneState repository evidence. post-once only controls distribution."
+  },
+  "schedules": {
+    "x": {
+      "schedule_id": "sch_3aa397d7e1b149ef90b75ff319cde472",
+      "status": "published_verified",
+      "account_id": "1480506376447315969",
+      "account_label": "@JohnWOE15",
+      "run_at_local": "2026-09-08 15:10 BST",
+      "run_at_utc": "2026-09-08T14:10:00Z",
+      "text_sha256": "38d27efed60f6be8836c7c16b63a8484b22ca55482d6d5008abe96559fe98955"
+    }
+  },
+  "receipts": {
+    "x": {
+      "campaign": "DONESTATE-001",
+      "provider": "x",
+      "account_id": "1480506376447315969",
+      "username": "JohnWOE15",
+      "status": "published_verified",
+      "text_sha256": "38d27efed60f6be8836c7c16b63a8484b22ca55482d6d5008abe96559fe98955",
+      "recorded_at": "2026-09-08T14:10:37Z",
+      "post_id": "2097326742939529616",
+      "url": "https://x.com/JohnWOE15/status/2097326742939529616",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    }
+  }
+}
