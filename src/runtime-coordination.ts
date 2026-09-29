@@ -15,6 +15,7 @@ export interface RuntimeAuth {
 export interface ExecutorState {
   workspace: string;
   executorMode: "hosted" | "local";
+  executorStatus: "active" | "inactive" | "recovery_review";
   activeInstallationId?: string;
   authorityGeneration: number;
   leaseExpiresAt?: number;
@@ -386,6 +387,7 @@ export async function executorStatus(
   return {
     workspace,
     executorMode: row.executor_mode,
+    executorStatus: row.executor_status || "active",
     ...(row.active_installation_id ? { activeInstallationId: row.active_installation_id } : {}),
     authorityGeneration: Number(row.authority_generation),
     ...(row.lease_expires_at ? { leaseExpiresAt: Number(row.lease_expires_at) } : {}),
@@ -460,7 +462,7 @@ export async function setExecutor(
     .prepare(
       `UPDATE workspace_executors
        SET executor_mode=?,active_installation_id=?,authority_generation=?,
-           lease_expires_at=?,updated_at=?,reason=?
+           lease_expires_at=?,updated_at=?,reason=?,executor_status='active'
        WHERE workspace=? AND authority_generation=?`,
     )
     .bind(
@@ -498,7 +500,7 @@ export async function renewExecutorLease(
     .prepare(
       `UPDATE workspace_executors
        SET lease_expires_at=?,updated_at=?
-       WHERE workspace=? AND executor_mode='local'
+       WHERE workspace=? AND executor_mode='local' AND executor_status='active'
          AND active_installation_id=? AND authority_generation=?`,
     )
     .bind(now + EXECUTOR_LEASE_MS, now, auth.workspace, auth.installationId, generation)
@@ -521,6 +523,7 @@ export async function requireLocalExecutor(
   const executor = await executorStatus(db, auth.workspace, now);
   requireValue(
     executor.executorMode === "local" &&
+      executor.executorStatus === "active" &&
       executor.activeInstallationId === auth.installationId &&
       executor.authorityGeneration === generation &&
       Number(executor.leaseExpiresAt || 0) > now,
@@ -531,6 +534,56 @@ export async function requireLocalExecutor(
   return executor;
 }
 
+export async function selfFenceLocalExecutor(
+  db: D1Database,
+  auth: RuntimeAuth,
+  generation: number,
+  reasonValue: string,
+  now = Date.now(),
+) {
+  requireValue(
+    Number.isInteger(generation) && generation >= 1,
+    "RUNTIME_GENERATION_INVALID",
+    "Authority generation is invalid.",
+  );
+  const reason = cleanLabel(reasonValue, "Executor deactivation reason", 240);
+  const current = await executorStatus(db, auth.workspace, now);
+  requireValue(
+    current.executorMode === "local" &&
+      current.executorStatus === "active" &&
+      current.activeInstallationId === auth.installationId &&
+      current.authorityGeneration === generation,
+    "RUNTIME_EXECUTOR_FENCED",
+    "This installation no longer owns the current active executor generation.",
+    409,
+  );
+  const nextGeneration = current.authorityGeneration + 1;
+  const updated = await db
+    .prepare(
+      `UPDATE workspace_executors
+       SET executor_status='inactive',authority_generation=?,lease_expires_at=NULL,
+           updated_at=?,reason=?
+       WHERE workspace=? AND executor_mode='local' AND executor_status='active'
+         AND active_installation_id=? AND authority_generation=?`,
+    )
+    .bind(
+      nextGeneration,
+      now,
+      reason,
+      auth.workspace,
+      auth.installationId,
+      current.authorityGeneration,
+    )
+    .run();
+  requireValue(
+    updated.meta.changes === 1,
+    "RUNTIME_EXECUTOR_TRANSITION_RACE",
+    "Executor authority changed concurrently. Inspect status before continuing.",
+    409,
+  );
+  return executorStatus(db, auth.workspace, now);
+}
+
 export async function requireHostedExecutor(
   db: D1Database,
   workspace: string,
@@ -538,7 +591,7 @@ export async function requireHostedExecutor(
 ) {
   const executor = await executorStatus(db, workspace, now);
   requireValue(
-    executor.executorMode === "hosted",
+    executor.executorMode === "hosted" && executor.executorStatus === "active",
     "LOCAL_RUNTIME_EXECUTOR_ACTIVE",
     "This workspace is owned by a local PostSteward runtime. Hosted consequence operations are fenced.",
     409,
