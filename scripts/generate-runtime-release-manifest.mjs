@@ -40,11 +40,18 @@ function filesUnder(dir) {
   const rows = [];
   function walk(current) {
     for (const name of readdirSync(current).sort()) {
-      if (["__pycache__", ".pytest_cache", ".git"].includes(name)) continue;
+      if (
+        ["__pycache__", ".pytest_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"].includes(name) ||
+        name.endsWith(".egg-info")
+      ) continue;
       const path = join(current, name);
       const stat = statSync(path, { throwIfNoEntry: true });
       if (stat.isDirectory()) walk(path);
-      else if (stat.isFile() && !name.endsWith(".pyc")) rows.push(path);
+      else if (
+        stat.isFile() &&
+        !name.endsWith(".pyc") &&
+        ![".coverage", "coverage.xml", "unittest-results.log"].includes(name)
+      ) rows.push(path);
       else throw new Error(`Unsupported runtime filesystem entry: ${path}`);
     }
   }
