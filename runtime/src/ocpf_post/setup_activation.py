@@ -535,23 +535,43 @@ class SystemdServiceController:
 
 
 def _runtime_revision(runtime_root: Path) -> str:
-    result = subprocess.run(
+    installed = str(os.environ.get("POSTSTEWARD_RUNTIME_RELEASE_SHA") or "").strip().lower()
+    if _SHA40_RE.fullmatch(installed):
+        return installed
+
+    top = subprocess.run(
+        ["git", "-C", str(runtime_root), "rev-parse", "--show-toplevel"],
+        text=True, capture_output=True, timeout=20, check=False,
+    )
+    revision = subprocess.run(
         ["git", "-C", str(runtime_root), "rev-parse", "--verify", "HEAD^{commit}"],
         text=True, capture_output=True, timeout=20, check=False,
     )
-    value = result.stdout.strip()
-    if result.returncode or not _SHA40_RE.fullmatch(value):
-        _fail("activation.runtime_revision.unavailable", "Could not resolve exact runtime Git revision")
+    value = revision.stdout.strip()
+    if top.returncode or revision.returncode or not _SHA40_RE.fullmatch(value):
+        _fail(
+            "activation.runtime_revision.unavailable",
+            "Could not resolve an exact PostSteward runtime release identity",
+        )
+
+    try:
+        relative = runtime_root.resolve().relative_to(Path(top.stdout.strip()).resolve())
+    except (ValueError, OSError):
+        _fail("activation.runtime_revision.unavailable", "Runtime is outside its control checkout")
+
     dirty = subprocess.run(
-        ["git", "-C", str(runtime_root), "status", "--porcelain=v1", "--untracked-files=all"],
+        [
+            "git", "-C", top.stdout.strip(), "status", "--porcelain=v1",
+            "--untracked-files=all", "--", str(relative),
+        ],
         text=True, capture_output=True, timeout=20, check=False,
     )
     if dirty.returncode:
-        _fail("activation.runtime_status.unavailable", "Could not verify runtime checkout cleanliness")
+        _fail("activation.runtime_status.unavailable", "Could not verify runtime subtree cleanliness")
     if dirty.stdout.strip():
         _fail(
             "activation.runtime.dirty",
-            "Activation requires a clean checkout so the reviewed revision exactly matches executable code",
+            "Activation requires the embedded PostSteward runtime subtree to match its reviewed release",
         )
     return value
 
