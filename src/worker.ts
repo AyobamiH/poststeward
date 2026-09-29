@@ -226,7 +226,9 @@ export class Workspace extends DurableObject<Env> {
     return { billing, engine, pilot, oauth };
   }
   private async schedule(engine: Engine, oauth: ProviderOAuthConnections) {
-    await engine.scheduleNext();
+    const workspace = this.store.get<string>("workspace");
+    if (!workspace || (await executorStatus(this.env.IDENTITY, workspace)).executorMode === "hosted")
+      await engine.scheduleNext();
     const nextOAuth = oauth.nextWake();
     if (nextOAuth !== undefined)
       await this.wake(Math.max(Date.now() + 1000, nextOAuth));
@@ -694,7 +696,19 @@ export class Workspace extends DurableObject<Env> {
           this.store.put("billing:next", Date.now() + 60000);
         }
       }
-      await engine.tick();
+      const executor = await executorStatus(this.env.IDENTITY, workspace);
+      if (executor.executorMode === "hosted") {
+        await engine.tick();
+      } else {
+        console.warn(
+          JSON.stringify({
+            event: "hosted_scheduler_fenced_by_local_runtime",
+            workspace,
+            installation: executor.activeInstallationId,
+            generation: executor.authorityGeneration,
+          }),
+        );
+      }
     } finally {
       await this.ctx.storage.deleteAlarm();
       await this.schedule(engine, oauth);
