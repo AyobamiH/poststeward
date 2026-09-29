@@ -77,6 +77,7 @@ import {
   renewExecutorLease,
   requireHostedExecutor,
   revokeRuntimeInstallation,
+  selfFenceLocalExecutor,
   setExecutor,
   startRuntimePairing,
 } from "./runtime-coordination.ts";
@@ -94,6 +95,10 @@ const runtimePairingApproveSchema = z.strictObject({
 });
 const runtimeHeartbeatSchema = z.strictObject({
   authorityGeneration: z.number().int().min(1),
+});
+const runtimeSelfFenceSchema = z.strictObject({
+  authorityGeneration: z.number().int().min(1),
+  reason: z.string().min(3).max(240),
 });
 const runtimeExecutorSchema = z.strictObject({
   mode: z.enum(["hosted", "local"]),
@@ -1037,6 +1042,18 @@ async function route(
         env.IDENTITY,
         runtime,
         input.authorityGeneration,
+      ),
+    );
+  }
+  if (path === "/api/runtime/executor/fence" && request.method === "POST") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    const input = parse(runtimeSelfFenceSchema, await request.json());
+    return json(
+      await selfFenceLocalExecutor(
+        env.IDENTITY,
+        runtime,
+        input.authorityGeneration,
+        input.reason,
       ),
     );
   }
