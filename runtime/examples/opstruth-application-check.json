@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "project": "opstruth-chatgpt-plugin",
+  "repository": "AyobamiH/opstruth-chatgpt-plugin",
+  "environment": "production",
+  "url": "https://mcp.opstruth.io/health",
+  "revision_field": "commit",
+  "assertions": {
+    "status": "ok",
+    "service": "opstruth",
+    "mode": "read-only-public-evidence",
+    "evidenceGraph": "1.0.0"
+  },
+  "ttl_minutes": 30,
+  "behaviour_adapter": "opstruth-verifier-identity-v1",
+  "deployment_adapter": "opstruth-cloudflare-workflow-v1"
+}

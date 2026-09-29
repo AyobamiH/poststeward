@@ -1,0 +1,488 @@
+#compdef ocpf-post
+# GENERATED from argparse metadata
+local context state line
+if (( CURRENT == 2 )); then _values 'command' accounts alerts campaign capabilities config console credentials doctor engagement evidence health help linkedin operations outcome-connectors performance portfolio publish receipt registry replenish run-due runtime schedule setup state threads vault work x; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'accounts' ]]; then _values 'subcommand' connect disable enable import list; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'alerts' ]]; then _values 'subcommand' configure connect disable enable send status; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'campaign' ]]; then _values 'subcommand' brief explain import receipts reconcile show; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'config' ]]; then _values 'subcommand' show; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'credentials' ]]; then _values 'subcommand' keyring; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'engagement' ]]; then _values 'subcommand' conversation dismiss draft process reconcile send status sync worker-status; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'evidence' ]]; then _values 'subcommand' check; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'linkedin' ]]; then _values 'subcommand' publish receipt refresh status; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'outcome-connectors' ]]; then _values 'subcommand' connect disable enable import status sync; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'performance' ]]; then _values 'subcommand' capture capture-due compare feedback outcomes review show; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'portfolio' ]]; then _values 'subcommand' calendar experiment plan policy reconcile refill replay snapshot status volume-audit watch; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'registry' ]]; then _values 'subcommand' import list resolve show; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'replenish' ]]; then _values 'subcommand' acknowledge-gap lock-status observe reconcile recover-generated refresh source status wait; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'runtime' ]]; then _values 'subcommand' install reconcile rollback status uninstall upgrade; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'schedule' ]]; then _values 'subcommand' cancel create inspect list; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'setup' ]]; then _values 'subcommand' activate admission adoption-review beta browser connect-x deactivate export inspect-bundle interactive onboard-x recovery-point restore resume start status verify verify-fresh; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'state' ]]; then _values 'subcommand' archive inventory migrate recover-segment segment verify; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'threads' ]]; then _values 'subcommand' publish receipt refresh status; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'vault' ]]; then _values 'subcommand' auth coverage credentials extend register status sync; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'work' ]]; then _values 'subcommand' status; return; fi
+if (( CURRENT == 3 )) && [[ $words[2] == 'x' ]]; then _values 'subcommand' auth logout refresh status; return; fi
+if (( CURRENT == 4 )) && [[ $words[2] == 'credentials' ]] && [[ $words[3] == 'keyring' ]]; then _values 'subcommand' migrate restore status; return; fi
+if (( CURRENT == 4 )) && [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'experiment' ]]; then _values 'subcommand' reconcile report status stop; return; fi
+if (( CURRENT == 4 )) && [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]]; then _values 'subcommand' disable enable evidence import list preview receipts; return; fi
+if [[ $words[2] == 'credentials' ]] && [[ $words[3] == 'keyring' ]] && [[ $words[4] == 'migrate' ]]; then
+  _arguments '--provider[option]:provider:(x threads linkedin)' '--expected-sha256[option]:expected_sha256:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'credentials' ]] && [[ $words[3] == 'keyring' ]] && [[ $words[4] == 'restore' ]]; then
+  _arguments '--provider[option]:provider:(x threads linkedin)' '--expected-sha256[option]:expected_sha256:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'experiment' ]] && [[ $words[4] == 'reconcile' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'experiment' ]] && [[ $words[4] == 'report' ]]; then
+  _arguments '--save[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]] && [[ $words[4] == 'disable' ]]; then
+  _arguments '--project[option]:project:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]] && [[ $words[4] == 'enable' ]]; then
+  _arguments '--project[option]:project:' '--expected-sha256[review_sha256 from source preview]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]] && [[ $words[4] == 'evidence' ]]; then
+  _arguments '--project[option]:project:' '--sha[Exact full commit SHA; defaults to the observed default-branch head]:sha:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]] && [[ $words[4] == 'import' ]]; then
+  _arguments '--file[Strict JSON import file; never include credentials]:file:' '--apply[Save the reviewed import locally]' '--expected-sha256[Input SHA-256 returned by preview; required with --apply]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]] && [[ $words[4] == 'preview' ]]; then
+  _arguments '--project[option]:project:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'source' ]] && [[ $words[4] == 'receipts' ]]; then
+  _arguments '--project[option]:project:'
+  return
+fi
+if [[ $words[2] == 'accounts' ]] && [[ $words[3] == 'connect' ]]; then
+  _arguments '--provider[option]:provider:(x threads linkedin)' '--account-id[option]:account_id:' '--credential-file[Private JSON; never paste credentials into chat]:credential_file:' '--oauth[X desktop PKCE consent]' '--reuse-default[LinkedIn Page only: reuse the existing default member credential by non-secret reference]' '--client-id[option]:client_id:'
+  return
+fi
+if [[ $words[2] == 'accounts' ]] && [[ $words[3] == 'disable' ]]; then
+  _arguments '--provider[option]:provider:(x threads linkedin)' '--account-id[option]:account_id:'
+  return
+fi
+if [[ $words[2] == 'accounts' ]] && [[ $words[3] == 'enable' ]]; then
+  _arguments '--apply[option]' '--expected-sha256[option]:expected_sha256:' '--provider[option]:provider:(x threads linkedin)' '--account-id[option]:account_id:'
+  return
+fi
+if [[ $words[2] == 'accounts' ]] && [[ $words[3] == 'import' ]]; then
+  _arguments '--file[option]:file:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'alerts' ]] && [[ $words[3] == 'configure' ]]; then
+  _arguments '--file[option]:file:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'alerts' ]] && [[ $words[3] == 'connect' ]]; then
+  _arguments '--credential-file[option]:credential_file:'
+  return
+fi
+if [[ $words[2] == 'alerts' ]] && [[ $words[3] == 'disable' ]]; then
+  _arguments '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'alerts' ]] && [[ $words[3] == 'enable' ]]; then
+  _arguments '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'alerts' ]] && [[ $words[3] == 'send' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'campaign' ]] && [[ $words[3] == 'brief' ]]; then
+  _arguments '--file[Strict JSON import file; never include credentials]:file:' '--apply[Save the reviewed import locally]' '--expected-sha256[Input SHA-256 returned by preview; required with --apply]:expected_sha256:' '--allocate[Explicitly authorise eligible imported copy for the running portfolio allocator]'
+  return
+fi
+if [[ $words[2] == 'campaign' ]] && [[ $words[3] == 'explain' ]]; then
+  _arguments '--campaign[option]:campaign:' '--provider[option]:provider:(x threads linkedin)' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'campaign' ]] && [[ $words[3] == 'import' ]]; then
+  _arguments '--file[Strict JSON import file; never include credentials]:file:' '--apply[Save the reviewed import locally]' '--expected-sha256[Input SHA-256 returned by preview; required with --apply]:expected_sha256:' '--allocate[Explicitly authorise eligible imported copy for the running portfolio allocator]'
+  return
+fi
+if [[ $words[2] == 'campaign' ]] && [[ $words[3] == 'receipts' ]]; then
+  _arguments '--project[option]:project:' '--brief-id[option]:brief_id:'
+  return
+fi
+if [[ $words[2] == 'campaign' ]] && [[ $words[3] == 'reconcile' ]]; then
+  _arguments '--campaign[option]:campaign:' '--provider[option]:provider:(x threads linkedin)' '--schedule-id[option]:schedule_id:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'campaign' ]] && [[ $words[3] == 'show' ]]; then
+  _arguments '--campaign[option]:campaign:' '--provider[option]:provider:'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'conversation' ]]; then
+  _arguments '--id[option]:id:'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'dismiss' ]]; then
+  _arguments '--id[option]:id:' '--reason[option]:reason:'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'draft' ]]; then
+  _arguments '--id[option]:id:' '--text-file[option]:text_file:'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'process' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'reconcile' ]]; then
+  _arguments '--id[option]:id:' '--apply[Read existing provider IDs and append local verification evidence]'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'send' ]]; then
+  _arguments '--id[option]:id:' '--expected-sha256[option]:expected_sha256:' '--live[option]'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'status' ]]; then
+  _arguments '--items[option]'
+  return
+fi
+if [[ $words[2] == 'engagement' ]] && [[ $words[3] == 'sync' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'evidence' ]] && [[ $words[3] == 'check' ]]; then
+  _arguments '--file[Strict JSON import file; never include credentials]:file:' '--apply[Save the reviewed import locally]' '--expected-sha256[Input SHA-256 returned by preview; required with --apply]:expected_sha256:' '--sha[option]:sha:'
+  return
+fi
+if [[ $words[2] == 'linkedin' ]] && [[ $words[3] == 'publish' ]]; then
+  _arguments '--campaign[option]:campaign:' '--text[option]:text:' '--file[option]:file:' '--stdin[option]' '--live[option]' '--allow-duplicate[option]'
+  return
+fi
+if [[ $words[2] == 'linkedin' ]] && [[ $words[3] == 'receipt' ]]; then
+  _arguments '--campaign[option]:campaign:' '--account-id[option]:account_id:'
+  return
+fi
+if [[ $words[2] == 'outcome-connectors' ]] && [[ $words[3] == 'connect' ]]; then
+  _arguments '--id[option]:id:' '--credential-file[option]:credential_file:'
+  return
+fi
+if [[ $words[2] == 'outcome-connectors' ]] && [[ $words[3] == 'disable' ]]; then
+  _arguments '--id[option]:id:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'outcome-connectors' ]] && [[ $words[3] == 'enable' ]]; then
+  _arguments '--id[option]:id:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'outcome-connectors' ]] && [[ $words[3] == 'import' ]]; then
+  _arguments '--file[option]:file:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'outcome-connectors' ]] && [[ $words[3] == 'sync' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'performance' ]] && [[ $words[3] == 'capture' ]]; then
+  _arguments '--campaign[option]:campaign:' '--provider[option]:provider:(all x threads linkedin)'
+  return
+fi
+if [[ $words[2] == 'performance' ]] && [[ $words[3] == 'capture-due' ]]; then
+  _arguments '--age-hours[option]:age_hours:' '--tolerance-hours[option]:tolerance_hours:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'performance' ]] && [[ $words[3] == 'feedback' ]]; then
+  _arguments '--apply[option]' '--disable[option]' '--enable[option]'
+  return
+fi
+if [[ $words[2] == 'performance' ]] && [[ $words[3] == 'outcomes' ]]; then
+  _arguments '--file[option]:file:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'performance' ]] && [[ $words[3] == 'review' ]]; then
+  _arguments '--provider[option]:provider:(x threads linkedin)' '--account-id[option]:account_id:' '--age-hours[option]:age_hours:' '--tolerance-hours[option]:tolerance_hours:'
+  return
+fi
+if [[ $words[2] == 'performance' ]] && [[ $words[3] == 'show' ]]; then
+  _arguments '--campaign[option]:campaign:' '--provider[option]:provider:(x threads linkedin)'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'calendar' ]]; then
+  _arguments '--horizon-minutes[option]:horizon_minutes:' '--json[option]' '--save[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'plan' ]]; then
+  _arguments '--horizon-minutes[option]:horizon_minutes:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'policy' ]]; then
+  _arguments '--write-default[option]' '--selection[Change selection for future refills; preserve cadence and existing reservations]:selection:(legacy fair)' '--force[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'reconcile' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'refill' ]]; then
+  _arguments '--horizon-minutes[option]:horizon_minutes:' '--apply[Create durable reservations; never publishes directly]' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'replay' ]]; then
+  _arguments '--file[option]:file:' '--output[option]:output:'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'snapshot' ]]; then
+  _arguments '--horizon-minutes[option]:horizon_minutes:' '--output[Write a new private JSON file instead of stdout]:output:'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'status' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'volume-audit' ]]; then
+  _arguments '--date[Local calendar date in YYYY-MM-DD form]:date:' '--timezone[IANA timezone; defaults to the portfolio policy timezone]:timezone:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'portfolio' ]] && [[ $words[3] == 'watch' ]]; then
+  _arguments '--apply[Observe local queue and receipts; never reserves, publishes or changes authority]' '--issue[Read-only: show only one issue code, for example waiting_too_long]:issue:' '--provider[Read-only: restrict issues to one provider]:provider:(x threads linkedin)' '--project[Read-only: restrict issues to one project]:project:' '--account-id[Read-only: restrict issues to one expected provider account ID]:account_id:' '--limit[Read-only: bound detailed issue rows (1-500; default 25 when filtering)]:limit:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'registry' ]] && [[ $words[3] == 'import' ]]; then
+  _arguments '--file[Strict JSON import file; never include credentials]:file:' '--apply[Save the reviewed import locally]' '--expected-sha256[Input SHA-256 returned by preview; required with --apply]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'registry' ]] && [[ $words[3] == 'resolve' ]]; then
+  _arguments '--project[option]:project:' '--account[option]:account:' '--provider[option]:provider:'
+  return
+fi
+if [[ $words[2] == 'registry' ]] && [[ $words[3] == 'show' ]]; then
+  _arguments '--project[option]:project:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'acknowledge-gap' ]]; then
+  _arguments '--project[option]:project:' '--apply[option]' '--expected-sha256[option]:expected_sha256:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'lock-status' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'observe' ]]; then
+  _arguments '--apply[option]' '--project[option]:project:' '--budget-seconds[option]:budget_seconds:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'reconcile' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'recover-generated' ]]; then
+  _arguments '--review-file[Reviewed JSON array containing campaign and exact text]:review_file:' '--provider[option]:provider:(x threads linkedin)' '--apply[Create admitted successor campaigns; never schedules or publishes]' '--expected-sha256[review_sha256 from a fresh dry recovery preview]:expected_sha256:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'refresh' ]]; then
+  _arguments '--apply[Admit runtime campaigns per destination without fetching GitHub]' '--json[option]' '--project[Inspect/replenish only this enabled project]:project:'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'status' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'replenish' ]] && [[ $words[3] == 'wait' ]]; then
+  _arguments '--timeout[option]:timeout:' '--poll-interval[option]:poll_interval:' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'runtime' ]] && [[ $words[3] == 'install' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'runtime' ]] && [[ $words[3] == 'reconcile' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'runtime' ]] && [[ $words[3] == 'rollback' ]]; then
+  _arguments '--expected-sha256[option]:expected_sha256:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'runtime' ]] && [[ $words[3] == 'uninstall' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'runtime' ]] && [[ $words[3] == 'upgrade' ]]; then
+  _arguments '--revision[Exact/ref-resolvable commit already present in the local repository]:revision:' '--expected-sha256[option]:expected_sha256:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'schedule' ]] && [[ $words[3] == 'create' ]]; then
+  _arguments '--provider[option]:provider:(x threads linkedin)' '--campaign[option]:campaign:' '--at[YYYY-MM-DD HH:MM Europe/London or ISO-8601 with offset]:at:' '--timezone[Timezone when --at has no zone]:timezone:'
+  return
+fi
+if [[ $words[2] == 'schedule' ]] && [[ $words[3] == 'inspect' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'schedule' ]] && [[ $words[3] == 'list' ]]; then
+  _arguments '--all[Include terminal schedule history]' '--json[option]'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'activate' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--runtime-root[Exact Post-Once runtime checkout to install]:runtime_root:' '--state-dir[Target production state directory]:state_dir:' '--config-dir[Target production config directory]:config_dir:' '--recovery-resolution[Structured JSON resolving every required dead-host recovery blocker]:recovery_resolution:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'admission' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--state-dir[Production state directory to classify; defaults to Post-Once state]:state_dir:' '--config-dir[Production config directory to classify; defaults to Post-Once config]:config_dir:' '--production[Require production host capabilities including a reachable systemd user manager]'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'adoption-review' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--beta-id[option]:beta_id:' '--minimum-observations[option]:minimum_observations:' '--minimum-hours[option]:minimum_hours:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'beta' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--action[option]:action:(preflight enroll observe status decide)' '--beta-id[option]:beta_id:' '--ring[option]:ring:(rehearsal owner-canary)' '--target-revision[option]:target_revision:' '--runtime-root[option]:runtime_root:' '--state-dir[option]:state_dir:' '--config-dir[option]:config_dir:' '--operator-outcome[option]:operator_outcome:(healthy issue rollback)' '--minimum-observations[option]:minimum_observations:' '--minimum-hours[option]:minimum_hours:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'browser' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--port[Loopback port; default 0 asks the OS for an ephemeral free port]:port:' '--no-open[Print the one-time loopback URL without launching the default browser]'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'connect-x' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--client-id[X OAuth 2.0 Client ID]:client_id:' '--redirect-uri[Registered localhost X OAuth callback URI]:redirect_uri:' '--prompt-client-secret[Prompt privately for a confidential-client OAuth 2.0 Client Secret]' '--client-secret-file[Read the OAuth 2.0 Client Secret from a local regular file]:client_secret_file:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'deactivate' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--runtime-root[Exact active Post-Once runtime checkout]:runtime_root:' '--state-dir[Active production state directory]:state_dir:' '--reason[Bounded operator reason recorded with the deactivation]:reason:' '--apply[option]' '--expected-sha256[option]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'export' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--source-state-dir[Explicit source Post-Once state directory]:source_state_dir:' '--source-config-dir[Explicit source Post-Once config directory]:source_config_dir:' '--output[Immutable transfer .tar.gz path]:output:' '--source-version[Exact source Post-Once release]:source_version:' '--source-revision[Exact 40-character source Git revision]:source_revision:' '--state-registry-version[option]:state_registry_version:' '--apply[Retire source bootstrap authority and seal the reviewed bundle]' '--expected-sha256[Review SHA-256 returned by the preview]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'inspect-bundle' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--bundle[option]:bundle:' '--expected-bundle-sha256[option]:expected_bundle_sha256:' '--recovery[Interpret the artifact as a dead-host recovery point rather than a healthy migration bundle]'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'interactive' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'onboard-x' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--project[Lowercase hyphenated project ID]:project:' '--label[Human-readable project/business label]:label:' '--campaign-id[Optional uppercase campaign ID; defaults to the generated project prefix plus 001]:campaign_id:' '--source-id[Owner-approval/source reference stored with the campaign]:source_id:' '--text[Exact reviewed campaign text]:text:' '--text-file[UTF-8 file containing exact reviewed campaign text]:text_file:' '--stdin[Read exact reviewed campaign text from stdin]' '--apply[Save the reviewed local project/campaign and advance Fresh verification]'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'recovery-point' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--source-state-dir[Explicit source Post-Once state directory]:source_state_dir:' '--source-config-dir[Explicit source Post-Once config directory]:source_config_dir:' '--output[Immutable recovery-point .tar.gz path]:output:' '--source-version[Exact source Post-Once release]:source_version:' '--source-revision[Exact 40-character source Git revision]:source_revision:' '--state-registry-version[option]:state_registry_version:' '--apply[Seal the reviewed recovery point without retiring the source]' '--expected-sha256[Review SHA-256 returned by the preview]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'restore' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--bundle[option]:bundle:' '--expected-bundle-sha256[option]:expected_bundle_sha256:' '--machine-label[Optional descriptive label for this new installation]:machine_label:' '--recovery[Restore a dead-host recovery point]' '--source-lost-at[When the previous host became unavailable, as an offset-aware ISO timestamp]:source_lost_at:' '--max-data-loss-minutes[Maximum acceptable gap between the recovery point and declared host loss]:max_data_loss_minutes:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'resume' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--timezone[Explicit IANA timezone, for example Europe/London]:timezone:' '--pace[Normal publishing pace; no default is selected]:pace:(occasional regular active high custom)' '--daily-originals[Custom logical originals/day; accepted only with --pace custom]:daily_originals:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'start' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--mode[option]:mode:(fresh explore migrate recover different_operator)' '--operator-label[Required for fresh setup]:operator_label:' '--machine-label[Optional descriptive machine label; not authority]:machine_label:' '--timezone[Explicit IANA timezone, for example Europe/London]:timezone:' '--pace[Normal publishing pace; no default is selected]:pace:(occasional regular active high custom)' '--daily-originals[Custom logical originals/day; accepted only with --pace custom]:daily_originals:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'status' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'verify' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--provider-readiness[JSON file containing read-only provider readiness projections for the target]:provider_readiness:' '--recovery[Verify a dead-host recovery target and produce the recovery-review gate]'
+  return
+fi
+if [[ $words[2] == 'setup' ]] && [[ $words[3] == 'verify-fresh' ]]; then
+  _arguments '--workspace[Bootstrap setup workspace (default is a separate post-once-bootstrap XDG state root)]:workspace:' '--json[Return machine-readable setup state]' '--session-id[option]:session_id:' '--provider[Connected provider to observe without refreshing or publishing]:provider:(x threads linkedin)' '--expected-account-id[Exact immutable provider account ID expected for this fresh installation]:expected_account_id:'
+  return
+fi
+if [[ $words[2] == 'state' ]] && [[ $words[3] == 'archive' ]]; then
+  _arguments '--output[option]:output:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'state' ]] && [[ $words[3] == 'migrate' ]]; then
+  _arguments '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'state' ]] && [[ $words[3] == 'recover-segment' ]]; then
+  _arguments '--ledger[option]:ledger:(receipts schedules performance)' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'state' ]] && [[ $words[3] == 'segment' ]]; then
+  _arguments '--ledger[option]:ledger:(receipts schedules performance)' '--keep-lines[option]:keep_lines:' '--expected-sha256[option]:expected_sha256:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'threads' ]] && [[ $words[3] == 'publish' ]]; then
+  _arguments '--campaign[option]:campaign:' '--text[option]:text:' '--file[option]:file:' '--stdin[option]' '--live[option]' '--allow-duplicate[option]'
+  return
+fi
+if [[ $words[2] == 'threads' ]] && [[ $words[3] == 'receipt' ]]; then
+  _arguments '--campaign[option]:campaign:' '--account-id[option]:account_id:'
+  return
+fi
+if [[ $words[2] == 'vault' ]] && [[ $words[3] == 'auth' ]]; then
+  _arguments '--client-file[option]:client_file:' '--port[option]:port:'
+  return
+fi
+if [[ $words[2] == 'vault' ]] && [[ $words[3] == 'coverage' ]]; then
+  _arguments '--inventory[option]:inventory:'
+  return
+fi
+if [[ $words[2] == 'vault' ]] && [[ $words[3] == 'credentials' ]]; then
+  _arguments '--file[option]:file:'
+  return
+fi
+if [[ $words[2] == 'vault' ]] && [[ $words[3] == 'extend' ]]; then
+  _arguments '--vault-id[option]:vault_id:' '--provider[option]:provider:(x threads linkedin)' '--account[Existing project-scoped account alias]:account:' '--apply[option]' '--expected-sha256[Review hash binding current policy, accounts and document copy]:expected_sha256:'
+  return
+fi
+if [[ $words[2] == 'vault' ]] && [[ $words[3] == 'register' ]]; then
+  _arguments '--file[Strict JSON import file; never include credentials]:file:' '--apply[Save the reviewed import locally]' '--expected-sha256[Input SHA-256 returned by preview; required with --apply]:expected_sha256:' '--enable[Authorise future approved entries from this document]'
+  return
+fi
+if [[ $words[2] == 'vault' ]] && [[ $words[3] == 'sync' ]]; then
+  _arguments '--vault-id[option]:vault_id:' '--apply[option]'
+  return
+fi
+if [[ $words[2] == 'work' ]] && [[ $words[3] == 'status' ]]; then
+  _arguments '--json[option]'
+  return
+fi
+if [[ $words[2] == 'console' ]]; then
+  _arguments '--port[Loopback TCP port (default 8767)]:port:' '--snapshot[Print one local read-only JSON snapshot and exit instead of serving HTTP]'
+  return
+fi
+if [[ $words[2] == 'doctor' ]]; then
+  _arguments '--json[option]' '--deep[Include the full local health/timer report]'
+  return
+fi
+if [[ $words[2] == 'health' ]]; then
+  _arguments '--json[option]' '--hours[option]:hours:' '--overdue-minutes[option]:overdue_minutes:' '--executing-minutes[option]:executing_minutes:' '--source-age-minutes[option]:source_age_minutes:' '--skip-timers[option]'
+  return
+fi
+if [[ $words[2] == 'help' ]]; then
+  _arguments '--json[Return machine-readable discovery metadata.]'
+  return
+fi
+if [[ $words[2] == 'operations' ]]; then
+  _arguments '--project[option]:project:' '--all[option]' '--save[Save a private local report and print its summary]'
+  return
+fi
+if [[ $words[2] == 'publish' ]]; then
+  _arguments '--provider[option]:provider:(x)' '--campaign[option]:campaign:' '--text[option]:text:' '--file[option]:file:' '--stdin[option]' '--live[Actually create the external post]' '--allow-duplicate[option]' '--client-id[X OAuth 2.0 Client ID (or X_CLIENT_ID)]:client_id:' '--client-secret[X Client Secret for confidential clients (prefer X_CLIENT_SECRET)]:client_secret:' '--redirect-uri[Registered localhost callback URI (or X_REDIRECT_URI)]:redirect_uri:'
+  return
+fi
+if [[ $words[2] == 'receipt' ]]; then
+  _arguments '--campaign[option]:campaign:' '--provider[option]:provider:' '--account-id[option]:account_id:'
+  return
+fi
+if [[ $words[2] == 'run-due' ]]; then
+  _arguments '--limit[option]:limit:' '--check[Show due schedules without publishing]'
+  return
+fi
