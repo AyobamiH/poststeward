@@ -197,6 +197,18 @@ def bindings() -> dict[str, Any]:
     return value
 
 
+def relay(payload: dict[str, Any]) -> dict[str, Any]:
+    """Call the executor-fenced provider relay using the paired runtime token."""
+    _, value = _request(
+        "POST",
+        "/api/runtime/relay",
+        token=runtime_token(),
+        payload=payload,
+        timeout=30,
+    )
+    return value
+
+
 def heartbeat() -> dict[str, Any]:
     current = bindings()
     executor = current.get("executor") if isinstance(current.get("executor"), dict) else {}
