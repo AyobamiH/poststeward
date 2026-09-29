@@ -223,6 +223,35 @@ test("executor transition is review-bound and stale generations cannot renew the
     assert.equal(renewed.status, 200, await renewed.clone().text());
     assert.equal((await renewed.json() as any).authorityGeneration, 2);
 
+    const fenced = await mf.dispatchFetch(origin + "/api/runtime/executor/fence", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + paired.runtimeToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        authorityGeneration: 2,
+        reason: "local runtime deactivation",
+      }),
+    });
+    assert.equal(fenced.status, 200, await fenced.clone().text());
+    const inactive: any = await fenced.json();
+    assert.equal(inactive.executorMode, "local");
+    assert.equal(inactive.executorStatus, "inactive");
+    assert.equal(inactive.activeInstallationId, installationId);
+    assert.equal(inactive.authorityGeneration, 3);
+    assert.equal(inactive.leaseExpiresAt, undefined);
+
+    const fencedHeartbeat = await mf.dispatchFetch(origin + "/api/runtime/heartbeat", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + paired.runtimeToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ authorityGeneration: 2 }),
+    });
+    assert.equal(fencedHeartbeat.status, 409);
+
     const hostedPreview = await mf.dispatchFetch(origin + "/api/runtime/executor/preview", {
       method: "POST",
       headers: owner.headers,
@@ -240,7 +269,8 @@ test("executor transition is review-bound and stale generations cannot renew the
       }),
     });
     assert.equal(hosted.status, 200, await hosted.clone().text());
-    assert.equal((await hosted.json() as any).executor.authorityGeneration, 3);
+    assert.equal((await hosted.json() as any).executor.authorityGeneration, 4);
+    assert.equal((await hosted.json() as any).executor.executorStatus, "active");
 
     const revoked = await mf.dispatchFetch(origin + "/api/runtime/installations/revoke", {
       method: "POST",
