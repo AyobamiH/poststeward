@@ -21,6 +21,10 @@ def main() -> None:
         from ocpf_post.poststeward_cloud import main as cloud_main
 
         raise SystemExit(cloud_main(argv[1:]))
+    if argv and argv[0] == "configure":
+        from ocpf_post.poststeward_onboarding import main as onboarding_main
+
+        raise SystemExit(onboarding_main(argv[1:]))
     from ocpf_post.dispatch import main as dispatch_main
 
     dispatch_main()
