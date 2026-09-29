@@ -1,0 +1,8 @@
+Your AI handover should not require the original chat.
+
+What changed? What was checked? What still needs a decision?
+
+That's the standard behind Proof & State:
+https://proofandstate.com
+
+Which answer is usually missing from your handovers?

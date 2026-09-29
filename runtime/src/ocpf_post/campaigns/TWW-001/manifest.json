@@ -1,0 +1,8 @@
+{
+  "campaign": "TWW-001", "project": "tail-wagging-websites", "title": "A prettier site is not enough", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "TWW-README-20260908", "repository": "AyobamiH/wagging-web-wins", "path": "README.md", "blob_sha": "5a8cd00066c5cb092db16b0dcb5ea3ed73b8b121", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "Direct acquisition framing from current service list; no blanket security claim.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "b8705224a10d819e6a3b28cbe8fe2ff4a2ea7363e78599e3e7f34c373532bf1a", "threads": "f257ef9ff0fbd7edf5ebcbd539fb390ed772f0faaf87a68787885fc48a89577b", "linkedin": "0e071f05cc20bf76c383973bda361ca3fa6b195063e64a091382e3362dda8764"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 90, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-15T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

@@ -1,0 +1,15 @@
+An AI handover should still make sense after the chat is closed.
+
+What changed?
+Which checks actually ran?
+What still needs a decision?
+
+Those are the questions I want a handover to answer before someone else has to reconstruct the work.
+
+Proof & State separates preparing changes from checking the evidence. DoneState handles bounded repository work; OpsTruth inspects the evidence without repairing the system it checks.
+
+That is the distinction I want teams to be able to use, not just another confident "done".
+
+Where does your current AI handover leave you doing detective work?
+
+https://proofandstate.com

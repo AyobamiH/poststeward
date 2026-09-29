@@ -1,0 +1,52 @@
+{
+  "campaign": "PB-001",
+  "project": "parcelbasis",
+  "title": "Rollout is not readiness",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "Tax Lien Intelligence staging evidence",
+  "providers": ["x"],
+  "source": {
+    "type": "github_repository_evidence",
+    "source_id": "TAX-LIEN-PR4-EXACT-REVISION-GATE",
+    "repository": "AyobamiH/tax-lien-intelligence-platform",
+    "pull_request": 4,
+    "revalidated_at": "2026-09-08",
+    "angle": "A successful deployment begins rollout; live verification still needs evidence that the intended revision is serving."
+  },
+  "evidence": {
+    "pull_request": "https://github.com/AyobamiH/tax-lien-intelligence-platform/pull/4",
+    "merged_at": "2026-09-01T09:11:04Z",
+    "merge_commit": "f80b7acf53584b6c0068605d118c2c0e97916aae",
+    "boundary": "This campaign describes the exact-revision readiness gate added after a staging verification failure; it does not claim every deployment has stale containers or that rollout itself failed."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_platform_adaptation",
+    "disclosure": "The X copy is derived from the merged staging verification repair. post-once only controls distribution."
+  },
+  "schedules": {
+    "x": {
+      "schedule_id": "sch_feead1b50a2f431aa67c943952e8566c",
+      "status": "published_verified",
+      "account_id": "1480506376447315969",
+      "account_label": "@JohnWOE15",
+      "run_at_local": "2026-09-08 16:10 BST",
+      "run_at_utc": "2026-09-08T15:10:00Z",
+      "text_sha256": "4f08123eb04639ec7e48670bb978ebbc8d5a22610a5c53d992c66d9f9d834abb"
+    }
+  },
+  "receipts": {
+    "x": {
+      "campaign": "PB-001",
+      "provider": "x",
+      "account_id": "1480506376447315969",
+      "username": "JohnWOE15",
+      "status": "published_verified",
+      "text_sha256": "4f08123eb04639ec7e48670bb978ebbc8d5a22610a5c53d992c66d9f9d834abb",
+      "recorded_at": "2026-09-08T15:10:07Z",
+      "post_id": "2097341718123237377",
+      "url": "https://x.com/JohnWOE15/status/2097341718123237377",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    }
+  }
+}

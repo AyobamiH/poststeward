@@ -1,0 +1,5 @@
+A green candidate is not a permanent release permission.
+
+Proof & State merged the governance stack. Current-main governance then failed on a stale work item, the GTM contract gate failed, and deploy was skipped.
+
+Freshness can expire after merge.

@@ -1,0 +1,52 @@
+{
+  "campaign": "PAS-002",
+  "project": "proof-and-state",
+  "title": "Freshness can expire after merge",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "Proof & State GTM vault evidence upgrade",
+  "providers": ["x"],
+  "source": {
+    "type": "proof_and_state_gtm_vault",
+    "source_id": "P&S-C25-EVIDENCE-UPGRADE-20260907",
+    "document_id": "1qrjfZxzk8QWwhfJXRa6lKVTEUy_KCxbDLukxcOjBwOg",
+    "document_url": "https://docs.google.com/document/d/1qrjfZxzk8QWwhfJXRa6lKVTEUy_KCxbDLukxcOjBwOg/edit",
+    "recorded_at": "2026-09-07",
+    "revalidated_at": "2026-09-08",
+    "angle": "A green candidate and successful merge do not make time-sensitive governance permanently current."
+  },
+  "evidence": {
+    "proof_and_state_main": "a3eb0095e917a120023a5a4bcb7ed253d82ff5fb",
+    "governance_run": "https://github.com/AyobamiH/proof-and-state/actions/runs/34160212869",
+    "gtm_orchestrator_run": "https://github.com/AyobamiH/proof-and-state/actions/runs/34160212872",
+    "deploy_job": "deploy-cloudflare-canary was skipped after contract-tests failed",
+    "boundary": "Historical evidence from 7 September: current-main governance and the GTM contract gate failed; this does not claim an application outage or that the stale item has since remained unresolved."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_platform_adaptation",
+    "disclosure": "The X copy is a bounded adaptation of the existing Proof & State GTM vault evidence upgrade. post-once is only the distribution control plane."
+  },
+  "schedules": {
+    "x": {
+      "schedule_id": "sch_a055a7497c0145d786f3ecbcff878d52",
+      "status": "published_unverified",
+      "account_id": "1480506376447315969",
+      "account_label": "@JohnWOE15",
+      "run_at_local": "2026-09-08 14:40 BST",
+      "run_at_utc": "2026-09-08T13:40:00Z",
+      "text_sha256": "dbe60c632ef377526fa417fbfced95ab2ae849c11a99b32a19b0a7d4c0099997"
+    }
+  },
+  "receipts": {
+    "x": {
+      "status": "published_unverified",
+      "account_id": "1480506376447315969",
+      "username": "JohnWOE15",
+      "text_sha256": "dbe60c632ef377526fa417fbfced95ab2ae849c11a99b32a19b0a7d4c0099997",
+      "recorded_at": "2026-09-08T13:40:16Z",
+      "post_id": "2097319109432098904",
+      "url": "https://x.com/JohnWOE15/status/2097319109432098904",
+      "readback_verified": false,
+      "detail": "Provider creation response returned a post id; readback pending."
+    }
+  }
+}
