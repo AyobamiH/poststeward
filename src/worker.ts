@@ -960,6 +960,33 @@ async function route(
       });
     return providerOAuthSuccess(provider, completed.returnPath);
   }
+  if (path === "/api/runtime/pairing/start" && request.method === "POST") {
+    const input = parse(runtimePairingStartSchema, await request.json());
+    return json(await startRuntimePairing(env.IDENTITY, env.PUBLIC_ORIGIN, input), 201);
+  }
+  if (path === "/api/runtime/pairing/status" && request.method === "GET") {
+    const pairingId = url.searchParams.get("pairing_id");
+    requireValue(
+      pairingId && /^[0-9a-f-]{36}$/i.test(pairingId),
+      "RUNTIME_PAIRING_ID_REQUIRED",
+      "Pairing ID is required.",
+      400,
+    );
+    const value = await claimRuntimePairing(env.IDENTITY, request, pairingId);
+    return json(value, value.status === "pending" ? 202 : 200);
+  }
+  if (path === "/api/runtime/heartbeat" && request.method === "POST") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    const input = parse(runtimeHeartbeatSchema, await request.json());
+    return json(
+      await renewExecutorLease(
+        env.IDENTITY,
+        runtime,
+        input.authorityGeneration,
+      ),
+    );
+  }
+
   if (
     path.startsWith("/api/") ||
     path === "/mcp" ||
