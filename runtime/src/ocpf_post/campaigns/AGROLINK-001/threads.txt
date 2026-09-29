@@ -1,0 +1,11 @@
+A marketplace listing is only the start of a raw-material trade.
+
+The harder questions are:
+Can the buyer trust the quality?
+Are the terms clear?
+Can logistics be coordinated?
+Can both sides follow the transaction?
+
+I’m exploring AgroLink around that workflow.
+
+Which step creates the most friction for you today?

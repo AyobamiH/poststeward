@@ -1,0 +1,8 @@
+{
+  "campaign": "AGROLINK-001", "project": "agrolink-nigeria", "title": "The hard part starts after the supplier listing", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "AGROLINK-README-20260908", "repository": "AyobamiH/ng-agro-connect", "path": "README.md", "blob_sha": "2943cfb78b3e301b36968d65f318c71d64359326", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "Discovery framing only; broad README feature list is not treated as verified live capability.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "3abbe7dcc4624df85efdda76b088e2fc8ac7a209fb2ab726bcf14062ef5c3d7e", "threads": "afca58215a898b59387883d6fd71345bb20086335f4f300e7caa3ab01a167ed0", "linkedin": "50a09c807b6811a8e0666d5f6199b57486caf5055eff64966e0de1ac088d5a0f"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 78, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-12T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

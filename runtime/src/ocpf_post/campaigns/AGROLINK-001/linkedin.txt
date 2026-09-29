@@ -1,0 +1,14 @@
+A marketplace listing is only the beginning of a raw-material trade.
+
+The harder operational questions come afterwards:
+
+Can the buyer trust the quality?
+Are the commercial terms clear?
+Can logistics be coordinated?
+Can both sides follow the transaction without switching between disconnected tools?
+
+I’m exploring AgroLink Nigeria around that workflow.
+
+I’m deliberately not turning the repo’s broad feature list into live-product claims until each part is verified.
+
+If you buy or supply Nigerian raw materials, which step creates the most friction today?

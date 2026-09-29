@@ -1,0 +1,8 @@
+{
+  "campaign": "ASP-001", "project": "agent-shop-products", "title": "Reusable workflows should become products", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "ASP-README-20260908", "repository": "AyobamiH/agent-shop-products", "path": "README.md", "blob_sha": "05fcdacdcc12944f812f78389a12ad8984e4a54d", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "Source-backed catalogue positioning; no future commerce claim.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "a99e9d0ab970e9b1ccfd43abf0dd217c133858fbc168f1471fb4235b6a431a58", "threads": "6b703031d3b7040b1b781313d68f099ad1b9ce627f167f8d6dbfb567b30e7226", "linkedin": "ec660d040334a6363068ca05f603ac6f63b38a0dfcfd1c3197adc19afe69cf85"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 86, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-15T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

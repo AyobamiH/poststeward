@@ -1,0 +1,8 @@
+{
+  "campaign": "AGENTPROOF-001", "project": "agentproof", "title": "Agent actions should leave verifiable evidence", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "AGENTPROOF-README-20260908", "repository": "AyobamiH/agentproof", "path": "README.md", "blob_sha": "b06270668facaff2d20bdd781ad882b2d8ca48b2", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "Problem framing grounded in RC repository-patch receipt flow; explicitly pre-release.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "d47ea31baffee76f04e3d596d1c588104cf49a64f2303d6f639d8e03d620a662", "threads": "0adf79b7bdad28c59bb6df93b95b22857a37a6253cf03d5b1bc27ec60377ac20", "linkedin": "bf8e19802e06bd07a8f5e72edd1bc4d9e733728ac5cf7a15e4701783ed4a8e88"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 93, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-10T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

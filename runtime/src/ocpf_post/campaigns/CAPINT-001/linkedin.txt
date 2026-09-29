@@ -1,0 +1,17 @@
+“Installed” is a weak answer when an agent needs to decide what it can actually use.
+
+Capability Intelligence keeps capability lifecycle states separate:
+
+discovered
+→ present
+→ installed
+→ enabled
+→ authenticated
+→ runnable
+→ verified
+
+It also surfaces authority and evidence gaps instead of guessing readiness.
+
+That makes the inventory useful for agent decisions rather than just a list of tools.
+
+What capability state causes the most confusion in your stack?
