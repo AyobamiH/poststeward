@@ -1080,6 +1080,46 @@ class ActivationManager:
             return review
         if review["review_sha256"] != expected_sha256:
             _fail("deactivation.review.changed", "Deactivation review changed")
+        cloud_fence: dict[str, Any] = {
+            "required": os.environ.get("POSTSTEWARD_REQUIRE_CLOUD_FENCE") == "1",
+            "attempted": False,
+            "status": "not_required",
+        }
+        if cloud_fence["required"]:
+            cloud_fence["attempted"] = True
+            try:
+                from ocpf_post.poststeward_cloud import (
+                    CloudError,
+                    deactivate_executor_fence,
+                )
+
+                observed_cloud = deactivate_executor_fence(review["reason"])
+                cloud_fence.update(
+                    {
+                        "status": "inactive",
+                        "executor": observed_cloud,
+                    }
+                )
+            except CloudError as exc:
+                # Deactivation is risk-reducing. A cloud outage/stale generation
+                # must never keep the local unattended marker open. Hosted
+                # execution is not enabled by this path; the cloud lease either
+                # remains local until expiry or was already fenced elsewhere.
+                cloud_fence.update(
+                    {
+                        "status": "attention",
+                        "error_code": exc.code,
+                        "detail": str(exc),
+                    }
+                )
+            except Exception as exc:
+                cloud_fence.update(
+                    {
+                        "status": "attention",
+                        "error_code": type(exc).__name__,
+                        "detail": "Cloud executor self-fence could not be confirmed.",
+                    }
+                )
         state = Path(review["state_root"])
         marker = automation_authority.deactivate(
             root=state, review_sha256=review["review_sha256"], reason=review["reason"]
@@ -1093,15 +1133,19 @@ class ActivationManager:
             payload={
                 "review_sha256": review["review_sha256"], "reason": review["reason"],
                 "state_root": str(state),
+                "cloud_fence": cloud_fence,
+                "cloud_fence_attempted_before_local_marker": bool(cloud_fence["attempted"]),
                 "marker_cutoff_first": True, "provider_replay_attempted": False,
                 "service_attestation": observed,
             },
         )
         return {
             "schema_version": 1, "status": "inactive", "authority": marker, "services": observed,
+            "cloud_fence": cloud_fence,
             "session": session, "publishing_authority": False, "automation_enabled": False,
             "boundary": (
-                "Unattended automation is deactivated. Operation identity/history and durable receipts remain current; "
-                "no provider effect or state rollback was attempted."
+                "Unattended automation is deactivated. When cloud coordination is required, the runtime attempts "
+                "to fence its cloud executor generation before closing the local marker; cloud failure never prevents local "
+                "risk reduction and never promotes hosted execution. Operation identity/history and durable receipts remain current."
             ),
         }
