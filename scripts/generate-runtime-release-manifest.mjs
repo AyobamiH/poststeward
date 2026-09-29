@@ -18,8 +18,8 @@ const wrangler = JSON.parse(readFileSync(join(root, "wrangler.jsonc"), "utf8"));
 function releaseSha() {
   const candidates = [
     process.env.POSTSTEWARD_RELEASE_SHA,
-    wrangler?.vars?.RELEASE_SHA,
     process.env.GITHUB_SHA,
+    wrangler?.vars?.RELEASE_SHA,
   ];
   for (const candidate of candidates) {
     const value = String(candidate || "").trim().toLowerCase();
