@@ -107,7 +107,11 @@ def validate_project(value):
         if not isinstance(provider, str) or provider not in PROVIDERS:
             raise OnboardingError("Unsupported account provider")
         identity = _text(account["account_id"], "account ID", 128)
-        pattern = r"urn:li:person:[A-Za-z0-9_-]+" if provider == "linkedin" else r"[0-9]+"
+        pattern = (
+            r"urn:li:(?:person:[A-Za-z0-9_-]+|organization:[1-9][0-9]{0,29}|organizationBrand:[1-9][0-9]{0,29})"
+            if provider == "linkedin"
+            else r"[0-9]+"
+        )
         if not re.fullmatch(pattern, identity):
             raise OnboardingError("Account ID does not match the supported provider identity format")
         for field in ("label", "role"):
