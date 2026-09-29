@@ -157,6 +157,33 @@ if [[ -e "$SHIM" ]]; then
     fail "refusing to overwrite unrelated command: $SHIM"
 fi
 
+if [[ -L "$CURRENT" ]]; then
+  CURRENT_TARGET="$(readlink -f "$CURRENT" || true)"
+  CURRENT_REVISION="$(basename "$CURRENT_TARGET")"
+  if [[ "$CURRENT_REVISION" != "$RESOLVED_SHA" ]]; then
+    MARKER="${POSTSTEWARD_RUNTIME_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/poststeward/runtime}/automation-authority.json"
+    if [[ -f "$MARKER" ]] && python3 - "$MARKER" <<'PY'
+import json,sys
+try:
+    value=json.load(open(sys.argv[1],encoding="utf-8"))
+except Exception:
+    raise SystemExit(2)
+raise SystemExit(0 if value.get("status") == "active" else 1)
+PY
+    then
+      fail "local publishing authority is active; deactivate/review the runtime before changing releases"
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+      for unit in         poststeward-run-due.timer         poststeward-portfolio-refill.timer         poststeward-collection.timer         poststeward-replies.timer
+      do
+        if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
+          fail "PostSteward automation timer $unit is active; close runtime authority before changing releases"
+        fi
+      done
+    fi
+  fi
+fi
+
 if [[ ! -d "$RELEASE" ]]; then
   fetch_file "https://github.com/$REPOSITORY/archive/$RESOLVED_SHA.tar.gz" "$ARCHIVE"
   mkdir -p "$EXTRACTED"
@@ -227,6 +254,40 @@ PY
 
   mv "$CANDIDATE" "$RELEASE"
   chmod -R go-rwx "$RELEASE" 2>/dev/null || true
+fi
+
+if [[ -z "${ACTUAL_RUNTIME_TREE_SHA:-}" ]]; then
+  ACTUAL_RUNTIME_TREE_SHA="$(python3 - "$RELEASE" <<'PY'
+from hashlib import sha256
+from pathlib import Path
+import sys
+root=Path(sys.argv[1])
+digest=sha256()
+rows=[]
+for path in root.rglob("*"):
+    if not path.is_file() or path.is_symlink():
+        continue
+    rel=path.relative_to(root)
+    if any(
+        part in {"__pycache__", ".pytest_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"}
+        or part.endswith(".egg-info")
+        for part in rel.parts
+    ):
+        continue
+    if path.name.endswith(".pyc") or path.name in {".coverage", "coverage.xml", "unittest-results.log"}:
+        continue
+    rows.append((rel.as_posix(),path))
+for name,path in sorted(rows):
+    content=path.read_bytes()
+    digest.update(name.encode()); digest.update(b"\0")
+    digest.update(str(len(content)).encode()); digest.update(b"\0")
+    digest.update(sha256(content).hexdigest().encode()); digest.update(b"\n")
+print(digest.hexdigest())
+PY
+  )"
+fi
+if [[ -n "$EXPECTED_RUNTIME_TREE_SHA" && "$ACTUAL_RUNTIME_TREE_SHA" != "$EXPECTED_RUNTIME_TREE_SHA" ]]; then
+  fail "existing embedded runtime does not match the channel manifest digest"
 fi
 
 TMP_LINK="$PREFIX/.current.$.tmp"
