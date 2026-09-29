@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+set -eu
+
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+UNIT="$UNIT_DIR/ocpf-post-console.service"
+
+systemctl --user disable --now ocpf-post-console.service 2>/dev/null || true
+rm -f "$UNIT"
+systemctl --user daemon-reload
+systemctl --user reset-failed ocpf-post-console.service 2>/dev/null || true
+
+echo "Removed the post-once local observability console service."
