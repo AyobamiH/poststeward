@@ -217,6 +217,38 @@ export async function claimRuntimePairing(
   };
 }
 
+export async function inspectRuntimePairing(
+  db: D1Database,
+  input: { pairingId?: unknown; userCode?: unknown },
+  now = Date.now(),
+) {
+  requireValue(typeof input.pairingId === "string", "RUNTIME_PAIRING_ID_REQUIRED", "Pairing ID is required.");
+  requireValue(typeof input.userCode === "string", "RUNTIME_PAIRING_CODE_REQUIRED", "Pairing code is required.");
+  const code = input.userCode.trim().toUpperCase();
+  requireValue(/^[A-Z2-9]{8}$/.test(code), "RUNTIME_PAIRING_CODE_INVALID", "Pairing code is invalid.");
+  const row = await db.prepare("SELECT * FROM runtime_pairings WHERE id=?").bind(input.pairingId).first<any>();
+  requireValue(row, "RUNTIME_PAIRING_UNKNOWN", "Pairing request is unknown.", 404);
+  requireValue(row.status === "pending", "RUNTIME_PAIRING_NOT_PENDING", "Pairing request is not pending.", 409);
+  requireValue(row.expires_at > now, "RUNTIME_PAIRING_EXPIRED", "Pairing request expired. Start again.", 410);
+  requireValue(
+    row.user_code_hash === (await digest(code)),
+    "RUNTIME_PAIRING_CODE_MISMATCH",
+    "Pairing code does not match this installation.",
+    403,
+  );
+  return {
+    schemaVersion: 1,
+    status: "pending",
+    pairingId: row.id,
+    installationId: row.installation_id,
+    label: row.label,
+    platform: row.platform,
+    runtimeVersion: row.runtime_version,
+    sourceRevision: row.source_revision || null,
+    expiresAt: row.expires_at,
+  };
+}
+
 export async function approveRuntimePairing(
   db: D1Database,
   workspace: string,
