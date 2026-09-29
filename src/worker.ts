@@ -71,6 +71,7 @@ import {
   claimRuntimePairing,
   executorExternalBlockers,
   executorStatus,
+  inspectRuntimePairing,
   listRuntimeInstallations,
   renewExecutorLease,
   requireHostedExecutor,
@@ -995,6 +996,16 @@ async function route(
   ) {
     const auth = await authenticate(request, env);
 
+    if (path === "/api/runtime/pairing/inspect" && request.method === "POST") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Inspect runtime pairing from the signed-in owner workspace.",
+        403,
+      );
+      const input = parse(runtimePairingApproveSchema, await request.json());
+      return json(await inspectRuntimePairing(env.IDENTITY, input));
+    }
     if (path === "/api/runtime/pairing/approve" && request.method === "POST") {
       requireValue(
         auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
