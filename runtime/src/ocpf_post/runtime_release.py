@@ -50,7 +50,12 @@ def _resolve(root: Path, revision: str) -> str:
 
 
 def _clean(root: Path) -> bool:
-    return not bool(_git(root, "status", "--porcelain=v1", "--untracked-files=all"))
+    installed = str(os.environ.get("POSTSTEWARD_RUNTIME_RELEASE_SHA") or "").strip().lower()
+    if SHA_RE.fullmatch(installed):
+        return True
+    top = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
+    relative = root.resolve().relative_to(top)
+    return not bool(_git(top, "status", "--porcelain=v1", "--untracked-files=all", "--", str(relative)))
 
 
 def _compatibility(root: Path, revision: str) -> int:
@@ -155,10 +160,10 @@ def preview(revision: str) -> dict[str, Any]:
 
 
 RUNTIME_UNIT_ROUTES = {
-    "post-once-run-due.service": "run-due",
-    "post-once-portfolio-refill.service": "refill",
-    "post-once-collection.service": "collect",
-    "post-once-replies.service": "respond",
+    "poststeward-run-due.service": "run-due",
+    "poststeward-portfolio-refill.service": "refill",
+    "poststeward-collection.service": "collect",
+    "poststeward-replies.service": "respond",
 }
 RUNTIME_UNIT_FILES = tuple(RUNTIME_UNIT_ROUTES)
 
@@ -166,9 +171,9 @@ RUNTIME_UNIT_FILES = tuple(RUNTIME_UNIT_ROUTES)
 def _prove_candidate_runtime(release: Path, target: str) -> dict[str, Any]:
     if _resolve(release, "HEAD") != target or not _clean(release):
         raise ValueError("Candidate release identity changed before proof")
-    cli = release / "post-once"
+    cli = release / "poststeward"
     if not cli.is_file() or cli.is_symlink():
-        raise ValueError("Target release has no plain Post-Once launcher")
+        raise ValueError("Target release has no plain PostSteward launcher")
     version = _run(["sh", str(cli), "--version"], cwd=release, timeout=30)
     if version.returncode:
         raise ValueError("Target release CLI did not execute")
@@ -216,7 +221,7 @@ def _prove_persisted_runtime_paths(release: Path, *, console_expected: bool) -> 
             raise ValueError(f"Runtime unit does not read back the promoted release route: {name}")
         rows.append({"unit": name, "route": route, "release_path_verified": True})
     if console_expected:
-        unit = _unit_directory() / "post-once-console.service"
+        unit = _unit_directory() / "poststeward-console.service"
         if not unit.is_file() or unit.is_symlink():
             raise ValueError("Installed console unit disappeared during release switch")
         text = unit.read_text(encoding="utf-8")
@@ -225,7 +230,7 @@ def _prove_persisted_runtime_paths(release: Path, *, console_expected: bool) -> 
             or f"ExecStart=/bin/sh {release}/post-once console --port " not in text
         ):
             raise ValueError("Console unit does not read back the promoted release route")
-        rows.append({"unit": "post-once-console.service", "release_path_verified": True})
+        rows.append({"unit": "poststeward-console.service", "release_path_verified": True})
     return {"units": rows, "release_directory": str(release)}
 
 
@@ -284,7 +289,7 @@ def switch(revision: str, *, apply: bool = False, expected_sha256: str | None = 
     _prove_candidate_runtime(previous_runtime, previous)
 
     console_probe = _run([
-        "systemctl", "--user", "show", "post-once-console.service",
+        "systemctl", "--user", "show", "poststeward-console.service",
         "--property=LoadState", "--value",
     ])
     console_loaded = console_probe.returncode == 0 and console_probe.stdout.strip() == "loaded"
