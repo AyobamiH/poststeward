@@ -1,10 +1,31 @@
 # PostSteward
 
-Reliable social publishing for AI agents, hosted on Cloudflare. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
+Reliable social publishing for humans and AI agents. PostSteward has a hosted Cloudflare control plane and a local-first installable runtime powered by Post-Once. Both preserve owner authority, exact provider routing and inspectable receipts. Advanced adds continuing campaign management for USD 5 per hosted workspace/month.
 
 **Status: restricted admission on staging and production. Live-accepted evidence includes owner Google sign-in, one controlled Threads publication with independent provider readback, a real Threads OAuth callback/code exchange with a current healthy long-lived owner connection, Inspect-only HTTP/remote-MCP grant plus post-revocation denial, the Stripe sandbox lifecycle, protected encryption-root cutover, selected-private-repository GitHub authority, production edge/main-protection/alert/capacity controls and hosted cross-tenant isolation. X application credentials are configured but no owner X connection is accepted. LinkedIn application credentials and owner connection are absent; the verified PostSteward Page identity is not OAuth authority. Native WebMCP execution, approximate-time PITR, Advanced, MPP and public signup remain open or disabled.**
 
 Staging is live at [poststeward-staging.woeinvests.workers.dev](https://poststeward-staging.woeinvests.workers.dev). The current authoritative generated ledger is [current release gates](docs/current-readiness.md). The dated [live external gates](docs/live-external-gates-2026-09-13.md) and other historical receipts remain useful evidence, but must not be used to repeat already accepted external effects.
+
+## Install PostSteward Local
+
+The local runtime uses a domain-hosted installer and launches Fresh onboarding when
+run interactively:
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash
+```
+
+For agents/automation, install without the interactive onboarding step and verify the
+command surface:
+
+```bash
+curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh |
+  bash -s -- --no-onboard --verify
+```
+
+PostSteward Local supports X, Threads and LinkedIn Fresh onboarding and keeps
+provider connection, content review, publication and unattended activation as
+separate authority boundaries. See [PostSteward Local](docs/local-runtime.md).
 
 ## What runs
 
@@ -31,7 +52,10 @@ Advanced is priced at USD 5 per workspace/month and adds continuing source monit
 
 Remote agents authenticate with owner-issued, scoped, expiring, revocable Bearer tokens. HTTP and remote MCP use the same operation catalogue and workspace authority checks. OAuth-compatible MCP authorization discovery/bootstrap is **not** claimed for the current release; discovery must never mint or broaden authority.
 
-PostSteward does **not** promise a separately packaged CLI binary. The supported command-line workflow is shell/cURL over the documented HTTP operation surface.
+Hosted PostSteward's remote command-line workflow remains shell/cURL over the
+documented HTTP operation surface. PostSteward Local separately installs the
+`poststeward`/`post-once` CLI runtime for machine-local operation; the two surfaces
+do not silently share workspace state or provider authority.
 
 Generated operation documentation comes from `src/operations/catalog.ts`:
 
