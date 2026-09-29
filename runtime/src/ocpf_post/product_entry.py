@@ -23,6 +23,11 @@ def main() -> None:
             "  onboard     Pair this machine to the owner workspace\n"
             "  configure   Bind hosted X/Threads/LinkedIn identities to Fresh local state\n"
             "  cloud       Inspect pairing, providers, executor heartbeat and remote MCP info\n"
+            "  status      Inspect local/cloud runtime authority and provider bindings\n"
+            "  doctor      Diagnose host, pairing, provider and automation readiness\n"
+            "  activate    Preview/apply reviewed local unattended activation\n"
+            "  deactivate  Preview/apply cloud-first local deactivation\n"
+            "  update      Install a reviewed stable/beta runtime release\n"
             "\nRuntime commands:\n"
         )
         print(render_text([]), end="")
@@ -61,6 +66,34 @@ def main() -> None:
                         "consequence": "READ_ONLY",
                         "summary": "Show the remote MCP endpoint without printing credentials.",
                     },
+                    {
+                        "path": "status",
+                        "consequence": "READ_ONLY",
+                        "summary": "Inspect local/cloud runtime authority, services and provider bindings.",
+                    },
+                    {
+                        "path": "doctor",
+                        "consequence": "READ_ONLY",
+                        "summary": "Diagnose host, pairing, provider and automation readiness.",
+                    },
+                    {
+                        "path": "activate",
+                        "consequence": "AUTHORITY_CHANGE",
+                        "safe_form": "omit --apply",
+                        "summary": "Preview/apply reviewed local unattended activation after cloud executor handoff.",
+                    },
+                    {
+                        "path": "deactivate",
+                        "consequence": "AUTHORITY_CHANGE",
+                        "safe_form": "omit --apply",
+                        "summary": "Preview/apply cloud-first deactivation while preserving durable evidence.",
+                    },
+                    {
+                        "path": "update",
+                        "consequence": "LOCAL_STATE_WRITE",
+                        "safe_form": "--dry-run",
+                        "summary": "Install an exact release from the stable or beta channel while authority is inactive.",
+                    },
                 ],
                 "authority_model": (
                     "Provider OAuth/admin authority stays human-owned in PostSteward Cloud; "
@@ -82,6 +115,14 @@ def main() -> None:
         from ocpf_post.poststeward_onboarding import main as onboarding_main
 
         raise SystemExit(onboarding_main(argv[1:]))
+    if argv and argv[0] in {"status", "doctor", "activate", "deactivate", "update"}:
+        from ocpf_post.poststeward_product import main as product_main
+
+        raise SystemExit(product_main(argv))
+    if len(argv) >= 2 and argv[0] == "runtime" and argv[1] == "status":
+        from ocpf_post.poststeward_product import main as product_main
+
+        raise SystemExit(product_main(["status", *argv[2:]]))
     from ocpf_post.dispatch import main as dispatch_main
 
     dispatch_main()
