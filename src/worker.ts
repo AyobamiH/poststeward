@@ -259,6 +259,18 @@ export class Workspace extends DurableObject<Env> {
         400,
       );
       const path = new URL(request.url).pathname;
+      if (path === "/runtime/bindings") {
+        const accounts = this.store
+          .list<Account>("account:")
+          .filter((account) => account.active)
+          .map(({ secret, ...account }) => account);
+        return json({
+          schemaVersion: 1,
+          accounts,
+          boundary:
+            "Non-secret verified account bindings only. Provider credentials are never returned to a local runtime.",
+        });
+      }
       if (path === "/runtime/executor/preflight") {
         this.ownerOnly(data.actor);
         const input = data.input as { mode?: unknown };
@@ -986,6 +998,35 @@ async function route(
         input.authorityGeneration,
       ),
     );
+  }
+  if (path === "/api/runtime/bindings" && request.method === "GET") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    const response = await env.WORKSPACES
+      .get(env.WORKSPACES.idFromName(runtime.workspace))
+      .fetch("https://workspace.internal/runtime/bindings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspace: runtime.workspace,
+          actor: {
+            workspace: runtime.workspace,
+            id: `runtime:${runtime.installationId}`,
+            scopes: ["read"],
+          },
+          name: "",
+          input: {},
+        }),
+      });
+    const bindings = await internalValue(response);
+    return json({
+      schemaVersion: 1,
+      workspace: runtime.workspace,
+      installationId: runtime.installationId,
+      executor: await executorStatus(env.IDENTITY, runtime.workspace),
+      providerApplications: oauthConfiguration(env),
+      accounts: bindings.accounts || [],
+      boundary: bindings.boundary,
+    });
   }
 
   if (
