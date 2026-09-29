@@ -79,6 +79,9 @@ def apply_environment() -> dict[str, Any]:
     os.environ["POSTSTEWARD_RELEASES_DIR"] = str(paths["releases"])
     os.environ["POSTSTEWARD_SETUP_STATE_DIR"] = str(paths["setup"])
     os.environ["POSTSTEWARD_RUNTIME_LINEAGE"] = PRODUCT_LINEAGE
+    # Canonical PostSteward activation/deactivation is always cloud-fenced. Direct
+    # module tests may omit this environment because they are not product entrypoints.
+    os.environ["POSTSTEWARD_REQUIRE_CLOUD_FENCE"] = "1"
 
     # Transitional compatibility consumed by copied A-K runtime modules/scripts.
     os.environ["POST_ONCE_CONFIG_DIR"] = str(paths["config"])
