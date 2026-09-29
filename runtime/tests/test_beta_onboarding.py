@@ -64,7 +64,7 @@ class FakeAuthorizingX:
 @contextmanager
 def product_environment(root: Path):
     names = {
-        "POST_ONCE_PRODUCT_LINEAGE": PRODUCT_LINEAGE,
+        "POSTSTEWARD_RUNTIME_LINEAGE": PRODUCT_LINEAGE,
         "OCPF_POST_CONFIG_DIR": str(root / "config"),
         "OCPF_POST_STATE_DIR": str(root / "state"),
         "OCPF_POST_SETUP_STATE_DIR": str(root / "setup"),
