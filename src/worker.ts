@@ -995,6 +995,101 @@ async function route(
   ) {
     const auth = await authenticate(request, env);
 
+    if (path === "/api/runtime/pairing/approve" && request.method === "POST") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Approve runtime pairing from the signed-in owner workspace.",
+        403,
+      );
+      const owner = await ownerAuthority(request, env, auth);
+      demandFreshOwner(owner, Date.now());
+      const input = parse(runtimePairingApproveSchema, await request.json());
+      return json(
+        await approveRuntimePairing(
+          env.IDENTITY,
+          auth.actor.workspace,
+          auth.actor.id,
+          input,
+        ),
+      );
+    }
+    if (path === "/api/runtime/installations" && request.method === "GET") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Runtime installations are visible only to the signed-in owner.",
+        403,
+      );
+      return json(await listRuntimeInstallations(env.IDENTITY, auth.actor.workspace));
+    }
+    if (path === "/api/runtime/installations/revoke" && request.method === "POST") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Revoke runtime installations from the signed-in owner workspace.",
+        403,
+      );
+      const owner = await ownerAuthority(request, env, auth);
+      demandFreshOwner(owner, Date.now());
+      const input = parse(runtimeRevokeSchema, await request.json());
+      return json(
+        await revokeRuntimeInstallation(
+          env.IDENTITY,
+          auth.actor.workspace,
+          input.installationId,
+        ),
+      );
+    }
+    if (path === "/api/runtime/executor" && request.method === "GET") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Executor authority is visible only to the signed-in owner.",
+        403,
+      );
+      return json(await executorStatus(env.IDENTITY, auth.actor.workspace));
+    }
+    if (path === "/api/runtime/executor/preview" && request.method === "POST") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Review executor transitions from the signed-in owner workspace.",
+        403,
+      );
+      const input = parse(runtimeExecutorSchema, await request.json());
+      return json(await executorTransitionReview(env, auth.actor, input));
+    }
+    if (path === "/api/runtime/executor/apply" && request.method === "POST") {
+      requireValue(
+        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        "OWNER_SESSION_REQUIRED",
+        "Apply executor transitions from the signed-in owner workspace.",
+        403,
+      );
+      const owner = await ownerAuthority(request, env, auth);
+      demandFreshOwner(owner, Date.now());
+      const input = parse(runtimeExecutorApplySchema, await request.json());
+      const review = await executorTransitionReview(env, auth.actor, input);
+      requireValue(
+        review.status === "preview",
+        "RUNTIME_EXECUTOR_TRANSITION_BLOCKED",
+        "Executor transition is blocked. Resolve the review blockers first.",
+        409,
+      );
+      requireValue(
+        review.reviewSha256 === input.expectedSha256,
+        "RUNTIME_EXECUTOR_REVIEW_CHANGED",
+        "Executor transition review changed. Preview again.",
+        409,
+      );
+      return json({
+        status: "applied",
+        reviewSha256: review.reviewSha256,
+        executor: await setExecutor(env.IDENTITY, auth.actor.workspace, input),
+      });
+    }
+
     if (path.startsWith("/api/recovery/")) {
       requireValue(
         auth.browser &&
