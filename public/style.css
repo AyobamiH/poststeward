@@ -1113,3 +1113,22 @@ body > main > .panel + .panel {
     animation-iteration-count: 1 !important;
   }
 }
+
+
+/* Install-first product surface */
+.hero-install {
+  margin-top: 1.25rem;
+  max-width: 46rem;
+  border: 1px solid var(--line, #2b3540);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--panel, #151a20) 88%, transparent);
+}
+.hero-install pre {
+  margin: 0.45rem 0 0.7rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+.hero-install code {
+  user-select: all;
+}
