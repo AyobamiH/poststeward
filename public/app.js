@@ -11,7 +11,9 @@ let session,
   selectedCampaign,
   paused = false,
   oauthInfo,
-  recovery;
+  recovery,
+  runtimeInstallations = [],
+  runtimeExecutor;
 const key = () => crypto.randomUUID();
 async function api(path, input, method = input === undefined ? "GET" : "POST") {
   const response = await fetch(path, {
@@ -153,6 +155,100 @@ async function prepareRuntimePairing() {
   };
 }
 
+function renderRuntimeAuthority() {
+  const select = $("runtime-installation-select");
+  const active = runtimeInstallations.filter((row) => row.status === "active");
+  select.replaceChildren(
+    ...active.map(
+      (row) =>
+        new Option(
+          `${row.label} · ${row.platform} · ${String(row.installation_id).slice(0, 8)}`,
+          row.installation_id,
+        ),
+    ),
+  );
+  const mode = runtimeExecutor?.executorMode || "unknown";
+  const activeId = runtimeExecutor?.activeInstallationId;
+  const generation = runtimeExecutor?.authorityGeneration;
+  const lease =
+    Number.isFinite(runtimeExecutor?.leaseExpiresAt) && runtimeExecutor.leaseExpiresAt > Date.now()
+      ? ` · lease until ${new Date(runtimeExecutor.leaseExpiresAt).toLocaleTimeString()}`
+      : "";
+  $("runtime-executor-status").textContent =
+    `Executor ${mode} · generation ${generation ?? "unknown"}${activeId ? ` · installation ${activeId}` : ""}${lease}`;
+  $("runtime-use-local").disabled = active.length === 0;
+  $("runtime-use-hosted").disabled = mode === "hosted";
+  records("runtime-installations", runtimeInstallations, (row, installation) => {
+    const selected = installation.installation_id === activeId;
+    line(
+      row,
+      `${installation.label} · ${installation.status}${selected ? " · ACTIVE EXECUTOR" : ""}`,
+      true,
+    );
+    line(
+      row,
+      `${installation.platform} · runtime ${installation.runtime_version} · ${installation.installation_id}`,
+    );
+    if (installation.status === "active" && !selected)
+      button(row, "Revoke installation", async () => {
+        const ok = window.confirm(
+          `Revoke ${installation.label}? Its runtime token will stop working.`,
+        );
+        if (!ok) return;
+        show(
+          await api("/api/runtime/installations/revoke", {
+            installationId: installation.installation_id,
+          }),
+        );
+        await refresh();
+      });
+  });
+}
+async function loadRuntimeAuthority() {
+  try {
+    [runtimeInstallations, runtimeExecutor] = await Promise.all([
+      api("/api/runtime/installations"),
+      api("/api/runtime/executor"),
+    ]);
+  } catch {
+    runtimeInstallations = [];
+    runtimeExecutor = undefined;
+  }
+  renderRuntimeAuthority();
+}
+async function transitionExecutor(mode) {
+  const installationId =
+    mode === "local" ? $("runtime-installation-select").value : undefined;
+  if (mode === "local" && !installationId)
+    throw new Error("Pair and select a local runtime first.");
+  const reason =
+    mode === "local"
+      ? "Owner selected the paired PostSteward local runtime"
+      : "Owner returned execution authority to hosted PostSteward";
+  const input = {
+    mode,
+    reason,
+    ...(installationId ? { installationId } : {}),
+  };
+  const review = await api("/api/runtime/executor/preview", input);
+  if (review.status !== "preview") {
+    const blockers = Array.isArray(review.blockers) ? review.blockers.join(", ") : "unknown blocker";
+    throw new Error(`Executor transition is blocked: ${blockers}`);
+  }
+  const target =
+    mode === "local" ? `local runtime ${installationId}` : "hosted PostSteward";
+  const ok = window.confirm(
+    `Move publishing execution to ${target}? This advances the authority generation and fences stale executors.`,
+  );
+  if (!ok) return;
+  const applied = await api("/api/runtime/executor/apply", {
+    ...input,
+    expectedSha256: review.reviewSha256,
+  });
+  show(applied);
+  await refresh();
+}
+
 function renderOAuth() {
   const form = $("oauth");
   const linkedin = linkedinConnectionPlan(
@@ -259,6 +355,7 @@ async function refresh() {
   }
   renderOAuth();
   renderRecovery();
+  await loadRuntimeAuthority();
   records("accounts", accounts, (r, a) => {
     line(r, `${a.alias} · ${a.provider}`, true);
     line(
@@ -739,6 +836,10 @@ $("portal").onclick = () =>
     const p = await invoke("billing_portal", { idempotencyKey: key() });
     navigateExternal(p.url, ["billing.stripe.com"]);
   });
+$("runtime-use-local").onclick = () =>
+  action(async () => transitionExecutor("local"));
+$("runtime-use-hosted").onclick = () =>
+  action(async () => transitionExecutor("hosted"));
 $("webmcp-check").onclick = () =>
   action(async () => {
     $("webmcp-observation").hidden = true;
