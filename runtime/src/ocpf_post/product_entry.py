@@ -15,6 +15,8 @@ def main() -> None:
         print(f"poststeward {__version__}")
         return
     if argv in (["--help"], ["-h"]):
+        from ocpf_post.cli_catalog import render_text
+
         print(
             "PostSteward local runtime\n\n"
             "Product commands:\n"
@@ -22,8 +24,8 @@ def main() -> None:
             "  configure   Bind hosted X/Threads/LinkedIn identities to Fresh local state\n"
             "  cloud       Inspect pairing, providers, executor heartbeat and remote MCP info\n"
             "\nRuntime commands:\n"
-            "  Run 'poststeward help' or 'poststeward help --json' for the complete inherited runtime catalogue.\n"
         )
+        print(render_text([]), end="")
         return
     if argv == ["help", "--json"]:
         from ocpf_post.cli_catalog import catalogue
