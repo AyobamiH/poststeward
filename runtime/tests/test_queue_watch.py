@@ -287,10 +287,10 @@ class WaitingSelectionTests(unittest.TestCase):
             # bypassing the guard to preserve the old test shape.
             (root/'bin'/'python3').write_text(f'#!/bin/sh\nprintf "%s\\n" "{accepted_sha}"\n')
             (root/'bin'/'python3').chmod(0o700)
-            (root/'post-once').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$QUEUE_TEST_LOG"\n'
+            (root/'poststeward').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$QUEUE_TEST_LOG"\n'
                                          'if [ "$1 $2" = "replenish refresh" ]; then exit 7; fi\n'
                                          'if [ "$1 $2" = "portfolio watch" ]; then exit 3; fi\nexit 0\n')
-            (root/'post-once').chmod(0o700)
+            (root/'poststeward').chmod(0o700)
             (root/'scripts'/'run-operating-cycle').write_text('#!/bin/sh\nprintf "cycle %s\\n" "$*" >> "$QUEUE_TEST_LOG"\n')
             (root/'scripts'/'run-operating-cycle').chmod(0o700)
             log = root/'calls'
