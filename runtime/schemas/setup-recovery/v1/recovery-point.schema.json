@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/recovery-point.schema.json",
+  "title": "Post-Once dead-host recovery point evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "captured_at",
+    "source_status_at_capture",
+    "source_installation_id",
+    "source_authority_generation",
+    "writer_units",
+    "credentials_included",
+    "publishing_authority",
+    "continuity_after_capture"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "dead_host_recovery_point_v1"
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_status_at_capture": {
+      "const": "active"
+    },
+    "source_installation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source_authority_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "writer_units": {
+      "type": "object"
+    },
+    "credentials_included": {
+      "const": false
+    },
+    "publishing_authority": {
+      "const": false
+    },
+    "continuity_after_capture": {
+      "const": "unknown"
+    }
+  }
+}

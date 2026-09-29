@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/schedule-disposition.schema.json",
+  "title": "Post-Once migration schedule disposition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schedule_id",
+    "source_status",
+    "semantic_state",
+    "context",
+    "disposition",
+    "actionable_after_restore",
+    "eligible_for_rearm",
+    "automatic_retry_safe",
+    "requires_review"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "schedule_id": {
+      "type": "string"
+    },
+    "source_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "semantic_state": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "enum": [
+        "healthy_migration",
+        "recovery"
+      ]
+    },
+    "disposition": {
+      "enum": [
+        "historical_only",
+        "terminal_review",
+        "block_sealing",
+        "recovery_quarantine",
+        "held_future",
+        "handoff_expired",
+        "hold_recompute",
+        "blocked_unknown"
+      ]
+    },
+    "actionable_after_restore": {
+      "const": false
+    },
+    "eligible_for_rearm": {
+      "type": "boolean"
+    },
+    "automatic_retry_safe": {
+      "const": false
+    },
+    "requires_review": {
+      "type": "boolean"
+    }
+  }
+}

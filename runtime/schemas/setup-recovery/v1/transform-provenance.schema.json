@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/transform-provenance.schema.json",
+  "title": "Post-Once schema transform provenance v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "logical_id",
+    "source_manifest_sha256",
+    "source_object_sha256",
+    "output_object_sha256",
+    "from_schema_version",
+    "to_schema_version",
+    "transformer_id",
+    "transformer_version",
+    "transformed_at",
+    "warnings",
+    "boundary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "logical_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)*$",
+      "maxLength": 200
+    },
+    "source_manifest_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_object_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "output_object_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "from_schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "to_schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "transformer_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "transformer_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "transformed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "boundary": {
+      "const": "Provenance only. No implicit schema transformation was selected or applied."
+    }
+  }
+}
