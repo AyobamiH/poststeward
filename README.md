@@ -1,6 +1,6 @@
 # PostSteward
 
-Reliable social publishing for AI agents, hosted on Cloudflare. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
+Reliable social publishing for humans and AI agents, with a Cloudflare-hosted authority plane and an installable client. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
 
 **Status: restricted admission on staging and production. Live-accepted evidence includes owner Google sign-in, one controlled Threads publication with independent provider readback, a real Threads OAuth callback/code exchange with a current healthy long-lived owner connection, Inspect-only HTTP/remote-MCP grant plus post-revocation denial, the Stripe sandbox lifecycle, protected encryption-root cutover, selected-private-repository GitHub authority, production edge/main-protection/alert/capacity controls and hosted cross-tenant isolation. X application credentials are configured but no owner X connection is accepted. LinkedIn application credentials and owner connection are absent; the verified PostSteward Page identity is not OAuth authority. Native WebMCP execution, approximate-time PITR, Advanced, MPP and public signup remain open or disabled.**
 
@@ -31,7 +31,19 @@ Advanced is priced at USD 5 per workspace/month and adds continuing source monit
 
 Remote agents authenticate with owner-issued, scoped, expiring, revocable Bearer tokens. HTTP and remote MCP use the same operation catalogue and workspace authority checks. OAuth-compatible MCP authorization discovery/bootstrap is **not** claimed for the current release; discovery must never mint or broaden authority.
 
-PostSteward does **not** promise a separately packaged CLI binary. The supported command-line workflow is shell/cURL over the documented HTTP operation surface.
+PostSteward also ships a no-root installable client. It is intentionally a thin
+agent/human surface over the same hosted operation catalogue: provider OAuth,
+workspace identity, publication effects and durable receipts stay authoritative in
+the hosted workspace rather than creating a second provider-effect ledger.
+
+```sh
+curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash
+poststeward onboard
+```
+
+The guided owner flow supports X, Threads and LinkedIn through the existing provider
+OAuth controls, then stores only a scoped/expiring agent grant in the local client.
+See [install](public/docs/install.md).
 
 Generated operation documentation comes from `src/operations/catalog.ts`:
 
@@ -67,7 +79,7 @@ The historical Inspect-only HTTP/remote-MCP grant/revoke proof is already accept
 
 ## Repository and deployment
 
-[AyobamiH/poststeward](https://github.com/AyobamiH/poststeward) is the standalone product repository with its own deployment lifecycle. Post Once remains separate.
+[AyobamiH/poststeward](https://github.com/AyobamiH/poststeward) is the standalone product repository with its own deployment lifecycle and public installer. The owner's historical Post-Once runtime remains separate; its proven safety ideas may be deliberately reused, but hosted PostSteward keeps one authoritative provider-effect ledger.
 
 See [deployment](docs/deployment.md), [private GitHub source authority](docs/private-github-sources.md), [provenance](docs/provenance.md), [operating runbook](docs/operations-runbook.md), [security model](docs/security.md), the [provider connection audit](docs/provider-connection-audit-2026-09-19.md) and the generated [current release gates](docs/current-readiness.md).
 
