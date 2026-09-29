@@ -9,7 +9,7 @@ cd "$ROOT"
 # Refuse tracked work-in-progress so a timer does not execute a half-edited
 # checkout, but do not reject harmless untracked operator artefacts.
 if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Refusing portfolio refill because the post-once checkout has tracked local changes." >&2
+  echo "Refusing portfolio refill because the poststeward checkout has tracked local changes." >&2
   exit 3
 fi
 
@@ -27,8 +27,8 @@ observe_queue_exit() {
 }
 trap observe_queue_exit EXIT
 
-./post-once portfolio experiment reconcile --apply || true
-./post-once replenish refresh --apply || true
-./post-once replenish reconcile
-./post-once portfolio reconcile
-./post-once portfolio refill --apply --horizon-minutes "${OCPF_POST_PORTFOLIO_HORIZON_MINUTES:-75}"
+./poststeward portfolio experiment reconcile --apply || true
+./poststeward replenish refresh --apply || true
+./poststeward replenish reconcile
+./poststeward portfolio reconcile
+./poststeward portfolio refill --apply --horizon-minutes "${OCPF_POST_PORTFOLIO_HORIZON_MINUTES:-75}"
