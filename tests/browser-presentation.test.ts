@@ -64,6 +64,8 @@ test("browser negotiation requires explicit acceptable HTML and machine paths st
     "/docs/agent-guide.md",
     "/help.json",
     "/missing.js",
+    "/install.sh",
+    "/poststeward.py",
   ]) assert.equal(machinePath(path), true, path);
   assert.equal(machinePath("/missing-public-page"), false);
 });
@@ -97,6 +99,7 @@ test("restricted environments do not advertise a crawlable sitemap", () => {
   const publicXml = sitemapDocument(
     env({ DEPLOY_ENV: "production", SIGNUP_MODE: "public" }),
   );
+  assert.match(publicXml, /https:\/\/publish.example\/docs\/install/);
   assert.match(publicXml, /https:\/\/publish.example\/docs\/agent-guide/);
   assert.doesNotMatch(publicXml, /\/app<|\/pilot</);
   assert.doesNotMatch(
