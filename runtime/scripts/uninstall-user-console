@@ -9,4 +9,4 @@ rm -f "$UNIT"
 systemctl --user daemon-reload
 systemctl --user reset-failed ocpf-post-console.service 2>/dev/null || true
 
-echo "Removed the post-once local observability console service."
+echo "Removed the poststeward local observability console service."
