@@ -35,16 +35,16 @@ from ocpf_post.setup_store import SetupStore, SetupStoreError, resolve_plain_pat
 UTC = timezone.utc
 SCHEMA_VERSION = 1
 TIMERS = (
-    "post-once-run-due.timer",
-    "post-once-portfolio-refill.timer",
-    "post-once-collection.timer",
-    "post-once-replies.timer",
+    "poststeward-run-due.timer",
+    "poststeward-portfolio-refill.timer",
+    "poststeward-collection.timer",
+    "poststeward-replies.timer",
 )
 SERVICES = (
-    "post-once-run-due.service",
-    "post-once-portfolio-refill.service",
-    "post-once-collection.service",
-    "post-once-replies.service",
+    "poststeward-run-due.service",
+    "poststeward-portfolio-refill.service",
+    "poststeward-collection.service",
+    "poststeward-replies.service",
 )
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -493,16 +493,16 @@ class SystemdServiceController:
         script = runtime_root / "scripts" / "install-user-portfolio-timer"
         result = self._run(["sh", str(script)], cwd=runtime_root, env=env, timeout=180)
         if result.returncode:
-            _fail("activation.systemd.stage_failed", "Could not stage Post-Once user units")
+            _fail("activation.systemd.stage_failed", "Could not stage PostSteward user units")
         return {"status": "staged", "provider_consequence": False}
 
     def preflight(self, *, runtime_root: Path, state_root: Path, config_root: Path) -> dict[str, Any]:
         env = dict(os.environ)
         env.update({"POST_ONCE_STATE_DIR": str(state_root), "POST_ONCE_CONFIG_DIR": str(config_root)})
         checks = [
-            ["sh", str(runtime_root / "post-once"), "state", "verify"],
-            ["sh", str(runtime_root / "post-once"), "run-due", "--check"],
-            ["sh", str(runtime_root / "post-once"), "portfolio", "status", "--json"],
+            ["sh", str(runtime_root / "poststeward"), "state", "verify"],
+            ["sh", str(runtime_root / "poststeward"), "run-due", "--check"],
+            ["sh", str(runtime_root / "poststeward"), "portfolio", "status", "--json"],
         ]
         results = []
         for args in checks:
@@ -515,10 +515,10 @@ class SystemdServiceController:
     def arm(self) -> dict[str, Any]:
         result = self._run(["systemctl", "--user", "enable", "--now", *TIMERS], timeout=120)
         if result.returncode:
-            _fail("activation.systemd.arm_failed", "Could not enable/start all Post-Once timers")
+            _fail("activation.systemd.arm_failed", "Could not enable/start all PostSteward timers")
         observed = self.inspect()
         if not observed["all_enabled"] or not observed["all_active"]:
-            _fail("activation.systemd.attestation_failed", "Post-Once timers are not fully enabled/active")
+            _fail("activation.systemd.attestation_failed", "PostSteward timers are not fully enabled/active")
         return observed
 
     def disarm(self) -> dict[str, Any]:
@@ -530,7 +530,7 @@ class SystemdServiceController:
             for row in observed.get("timers", [])
             if isinstance(row, dict)
         ):
-            _fail("activation.systemd.disarm_failed", "One or more Post-Once timers remained enabled or active")
+            _fail("activation.systemd.disarm_failed", "One or more PostSteward timers remained enabled or active")
         return observed
 
 
