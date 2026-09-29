@@ -43,11 +43,11 @@ class FreshVerificationTests(unittest.TestCase):
         self.env = patch.dict(
             os.environ,
             {
-                "POST_ONCE_CONFIG_DIR": str(self.config),
-                "POST_ONCE_STATE_DIR": str(self.state),
-                "POST_ONCE_SETUP_STATE_DIR": str(self.workspace),
-                "POST_ONCE_RELEASES_DIR": str(self.root / "releases"),
-                "POST_ONCE_PRODUCT_LINEAGE": product_runtime.PRODUCT_LINEAGE,
+                "POSTSTEWARD_RUNTIME_CONFIG_DIR": str(self.config),
+                "POSTSTEWARD_RUNTIME_STATE_DIR": str(self.state),
+                "POSTSTEWARD_SETUP_STATE_DIR": str(self.workspace),
+                "POSTSTEWARD_RELEASES_DIR": str(self.root / "releases"),
+                "POSTSTEWARD_RUNTIME_LINEAGE": product_runtime.PRODUCT_LINEAGE,
             },
             clear=False,
         )
