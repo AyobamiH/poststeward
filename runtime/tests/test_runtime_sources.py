@@ -44,8 +44,8 @@ class RuntimeSourceTests(unittest.TestCase):
         self.env = patch.dict(os.environ, {
             "OCPF_POST_CONFIG_DIR": str(self.root / "config"),
             "OCPF_POST_STATE_DIR": str(self.root / "state"),
-            "POST_ONCE_CONFIG_DIR": str(self.root / "config"),
-            "POST_ONCE_STATE_DIR": str(self.root / "state"),
+            "POSTSTEWARD_RUNTIME_CONFIG_DIR": str(self.root / "config"),
+            "POSTSTEWARD_RUNTIME_STATE_DIR": str(self.root / "state"),
         })
         self.env.start()
         self.addCleanup(self.tmp.cleanup)
