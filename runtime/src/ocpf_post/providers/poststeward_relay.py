@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from ocpf_post.model import AccountIdentity
-from ocpf_post.poststeward_cloud import CloudError, bindings, relay
+from ocpf_post.poststeward_cloud import CloudError, bindings, heartbeat, relay
 from ocpf_post.providers.base import (
     AmbiguousProviderEffect,
     Provider,
@@ -95,6 +95,24 @@ class PostStewardRelayProvider(Provider):
         generation = executor.get("authorityGeneration") if isinstance(executor, dict) else None
         if type(generation) is not int or generation < 1:
             raise ProviderRejected(409, "PostSteward executor generation is unavailable.")
+        if executor.get("executorMode") != "local":
+            raise ProviderRejected(
+                409,
+                "This runtime does not currently own PostSteward execution authority.",
+            )
+        try:
+            renewed = heartbeat()
+        except CloudError as exc:
+            raise ProviderRejected(
+                exc.status,
+                f"PostSteward executor lease could not be renewed: {exc}",
+            ) from exc
+        renewed_generation = renewed.get("authorityGeneration")
+        if renewed_generation != generation:
+            raise ProviderRejected(
+                409,
+                "PostSteward executor generation changed during consequence preflight.",
+            )
         return generation
 
     def _effect_id(self, text: str, reply_to_id: str | None = None) -> str:
