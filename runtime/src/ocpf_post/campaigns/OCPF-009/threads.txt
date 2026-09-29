@@ -1,0 +1,14 @@
+A clean UI is not the production system.
+
+The real work starts when you have to make these boring things truthful:
+
+credentials
+failure state
+retry state
+history
+tenant boundaries
+
+That is the gap I wrote about for Lovable builders.
+
+The AI output is the easy part.
+The controlled workflow is the product.

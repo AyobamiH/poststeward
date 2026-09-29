@@ -1,0 +1,17 @@
+Before asking AI for ten more posts, give it one thing worth saying.
+
+The Lovable lesson I'm applying to content is simple: a vague starting point leaves the tool guessing what you meant.
+
+"Write something about my business" is a blank brief.
+A real customer question, a useful Reddit answer or a lesson from a build gives the draft a point.
+
+Then decide:
+Who is this for?
+What should they understand?
+What should they do next?
+
+That is the direction I'm building OneClickPostFactory around: useful source material first, platform-native drafts second, review before distribution.
+
+Not a promise that more AI output creates demand. A workflow worth testing with founders who already have something useful to say.
+
+Already writing useful answers but struggling to reuse them? Reply "factory" and tell me where your workflow stops.

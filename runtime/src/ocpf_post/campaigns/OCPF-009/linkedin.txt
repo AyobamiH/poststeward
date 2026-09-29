@@ -1,0 +1,21 @@
+A clean UI can make a workflow look finished long before the operating system underneath it is ready.
+
+That is one of the biggest lessons I keep seeing when moving Lovable-built ideas toward production.
+
+The visible flow is only the start.
+
+Then come the parts users actually depend on:
+
+who owns the credentials,
+what happens when a job fails,
+what state is safe to retry,
+what the history says happened,
+and whether one user can ever see another user’s state.
+
+I wrote about building a Reddit-to-content workflow for Lovable builders because that gap matters.
+
+The interesting part is not “AI can write a post.”
+
+It is turning useful source material into a controlled workflow where review, state and consequences stay visible.
+
+That is the standard I want OneClickPostFactory to meet as it moves from builder project to usable system.

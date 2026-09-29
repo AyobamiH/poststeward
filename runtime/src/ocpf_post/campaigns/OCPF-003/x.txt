@@ -1,0 +1,5 @@
+One platform failing should not erase the rest of a publishing job.
+
+Successful destinations should stay successful. Failed ones should keep truthful retry state.
+
+“Post everywhere” is easy to demo. Knowing exactly what happened is what makes automation usable.

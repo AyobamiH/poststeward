@@ -1,0 +1,21 @@
+One thing building and operating agent systems keeps reinforcing for me: “AI capability” is not the thing people pay for.
+
+They pay for a repeatable outcome they can trust.
+
+A clever agent that sometimes gets the job right is still a demo.
+A useful system has a clear input, a controlled flow, a visible result and enough traceability to know whether the outcome can be trusted.
+
+That is why I keep coming back to boring questions:
+
+What starts the job?
+What state does it move through?
+What counts as success?
+What happens when it fails?
+What evidence is left behind?
+
+I wrote about this in the OpenClaw context because the same principle shows up everywhere I build automation.
+
+The value is not “look what the model can do”.
+The value is “this useful outcome happens repeatedly, and I can see what happened”.
+
+That is also the standard I want OneClickPostFactory to move toward: not more AI output for its own sake, but a repeatable source-to-distribution workflow that is useful enough to run again.

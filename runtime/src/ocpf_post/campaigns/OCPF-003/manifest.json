@@ -1,0 +1,66 @@
+{
+  "campaign": "OCPF-003",
+  "project": "oneclickpostfactory",
+  "title": "One platform failure should not erase the rest",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "OneClickPostFactory GTM vault",
+  "providers": ["x", "threads", "linkedin"],
+  "source": {
+    "type": "reddit_owner_post",
+    "source_id": "OC-01",
+    "subreddit": "r/OpenclawBot",
+    "author": "u/Advanced_Pudding9228",
+    "title": "If You Want OpenClaw to Feel More Like a System, Start Here",
+    "url": "https://www.reddit.com/r/OpenclawBot/comments/1t9zwzu/if_you_want_openclaw_to_feel_more_like_a_system/",
+    "retrieved_at": "2026-09-07",
+    "angle": "An operable system preserves truthful per-destination state so success is not erased by a different destination's failure."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_adaptation",
+    "disclosure": "Platform drafts were prepared as GTM-assisted adaptations from the owner-authored Reddit source. They are not represented as OneClickPostFactory-generated output."
+  },
+  "source_bank": "https://docs.google.com/document/d/10aHkgx0LU1HKDHA_nTy9nzNFOA6LPMtqlwXNaSBtE4s/edit",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "receipts": {
+    "linkedin": {
+      "status": "published_unverified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_492ffd86f9c64d3bbde770def58c3dab",
+      "scheduled_for": "2026-09-07T11:01:00Z",
+      "recorded_at": "2026-09-07T11:01:58Z",
+      "post_id": "urn:li:share:7502682568320868353",
+      "url": "https://www.linkedin.com/feed/update/urn:li:share:7502682568320868353/",
+      "text_sha256": "b643fda56931d4de95ae249c75a9c4eefe2f804435ea2960dddc3a883d8c2acc",
+      "readback_verified": false,
+      "detail": "Provider creation response returned a durable post id; API readback remains unavailable or unverified."
+    },
+    "x": {
+      "status": "published_verified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_d9c6667ceb7e419ba9c8149567c2ddfb",
+      "scheduled_for": "2026-09-07T11:06:00Z",
+      "recorded_at": "2026-09-07T11:06:37Z",
+      "post_id": "2096918050280718633",
+      "url": "https://x.com/JohnWOE15/status/2096918050280718633",
+      "text_sha256": "07b7c504404d52afdb05834bf966c859dd3173295e76f45d487b54c4007f4726",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    },
+    "threads": {
+      "status": "published_verified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_794a54db92734050bb006c5a2e29d499",
+      "scheduled_for": "2026-09-07T11:11:00Z",
+      "recorded_at": "2026-09-07T11:11:25Z",
+      "post_id": "18588505909064702",
+      "url": "https://www.threads.com/@tailwaggingwebdesigns/post/Dc--VAVDs07",
+      "text_sha256": "57e33ef5db628cc789f06f6dd5fd790fdd4bfb926d2d4f5a9b393263e03fa5c9",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    }
+  }
+}

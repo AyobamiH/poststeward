@@ -1,0 +1,5 @@
+A clean UI is not the production system.
+
+The real work starts when credentials, failure state, retries, history and tenant boundaries have to stay truthful.
+
+That’s the lesson behind one of my Lovable builder workflows, and the standard I’m carrying into OneClickPostFactory.
