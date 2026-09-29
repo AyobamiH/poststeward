@@ -239,7 +239,7 @@ class SafeRuntimeUpgradeTests(unittest.TestCase):
         self.assertEqual(self.release.calls, [])
 
     def test_unknown_timer_and_changed_trigger_fail_before_pause(self):
-        self.systemd.extra.add("post-once-other.timer")
+        self.systemd.extra.add("poststeward-other.timer")
         with self.assertRaisesRegex(u.UpgradeError, "unrecognised"):
             self.execute()
         self.systemd.extra.clear()
@@ -300,7 +300,7 @@ class SafeRuntimeUpgradeTests(unittest.TestCase):
         self.assertEqual(self.systemd.calls, [])
 
     def test_systemd_parser_command_names_and_non_timer_refusal(self):
-        content = "LoadState=loaded\nActiveState=active\nTriggers=post-once-run-due.service\nMainPID=0\n"
+        content = "LoadState=loaded\nActiveState=active\nTriggers=poststeward-run-due.service\nMainPID=0\n"
         result = subprocess.CompletedProcess([], 0, content, "")
         with patch.object(u.subprocess, "run", return_value=result) as run:
             self.assertEqual(u.Systemd().show(u.TIMERS[0])["LoadState"], "loaded")
@@ -399,7 +399,7 @@ class RealReleaseGuardTests(unittest.TestCase):
             self.git("config", name, value)
         (self.repo / "src" / "ocpf_post").mkdir(parents=True)
         (self.repo / "src" / "ocpf_post" / "__init__.py").write_text("RUNTIME_STATE_COMPATIBILITY = 1\n")
-        cli = self.repo / "post-once"
+        cli = self.repo / "poststeward"
         cli.write_text(
             "#!/bin/sh\n"
             "set -eu\n"
@@ -416,10 +416,10 @@ class RealReleaseGuardTests(unittest.TestCase):
             "root=Path(__file__).resolve().parents[1]\n"
             "unit_dir=Path(os.environ['XDG_CONFIG_HOME'])/'systemd'/'user'\n"
             "unit_dir.mkdir(parents=True, exist_ok=True)\n"
-            "routes={'post-once-run-due.service':'run-due',"
-            "'post-once-portfolio-refill.service':'refill',"
-            "'post-once-collection.service':'collect',"
-            "'post-once-replies.service':'respond'}\n"
+            "routes={'poststeward-run-due.service':'run-due',"
+            "'poststeward-portfolio-refill.service':'refill',"
+            "'poststeward-collection.service':'collect',"
+            "'poststeward-replies.service':'respond'}\n"
             "for name,route in routes.items():\n"
             "    (unit_dir/name).write_text("
             "f'[Service]\\nWorkingDirectory={root}\\n"
