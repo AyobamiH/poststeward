@@ -228,6 +228,53 @@ def heartbeat() -> dict[str, Any]:
     return value
 
 
+def activation_executor_proof() -> dict[str, Any]:
+    """Prove the paired machine owns the current cloud executor generation.
+
+    The returned projection intentionally excludes the volatile lease expiry so an
+    activation review digest remains stable between preview and exact apply.
+    """
+    current = installation_identity()
+    value = bindings()
+    executor = value.get("executor") if isinstance(value.get("executor"), dict) else {}
+    installation = str(current.get("installation_id") or "")
+    active = str(executor.get("activeInstallationId") or "")
+    generation = executor.get("authorityGeneration")
+    if executor.get("executorMode") != "local":
+        raise CloudError(
+            "RUNTIME_EXECUTOR_NOT_LOCAL",
+            "Review and move this workspace to the paired local executor before activating unattended local publishing.",
+            3,
+        )
+    if not installation or active != installation:
+        raise CloudError(
+            "RUNTIME_EXECUTOR_FENCED",
+            "A different PostSteward installation owns local execution authority.",
+            3,
+        )
+    if type(generation) is not int or generation < 1:
+        raise CloudError(
+            "RUNTIME_GENERATION_INVALID",
+            "PostSteward cloud did not return a valid executor generation.",
+            3,
+        )
+    renewed = heartbeat()
+    if renewed.get("authorityGeneration") != generation:
+        raise CloudError(
+            "RUNTIME_EXECUTOR_FENCED",
+            "Executor generation changed while activation authority was being proven.",
+            3,
+        )
+    return {
+        "schema_version": 1,
+        "workspace": value.get("workspace"),
+        "installation_id": installation,
+        "executor_mode": "local",
+        "authority_generation": generation,
+        "lease_proven_live": True,
+    }
+
+
 def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
     current = installation_identity()
     existing = str(current.get("runtime_token") or "").strip()
