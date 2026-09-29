@@ -65,6 +65,7 @@ import {
   threadsDeleteStatus,
   threadsUninstallCallback,
 } from "./threads-callbacks.ts";
+import { handleRuntimeRelay } from "./runtime-relay.ts";
 import {
   approveRuntimePairing,
   authenticateRuntime,
@@ -104,6 +105,26 @@ const runtimeExecutorApplySchema = runtimeExecutorSchema.extend({
 });
 const runtimeRevokeSchema = z.strictObject({
   installationId: z.uuid(),
+});
+const runtimeRelaySchema = z.strictObject({
+  action: z.enum([
+    "account",
+    "container_create",
+    "container_status",
+    "publish",
+    "verify",
+    "metrics",
+  ]),
+  authorityGeneration: z.number().int().min(1).optional(),
+  provider: z.enum(["x", "threads", "linkedin"]),
+  accountId: z.string().min(1).max(256),
+  effectId: z.string().min(8).max(180).optional(),
+  campaign: z.string().min(1).max(160).optional(),
+  text: z.string().min(1).max(12500).optional(),
+  textDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  replyToId: z.string().min(1).max(256).optional(),
+  containerId: z.string().min(1).max(256).optional(),
+  postId: z.string().min(1).max(256).optional(),
 });
 
 const connectionSchema = z.strictObject({
@@ -251,6 +272,7 @@ export class Workspace extends DurableObject<Env> {
         name: string;
         input: unknown;
         payment?: { url: string; headers: Record<string, string> };
+        runtime?: { workspace: string; installationId: string; tokenHash: string };
       };
       requireValue(
         typeof data.workspace === "string",
@@ -259,6 +281,25 @@ export class Workspace extends DurableObject<Env> {
         400,
       );
       const path = new URL(request.url).pathname;
+      if (path === "/runtime/relay") {
+        requireValue(
+          data.runtime &&
+            data.runtime.workspace === data.workspace &&
+            typeof data.runtime.installationId === "string",
+          "RUNTIME_INTERNAL_AUTH_REQUIRED",
+          "Authenticated runtime context is required.",
+          403,
+        );
+        return json(
+          await handleRuntimeRelay(
+            this.store,
+            this.env,
+            data.workspace,
+            data.runtime,
+            data.input as any,
+          ),
+        );
+      }
       if (path === "/runtime/bindings") {
         const accounts = this.store
           .list<Account>("account:")
@@ -998,6 +1039,28 @@ async function route(
         input.authorityGeneration,
       ),
     );
+  }
+  if (path === "/api/runtime/relay" && request.method === "POST") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    const input = parse(runtimeRelaySchema, await request.json());
+    const response = await env.WORKSPACES
+      .get(env.WORKSPACES.idFromName(runtime.workspace))
+      .fetch("https://workspace.internal/runtime/relay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspace: runtime.workspace,
+          runtime,
+          actor: {
+            workspace: runtime.workspace,
+            id: `runtime:${runtime.installationId}`,
+            scopes: ["publish"],
+          },
+          name: "",
+          input,
+        }),
+      });
+    return response;
   }
   if (path === "/api/runtime/bindings" && request.method === "GET") {
     const runtime = await authenticateRuntime(request, env.IDENTITY);
