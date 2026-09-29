@@ -29,7 +29,7 @@ import webbrowser
 from typing import Any
 
 VERSION = "0.1.0"
-DEFAULT_ORIGIN = "https://poststeward.com"
+DEFAULT_ORIGIN = os.environ.get("POSTSTEWARD_DEFAULT_ORIGIN", "https://poststeward.com")
 PROVIDERS = ("x", "threads", "linkedin")
 
 
