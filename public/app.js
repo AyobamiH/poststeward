@@ -103,6 +103,56 @@ function navigateExternal(value, hosts) {
     );
   location.assign(destination);
 }
+function runtimePairingParams() {
+  const params = new URL(location.href).searchParams;
+  const pairingId = params.get("runtime_pairing");
+  const code = params.get("code");
+  return pairingId && code ? { pairingId, userCode: code } : null;
+}
+function clearRuntimePairingParams() {
+  const url = new URL(location.href);
+  url.searchParams.delete("runtime_pairing");
+  url.searchParams.delete("code");
+  history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+}
+async function prepareRuntimePairing() {
+  const pairing = runtimePairingParams();
+  const panel = $("runtime-pairing-panel");
+  if (!pairing || !panel) return;
+  const details = await api("/api/runtime/pairing/inspect", pairing);
+  $("runtime-pairing-copy").textContent =
+    "Compare this installation with the terminal that displayed the pairing code before approving it.";
+  $("runtime-pairing-details").textContent = JSON.stringify(
+    {
+      pairingCode: pairing.userCode.toUpperCase(),
+      installationId: details.installationId,
+      label: details.label,
+      platform: details.platform,
+      runtimeVersion: details.runtimeVersion,
+      sourceRevision: details.sourceRevision,
+      expiresAt: new Date(details.expiresAt).toISOString(),
+    },
+    null,
+    2,
+  );
+  panel.hidden = false;
+  $("runtime-pairing-approve").onclick = () =>
+    action(async () => {
+      const approved = await api("/api/runtime/pairing/approve", pairing);
+      show(
+        `Approved PostSteward installation ${approved.label}. Return to the terminal; the one-time bootstrap will finish there.`,
+      );
+      panel.hidden = true;
+      clearRuntimePairingParams();
+      await refresh();
+    });
+  $("runtime-pairing-dismiss").onclick = () => {
+    panel.hidden = true;
+    clearRuntimePairingParams();
+    show("Runtime pairing was not approved. No machine authority changed.");
+  };
+}
+
 function renderOAuth() {
   const form = $("oauth");
   const linkedin = linkedinConnectionPlan(
@@ -702,6 +752,7 @@ $("webmcp-status").textContent = document.modelContext?.registerTool
 try {
   session = await api("/api/session");
   $("session-notice").textContent = "Workspace " + session.workspace;
+  await prepareRuntimePairing();
   const help = await api("/help.json");
   try {
     const registered = await registerWebMCP(help, invoke, session.scopes);
@@ -730,7 +781,10 @@ try {
   $("session-notice").replaceChildren();
   if (!session || e.status === 401) {
     const a = document.createElement("a");
-    a.href = "/auth/login";
+    const returnPath = runtimePairingParams()
+      ? location.pathname + location.search
+      : "/app";
+    a.href = "/auth/login?return=" + encodeURIComponent(returnPath);
     a.textContent = "Sign in to open your workspace";
     $("session-notice").append(a);
   } else
