@@ -8,7 +8,7 @@ set -euo pipefail
 # --verify and --dry-run. The installed local publishing runtime is Post-Once;
 # hosted PostSteward and the local runtime keep separate state/authority.
 
-SOURCE_URL="${POSTSTEWARD_LOCAL_SOURCE:-https://github.com/AyobamiH/poststeward.git}"
+SOURCE_URL="${POSTSTEWARD_LOCAL_SOURCE:-https://github.com/AyobamiH/poststeward-showcase.git}"
 SOURCE_REF="${POSTSTEWARD_LOCAL_REF:-post-once-runtime-beta}"
 REVISION="${POSTSTEWARD_LOCAL_REVISION:-}"
 PREFIX="${POSTSTEWARD_LOCAL_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/post-once}"
