@@ -15,21 +15,22 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Installable client syntax
+      - name: Installable runtime syntax
         run: |
           bash -n public/install.sh
-          python3 -m py_compile public/poststeward.py
-          python3 public/poststeward.py --version
-          python3 public/poststeward.py help --json > /tmp/poststeward-client-help.json
-          python3 - <<'PY'
-          import json
-          value=json.load(open("/tmp/poststeward-client-help.json"))
-          assert value["schema_version"] == 1
-          assert value["product"] == "poststeward"
-          assert "onboard" in value["commands"]
-          assert "providers" in value["commands"]
-          assert "invoke" in value["commands"]
-          PY
+          python3 -m py_compile \
+            runtime/src/ocpf_post/product_entry.py \
+            runtime/src/ocpf_post/product_runtime.py \
+            runtime/src/ocpf_post/poststeward_cloud.py \
+            runtime/src/ocpf_post/poststeward_onboarding.py \
+            runtime/src/ocpf_post/poststeward_product.py \
+            runtime/src/ocpf_post/providers/poststeward_relay.py
+          POSTSTEWARD_RUNTIME_ROOT="$PWD/runtime" \
+          POSTSTEWARD_RUNTIME_CONFIG_DIR="$RUNNER_TEMP/runtime-config" \
+          POSTSTEWARD_RUNTIME_STATE_DIR="$RUNNER_TEMP/runtime-state" \
+          POSTSTEWARD_SETUP_STATE_DIR="$RUNNER_TEMP/runtime-setup" \
+          POSTSTEWARD_RELEASES_DIR="$RUNNER_TEMP/runtime-releases" \
+            ./runtime/poststeward --version
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
       - name: Full dependency audit

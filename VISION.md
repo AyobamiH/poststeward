@@ -8,7 +8,7 @@ repository: AyobamiH/poststeward
 
 ## Identity
 
-PostSteward is a Cloudflare-hosted social-publishing product with an installable client for humans and AI agents.
+PostSteward is a distributed social-publishing product: a Cloudflare-hosted control plane plus an installable Post-Once-derived local runtime for humans and AI agents.
 
 ## Purpose
 
@@ -19,12 +19,12 @@ Turn owner-approved content into provider publication, explicit schedules, and i
 - Workspace identity, sessions, scoped/revocable agent grants, and operation catalogue.
 - Provider connections and publication/scheduling state for supported social platforms.
 - Immutable review/approval, cancellation boundaries, idempotency, effect reconciliation, and receipts.
-- Hosted HTTP, remote MCP, browser-agent operation surfaces, and the public installable `poststeward` client.
+- Hosted HTTP, remote MCP and browser-agent surfaces, plus the public installable `poststeward` local runtime with Setup & Recovery, local scheduling, receipts and deterministic agent interfaces.
 - Advanced campaign monitoring/allocation features when separately enabled and proven.
 
 ## Does Not Own
 
-- The owner's historical `AyobamiH/post-once` production installation. PostSteward may reuse proven Post-Once setup/receipt design patterns, but it must not create a second independent provider-effect ledger for the same hosted workspace.
+- The owner's historical `AyobamiH/post-once` production installation. The adopted customer runtime comes from the independently proven bootstrap lineage and must never read/write the owner's original state or credentials.
 - Social-provider identity merely because credentials are configured.
 - Provider consent or account authority without a completed owner connection.
 - Public signup, Advanced automation, billing entitlement, or recovery capability merely because supporting infrastructure exists.
@@ -37,6 +37,7 @@ Turn owner-approved content into provider publication, explicit schedules, and i
 - Fingerprint dedupe, idempotency, stale-claim recovery, and ambiguous-effect preservation prevent blind repeat writes.
 - Accepted live external effects are not repeated merely to refresh evidence.
 - Availability, configuration, connection, entitlement, publication, readback, and verification remain separate states.
+- Exactly one execution authority is active per workspace generation: hosted or one paired local installation, never both.
 
 ## Evidence of Done
 
@@ -44,7 +45,7 @@ A publication is complete only when the authorised operation reaches an honest d
 
 ## Relationships
 
-- post-once: separate owner/production local portfolio publisher and design lineage. PostSteward's public client is its own product surface; provider consequences remain authoritative in PostSteward's hosted workspace ledger.
+- post-once: separate owner/production lineage. PostSteward's embedded runtime is independently installed and cloud-fenced; final provider consequences still cross the single PostSteward hosted effect ledger.
 - Social providers: external authorities for account identity and provider-side effects.
 - GitHub/Stripe/Cloudflare: supporting integrations whose configuration does not by itself prove product acceptance.
 

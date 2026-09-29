@@ -1,7 +1,12 @@
 # Install PostSteward
 
-PostSteward is available as a hosted workspace **and** an installable agent/human
-client. The client does not copy provider secrets out of the hosted control plane.
+PostSteward is a distributed product: **PostSteward Cloud** supplies owner identity,
+X/Threads/LinkedIn OAuth custody, machine coordination and the provider-effect relay;
+the installed **PostSteward Local Runtime** supplies projects/campaigns, portfolio
+planning, schedules, durable local evidence, Setup & Recovery and local agent
+operation.
+
+Provider OAuth secrets never need to be copied into the installed runtime.
 
 ## macOS / Linux / WSL2
 
@@ -9,87 +14,167 @@ client. The client does not copy provider secrets out of the hosted control plan
 curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash
 ```
 
-The installer is no-root and user-local. It requires Python 3.10+ and installs the
-`poststeward` command under `~/.local/bin` by default.
+The no-root installer resolves one reviewed release to an exact Git revision, verifies
+the embedded runtime tree before promotion, installs a user-local release under the
+PostSteward XDG namespace and creates the canonical `poststeward` command.
 
-Skip guided onboarding:
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh \
-  | bash -s -- --no-onboard
-```
-
-Preview only:
+Useful installer modes:
 
 ```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh \
-  | bash -s -- --dry-run
+# install without opening onboarding
+curl -fsSL https://poststeward.com/install.sh | bash -s -- --no-onboard
+
+# preview without mutation
+curl -fsSL https://poststeward.com/install.sh | bash -s -- --dry-run
+
+# beta channel
+curl -fsSL https://poststeward.com/install.sh | bash -s -- --beta
+
+# exact reviewed revision
+curl -fsSL https://poststeward.com/install.sh | bash -s -- --version <40-char-sha>
 ```
 
-Install an exact public repository revision:
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh \
-  | bash -s -- --version <40-char-sha>
-```
-
-## Guided onboarding
+## 1. Pair the machine
 
 ```bash
 poststeward onboard
 ```
 
-The browser remains the **owner authority surface**:
+The runtime creates a short-lived pairing request and opens the owner workspace. The
+browser shows the exact installation ID, host/platform and pairing code. Owner
+approval returns a separate installation-bound runtime token once; it does **not**
+grant provider/admin authority and does not turn on publishing automation.
 
-1. sign in to PostSteward;
-2. connect X, Threads and/or LinkedIn through provider OAuth;
-3. verify the stable account/Page identity;
-4. issue the smallest useful scoped, expiring agent grant;
-5. return to the CLI and paste the token into the hidden prompt.
+## 2. Connect destinations in the owner workspace
 
-The CLI verifies the token with `workspace_status` before storing it locally with
-user-only file permissions.
+Connect any combination of:
 
-Provider credentials stay server-side. The CLI stores only the scoped agent grant.
+- **X** — OAuth 2.0 stable identity;
+- **Threads** — OAuth plus long-lived refresh handling;
+- **LinkedIn** — member identity or an explicitly reviewed organization/Page actor.
+
+Application configuration, owner consent, connected stable identity, executor
+authority and publication are separate states.
+
+Provider credentials remain encrypted in PostSteward Cloud. The paired runtime receives
+only non-secret account bindings and capability evidence.
+
+## 3. Bind hosted destinations to local Fresh state
+
+```bash
+poststeward configure \
+  --project example-project \
+  --label "Example Project" \
+  --timezone Europe/London \
+  --pace regular \
+  --text-file first-reviewed-post.txt
+```
+
+Preview is read-only apart from Fresh setup bookkeeping. It verifies the hosted
+provider identities and prints an exact review SHA. Apply only that exact review:
+
+```bash
+poststeward configure \
+  --project example-project \
+  --label "Example Project" \
+  --timezone Europe/London \
+  --pace regular \
+  --text-file first-reviewed-post.txt \
+  --apply \
+  --expected-sha256 <review-sha256>
+```
+
+The imported campaign remains manual-only; onboarding does not allocate, schedule or
+publish it.
+
+## 4. Inspect before activation
+
+```bash
+poststeward status --json
+poststeward doctor --json
+poststeward help --json
+```
+
+The owner workspace must explicitly hand the workspace executor from `hosted` to this
+paired installation. Every handoff increments a cloud authority generation and is
+review-digest bound.
+
+Then review local activation:
+
+```bash
+poststeward activate --json
+poststeward activate --apply --expected-sha256 <review-sha256> --json
+```
+
+Activation requires the local A–K marker **and** the matching live cloud executor
+lease/generation.
+
+## One provider-effect path
+
+When local execution is active:
+
+```text
+local schedule / run-due
+ -> exact local effect ID + text digest
+ -> live executor lease + generation
+ -> PostSteward Cloud provider relay
+ -> existing D1 external-effect fence
+ -> X / Threads / LinkedIn
+ -> provider receipt/readback
+ -> mirrored local evidence
+```
+
+The cloud does not run a competing scheduler in local mode. A stale machine, stale
+generation, expired lease or changed payload is rejected before provider I/O.
 
 ## Humans and agents
 
-Humans own identity, provider consent, grant issuance/revocation, recovery and
-administrative authority.
+Humans own OAuth consent, account/Page selection, machine pairing, executor changes,
+recovery and administrative authority.
 
-Agents use the deterministic operation catalogue:
+Agents can operate the local deterministic runtime and use owner-issued remote MCP/HTTP
+grants. Admin authority is not delegated through agent grants.
+
+Useful local surfaces include:
 
 ```bash
 poststeward help --json
-poststeward status
-poststeward providers
-poststeward receipts
-poststeward invoke workspace_status '{}'
-poststeward mcp
+poststeward status --json
+poststeward doctor --json
+poststeward portfolio status --json
+poststeward schedule list
+poststeward receipts list
+poststeward cloud mcp
 ```
 
-Every consequential operation keeps the existing PostSteward idempotency, owner-review,
-receipt and ambiguous-effect boundaries.
+## Deactivate and update
 
-## Providers
+Deactivation is review-bound and closes cloud executor authority before local timers:
 
-The same owner workspace supports:
+```bash
+poststeward deactivate --reason "maintenance" --json
+poststeward deactivate \
+  --reason "maintenance" \
+  --apply \
+  --expected-sha256 <review-sha256> \
+  --json
+```
 
-- **X** — OAuth 2.0, stable identity, publish/readback where provider capability allows;
-- **Threads** — OAuth, long-lived token handling, publishing and readback;
-- **LinkedIn** — member publishing and separately reviewed organization/Page authority.
+A cloud outage never prevents local risk reduction; it also never promotes hosted
+execution automatically.
 
-Application configuration is distinct from a connected account. If a provider card
-says its OAuth application is unconfigured, no connection is inferred.
+Change releases only while local publishing authority is inactive:
 
-## Why the client is thin
+```bash
+poststeward update --channel stable --dry-run
+poststeward update --channel stable
+```
 
-PostSteward already owns the hosted provider-effect ledger and durable receipts.
-Running a second independent provider-effect engine on the same destinations would
-create split-brain authority.
+## Original Post-Once boundary
 
-The installable client therefore brings PostSteward to the shell/agent while the
-hosted control plane remains authoritative for provider consequences. The proven
-Post-Once Setup/Recovery and fail-closed ideas inform this client and future local
-runtime work, but the original owner Post-Once installation is not copied into a
-tester's machine.
+The user's installation never points at the owner's historical `AyobamiH/post-once`
+state, credentials or services. The embedded runtime provenance is recorded in the
+PostSteward release and guarded by the A–K regression suite.
+
+See [Architecture](../../docs/ARCHITECTURE.md) and
+[Engineering insights](../../docs/ENGINEERING_INSIGHTS.md).

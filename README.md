@@ -1,6 +1,6 @@
 # PostSteward
 
-Reliable social publishing for humans and AI agents, with a Cloudflare-hosted authority plane and an installable client. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
+Reliable social publishing for humans and AI agents, with a Cloudflare-hosted control plane and an installable Post-Once-derived local runtime. PostSteward turns approved content into publication, explicit schedules and inspectable receipts. Advanced adds continuing campaign management for USD 5 per workspace/month.
 
 **Status: restricted admission on staging and production. Live-accepted evidence includes owner Google sign-in, one controlled Threads publication with independent provider readback, a real Threads OAuth callback/code exchange with a current healthy long-lived owner connection, Inspect-only HTTP/remote-MCP grant plus post-revocation denial, the Stripe sandbox lifecycle, protected encryption-root cutover, selected-private-repository GitHub authority, production edge/main-protection/alert/capacity controls and hosted cross-tenant isolation. X application credentials are configured but no owner X connection is accepted. LinkedIn application credentials and owner connection are absent; the verified PostSteward Page identity is not OAuth authority. Native WebMCP execution, approximate-time PITR, Advanced, MPP and public signup remain open or disabled.**
 
@@ -31,19 +31,27 @@ Advanced is priced at USD 5 per workspace/month and adds continuing source monit
 
 Remote agents authenticate with owner-issued, scoped, expiring, revocable Bearer tokens. HTTP and remote MCP use the same operation catalogue and workspace authority checks. OAuth-compatible MCP authorization discovery/bootstrap is **not** claimed for the current release; discovery must never mint or broaden authority.
 
-PostSteward also ships a no-root installable client. It is intentionally a thin
-agent/human surface over the same hosted operation catalogue: provider OAuth,
-workspace identity, publication effects and durable receipts stay authoritative in
-the hosted workspace rather than creating a second provider-effect ledger.
+PostSteward also installs a real local publishing runtime rather than a thin API
+wrapper. The runtime is the A–K-proven Post-Once-derived engine adopted into this
+repository: local projects/campaigns, portfolio/replenishment, schedules, receipts,
+Setup & Recovery, activation/deactivation, upgrade/rollback and deterministic JSON
+interfaces all remain local capabilities.
 
 ```sh
 curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash
 poststeward onboard
+poststeward doctor
 ```
 
-The guided owner flow supports X, Threads and LinkedIn through the existing provider
-OAuth controls, then stores only a scoped/expiring agent grant in the local client.
-See [install](public/docs/install.md).
+The cloud and local runtime have deliberately separate authority. PostSteward Cloud
+owns owner identity, X/Threads/LinkedIn OAuth secrets, machine pairing, executor
+generation/lease, remote MCP and the final provider relay. The active local runtime
+owns local scheduling/planning and sends exact generation-fenced effects through that
+relay. The existing D1 effect ledger remains the one external-write fence, so hosted
+and local schedulers cannot both publish the same authority generation.
+
+See [final architecture](docs/ARCHITECTURE.md), [implementation plan](docs/IMPLEMENTATION_PLAN.md)
+and [install](public/docs/install.md).
 
 Generated operation documentation comes from `src/operations/catalog.ts`:
 
