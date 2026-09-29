@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -462,6 +463,109 @@ class ActivationTests(ActivationFixture):
         )
         self.assertEqual(reactivated["operation"]["authority_generation"], 2)
         self.assertEqual(automation_authority.read(state_root)["status"], "active")
+
+    def test_deactivation_cloud_self_fence_precedes_local_marker_cutoff(self) -> None:
+        target, _before = self.migration_target()
+        state_root = self.root / "target-state"
+        config_root = self.root / "target-config"
+        config_root.mkdir()
+        services = MarkerAwareServices(state_root)
+        preview = target.activation_preview(
+            runtime_root=ROOT,
+            state_root=state_root,
+            config_root=config_root,
+            service_controller=services,
+        )
+        target.activate(
+            runtime_root=ROOT,
+            state_root=state_root,
+            config_root=config_root,
+            expected_sha256=preview["review_sha256"],
+            service_controller=services,
+        )
+        observed: list[str] = []
+
+        def cloud_fence(reason: str):
+            self.assertEqual(reason, "maintenance")
+            self.assertEqual(automation_authority.read(state_root)["status"], "active")
+            observed.append("cloud_fenced")
+            return {
+                "executorMode": "local",
+                "executorStatus": "inactive",
+                "authorityGeneration": 3,
+            }
+
+        off_preview = target.deactivation_preview(
+            runtime_root=ROOT,
+            state_root=state_root,
+            reason="maintenance",
+            service_controller=services,
+        )
+        with (
+            patch.dict(os.environ, {"POSTSTEWARD_REQUIRE_CLOUD_FENCE": "1"}),
+            patch(
+                "ocpf_post.poststeward_cloud.deactivate_executor_fence",
+                side_effect=cloud_fence,
+            ),
+        ):
+            inactive = target.deactivate(
+                runtime_root=ROOT,
+                state_root=state_root,
+                reason="maintenance",
+                expected_sha256=off_preview["review_sha256"],
+                service_controller=services,
+            )
+
+        self.assertEqual(observed, ["cloud_fenced"])
+        self.assertEqual(inactive["cloud_fence"]["status"], "inactive")
+        self.assertTrue(inactive["cloud_fence"]["attempted"])
+        self.assertTrue(services.marker_was_inactive_before_disarm)
+        self.assertEqual(automation_authority.read(state_root)["status"], "inactive")
+
+    def test_deactivation_closes_local_authority_when_cloud_fence_is_unreachable(self) -> None:
+        target, _before = self.migration_target()
+        state_root = self.root / "target-state"
+        config_root = self.root / "target-config"
+        config_root.mkdir()
+        services = MarkerAwareServices(state_root)
+        preview = target.activation_preview(
+            runtime_root=ROOT,
+            state_root=state_root,
+            config_root=config_root,
+            service_controller=services,
+        )
+        target.activate(
+            runtime_root=ROOT,
+            state_root=state_root,
+            config_root=config_root,
+            expected_sha256=preview["review_sha256"],
+            service_controller=services,
+        )
+        off_preview = target.deactivation_preview(
+            runtime_root=ROOT,
+            state_root=state_root,
+            reason="network outage",
+            service_controller=services,
+        )
+        with (
+            patch.dict(os.environ, {"POSTSTEWARD_REQUIRE_CLOUD_FENCE": "1"}),
+            patch(
+                "ocpf_post.poststeward_cloud.deactivate_executor_fence",
+                side_effect=OSError("offline"),
+            ),
+        ):
+            inactive = target.deactivate(
+                runtime_root=ROOT,
+                state_root=state_root,
+                reason="network outage",
+                expected_sha256=off_preview["review_sha256"],
+                service_controller=services,
+            )
+
+        self.assertEqual(inactive["cloud_fence"]["status"], "attention")
+        self.assertTrue(inactive["cloud_fence"]["attempted"])
+        self.assertTrue(services.marker_was_inactive_before_disarm)
+        self.assertEqual(automation_authority.read(state_root)["status"], "inactive")
 
     def test_activation_review_detects_target_drift(self) -> None:
         target, _ = self.migration_target()
