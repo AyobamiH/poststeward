@@ -1,0 +1,16 @@
+The useful content problem is not “make more AI text.”
+
+The harder job is keeping real source material moving through a repeatable publishing system:
+
+source
+→ angle
+→ platform-native draft
+→ review
+→ publish
+→ receipt
+
+That is the direction I’m building OneClickPostFactory around.
+
+I care less about another blank prompt box and more about making useful material reusable without losing control of where it goes.
+
+Where does your publishing workflow usually break?

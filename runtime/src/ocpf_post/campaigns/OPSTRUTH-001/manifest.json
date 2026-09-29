@@ -1,0 +1,51 @@
+{
+  "campaign": "OPSTRUTH-001",
+  "project": "opstruth",
+  "title": "Read-only proof gaps instead of confidence",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "OpsTruth current README",
+  "providers": ["x"],
+  "source": {
+    "type": "github_repository_evidence",
+    "source_id": "OPSTRUTH-README-READONLY-20260908",
+    "repository": "AyobamiH/opstruth",
+    "path": "README.md",
+    "revalidated_at": "2026-09-08",
+    "angle": "A verifier is useful when it preserves the boundary between missing evidence and a positive claim."
+  },
+  "evidence": {
+    "repository": "https://github.com/AyobamiH/opstruth",
+    "readme": "https://github.com/AyobamiH/opstruth/blob/main/README.md",
+    "boundary": "OpsTruth is read-only by default and distinguishes skipped, failed and unverified states; this campaign does not claim complete runtime or production coverage."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_platform_adaptation",
+    "disclosure": "The X copy is a bounded adaptation of current public OpsTruth repository positioning. post-once only controls distribution."
+  },
+  "schedules": {
+    "x": {
+      "schedule_id": "sch_4b5d751b3e6e4b1fa3bc5ef919a54b0f",
+      "status": "published_verified",
+      "account_id": "1480506376447315969",
+      "account_label": "@JohnWOE15",
+      "run_at_local": "2026-09-08 15:40 BST",
+      "run_at_utc": "2026-09-08T14:40:00Z",
+      "text_sha256": "21a225c5e4c4926c59b9e07302e90c81989547a35e4cbffda195874147220f41"
+    }
+  },
+  "receipts": {
+    "x": {
+      "campaign": "OPSTRUTH-001",
+      "provider": "x",
+      "account_id": "1480506376447315969",
+      "username": "JohnWOE15",
+      "status": "published_verified",
+      "text_sha256": "21a225c5e4c4926c59b9e07302e90c81989547a35e4cbffda195874147220f41",
+      "recorded_at": "2026-09-08T14:40:57Z",
+      "post_id": "2097334376644100217",
+      "url": "https://x.com/JohnWOE15/status/2097334376644100217",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    }
+  }
+}

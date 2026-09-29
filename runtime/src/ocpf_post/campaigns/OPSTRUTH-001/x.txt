@@ -1,0 +1,5 @@
+OpsTruth is deliberately read-only.
+
+It separates skipped from failed and unverified from safe, and reports proof gaps instead of turning missing evidence into confidence.
+
+The point is not another AI opinion. It is an evidence check developers can inspect.
