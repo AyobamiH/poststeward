@@ -33,19 +33,19 @@ class StandaloneProductIdentityTests(unittest.TestCase):
                 value = product_runtime.apply_environment()
                 self.assertEqual(
                     Path(os.environ["OCPF_POST_CONFIG_DIR"]),
-                    root / "xdg-config" / "post-once",
+                    root / "xdg-config" / "poststeward" / "runtime",
                 )
                 self.assertEqual(
                     Path(os.environ["OCPF_POST_STATE_DIR"]),
-                    root / "xdg-state" / "post-once",
+                    root / "xdg-state" / "poststeward" / "runtime",
                 )
                 self.assertEqual(
                     Path(os.environ["OCPF_POST_RELEASES_DIR"]),
-                    root / "xdg-data" / "post-once" / "releases",
+                    root / "xdg-data" / "poststeward" / "releases",
                 )
                 self.assertEqual(
                     Path(os.environ["OCPF_POST_SETUP_STATE_DIR"]),
-                    root / "xdg-state" / "post-once-bootstrap" / "setup",
+                    root / "xdg-state" / "poststeward" / "setup",
                 )
                 self.assertNotEqual(Path(value["state_dir"]), legacy_state)
                 self.assertFalse(value["original_post_once_mutation_allowed"])
@@ -56,10 +56,10 @@ class StandaloneProductIdentityTests(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "POST_ONCE_CONFIG_DIR": str(root / "config"),
-                    "POST_ONCE_STATE_DIR": str(root / "state"),
-                    "POST_ONCE_RELEASES_DIR": str(root / "releases"),
-                    "POST_ONCE_SETUP_STATE_DIR": str(root / "setup"),
+                    "POSTSTEWARD_RUNTIME_CONFIG_DIR": str(root / "config"),
+                    "POSTSTEWARD_RUNTIME_STATE_DIR": str(root / "state"),
+                    "POSTSTEWARD_RELEASES_DIR": str(root / "releases"),
+                    "POSTSTEWARD_SETUP_STATE_DIR": str(root / "setup"),
                 },
                 clear=False,
             ):
@@ -71,17 +71,18 @@ class StandaloneProductIdentityTests(unittest.TestCase):
 
     def test_canonical_and_compatibility_entrypoints_use_product_boundary(self) -> None:
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertIn('poststeward = "ocpf_post.product_entry:main"', pyproject)
         self.assertIn('post-once = "ocpf_post.product_entry:main"', pyproject)
         self.assertIn('ocpf-post = "ocpf_post.product_entry:main"', pyproject)
-        for name in ("post-once", "ocpf-post"):
+        for name in ("poststeward", "post-once", "ocpf-post"):
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIn("ocpf_post.product_entry", text)
 
     def test_managed_unit_namespace_cannot_collide_with_original_installation(self) -> None:
-        self.assertTrue(all(unit.startswith("post-once-") for unit in TIMERS))
-        self.assertTrue(all(unit.startswith("post-once-") for unit in SERVICES))
-        self.assertTrue(all(unit.startswith("post-once-") for unit in runtime_release.RUNTIME_UNIT_FILES))
-        self.assertFalse(any(unit.startswith("ocpf-post-") for unit in TIMERS + SERVICES))
+        self.assertTrue(all(unit.startswith("poststeward-") for unit in TIMERS))
+        self.assertTrue(all(unit.startswith("poststeward-") for unit in SERVICES))
+        self.assertTrue(all(unit.startswith("poststeward-") for unit in runtime_release.RUNTIME_UNIT_FILES))
+        self.assertFalse(any(unit.startswith("post-once-") or unit.startswith("ocpf-post-") for unit in TIMERS + SERVICES))
 
         critical = (
             "scripts/install-user-scheduler-timer",
@@ -116,11 +117,9 @@ class StandaloneProductIdentityTests(unittest.TestCase):
             with patch.dict(
                 os.environ,
                 {
-                    "POST_ONCE_PRODUCT_LINEAGE": product_runtime.PRODUCT_LINEAGE,
-                    "POST_ONCE_CONFIG_DIR": str(root / "config"),
-                    "POST_ONCE_STATE_DIR": str(root / "state"),
-                    "OCPF_POST_CONFIG_DIR": str(root / "config"),
-                    "OCPF_POST_STATE_DIR": str(root / "state"),
+                    "POSTSTEWARD_RUNTIME_LINEAGE": product_runtime.PRODUCT_LINEAGE,
+                    "POSTSTEWARD_RUNTIME_CONFIG_DIR": str(root / "config"),
+                    "POSTSTEWARD_RUNTIME_STATE_DIR": str(root / "state"),
                 },
                 clear=False,
             ):
@@ -132,9 +131,9 @@ class StandaloneProductIdentityTests(unittest.TestCase):
 
     def test_console_uses_separate_default_port_and_product_command(self) -> None:
         text = (ROOT / "scripts" / "install-user-console").read_text(encoding="utf-8")
-        self.assertIn('POST_ONCE_CONSOLE_PORT:-8877', text)
-        self.assertIn("post-once-console.service", text)
-        self.assertIn("ExecStart=/bin/sh $ROOT/post-once console --port $PORT", text)
+        self.assertIn('POSTSTEWARD_CONSOLE_PORT:-8877', text)
+        self.assertIn("poststeward-console.service", text)
+        self.assertIn("ExecStart=/bin/sh $ROOT/poststeward console --port $PORT", text)
 
 
 if __name__ == "__main__":
