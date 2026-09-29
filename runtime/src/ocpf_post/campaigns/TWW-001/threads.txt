@@ -1,0 +1,12 @@
+A pet-care website is not doing its job just because it looks good.
+
+The useful path is:
+local search
+→ clear service page
+→ easy enquiry
+→ follow-up
+→ ongoing care
+
+That is the work I build around.
+
+If your site gets traffic but not enough enquiries, where do people drop off?
