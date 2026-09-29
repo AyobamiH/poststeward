@@ -34,4 +34,32 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Full dependency audit
         run: npm audit --audit-level=high
+      - name: Embedded runtime regression suite
+        run: |
+          python3 -m venv /tmp/poststeward-runtime-venv
+          /tmp/poststeward-runtime-venv/bin/pip install -e "./runtime[dev]" "setuptools>=68" wheel
+          (
+            cd runtime
+            /tmp/poststeward-runtime-venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+          )
+      - name: Embedded runtime product identity
+        run: |
+          POSTSTEWARD_RUNTIME_ROOT="$PWD/runtime" \
+          POSTSTEWARD_RUNTIME_CONFIG_DIR="$RUNNER_TEMP/poststeward-config" \
+          POSTSTEWARD_RUNTIME_STATE_DIR="$RUNNER_TEMP/poststeward-state" \
+          POSTSTEWARD_SETUP_STATE_DIR="$RUNNER_TEMP/poststeward-setup" \
+          POSTSTEWARD_RELEASES_DIR="$RUNNER_TEMP/poststeward-releases" \
+            ./runtime/poststeward --version
+          POSTSTEWARD_RUNTIME_ROOT="$PWD/runtime" \
+          POSTSTEWARD_RUNTIME_CONFIG_DIR="$RUNNER_TEMP/poststeward-config" \
+          POSTSTEWARD_RUNTIME_STATE_DIR="$RUNNER_TEMP/poststeward-state" \
+          POSTSTEWARD_SETUP_STATE_DIR="$RUNNER_TEMP/poststeward-setup" \
+          POSTSTEWARD_RELEASES_DIR="$RUNNER_TEMP/poststeward-releases" \
+            ./runtime/poststeward help --json > /tmp/poststeward-runtime-help.json
+          python3 - <<'PY'
+          import json
+          value=json.load(open("/tmp/poststeward-runtime-help.json"))
+          assert value["schema_version"] == 1
+          assert value["commands"]
+          PY
       - run: npm run verify
