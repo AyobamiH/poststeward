@@ -1005,6 +1005,7 @@ def execute_schedule(schedule_id: str, *, provider_factory: Callable[[str], Any]
             str(record["account_id"]),
             factory=provider_factory,
             registered_identity=True,
+            effect_scope=f"{campaign}:{schedule_id}",
         )
         account = provider_impl.account()
     except ProviderUnavailable as exc:
