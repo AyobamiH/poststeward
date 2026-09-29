@@ -52,8 +52,8 @@ The installer:
 ## Runtime distribution
 
 The implementation repository for the local runtime remains
-`AyobamiH/post-once-bootstrap`. A reviewed release snapshot is mirrored to the
-public `post-once-runtime-beta` branch of `AyobamiH/poststeward` for distribution.
+`AyobamiH/post-once-bootstrap`. A reviewed release snapshot is mirrored to the public `post-once-runtime-beta`
+branch of `AyobamiH/poststeward-showcase` for distribution.
 
 The mirror is a release artifact, not a second mutable development branch. A new
 runtime snapshot must be copied only after its exact source revision has passed the
