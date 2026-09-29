@@ -179,6 +179,7 @@ cat >"$TMP_SHIM" <<EOF
 set -eu
 export POSTSTEWARD_ORIGIN='$ORIGIN'
 export POSTSTEWARD_RUNTIME_ROOT='$CURRENT'
+export POSTSTEWARD_RUNTIME_RELEASE_SHA='$RESOLVED_SHA'
 exec /bin/sh '$CURRENT/poststeward' "\$@"
 EOF
 chmod 0755 "$TMP_SHIM"
