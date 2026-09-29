@@ -138,7 +138,7 @@ class CopyExplanationTests(unittest.TestCase):
         self.assertEqual(result['destination']['expected_binding']['account_id'], '12345')
         self.assertFalse(result['destination']['live_identity_verified'])
         self.assertIn('README is a guard', result['copy']['generation'])
-        cli = subprocess.run(['sh', './post-once', 'campaign', 'explain', '--campaign', self.cid, '--json'], capture_output=True, text=True, check=True)
+        cli = subprocess.run(['sh', './poststeward', 'campaign', 'explain', '--campaign', self.cid, '--json'], capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(cli.stdout)['campaign'], self.cid)
 
     def test_reservation_rechecks_ledger_after_plan(self):
