@@ -329,10 +329,10 @@ class RuntimeSourceTests(unittest.TestCase):
 
     def test_cli_local_import_and_list_return_json(self):
         path = self.input(policy())
-        r = subprocess.run(["sh", "./post-once", "replenish", "source", "import", "--file", str(path)], capture_output=True, text=True, check=True)
+        r = subprocess.run(["sh", "./poststeward", "replenish", "source", "import", "--file", str(path)], capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(r.stdout)["result"], "preview")
         self.register()
-        r = subprocess.run(["sh", "./post-once", "replenish", "source", "list"], capture_output=True, text=True, check=True)
+        r = subprocess.run(["sh", "./poststeward", "replenish", "source", "list"], capture_output=True, text=True, check=True)
         self.assertFalse(json.loads(r.stdout)["runtime_sources"]["runtime-test"]["enabled"])
 
 
