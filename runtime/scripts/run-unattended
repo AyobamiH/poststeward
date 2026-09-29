@@ -19,7 +19,7 @@ PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
 
 case "$ACTION" in
   run-due)
-    exec "$ROOT/post-once" run-due
+    exec "$ROOT/poststeward" run-due
     ;;
   refill)
     exec "$ROOT/scripts/run-portfolio-refill"
