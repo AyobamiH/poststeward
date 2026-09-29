@@ -184,9 +184,13 @@ for path in root.rglob("*"):
     if not path.is_file() or path.is_symlink():
         continue
     rel=path.relative_to(root)
-    if any(part in {"__pycache__", ".pytest_cache", ".git"} for part in rel.parts):
+    if any(
+        part in {"__pycache__", ".pytest_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"}
+        or part.endswith(".egg-info")
+        for part in rel.parts
+    ):
         continue
-    if path.name.endswith(".pyc"):
+    if path.name.endswith(".pyc") or path.name in {".coverage", "coverage.xml", "unittest-results.log"}:
         continue
     rows.append((rel.as_posix(),path))
 for name,path in sorted(rows):
