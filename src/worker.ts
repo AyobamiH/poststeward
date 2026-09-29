@@ -65,6 +65,44 @@ import {
   threadsDeleteStatus,
   threadsUninstallCallback,
 } from "./threads-callbacks.ts";
+import {
+  approveRuntimePairing,
+  authenticateRuntime,
+  claimRuntimePairing,
+  executorExternalBlockers,
+  executorStatus,
+  listRuntimeInstallations,
+  renewExecutorLease,
+  revokeRuntimeInstallation,
+  setExecutor,
+  startRuntimePairing,
+} from "./runtime-coordination.ts";
+
+const runtimePairingStartSchema = z.strictObject({
+  installationId: z.uuid(),
+  label: z.string().min(1).max(120),
+  platform: z.string().min(1).max(160),
+  runtimeVersion: z.string().min(1).max(80),
+  sourceRevision: z.string().min(1).max(120).optional(),
+});
+const runtimePairingApproveSchema = z.strictObject({
+  pairingId: z.uuid(),
+  userCode: z.string().regex(/^[A-Za-z2-9]{8}$/),
+});
+const runtimeHeartbeatSchema = z.strictObject({
+  authorityGeneration: z.number().int().min(1),
+});
+const runtimeExecutorSchema = z.strictObject({
+  mode: z.enum(["hosted", "local"]),
+  installationId: z.uuid().optional(),
+  reason: z.string().min(3).max(240),
+});
+const runtimeExecutorApplySchema = runtimeExecutorSchema.extend({
+  expectedSha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
+const runtimeRevokeSchema = z.strictObject({
+  installationId: z.uuid(),
+});
 
 const connectionSchema = z.strictObject({
   alias: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
