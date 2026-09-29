@@ -24,6 +24,7 @@ keyring = [
 ]
 
 [project.scripts]
+poststeward = "ocpf_post.product_entry:main"
 post-once = "ocpf_post.product_entry:main"
 ocpf-post = "ocpf_post.product_entry:main"
 
