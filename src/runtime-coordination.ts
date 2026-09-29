@@ -362,6 +362,42 @@ export async function executorStatus(
   };
 }
 
+export async function executorExternalBlockers(
+  db: D1Database,
+  workspace: string,
+) {
+  const [effects, containers, quarantine] = await Promise.all([
+    db
+      .prepare(
+        "SELECT status,count(*) AS count FROM external_effects WHERE workspace=? AND status IN ('intent','uncertain') GROUP BY status",
+      )
+      .bind(workspace)
+      .all<{ status: string; count: number }>(),
+    db
+      .prepare(
+        "SELECT status,count(*) AS count FROM external_containers WHERE workspace=? AND status IN ('intent','uncertain') GROUP BY status",
+      )
+      .bind(workspace)
+      .all<{ status: string; count: number }>(),
+    db
+      .prepare(
+        "SELECT publishing_quarantined FROM workspace_controls WHERE workspace=?",
+      )
+      .bind(workspace)
+      .first<{ publishing_quarantined: number }>(),
+  ]);
+  const blockers: string[] = [];
+  if (quarantine?.publishing_quarantined === 1)
+    blockers.push("workspace_recovery_quarantined");
+  for (const row of effects.results || [])
+    if (Number(row.count || 0) > 0)
+      blockers.push(`external_effect_${row.status}`);
+  for (const row of containers.results || [])
+    if (Number(row.count || 0) > 0)
+      blockers.push(`external_container_${row.status}`);
+  return [...new Set(blockers)].sort();
+}
+
 export async function setExecutor(
   db: D1Database,
   workspace: string,
