@@ -841,10 +841,21 @@ async function executorTransitionReview(
         row.status === "active" &&
         Number(row.token_expires_at) > Date.now(),
     );
+  const targetInstallation =
+    input.mode === "local" ? input.installationId?.toLowerCase() : undefined;
+  const liveLocalHandoffBlocked =
+    current.executorMode === "local" &&
+    current.executorStatus === "active" &&
+    Number(current.leaseExpiresAt || 0) > Date.now() &&
+    (input.mode !== "local" ||
+      targetInstallation !== current.activeInstallationId);
   const blockers = [
     ...external,
     ...((preflight.blockers as string[] | undefined) || []),
     ...(!targetReady ? ["target_runtime_installation_not_ready"] : []),
+    ...(liveLocalHandoffBlocked
+      ? ["active_local_executor_requires_self_fence"]
+      : []),
   ].sort();
   const review = {
     schemaVersion: 1,
