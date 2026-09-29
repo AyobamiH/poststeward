@@ -8,7 +8,7 @@ repository: AyobamiH/poststeward
 
 ## Identity
 
-PostSteward is a hosted Cloudflare-based social-publishing product for AI agents.
+PostSteward is a Cloudflare-hosted social-publishing product with an installable client for humans and AI agents.
 
 ## Purpose
 
@@ -19,12 +19,12 @@ Turn owner-approved content into provider publication, explicit schedules, and i
 - Workspace identity, sessions, scoped/revocable agent grants, and operation catalogue.
 - Provider connections and publication/scheduling state for supported social platforms.
 - Immutable review/approval, cancellation boundaries, idempotency, effect reconciliation, and receipts.
-- Hosted HTTP, remote MCP, and supported browser-agent operation surfaces.
+- Hosted HTTP, remote MCP, browser-agent operation surfaces, and the public installable `poststeward` client.
 - Advanced campaign monitoring/allocation features when separately enabled and proven.
 
 ## Does Not Own
 
-- post-once, the owner's separate local publishing utility.
+- The owner's historical `AyobamiH/post-once` production installation. PostSteward may reuse proven Post-Once setup/receipt design patterns, but it must not create a second independent provider-effect ledger for the same hosted workspace.
 - Social-provider identity merely because credentials are configured.
 - Provider consent or account authority without a completed owner connection.
 - Public signup, Advanced automation, billing entitlement, or recovery capability merely because supporting infrastructure exists.
@@ -44,13 +44,13 @@ A publication is complete only when the authorised operation reaches an honest d
 
 ## Relationships
 
-- post-once: separate local portfolio publisher.
+- post-once: separate owner/production local portfolio publisher and design lineage. PostSteward's public client is its own product surface; provider consequences remain authoritative in PostSteward's hosted workspace ledger.
 - Social providers: external authorities for account identity and provider-side effects.
 - GitHub/Stripe/Cloudflare: supporting integrations whose configuration does not by itself prove product acceptance.
 
 ## Canonical Sources
 
-README.md, docs/current-readiness.md, docs/deployment.md, docs/private-github-sources.md, docs/security.md, docs/operations-runbook.md, and generated operation documentation.
+README.md, public/docs/install.md, docs/current-readiness.md, docs/deployment.md, docs/private-github-sources.md, docs/security.md, docs/operations-runbook.md, and generated operation documentation.
 
 ## Agent Rule
 
