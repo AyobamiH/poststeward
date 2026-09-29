@@ -172,8 +172,7 @@ if [[ ! -d "$RELEASE" ]]; then
   [[ -f "$CANDIDATE/src/ocpf_post/product_entry.py" ]] || fail "candidate runtime is incomplete"
   [[ -f "$CANDIDATE/POSTSTEWARD_RUNTIME_PROVENANCE.json" ]] || fail "candidate provenance is missing"
 
-  if [[ -n "$EXPECTED_RUNTIME_TREE_SHA" ]]; then
-    ACTUAL_RUNTIME_TREE_SHA="$(python3 - "$CANDIDATE" <<'PY'
+  ACTUAL_RUNTIME_TREE_SHA="$(python3 - "$CANDIDATE" <<'PY'
 from hashlib import sha256
 from pathlib import Path
 import sys
@@ -203,7 +202,8 @@ for name,path in sorted(rows):
     digest.update(b"\n")
 print(digest.hexdigest())
 PY
-    )"
+  )"
+  if [[ -n "$EXPECTED_RUNTIME_TREE_SHA" ]]; then
     [[ "$ACTUAL_RUNTIME_TREE_SHA" = "$EXPECTED_RUNTIME_TREE_SHA" ]] ||
       fail "downloaded embedded runtime does not match the signed-off channel manifest digest"
   fi
@@ -255,6 +255,8 @@ POSTSTEWARD_REVISION="$RESOLVED_SHA" \
 POSTSTEWARD_RELEASE="$RELEASE" \
 POSTSTEWARD_ORIGIN_VALUE="$ORIGIN" \
 POSTSTEWARD_REPOSITORY="$REPOSITORY" \
+POSTSTEWARD_RUNTIME_TREE_SHA="$ACTUAL_RUNTIME_TREE_SHA" \
+POSTSTEWARD_RUNTIME_PROVENANCE="$RELEASE/POSTSTEWARD_RUNTIME_PROVENANCE.json" \
 python3 - <<'PY'
 from datetime import datetime, timezone
 import json, os
@@ -266,6 +268,8 @@ value={
  "repository":os.environ["POSTSTEWARD_REPOSITORY"],
  "requested_ref":os.environ["POSTSTEWARD_REQUESTED"],
  "resolved_revision":os.environ["POSTSTEWARD_REVISION"],
+ "runtime_tree_sha256":os.environ["POSTSTEWARD_RUNTIME_TREE_SHA"],
+ "runtime_provenance":json.load(open(os.environ["POSTSTEWARD_RUNTIME_PROVENANCE"],encoding="utf-8")),
  "release_path":os.environ["POSTSTEWARD_RELEASE"],
  "origin":os.environ["POSTSTEWARD_ORIGIN_VALUE"],
  "installed_at":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),
