@@ -1,0 +1,17 @@
+Most social tools solve the calendar.
+
+That is not the part that keeps stopping me.
+
+The hard part is opening tomorrow’s calendar and still needing something worth saying.
+
+OneClickPostFactory is being built around that problem:
+
+capture useful source material,
+bank reusable angles,
+fill the queue from what you already know.
+
+The goal isn’t “AI writes more posts.”
+
+The goal is to stop valuable ideas from disappearing while the content calendar goes empty.
+
+That is the factory I want.

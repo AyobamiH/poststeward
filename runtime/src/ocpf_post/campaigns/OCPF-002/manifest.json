@@ -1,0 +1,49 @@
+{
+  "campaign": "OCPF-002",
+  "project": "oneclickpostfactory",
+  "title": "The calendar isn’t the hard part. Filling it is.",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "OneClickPostFactory GTM vault",
+  "providers": ["x", "threads", "linkedin"],
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "receipts": {
+    "threads": {
+      "status": "published_verified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_25fc374cbfde41e68e55668c6091d14a",
+      "scheduled_for": "2026-09-07T04:00:00Z",
+      "recorded_at": "2026-09-07T04:01:00Z",
+      "post_id": "18438772672130448",
+      "url": "https://www.threads.com/@tailwaggingwebdesigns/post/Dc-ND96iJ_B",
+      "text_sha256": "2eaca1c9d38209d0f1aada900dc4c4d67ee442c03fe2cd1934dbc252c84d2dac",
+      "readback_verified": true
+    },
+    "linkedin": {
+      "status": "published_unverified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_002b0093d8f34e1ea63c409b7385af48",
+      "scheduled_for": "2026-09-07T05:00:00Z",
+      "recorded_at": "2026-09-07T05:00:17Z",
+      "post_id": "urn:li:share:7502591550535712768",
+      "url": "https://www.linkedin.com/feed/update/urn:li:share:7502591550535712768/",
+      "text_sha256": "11f387c71ff57b699fc7b8fe23c50c308b8eb61ce76de4efce4c5e4d4148f6a2",
+      "readback_verified": false,
+      "detail": "Provider creation returned a durable share URN; API readback was unavailable or did not verify."
+    },
+    "x": {
+      "status": "published_verified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_c2a1636a380447aa82a4383a6ed2ac7a",
+      "scheduled_for": "2026-09-07T06:58:00Z",
+      "recorded_at": "2026-09-07T06:58:07Z",
+      "post_id": "2096855512994271449",
+      "url": "https://x.com/JohnWOE15/status/2096855512994271449",
+      "text_sha256": "97915782f4afc686b5b732658e987f40d2e0ff6f56df05331fc7f654f12ec176",
+      "readback_verified": true
+    }
+  }
+}

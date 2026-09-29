@@ -1,0 +1,5 @@
+OpenClaw can be the front door without every specialist workflow becoming a black box.
+
+OpenClaw Operator adds governed lanes for approvals, runs, incidents and auditable operational work.
+
+Which specialist workflow do you still supervise manually?

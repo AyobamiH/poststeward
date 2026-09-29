@@ -1,0 +1,32 @@
+{
+  "campaign": "OCPF-001",
+  "project": "oneclickpostfactory",
+  "title": "One useful Reddit answer should not die in one thread",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "OneClickPostFactory GTM vault",
+  "providers": ["x", "threads", "linkedin"],
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "receipts": {
+    "x": {
+      "status": "published_verified",
+      "post_id": "2096691111985102940",
+      "url": "https://x.com/JohnWOE15/status/2096691111985102940"
+    },
+    "threads": {
+      "status": "published_verified",
+      "post_id": "18128071630759763",
+      "url": "https://www.threads.com/@tailwaggingwebdesigns/post/Dc9jRBZjaZL",
+      "recorded_at": "2026-09-06T21:55:42Z",
+      "text_sha256": "f3de0bfc0bfc10434c457d8f6c7d0c584f9e250e27b80f3ad92406d545c66aa2"
+    },
+    "linkedin": {
+      "status": "published_unverified",
+      "post_id": "urn:li:share:7502480651049234432",
+      "url": "https://www.linkedin.com/feed/update/urn:li:share:7502480651049234432/"
+    }
+  }
+}
