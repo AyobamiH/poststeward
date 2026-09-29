@@ -440,6 +440,18 @@ export async function setExecutor(
 ) {
   const current = await executorStatus(db, workspace, now);
   const reason = cleanLabel(input.reason, "Executor transition reason", 240);
+  requireValue(
+    !(
+      current.executorMode === "local" &&
+      current.executorStatus === "active" &&
+      Number(current.leaseExpiresAt || 0) > now &&
+      (input.mode !== "local" ||
+        input.installationId?.toLowerCase() !== current.activeInstallationId)
+    ),
+    "RUNTIME_EXECUTOR_DEACTIVATION_REQUIRED",
+    "The active local runtime must self-fence or let its lease expire before executor authority can move.",
+    409,
+  );
   let targetInstallation: string | null = null;
   if (input.mode === "local") {
     targetInstallation = installationId(input.installationId);
