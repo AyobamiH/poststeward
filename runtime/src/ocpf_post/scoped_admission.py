@@ -2,6 +2,7 @@
 from collections import Counter
 from contextlib import contextmanager
 from datetime import timedelta
+import time
 
 from ocpf_post import admission as old, local_store
 from ocpf_post.state import state_dir
@@ -12,6 +13,25 @@ def path():
 
 
 INVENTORY_SAFETY_DAYS = 14
+VAULT_ADMISSION_WAIT_SECONDS = 5.0
+
+
+class UnavailableBudget:
+    """Fail-closed admission result that preserves a bounded diagnostic reason."""
+
+    def __init__(self, reason: str, error_type: str):
+        self.reason = reason
+        self.error_type = error_type
+
+    def admit(self, project, provider, account, *, expires_at=None):
+        return {
+            "admitted": False,
+            "scope": str(provider) + ":" + str(account),
+            "project": project,
+            "reasons": [self.reason],
+            "error_type": self.error_type,
+        }
+
 
 
 def _steady_policy():
@@ -292,19 +312,36 @@ def status():
 
 
 @contextmanager
-def vault_budget(now):
-    """Unavailable admission blocks additions, never vault withdrawal checks."""
-    try:
-        lock = local_store.locked(old.state_file())
-        lock.__enter__()
-    except (OSError, ValueError):
-        yield None
-        return
-    try:
+def vault_budget(now, *, wait_seconds=VAULT_ADMISSION_WAIT_SECONDS):
+    """Wait briefly for shared admission authority, then fail closed with a reason.
+
+    Vault sync already runs in a bounded stage. A short wait prevents ordinary
+    source/refill overlap from turning ready reviewed copy into a silent generic
+    admission defer, while still refusing to bypass a genuinely busy or invalid
+    admission authority.
+    """
+    deadline = time.monotonic() + max(0.0, float(wait_seconds))
+    while True:
         try:
-            budget = Budget(now, True)
-        except (OSError, ValueError, RuntimeError, KeyError, TypeError):
-            budget = None
-        yield budget
-    finally:
-        lock.__exit__(None, None, None)
+            with local_store.try_locked(old.state_file()) as acquired:
+                if acquired:
+                    try:
+                        budget = Budget(now, True)
+                    except old.AdmissionError:
+                        budget = UnavailableBudget(
+                            "admission_observation_unavailable", "AdmissionError"
+                        )
+                    except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
+                        budget = UnavailableBudget(
+                            "admission_observation_unavailable", type(exc).__name__
+                        )
+                    yield budget
+                    return
+        except (OSError, ValueError) as exc:
+            yield UnavailableBudget("admission_storage_unavailable", type(exc).__name__)
+            return
+
+        if time.monotonic() >= deadline:
+            yield UnavailableBudget("admission_writer_busy", "BlockingIOError")
+            return
+        time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))

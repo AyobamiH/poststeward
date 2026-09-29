@@ -301,6 +301,18 @@ def _generative_enabled() -> bool:
     return os.environ.get("OCPF_POST_GENERATIVE_SUPPLY_ENABLED", "").strip().lower() in {"1", "true", "yes"}
 
 
+def _generative_mode() -> str:
+    """Choose the emergency editorial producer without silently spending API credit.
+
+    Work/Docs is the normal emergency producer. The legacy local OpenAI author is
+    retained only as an explicit owner-selected last resort.
+    """
+    if not _generative_enabled():
+        return "disabled"
+    value = os.environ.get("OCPF_POST_GENERATIVE_SUPPLY_MODE", "work").strip().lower()
+    return value if value in {"work", "api"} else "work"
+
+
 def _tokens(value: str) -> set[str]:
     return set(re.findall(r"[a-z0-9']+", value.lower()))
 
@@ -344,13 +356,14 @@ def _generative_daily_remaining(now: datetime) -> int:
 
 def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[dict[str, Any]],
                        *, now: datetime) -> dict[str, Any]:
-    """Describe optional API fallback once at portfolio scope.
+    """Describe the emergency editorial producer once at portfolio scope.
 
-    Per-project statuses are retained for diagnostics, but portfolio consumption is
-    reported once so twenty projects do not look like twenty independent quotas.
+    Replenishment still detects evidence-sized depletion. Work/Docs is the default
+    producer; the paid local API author remains an explicit last-resort mode.
     """
-    limit = _generative_daily_limit()
-    remaining = _generative_daily_remaining(now)
+    mode = _generative_mode()
+    limit = _generative_daily_limit() if mode == "api" else 0
+    remaining = _generative_daily_remaining(now) if mode == "api" else 0
     used = max(0, limit - remaining)
     statuses = Counter(
         str(row.get("generative_status") or "not_evaluated")
@@ -360,13 +373,14 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
         str(row.get("project"))
         for row in project_rows
         if isinstance(row, dict)
-        and row.get("generative_status") in {"planned", "created", "created_partial"}
+        and row.get("generative_status") in {"planned", "created", "created_partial", "work_refill_requested"}
         and row.get("project")
     })
     normal = {
         "disabled", "not_evaluated", "not_needed", "no_low_stock_project",
         "portfolio_fairness_deferred", "project_daily_share_reached",
-        "already_generated_for_cycle", "planned", "created", "created_partial", "admission_paused", "daily_limit_reached",
+        "already_generated_for_cycle", "planned", "created", "created_partial", "admission_paused",
+        "daily_limit_reached", "work_refill_requested",
     }
     failure_categories = sorted(
         status for status in statuses
@@ -377,8 +391,13 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
     )
     return {
         "enabled": _generative_enabled(),
-        "provider": "openai_api",
-        "role": "optional_fallback_after_vault_and_saved_source_supply",
+        "mode": mode,
+        "provider": ("chatgpt_work" if mode == "work" else "openai_api" if mode == "api" else None),
+        "role": ("work_refill_request_after_vault_and_saved_source_supply"
+                 if mode == "work"
+                 else "explicit_paid_api_last_resort"
+                 if mode == "api"
+                 else "disabled"),
         "reserve_target_days": RESERVE_TARGET_DAYS,
         "fallback_trigger_days": RESERVE_FALLBACK_TRIGGER_DAYS,
         "emergency_days": RESERVE_EMERGENCY_DAYS,
@@ -390,6 +409,7 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
         "projects_blocked_by_global_limit": statuses.get("daily_limit_reached", 0),
         "projects_deferred_by_fairness": statuses.get("portfolio_fairness_deferred", 0),
         "project_daily_share_reached": statuses.get("project_daily_share_reached", 0),
+        "work_refill_requests": statuses.get("work_refill_requested", 0),
         "selected_project": selected_projects[0] if selected_projects else None,
         "selected_projects": selected_projects,
         "candidates_created_or_planned": len({
@@ -400,14 +420,11 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
         "failure_categories": failure_categories,
         "degraded": bool(failure_categories),
         "boundary": (
-            "One portfolio-wide API allowance, fairly distributed across depleted projects. "
-            "Each project's daily emergency share follows the active reserve-rate basis plus a bounded "
-            "catch-up tranche sized to rebuild the five-day fallback floor, capped at five "
-            "candidates/project/day. "
-            "Google Drive/vault and already accepted inventory remain primary. API authoring "
-            "becomes eligible only when the evidence-sized reserve crosses the fallback threshold "
-            "or the immediate cadence floor is already deficient; observed consumption sizes "
-            "reserve protection but never becomes a posting target."
+            "Replenishment detects evidence-sized route depletion after Google Drive/vault and accepted "
+            "inventory are considered. In work mode it emits a durable editorial refill request for the "
+            "ChatGPT Work/Google Docs producer and makes no OpenAI API authoring call. Paid API authoring "
+            "is retained only when OCPF_POST_GENERATIVE_SUPPLY_MODE=api is explicitly selected. "
+            "Observed consumption sizes reserve protection but never becomes a posting target."
         ),
     }
 
@@ -794,8 +811,12 @@ def _generative_campaigns_for_profile(
     admission_budget: Any | None = None,
     admission_results: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
-    if not _generative_enabled():
+    mode = _generative_mode()
+    if mode == "disabled":
         return [], "disabled"
+    if mode == "work":
+        providers, deficit = _generative_deficits(profile, now=now)
+        return ([], "work_refill_requested") if providers and deficit > 0 else ([], "no_low_stock_project")
     if _generative_daily_remaining(now) <= 0:
         return [], "daily_limit_reached"
     usage = _generative_project_usage_today(now)
@@ -1385,6 +1406,7 @@ def replenisher_status() -> dict[str, Any]:
         "supply_reserve": {
             "routes": reserve_rows,
             "status_counts": reserve_counts,
-            "api_fallback_enabled": _generative_enabled(),
+            "api_fallback_enabled": _generative_mode() == "api",
+            "emergency_editorial_mode": _generative_mode(),
         },
     }

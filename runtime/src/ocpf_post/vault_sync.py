@@ -372,19 +372,41 @@ def sync(*, apply=False, vault_id=None, reader=read_document, writer=write_entry
                                 provider = manifest['providers'][0]
                                 alias = manifest['destinations'][provider]
                                 account = resolve_account(policy['project'], alias, expected_provider=provider)
-                                gate = budget.admit(policy['project'], provider, str(account['account_id']), expires_at=manifest['allocation'].get('expires_at')) if budget else {'admitted': False, 'reasons': ['admission_unavailable']}
+                                gate = budget.admit(
+                                    policy['project'], provider, str(account['account_id']),
+                                    expires_at=manifest['allocation'].get('expires_at'),
+                                ) if budget else {
+                                    'admitted': False,
+                                    'reasons': ['admission_observation_unavailable'],
+                                    'error_type': 'MissingBudget',
+                                }
                                 if not gate['admitted']:
-                                    report['deferred'].append({'campaign': manifest['campaign'], 'provider': provider, 'reasons': gate['reasons']})
+                                    deferred = {
+                                        'campaign': manifest['campaign'],
+                                        'provider': provider,
+                                        'reasons': gate['reasons'],
+                                    }
+                                    if gate.get('error_type'):
+                                        deferred['error_type'] = gate['error_type']
+                                    report['deferred'].append(deferred)
                                     continue
                                 ob._save_campaign(manifest, texts)
                             ids = history.setdefault(manifest['vault']['key'], [])
                             if manifest['campaign'] not in ids:
                                 ids.append(manifest['campaign'])
+                    deferred_ids = {row['campaign'] for row in report['deferred']}
+                    committed_active = {
+                        key: campaign for key, campaign in active.items()
+                        if campaign not in deferred_ids
+                    }
                     current[identifier] = {'project': policy['project'], 'document_id': policy['document_id'],
                         'version': document['version'], 'observed_at': now.isoformat(),
                         'valid_until': (now + timedelta(minutes=policy['max_age_minutes'])).isoformat(),
-                        'active': active, 'history': history, 'skipped': skipped, 'deferred': report['deferred']}
-                    # Partial package creation before this commit remains unpublishable.
+                        'active': committed_active, 'history': history, 'skipped': skipped,
+                        'deferred': report['deferred']}
+                    # Deferred packages are not active authority. They remain in the
+                    # Doc for a later bounded sync, but telemetry must not claim an
+                    # unsaved campaign as runnable/active.
                     write_private_json(state_dir() / 'vault-observations.json', {'schema_version': 1, 'vaults': current})
                     for scheduled in schedule_records():
                         if scheduled.get('status') != 'scheduled':
@@ -393,18 +415,17 @@ def sync(*, apply=False, vault_id=None, reader=read_document, writer=write_entry
                         if (manifest.get('vault') or {}).get('id') == identifier and guard(manifest, scheduled['provider'], now=now):
                             cancel_schedule(scheduled['schedule_id'], now=now)
                             report['cancelled'].append(scheduled['schedule_id'])
-                    deferred_ids = {r['campaign'] for r in report['deferred']}
                     report['campaigns'] = [c for c in report['campaigns'] if c not in deferred_ids]
                     report['result'] = 'synced'
-                    if old and old.get('active', {}) != active:
+                    if old and old.get('active', {}) != committed_active:
                         from ocpf_post import local_store
                         lifecycle_path = state_dir() / 'vault-lifecycle.json'
                         with local_store.locked(lifecycle_path):
                             lifecycle = local_store.read(lifecycle_path) or {'schema_version': 1, 'events': {}}
                             changes = [{'key': key, 'previous_campaign': campaign,
-                                        'current_campaign': active.get(key),
+                                        'current_campaign': committed_active.get(key),
                                         'disposition': 'superseded' if key in active else 'withdrawn'}
-                                       for key, campaign in old.get('active', {}).items() if active.get(key) != campaign]
+                                       for key, campaign in old.get('active', {}).items() if committed_active.get(key) != campaign]
                             if changes:
                                 event = {'vault': identifier, 'project': policy['project'],
                                          'previous_version': old.get('version'), 'version': document['version'],

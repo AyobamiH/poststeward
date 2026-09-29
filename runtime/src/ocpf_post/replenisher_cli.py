@@ -133,14 +133,16 @@ def cmd_refresh(args: argparse.Namespace) -> None:
     fallback = result.get("generative") if isinstance(result.get("generative"), dict) else {}
     if fallback:
         print(
-            "Optional API fallback: "
-            f"limit={fallback.get('portfolio_daily_limit')} "
-            f"used={fallback.get('api_candidates_used')} "
-            f"remaining={fallback.get('api_candidates_remaining')} "
-            f"projects_blocked_by_global_limit={fallback.get('projects_blocked_by_global_limit')}"
+            "Emergency editorial producer: "
+            f"mode={fallback.get('mode')} "
+            f"provider={fallback.get('provider')} "
+            f"work_refill_requests={fallback.get('work_refill_requests')} "
+            f"api_limit={fallback.get('portfolio_daily_limit')} "
+            f"api_used={fallback.get('api_candidates_used')} "
+            f"api_remaining={fallback.get('api_candidates_remaining')}"
         )
         if fallback.get("failure_categories"):
-            print("Fallback failures: " + ", ".join(fallback["failure_categories"]))
+            print("Emergency producer failures: " + ", ".join(fallback["failure_categories"]))
     print(result["boundary"])
     if not args.apply:
         print("Dry refresh only. Apply is separately subject to current admission pressure and does not confer scheduling authority.")

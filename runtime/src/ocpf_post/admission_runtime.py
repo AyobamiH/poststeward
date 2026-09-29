@@ -1,18 +1,19 @@
 """Production admission boundary for ordinary source replenishment.
 
-This wrapper is deliberately separate from allocator execution. It serialises the
-pressure snapshot + preview + admission + write sequence so two refill processes
-cannot both buy inventory against the same budget. Admission-control corruption or
-lock contention pauses only *new* source inventory; callers may continue draining
-already accepted inventory through the allocator.
+This wrapper is deliberately separate from allocator execution. The source pipeline
+acquires slow source coordination first and only then the short admission writer
+lock around the pressure snapshot + admission + write sequence. That prevents a
+source-lock waiter from starving independent reviewed-vault imports while still
+ensuring two admission writers cannot buy inventory against the same budget.
+Admission-control corruption or lock contention pauses only *new* source inventory;
+callers may continue draining already accepted inventory through the allocator.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
 
-from ocpf_post import local_store
-from ocpf_post.admission import AdmissionError, state_file
+from ocpf_post.admission import AdmissionError
 from ocpf_post.source_pipeline import refresh as _controlled_refresh
 from ocpf_post.onboarding import OnboardingError
 
@@ -54,13 +55,12 @@ def controlled_refresh(*, apply: bool, project: str | None = None, now: datetime
         return _controlled_refresh(apply=False, project=project, now=now)
 
     try:
-        with local_store.locked(state_file()):
-            return _controlled_refresh(
-                apply=True,
-                project=project,
-                now=now,
-                source_lock_timeout_seconds=SOURCE_OPERATION_WAIT_SECONDS,
-            )
+        return _controlled_refresh(
+            apply=True,
+            project=project,
+            now=now,
+            source_lock_timeout_seconds=SOURCE_OPERATION_WAIT_SECONDS,
+        )
     except BlockingIOError:
         return _paused_result(project=project, now=now, reason="admission_writer_busy", error_type="BlockingIOError")
     except OnboardingError as exc:

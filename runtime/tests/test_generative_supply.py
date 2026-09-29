@@ -74,6 +74,7 @@ class EvidenceGroundedGenerativeSupplyTests(unittest.TestCase):
             "OCPF_POST_STATE_DIR": self.tmp.name,
             "OCPF_POST_CONFIG_DIR": self.tmp.name,
             "OCPF_POST_GENERATIVE_SUPPLY_ENABLED": "1",
+            "OCPF_POST_GENERATIVE_SUPPLY_MODE": "api",
             "OCPF_POST_GENERATIVE_DAILY_LIMIT": "3",
             "OCPF_POST_GENERATIVE_PROJECT": "example",
         }, clear=False)
@@ -110,6 +111,30 @@ class EvidenceGroundedGenerativeSupplyTests(unittest.TestCase):
         return patch("ocpf_post.portfolio.delivery_candidates", return_value=candidates), \
                patch("ocpf_post.registry.resolve_account", side_effect=account), \
                patch("ocpf_post.editorial_continuity.stock_floor", return_value=3)
+
+    def test_work_mode_requests_editorial_refill_without_calling_paid_model(self):
+        routes, accounts, floor = self.routes()
+        with patch.dict(os.environ, {"OCPF_POST_GENERATIVE_SUPPLY_MODE": "work"}), \
+             routes, accounts, floor, \
+             patch.object(r, "_model_generate_supply",
+                          side_effect=AssertionError("Work mode must not call paid model")):
+            rows, status = r._generative_campaigns_for_profile(
+                self.profile, source_sha="a" * 40, now=self.now, apply=True,
+            )
+        self.assertEqual(rows, [])
+        self.assertEqual(status, "work_refill_requested")
+
+    def test_invalid_mode_fails_safe_to_work_not_paid_api(self):
+        routes, accounts, floor = self.routes()
+        with patch.dict(os.environ, {"OCPF_POST_GENERATIVE_SUPPLY_MODE": "unexpected"}), \
+             routes, accounts, floor, \
+             patch.object(r, "_model_generate_supply",
+                          side_effect=AssertionError("Invalid mode must not call paid model")):
+            rows, status = r._generative_campaigns_for_profile(
+                self.profile, source_sha="a" * 40, now=self.now, apply=True,
+            )
+        self.assertEqual(rows, [])
+        self.assertEqual(status, "work_refill_requested")
 
     def test_preview_is_bounded_and_does_not_call_model(self):
         routes, accounts, floor = self.routes()

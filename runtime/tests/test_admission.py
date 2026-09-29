@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from ocpf_post import admission, admission_runtime, local_store
+from ocpf_post import admission, admission_runtime, local_store, scoped_admission
 from ocpf_post.queue_watch import identity
 
 UTC = timezone.utc
@@ -212,6 +212,51 @@ class AdmissionTests(unittest.TestCase):
             release.set()
             held.result(timeout=2)
 
+    def test_source_wait_does_not_monopolise_admission_writer(self) -> None:
+        from ocpf_post.runtime_sources import source_lock
+        from ocpf_post.source_pipeline import _refresh_authority
+
+        source_entered = Event()
+        release_source = Event()
+        refresh_entered = Event()
+        expected = {"schema_version": 1, "projects": [{"project": "p1", "status": "ok"}]}
+
+        def holder():
+            with source_lock(operation="test-collector"):
+                source_entered.set()
+                release_source.wait(timeout=2)
+
+        def refresh(*, apply, project, now, source_lock_timeout_seconds):
+            with _refresh_authority(
+                apply=apply,
+                source_lock_timeout_seconds=source_lock_timeout_seconds,
+            ):
+                refresh_entered.set()
+                return expected
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            held = executor.submit(holder)
+            self.assertTrue(source_entered.wait(timeout=1))
+            with patch.object(admission_runtime, "SOURCE_OPERATION_WAIT_SECONDS", 1.0), \
+                 patch("ocpf_post.admission_runtime._controlled_refresh", side_effect=refresh):
+                waiting = executor.submit(
+                    admission_runtime.controlled_refresh,
+                    apply=True,
+                    project="p1",
+                    now=self.now,
+                )
+                time.sleep(0.05)
+                self.assertFalse(waiting.done())
+                # The slow source wait must not own admission authority. A vault
+                # sync can still obtain this writer and admit reviewed copy.
+                with local_store.try_locked(admission.state_file()) as acquired:
+                    self.assertTrue(acquired)
+                self.assertFalse(refresh_entered.is_set())
+                release_source.set()
+                self.assertEqual(waiting.result(timeout=2), expected)
+                self.assertTrue(refresh_entered.is_set())
+            held.result(timeout=2)
+
     def test_automatic_refresh_recovers_after_real_transient_source_contention(self) -> None:
         from ocpf_post.runtime_sources import source_lock
 
@@ -247,6 +292,28 @@ class AdmissionTests(unittest.TestCase):
                 release.set()
                 self.assertEqual(waiting.result(timeout=2), expected)
             held.result(timeout=2)
+
+    def test_vault_budget_reports_busy_after_bounded_wait(self) -> None:
+        admission.state_file().parent.mkdir(parents=True, exist_ok=True)
+        with local_store.locked(admission.state_file()):
+            with scoped_admission.vault_budget(self.now, wait_seconds=0) as budget:
+                result = budget.admit("p1", "x", "a1")
+        self.assertFalse(result["admitted"])
+        self.assertEqual(result["reasons"], ["admission_writer_busy"])
+        self.assertEqual(result["error_type"], "BlockingIOError")
+
+    def test_vault_budget_preserves_typed_observation_failure(self) -> None:
+        with patch.object(
+            scoped_admission.Budget,
+            "__init__",
+            side_effect=admission.AdmissionError("private state detail"),
+        ):
+            with scoped_admission.vault_budget(self.now, wait_seconds=0) as budget:
+                result = budget.admit("p1", "x", "a1")
+        self.assertFalse(result["admitted"])
+        self.assertEqual(result["reasons"], ["admission_observation_unavailable"])
+        self.assertEqual(result["error_type"], "AdmissionError")
+        self.assertNotIn("private state detail", str(result))
 
     def test_concurrent_admission_writer_pauses_second_writer(self) -> None:
         admission.state_file().parent.mkdir(parents=True, exist_ok=True)

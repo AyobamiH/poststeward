@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import json
@@ -153,6 +154,32 @@ class VaultExtensionTests(unittest.TestCase):
         revised = next(c for c in self.sync()['campaigns'] if c.endswith('-THREADS'))
         self.assertIn('consumed', vault.guard(builtin_manifest(revised), 'threads', now=self.now))
         self.assertEqual(source_receipts('runtime-test', reviewed_vaults=True)['readback_verified_count'], 1)
+
+    def test_deferred_package_is_not_reported_as_active_authority(self):
+        class BlockedBudget:
+            def admit(self, project, provider, account, *, expires_at=None):
+                return {
+                    "admitted": False,
+                    "project": project,
+                    "scope": provider + ":" + account,
+                    "reasons": ["admission_writer_busy"],
+                    "error_type": "BlockingIOError",
+                }
+
+        @contextmanager
+        def blocked_budget(_now):
+            yield BlockedBudget()
+
+        with patch("ocpf_post.scoped_admission.vault_budget", side_effect=blocked_budget):
+            result = self.sync()
+
+        self.assertEqual(result["campaigns"], [])
+        self.assertEqual(len(result["deferred"]), 1)
+        self.assertEqual(result["deferred"][0]["reasons"], ["admission_writer_busy"])
+        self.assertEqual(result["deferred"][0]["error_type"], "BlockingIOError")
+        observed = vault.observations()["test-vault"]
+        self.assertEqual(observed["active"], {})
+        self.assertEqual(observed["history"], {})
 
     def test_overfull_portfolio_admits_bounded_brand_stock_through_scheduled_receipt(self):
         from ocpf_post import portfolio

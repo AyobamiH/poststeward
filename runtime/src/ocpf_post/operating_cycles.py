@@ -95,6 +95,15 @@ def _reply_readback_pending():
                for row in read()['inbox'].values())
 
 
+def _reply_work_pending():
+    from ocpf_post.engagement import read
+    from ocpf_post.reply_work import enabled
+    return enabled() and any(
+        row.get('status') in {'pending', 'drafted'} and not row.get('attempted_at')
+        for row in read()['inbox'].values()
+    )
+
+
 def _stamp():
     return datetime.now(timezone.utc).isoformat()
 
@@ -122,7 +131,7 @@ def collect():
             local_store.write(path, report)
         def run(name, command, seconds):
             try:
-                row = stage(name, [str(ROOT / "ocpf-post"), *command], seconds)
+                row = stage(name, [str(ROOT / "poststeward"), *command], seconds)
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 row = {"stage": name, "status": "unavailable", "error_type": type(exc).__name__}
             record(row)
@@ -158,6 +167,14 @@ def collect():
         run("metrics", ["performance", "capture-due", "--apply"], 75)
         run("performance-feedback", ["performance", "feedback", "--apply"], 30)
         run("inbound-replies", ["engagement", "sync", "--apply"], 75)
+        # ChatGPT Work/Docs is the primary reply-authoring plane when configured.
+        # Pulling an approved reply only creates a hash-bound local draft; the
+        # separate reply timer retains all provider consequence authority.
+        run_if_pending(
+            "reply-work",
+            _reply_work_pending,
+            lambda: run_internal("reply-work", "ocpf_post.reply_work", ["sync", "--apply"], 45),
+        )
         # Reply reconciliation is a separate existing-ID readback path. Only
         # unresolved existing effects spawn this stage; normal healthy cycles pay
         # no extra provider-read cost.
@@ -271,8 +288,8 @@ def main():
         result = summary()
     elif mode == "report":
         result = {"schema_version": 1, "stages": [
-            stage("queue-watch", [str(ROOT / "ocpf-post"), "portfolio", "watch", "--apply"], 60),
-            stage("calendar", [str(ROOT / "ocpf-post"), "portfolio", "calendar", "--save"], 60),
+            stage("queue-watch", [str(ROOT / "poststeward"), "portfolio", "watch", "--apply"], 60),
+            stage("calendar", [str(ROOT / "poststeward"), "portfolio", "calendar", "--save"], 60),
             stage("incidents", [str(ROOT / "scripts/run-operating-cycle"), "summary"], 30),
             stage("alert-delivery", [sys.executable, "-m", "ocpf_post.alert_delivery", "--apply"], 30)]}
     else:

@@ -1,4 +1,5 @@
 """Admit saved, revision-bound evidence without doing network collection."""
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import hashlib
 
@@ -65,9 +66,31 @@ def _items(profile, observation):
                "type": "repository_change_event", "event": event}
 
 
+@contextmanager
+def _refresh_authority(*, apply: bool, source_lock_timeout_seconds: float):
+    """Acquire slow source coordination before the short admission writer lock.
+
+    Source observation can legitimately hold the source lock while doing bounded
+    network reads. Waiting for that authority must never monopolise admission and
+    starve independent reviewed-vault imports. Once source authority is available,
+    apply mode serialises the local pressure snapshot, admission decisions and
+    runtime writes against other admission writers.
+    """
+    from ocpf_post.runtime_sources import source_lock
+    with source_lock(
+        operation="replenish_refresh", timeout_seconds=source_lock_timeout_seconds,
+    ):
+        if not apply:
+            yield
+            return
+        from ocpf_post.admission import state_file
+        with local_store.locked(state_file()):
+            yield
+
+
 def refresh(*, apply, project=None, now=None, source_lock_timeout_seconds=0.0):
     from ocpf_post.portfolio_source_loader import merged_source_profiles
-    from ocpf_post.runtime_sources import source_lock, effective_texts
+    from ocpf_post.runtime_sources import effective_texts
     from ocpf_post.registry import resolve_account
     now = now or datetime.now(UTC)
     profiles = merged_source_profiles()["projects"]
@@ -76,8 +99,8 @@ def refresh(*, apply, project=None, now=None, source_lock_timeout_seconds=0.0):
     result = {"schema_version": 1, "projects": [], "static_campaigns": [], "event_campaigns": [],
         "generative_campaigns": [], "admission": [],
               "boundary": "Admission consumes saved observations per destination. No source network read, expiry renewal or social publication."}
-    with source_lock(
-        operation="replenish_refresh", timeout_seconds=source_lock_timeout_seconds,
+    with _refresh_authority(
+        apply=apply, source_lock_timeout_seconds=source_lock_timeout_seconds,
     ):
         state = observations.load()
         budget = LearningBudget(now, apply)
