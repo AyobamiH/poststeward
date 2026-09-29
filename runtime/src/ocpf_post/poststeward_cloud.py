@@ -228,6 +228,36 @@ def heartbeat() -> dict[str, Any]:
     return value
 
 
+def deactivate_executor_fence(reason: str) -> dict[str, Any]:
+    """Close this installation's cloud executor authority without enabling hosted execution."""
+    current = bindings()
+    executor = current.get("executor") if isinstance(current.get("executor"), dict) else {}
+    generation = executor.get("authorityGeneration")
+    installation = str(installation_identity().get("installation_id") or "")
+    if (
+        executor.get("executorMode") != "local"
+        or executor.get("executorStatus", "active") != "active"
+        or str(executor.get("activeInstallationId") or "") != installation
+        or type(generation) is not int
+        or generation < 1
+    ):
+        raise CloudError(
+            "RUNTIME_EXECUTOR_FENCED",
+            "This installation does not own the current active local executor generation.",
+            3,
+        )
+    _, value = _request(
+        "POST",
+        "/api/runtime/executor/fence",
+        token=runtime_token(),
+        payload={
+            "authorityGeneration": generation,
+            "reason": str(reason or "").strip(),
+        },
+    )
+    return value
+
+
 def activation_executor_proof() -> dict[str, Any]:
     """Prove the paired machine owns the current cloud executor generation.
 
