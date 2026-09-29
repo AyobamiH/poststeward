@@ -120,7 +120,7 @@ fi
 umask 077
 mkdir -p "$RELEASES" "$BIN_DIR" "$(dirname "$RECEIPT")"
 
-if [[ -e "$CURRENT && ! -L "$CURRENT" ]]; then
+if [[ -e "$CURRENT" && ! -L "$CURRENT" ]]; then
   fail "managed current runtime path exists but is not a symlink: $CURRENT"
 fi
 if [[ -e "$SHIM" ]]; then
@@ -165,9 +165,12 @@ if [[ ! -d "$RELEASE" ]]; then
   chmod -R go-rwx "$RELEASE" 2>/dev/null || true
 fi
 
-TMP_LINK="$PREFIX/.current.$$.tmp"
+TMP_LINK="$PREFIX/.current.$.tmp"
 ln -s "$RELEASE" "$TMP_LINK"
-mv -f "$TMP_LINK" "$CURRENT"
+python3 - "$TMP_LINK" "$CURRENT" <<'PY'
+import os, sys
+os.replace(sys.argv[1], sys.argv[2])
+PY
 
 TMP_SHIM="$(mktemp "$BIN_DIR/.poststeward.XXXXXX")"
 cat >"$TMP_SHIM" <<EOF
