@@ -307,7 +307,7 @@ class ObserverDispatchTests(unittest.TestCase):
         self.assertIn("ProtectSystem=strict", content)
         self.assertIn("ProtectHome=read-only", content)
         self.assertIn("NoNewPrivileges=true", content)
-        self.assertIn("/bin/sh $ROOT/post-once console", content)
+        self.assertIn("/bin/sh $ROOT/poststeward console", content)
 
 
 if __name__ == "__main__":
