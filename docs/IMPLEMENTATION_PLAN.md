@@ -8,6 +8,9 @@ PostSteward product into the final architecture in
 consequential external effect still requires the product's own explicit authority
 boundary. Do not manufacture provider posts merely to prove code.
 
+Engineering rationale from OpenClaw, Kubernetes Leases, generation/epoch fencing and
+TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERING_INSIGHTS.md).
+
 ## Phase 0 — architecture freeze
 
 - [x] Declare PostSteward as the only public product identity.
@@ -24,32 +27,32 @@ boundary. Do not manufacture provider posts merely to prove code.
 - [x] `--no-onboard`, `--dry-run`, exact ref/version support.
 - [x] Post-install client verification.
 - [x] First-class Install page and homepage command.
-- [ ] Replace the temporary thin-client-only install payload with the full local runtime.
-- [ ] Stable/beta channel manifest.
+- [x] Replace the temporary thin-client-only install payload with the full local runtime.
+- [x] Stable/beta channel manifest.
 - [ ] Exact runtime provenance in install receipt.
 - [ ] Clean-machine install acceptance from the production domain.
 - [ ] PowerShell/native Windows path after macOS/Linux/WSL acceptance.
 
 ## Phase 2 — adopt the A-K local runtime into PostSteward
 
-- [ ] Vendor one reviewed runtime snapshot into `AyobamiH/poststeward/runtime`.
-- [ ] Preserve source provenance and exact source SHA.
-- [ ] Rebrand public paths/command/service namespace to `poststeward`.
-- [ ] Keep historical internal `ocpf_post` compatibility behind the product boundary.
-- [ ] Move A-K acceptance tests needed to protect Setup/Recovery invariants.
+- [x] Vendor one reviewed runtime snapshot into `AyobamiH/poststeward/runtime`.
+- [x] Preserve source provenance and exact source SHA.
+- [x] Rebrand public paths/command/service namespace to `poststeward`.
+- [x] Keep historical internal `ocpf_post` compatibility behind the product boundary.
+- [x] Move A-K acceptance tests needed to protect Setup/Recovery invariants.
 - [ ] Add PostSteward CI job for the embedded runtime on Python 3.10/3.12.
-- [ ] Make installer stage the full runtime and canonical `poststeward` wrapper.
-- [ ] Make `poststeward setup/status/health/capabilities/... ` route to local runtime.
+- [x] Make installer stage the full runtime and canonical `poststeward` wrapper.
+- [x] Make `poststeward setup/status/health/capabilities/... ` route to local runtime.
 
 ## Phase 3 — machine pairing
 
-- [ ] Add D1 machine/pairing/executor schema.
-- [ ] `poststeward onboard` starts a pairing request and opens a short verification URL.
-- [ ] Owner browser approves exact installation identity.
-- [ ] Local CLI polls using a one-time secret and receives a scoped runtime token once.
-- [ ] Store runtime token 0600; never print it after provisioning.
-- [ ] List/revoke paired installations from owner workspace.
-- [ ] Pairing expiry/replay/cross-workspace tests.
+- [x] Add D1 machine/pairing/executor schema.
+- [x] `poststeward onboard` starts a pairing request and opens a short verification URL.
+- [x] Owner browser approves exact installation identity.
+- [x] Local CLI polls using a one-time secret and receives a scoped runtime token once.
+- [x] Store runtime token 0600; never print it after provisioning.
+- [x] List/revoke paired installations from owner workspace.
+- [x] Pairing expiry/replay/cross-workspace tests.
 
 ## Phase 4 — provider onboarding convergence
 
@@ -64,36 +67,36 @@ boundary. Do not manufacture provider posts merely to prove code.
 
 ## Phase 5 — executor lease and one-writer fencing
 
-- [ ] Workspace executor record: hosted/local, active installation, generation, status.
-- [ ] Owner-reviewed transition API.
-- [ ] Hosted scheduling/publish paths fail closed for locally owned authority.
-- [ ] Local activation requires matching cloud executor generation.
-- [ ] Lease heartbeat/expiry closes future provider relay effects.
+- [x] Workspace executor record: hosted/local, active installation, generation, status.
+- [x] Owner-reviewed transition API.
+- [x] Hosted scheduling/publish paths fail closed for locally owned authority.
+- [x] Local activation requires matching cloud executor generation.
+- [x] Lease heartbeat/expiry closes future provider relay effects.
 - [ ] Deactivation closes cloud relay fence before local cleanup.
 - [ ] Recovery/migration advance generation only after review.
-- [ ] Concurrency and stale-generation adversarial tests.
+- [x] Concurrency and stale-generation adversarial tests.
 
 ## Phase 6 — provider relay
 
-- [ ] Dedicated runtime-effect API; do not overload ordinary agent `publish_now`.
-- [ ] Input: installation, generation, exact account alias/provider, effect id,
+- [x] Dedicated runtime-effect API; do not overload ordinary agent `publish_now`.
+- [x] Input: installation, generation, exact account alias/provider, effect id,
       publication payload hash/text, reply/thread metadata where required.
-- [ ] Server revalidates executor lease and stable provider identity.
-- [ ] Use existing PostSteward provider adapters and credential custody.
-- [ ] Exact effect-id idempotency.
-- [ ] Ambiguous/partial effect preservation.
-- [ ] Readback endpoint/projection without provider rewrite.
-- [ ] Hosted relay receipt mirrored to local receipt/event history.
-- [ ] No hosted scheduler authority implied by relay availability.
+- [x] Server revalidates executor lease and stable provider identity.
+- [x] Use existing PostSteward provider adapters and credential custody.
+- [x] Exact effect-id idempotency.
+- [x] Ambiguous/partial effect preservation.
+- [x] Readback endpoint/projection without provider rewrite.
+- [x] Hosted relay receipt mirrored to local receipt/event history.
+- [x] No hosted scheduler authority implied by relay availability.
 
 ## Phase 7 — runtime/hosted operation convergence
 
-- [ ] Local projects/campaigns/schedules remain local execution truth in local mode.
-- [ ] Cloud stores coordination/receipt mirror, not a divergent campaign planner.
+- [x] Local projects/campaigns/schedules remain local execution truth in local mode.
+- [x] Cloud stores coordination/receipt mirror, not a divergent campaign planner.
 - [ ] Remote agents can inspect/control the active local runtime through a bounded bridge.
-- [ ] Local agent surface remains deterministic JSON.
+- [x] Local agent surface remains deterministic JSON.
 - [ ] Remote MCP distinguishes local-executor operations from hosted mode.
-- [ ] Agent grant scope cannot change executor/admin authority.
+- [x] Agent grant scope cannot change executor/admin authority.
 
 ## Phase 8 — newer owner-runtime feature review
 
@@ -131,12 +134,12 @@ For every port:
 
 Automated:
 
-- [ ] PostSteward TypeScript verify.
+- [x] PostSteward TypeScript verify.
 - [ ] embedded-runtime Python test matrix.
 - [ ] installer dry-run/exact-version/idempotency/collision tests.
-- [ ] pairing replay/expiry/cross-workspace tests.
-- [ ] executor stale-generation/concurrency tests.
-- [ ] provider-relay idempotency/ambiguous-effect tests.
+- [x] pairing replay/expiry/cross-workspace tests.
+- [x] executor stale-generation/concurrency tests.
+- [x] provider-relay idempotency/ambiguous-effect tests.
 - [ ] original Post-Once non-mutation assertion.
 
 Real controlled acceptance:
