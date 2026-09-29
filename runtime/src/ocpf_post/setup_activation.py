@@ -737,6 +737,16 @@ class ActivationManager:
         if not runtime.is_dir() or runtime.is_symlink():
             _fail("activation.runtime.invalid", "Runtime root must be a plain checkout directory")
         runtime_revision = _runtime_revision(runtime)
+        cloud_executor: dict[str, Any] | None = None
+        if os.environ.get("POSTSTEWARD_REQUIRE_CLOUD_FENCE") == "1":
+            try:
+                from ocpf_post.poststeward_cloud import CloudError, activation_executor_proof
+                cloud_executor = activation_executor_proof()
+            except CloudError as exc:
+                raise ActivationError(
+                    "activation.cloud_executor.not_ready",
+                    f"PostSteward cloud executor authority is not ready: {exc}",
+                ) from exc
         ever_activated = any(row["event_type"] == "automation_activated" for row in events)
         if session["stage"] == "active" and ever_activated:
             # Reactivation after a deliberate deactivation uses current durable
@@ -832,6 +842,7 @@ class ActivationManager:
             "target_authority_generation": target_generation,
             "runtime_root": str(runtime),
             "runtime_revision": runtime_revision,
+            "cloud_executor": cloud_executor,
             "state_root": str(state),
             "config_root": str(config),
             "state_fingerprint": _tree_fingerprint(state),
