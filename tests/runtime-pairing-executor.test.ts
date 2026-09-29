@@ -269,8 +269,9 @@ test("executor transition is review-bound and stale generations cannot renew the
       }),
     });
     assert.equal(hosted.status, 200, await hosted.clone().text());
-    assert.equal((await hosted.json() as any).executor.authorityGeneration, 4);
-    assert.equal((await hosted.json() as any).executor.executorStatus, "active");
+    const hostedValue: any = await hosted.json();
+    assert.equal(hostedValue.executor.authorityGeneration, 4);
+    assert.equal(hostedValue.executor.executorStatus, "active");
 
     const revoked = await mf.dispatchFetch(origin + "/api/runtime/installations/revoke", {
       method: "POST",
