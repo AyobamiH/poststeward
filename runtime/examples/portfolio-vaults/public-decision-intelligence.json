@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "public-decision-intelligence-gtm",
+  "project": "public-decision-intelligence",
+  "document_id": "1tpeq5XBrvi5TBWR8vhOwafg_BFAcXO2zqcV_BClW_MM",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

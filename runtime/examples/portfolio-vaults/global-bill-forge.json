@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "global-bill-forge-gtm",
+  "project": "global-bill-forge",
+  "document_id": "1QRWWPnIglSPhg8PcBKVDDgMS4s_tMY3Rx8pGbySGZnY",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

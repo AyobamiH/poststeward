@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "capability-intelligence-gtm",
+  "project": "capability-intelligence",
+  "document_id": "1IN3-Cx_YfXxNOF3Oi4BpIRQPvGZjuWCo6Qz-yOQ8LxY",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

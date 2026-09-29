@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "agrolink-nigeria-gtm",
+  "project": "agrolink-nigeria",
+  "document_id": "1V79BlnCHHN13Rcpd1awDizbhSCWURKs2pY_oHJhP-pw",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

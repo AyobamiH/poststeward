@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "lovable-architecture-auditor-gtm",
+  "project": "lovable-architecture-auditor",
+  "document_id": "1nwUclSWZZeDv8TIIHLUnBLcDQ-TuUDJS86v35hg3QFE",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

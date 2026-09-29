@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "relay-live-business-engagement-gtm",
+  "project": "relay-live-business-engagement",
+  "document_id": "1LFhJAc59yyHT2g_5BMvfyRFXRd6a3wV0B1FGRz-i2Y4",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}
