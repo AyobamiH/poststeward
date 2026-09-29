@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/readiness-check.schema.json",
+  "title": "Post-Once readiness check",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "code",
+    "status",
+    "severity",
+    "required",
+    "scope",
+    "observed_at",
+    "evidence_method",
+    "evidence",
+    "summary",
+    "consequence_boundary",
+    "remediation_action_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+    },
+    "status": {
+      "enum": [
+        "ready",
+        "blocked",
+        "attention",
+        "unknown",
+        "skipped",
+        "not_applicable"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "blocker",
+        "attention",
+        "info"
+      ]
+    },
+    "required": {
+      "type": "boolean"
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_method": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "evidence": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 1000
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "consequence_boundary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "remediation_action_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

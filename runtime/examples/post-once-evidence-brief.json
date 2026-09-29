@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "brief_id": "post-once-080-operating-lessons",
+  "project": "post-once",
+  "repository": "AyobamiH/post-once",
+  "revision": "ee707b67a0216d303b0655bb23ab0ce392d3b09a",
+  "claim_boundary": "Source-level capabilities in version 0.8.0. No claim of customer adoption, revenue or independently verified production behaviour.",
+  "review_notes": "Three distinct lessons: publication evidence, duplicate copy across campaign IDs, and daily allocation visibility. Editorial framing and exact rendered copy require review with these source references.",
+  "evidence": [
+    {
+      "id": "release-source",
+      "kind": "source",
+      "revision": "ee707b67a0216d303b0655bb23ab0ce392d3b09a",
+      "url": "https://github.com/AyobamiH/post-once/commit/ee707b67a0216d303b0655bb23ab0ce392d3b09a",
+      "observed_at": "2026-09-09T20:33:00Z",
+      "summary": "Merged 0.8.0 adds source evidence inspection, campaign explanation, exact-copy allocation protection and daily capacity fields.",
+      "scope": "Source implementation only; source_evidence.py, campaign_explain.py, portfolio.py and copy_guard.py."
+    },
+    {
+      "id": "release-ci",
+      "kind": "tests",
+      "revision": "ee707b67a0216d303b0655bb23ab0ce392d3b09a",
+      "url": "https://github.com/AyobamiH/post-once/actions/runs/34400363873",
+      "observed_at": "2026-09-09T20:33:00Z",
+      "summary": "The GitHub Actions run for the exact merge revision reported success.",
+      "scope": "Repository CI outcome; it does not independently establish deployed behaviour or customer benefit."
+    }
+  ],
+  "claims": [
+    {
+      "id": "receipt-boundary",
+      "kind": "source",
+      "text": "post-once keeps publication receipts separate from project evidence.",
+      "evidence_ids": [
+        "release-source"
+      ]
+    },
+    {
+      "id": "copy-identity",
+      "kind": "source",
+      "text": "post-once compares the text, platform and account before automatic allocation.",
+      "evidence_ids": [
+        "release-source"
+      ]
+    },
+    {
+      "id": "budget-visibility",
+      "kind": "source",
+      "text": "post-once shows the day's allocation budget, including reservations and recorded outcomes.",
+      "evidence_ids": [
+        "release-source"
+      ]
+    }
+  ],
+  "angles": [
+    {
+      "id": "receipt-meaning",
+      "campaign": "POSTONCE-BRIEF-080-01",
+      "title": "Publication evidence has a specific job",
+      "audience": "Engineers operating social publishing",
+      "purpose": "Distinguish software test outcomes from evidence that a social post was published.",
+      "destinations": {
+        "x": "x-founder"
+      },
+      "paragraphs": {
+        "x": [
+          {
+            "text": "A green CI run cannot tell you whether a social post went live."
+          },
+          {
+            "claim": "receipt-boundary"
+          },
+          {
+            "text": "Which receipt would you check?"
+          }
+        ]
+      },
+      "allocation": {
+        "lane": "evergreen",
+        "priority": 72,
+        "prepared_at": "2026-09-09T20:33:00Z",
+        "expires_at": "2026-09-16T20:33:00Z"
+      }
+    },
+    {
+      "id": "copy-reuse",
+      "campaign": "POSTONCE-BRIEF-080-02",
+      "title": "Campaign IDs do not make fresh copy",
+      "audience": "Operators maintaining a campaign inventory",
+      "purpose": "Explain why changing a campaign identifier must not create another automatic slot for identical text.",
+      "destinations": {
+        "x": "x-founder"
+      },
+      "paragraphs": {
+        "x": [
+          {
+            "text": "Renaming a campaign should not make yesterday's copy new."
+          },
+          {
+            "claim": "copy-identity"
+          },
+          {
+            "text": "What does your duplicate check actually compare?"
+          }
+        ]
+      },
+      "allocation": {
+        "lane": "evergreen",
+        "priority": 72,
+        "prepared_at": "2026-09-09T20:33:00Z",
+        "expires_at": "2026-09-16T20:33:00Z"
+      }
+    },
+    {
+      "id": "quiet-queue",
+      "campaign": "POSTONCE-BRIEF-080-03",
+      "title": "Explain a quiet queue",
+      "audience": "Founders overseeing an automated posting schedule",
+      "purpose": "Make consumed daily capacity visible so a quiet queue can be understood without forcing more posts.",
+      "destinations": {
+        "x": "x-founder"
+      },
+      "paragraphs": {
+        "x": [
+          {
+            "text": "A quiet queue can be a scheduling decision."
+          },
+          {
+            "claim": "budget-visibility"
+          },
+          {
+            "text": "Can you see why your next post is waiting?"
+          }
+        ]
+      },
+      "allocation": {
+        "lane": "evergreen",
+        "priority": 72,
+        "prepared_at": "2026-09-09T20:33:00Z",
+        "expires_at": "2026-09-16T20:33:00Z"
+      }
+    }
+  ]
+}

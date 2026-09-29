@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/installation.schema.json",
+  "title": "Post-Once installation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "installation_id",
+    "operation_id",
+    "status",
+    "authority_generation"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "installation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "operation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "enum": [
+        "candidate",
+        "active",
+        "retired",
+        "lost",
+        "recovery_unknown"
+      ]
+    },
+    "authority_generation": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "machine_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "candidate"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authority_generation": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "active"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authority_generation": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  ]
+}

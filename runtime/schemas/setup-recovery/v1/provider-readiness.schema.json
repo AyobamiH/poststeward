@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/provider-readiness.schema.json",
+  "title": "Post-Once provider readiness projection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provider",
+    "observed_at",
+    "observation_mode",
+    "credential_origin",
+    "authorization_flow",
+    "exact_identity_method",
+    "expected_identity",
+    "observed_identity",
+    "identity_match",
+    "write_scope_state",
+    "readback_scope_state",
+    "token_status_state",
+    "token_expiry_state",
+    "refresh_capability",
+    "known_token_revoke_capability",
+    "stale_token_family_fence",
+    "quota_observation",
+    "forensic_recent_listing",
+    "device_flow",
+    "api_version_state",
+    "recovery_fencing_strength",
+    "blocking_reasons",
+    "optional_gaps",
+    "ready_for_write_configuration",
+    "boundary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "provider": {
+      "enum": [
+        "x",
+        "threads",
+        "linkedin"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "observation_mode": {
+      "const": "read_only_no_refresh"
+    },
+    "credential_origin": {
+      "enum": [
+        "stored",
+        "environment",
+        "missing",
+        "unknown"
+      ]
+    },
+    "authorization_flow": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "exact_identity_method": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "expected_identity": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observed_identity": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "identity_match": {
+      "enum": [
+        "match",
+        "mismatch",
+        "observed",
+        "unknown"
+      ]
+    },
+    "write_scope_state": {
+      "enum": [
+        "granted",
+        "missing",
+        "unknown"
+      ]
+    },
+    "readback_scope_state": {
+      "enum": [
+        "granted",
+        "missing",
+        "unknown",
+        "observed"
+      ]
+    },
+    "token_status_state": {
+      "enum": [
+        "unknown",
+        "authenticated",
+        "active",
+        "inactive",
+        "unavailable",
+        "rejected"
+      ]
+    },
+    "token_expiry_state": {
+      "enum": [
+        "unknown",
+        "expired",
+        "near_expiry",
+        "valid"
+      ]
+    },
+    "refresh_capability": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "known_token_revoke_capability": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "stale_token_family_fence": {
+      "const": "not_proven"
+    },
+    "quota_observation": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 1000
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "forensic_recent_listing": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 1000
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "device_flow": {
+      "const": "unsupported_in_v1"
+    },
+    "api_version_state": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 1000
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "recovery_fencing_strength": {
+      "enum": [
+        "assisted",
+        "manual_only"
+      ]
+    },
+    "blocking_reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^provider\\.[a-z0-9_.-]+$"
+      }
+    },
+    "optional_gaps": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^provider\\.[a-z0-9_.-]+$"
+      }
+    },
+    "ready_for_write_configuration": {
+      "type": "boolean"
+    },
+    "boundary": {
+      "const": "Read-only provider readiness evidence only. No authorization, refresh, revocation, publication, reply, deletion, host activation or publishing-authority change was attempted."
+    },
+    "actor_type": {
+      "enum": [
+        "member",
+        "organization"
+      ]
+    },
+    "actor_urn": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "authenticated_member_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  }
+}
