@@ -255,6 +255,36 @@ export class Workspace extends DurableObject<Env> {
         400,
       );
       const path = new URL(request.url).pathname;
+      if (path === "/runtime/executor/preflight") {
+        this.ownerOnly(data.actor);
+        const input = data.input as { mode?: unknown };
+        const actionable = this.store
+          .list<Delivery>("delivery:")
+          .filter((delivery) =>
+            ["pending_approval", "scheduled", "executing", "waiting_container"].includes(
+              delivery.status,
+            ),
+          );
+        const enabledProfiles = this.store
+          .list<any>("profile:")
+          .filter((profile) => profile?.enabled === true);
+        const blockers =
+          input.mode === "local"
+            ? [
+                ...(actionable.length ? ["hosted_actionable_deliveries"] : []),
+                ...(enabledProfiles.length ? ["hosted_advanced_profiles_enabled"] : []),
+              ]
+            : [];
+        return json({
+          schemaVersion: 1,
+          ready: blockers.length === 0,
+          blockers,
+          actionableDeliveryCount: actionable.length,
+          enabledAdvancedProfileCount: enabledProfiles.length,
+          boundary:
+            "Read-only executor-transition preflight. No provider, schedule or authority mutation occurs.",
+        });
+      }
       // Stripe reaches this only through the Worker's verified webhook route.
       // It intentionally has no user Actor envelope, so preserve the original
       // actorless internal reconciliation contract. A quarantined event stays
