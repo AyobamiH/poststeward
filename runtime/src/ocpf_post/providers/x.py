@@ -107,6 +107,7 @@ class XProvider(Provider):
         client_id: str | None = None,
         client_secret: str | None = None,
         redirect_uri: str | None = None,
+        effect_scope: str | None = None,
     ) -> None:
         self.scoped = credential_dir is not None
         self.token_file = credential_dir / "token.json" if self.scoped else provider_token_file("x")
