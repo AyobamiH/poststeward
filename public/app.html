@@ -73,6 +73,23 @@
         <div class="product-page">
           <div id="session-notice" role="status">Loading workspace…</div>
 
+          <section id="runtime-pairing-panel" class="work-pane secondary" aria-labelledby="runtime-pairing-heading" hidden>
+            <p class="eyebrow">LOCAL RUNTIME</p>
+            <h2 id="runtime-pairing-heading">Approve this PostSteward installation?</h2>
+            <p id="runtime-pairing-copy" class="muted">
+              Inspecting the short-lived pairing request…
+            </p>
+            <pre id="runtime-pairing-details"></pre>
+            <div class="row">
+              <button id="runtime-pairing-approve" type="button">Approve installation</button>
+              <button id="runtime-pairing-dismiss" type="button">Not now</button>
+            </div>
+            <p class="muted">
+              Pairing registers a machine and returns a scoped runtime token. It does not
+              switch publishing execution or connect a social provider.
+            </p>
+          </section>
+
           <section class="product-page-header" aria-labelledby="plan">
             <div>
               <p class="eyebrow">OWNER CONTROL PLANE</p>
