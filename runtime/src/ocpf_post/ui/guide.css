@@ -1,0 +1,62 @@
+/* Owner guidance. One existing drawer; the execution canvas keeps its geometry. */
+#systemDrawer.po-guide{--guide-muted:#afbac9;--guide-line:#304052;width:min(560px,100vw);max-width:100vw;height:100dvh;max-height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;background:#0d131c;color:#edf1f6;border-left:1px solid var(--guide-line);box-shadow:-12px 0 48px #0008;font-size:15px;line-height:1.6;overflow:hidden}
+#systemDrawer.po-guide *{box-sizing:border-box}
+.po-guide [hidden]{display:none!important}
+.po-guide .drawer-head{padding:22px 24px 14px;flex:none;border-bottom:0;gap:12px;display:flex;align-items:flex-start}
+.po-guide .drawer-head h2{font-size:24px;line-height:1.25;letter-spacing:-.025em;margin:4px 0 8px}
+.po-guide .drawer-head p{font-size:14px;line-height:1.55;color:var(--guide-muted);margin:0}
+.po-guide .drawer-head .eyebrow{color:#9ac7ff;font-size:11px;letter-spacing:.12em}
+.po-guide button,.po-guide input,.po-guide select{font:inherit}
+.po-guide button{color:inherit;min-height:44px;border:1px solid var(--guide-line);border-radius:9px;background:#151f2b;padding:9px 12px;cursor:pointer;line-height:1.35;text-align:left;white-space:normal}
+.po-guide button:hover{background:#1c2c3f;border-color:#7093bd}
+.po-guide button:disabled{opacity:.62;cursor:default}
+.po-guide :focus-visible{outline:3px solid #9dc6ff;outline-offset:3px}
+.po-guide a{color:#a9cdff;text-decoration:underline}
+.po-guide .po-tabs{display:flex;padding:0 24px;border-bottom:1px solid var(--guide-line);gap:6px;flex:none}
+.po-guide .po-tabs button{border:0;border-bottom:3px solid transparent;border-radius:6px 6px 0 0;background:transparent;padding:10px 12px;flex:1;text-align:center;font-weight:650;font-size:14px}
+.po-guide .po-tabs button[aria-selected=true]{border-bottom-color:#a9cdff;color:#c7e0ff;background:#19283b}
+.po-guide .po-toolbar{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:12px 24px;border-bottom:1px solid var(--guide-line);flex:none;flex-wrap:wrap}
+.po-guide .po-toolbar label{font-size:13px;color:var(--guide-muted)}
+.po-guide select{min-height:40px;max-width:180px;background:#151f2b;color:#edf1f6;border:1px solid var(--guide-line);border-radius:8px;padding:5px 9px}
+.po-guide .po-freshness{color:var(--guide-muted);font-size:12px;flex:1;min-width:130px}
+.po-guide .po-scroll{overflow:auto;overscroll-behavior:contain;flex:1;min-height:0;padding:20px 24px 28px;scrollbar-gutter:stable}
+.po-guide .po-intro{margin:0 0 16px;color:var(--guide-muted);font-size:14px}
+.po-guide .po-card{border:1px solid var(--guide-line);border-radius:14px;padding:18px;margin:0 0 14px;background:#111b27;overflow-wrap:anywhere}
+.po-guide .po-card-primary{border-color:#52799f;background:linear-gradient(130deg,#192c40,#111b27)}
+.po-guide .po-kicker{font-size:11px;font-weight:700;letter-spacing:.09em;color:#a9cdff;text-transform:uppercase;margin:0 0 7px}
+.po-guide h3{font-size:19px;line-height:1.35;letter-spacing:-.02em;margin:0 0 10px}
+.po-guide p{margin:8px 0 12px}
+.po-guide .po-meaning{color:#d4dde8;font-size:15px}
+.po-guide .po-caution{border-left:3px solid #f3c86c;padding:8px 12px;background:#302b1e;color:#fbe0a8;font-size:14px;border-radius:0 6px 6px 0}
+.po-guide .po-effect{display:inline-block;color:#b1ebcd;border:1px solid #365544;background:#152a22;border-radius:6px;font-size:12px;padding:3px 7px;margin:6px 0}
+.po-guide .po-command{display:block;margin:10px 0;background:#080e16;border:1px solid var(--guide-line);border-radius:8px;padding:12px;font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.po-guide .po-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.po-guide .po-primary{background:#c0dcff;color:#102238;border-color:#c0dcff;font-weight:700}
+.po-guide .po-primary:hover{background:#d6e8ff;color:#102238}
+.po-guide details{margin:12px 0 0;border-top:1px solid var(--guide-line);padding-top:8px}
+.po-guide summary{cursor:pointer;min-height:44px;display:list-item;align-content:center;font-size:14px;color:#c7ddf7;padding:8px 0;overflow-wrap:anywhere}
+.po-guide .po-expect{font-size:14px;color:#d4dde8}
+.po-guide pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--guide-muted);max-width:100%}
+.po-guide .po-question{display:block;width:100%;padding:14px;margin:0 0 9px;border-radius:12px;background:#111b27;font-size:15px}
+.po-guide .po-search{display:block;width:100%;min-height:46px;background:#080e16;border:1px solid #607791;border-radius:9px;padding:10px 12px;color:#edf1f6;margin:8px 0 14px;font-size:16px}
+.po-guide .po-search::placeholder{color:#afbac9}
+.po-guide .po-count{font-size:13px;color:var(--guide-muted);margin:6px 0 14px}
+.po-guide .po-library-row{border:1px solid var(--guide-line);border-radius:11px;background:#101925;margin:10px 0;padding:3px 14px 12px}
+.po-guide .po-library-row summary{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;color:#deebff;font-size:14px}
+.po-guide .po-library-row p{font-size:14px;color:#d4dde8}
+.po-guide .po-library-row .po-effect{margin:5px 0;color:#d4dde8;border-color:#53667e;background:#172333}
+.po-guide .po-args{font-size:13px;color:var(--guide-muted)}
+.po-guide .po-arg{padding:8px 0;border-top:1px solid var(--guide-line);overflow-wrap:anywhere}
+.po-guide .po-note{padding:12px 14px;border:1px solid var(--guide-line);border-radius:10px;color:#c5d4e6;background:#121e2c;font-size:14px;margin-bottom:14px}
+.po-guide .po-note[data-stale=true]{border-color:#8d7644;background:#272317;color:#f6dcaa}
+.po-guide .po-footer{padding:12px 24px;border-top:1px solid var(--guide-line);font-size:12px;color:var(--guide-muted);flex:none;line-height:1.55;background:#0d131c}
+.po-guide .po-status{min-height:22px;color:#b9dfcc;font-size:13px;padding:4px 0}
+.po-guide .po-technical{font-size:12px;color:var(--guide-muted)}
+.po-guide .po-evidence-links{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.po-guide .po-selection{background:#122235;border-color:#587a9d}
+.po-guide .po-empty{padding:20px;border:1px dashed #53667e;border-radius:12px;color:#c4d0df}
+.po-guide .po-dismiss{font-size:13px;background:transparent}
+.po-guide-launch{min-height:42px!important;font-size:13px!important;padding:8px 12px!important;white-space:normal!important}
+@media(min-width:1540px){#systemDrawer.po-guide{width:570px}}
+@media(max-width:700px){#systemDrawer.po-guide{width:100vw;border:0}.po-guide .drawer-head{padding:18px 18px 12px}.po-guide .po-tabs{padding:0 12px}.po-guide .po-toolbar{padding:10px 18px}.po-guide .po-scroll{padding:16px 18px}.po-guide .po-footer{padding:10px 18px}.po-guide .po-card{padding:16px}.po-guide h3{font-size:18px}.po-guide .po-tabs button{padding:10px 6px}}
+@media(prefers-reduced-motion:reduce){#systemDrawer.po-guide,#systemDrawerWrap{transition:none!important;animation:none!important}.po-guide *{scroll-behavior:auto!important}}

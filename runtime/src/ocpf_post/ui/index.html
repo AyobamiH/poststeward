@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>post-once · local observability</title>
+  <style>
+    :root{
+      --bg:#090b0f;--panel:#10141b;--panel2:#0d1117;--panel3:#141a23;
+      --line:#202733;--line2:#2a3442;--text:#e7ebf0;--muted:#8e99a8;--dim:#616c79;
+      --good:#7ee2a8;--warn:#f5cb76;--bad:#ff8f8f;--accent:#91b4ff;--violet:#be9cff;--cyan:#7fd9e8;
+      --radius:12px
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    body{min-height:100vh}
+    button,select{font:inherit}
+    button{cursor:pointer}
+    button:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .shell{max-width:1680px;margin:0 auto;padding:20px}
+    .top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .mark{width:38px;height:38px;border:1px solid var(--line);border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#151b24,#0b0e13);font-weight:800;letter-spacing:-.08em}
+    .brand h1{font-size:17px;margin:0;font-weight:680}
+    .sub{color:var(--muted);margin-top:2px;font-size:12px}
+    .badges{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    .badge{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:5px 9px;font-size:11px;letter-spacing:.035em;text-transform:uppercase}
+    .badge.good{color:var(--good);border-color:#244532}
+    .badge.warn{color:var(--warn);border-color:#4b3d21}
+    .badge.bad{color:var(--bad);border-color:#522929}
+    .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px}
+
+    .machine{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#0e131b 0%,#0b0f15 100%);overflow:hidden;margin-bottom:12px}
+    .machine-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:center;justify-content:space-between}
+    .machine-title{min-width:0}
+    .eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--good);font-weight:700}
+    .machine-title h2{margin:2px 0 1px;font-size:20px;letter-spacing:-.02em}
+    .machine-title p{margin:0;color:var(--muted);font-size:12px}
+    .machine-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .control{min-height:36px;border:1px solid var(--line2);background:var(--panel2);color:var(--text);border-radius:8px;padding:7px 10px}
+    .control:hover{border-color:#435267}
+    .control[disabled]{opacity:.5;cursor:not-allowed}
+    .select-wrap{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:11px}
+    .select-wrap select{min-height:36px;border:1px solid var(--line2);background:var(--panel2);color:var(--text);border-radius:8px;padding:6px 25px 6px 9px}
+    .mode{border-radius:999px;padding:5px 9px;border:1px solid #31513d;color:var(--good);background:#0d1913;font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+    .mode.replay{color:var(--warn);border-color:#4b3d21;background:#18140d}
+    .mode.paused{color:var(--muted);border-color:var(--line2);background:var(--panel2)}
+    .motion-readout{min-width:74px;color:var(--muted);font-size:10px;text-align:right}
+
+    .machine-grid{display:grid;grid-template-columns:minmax(0,1fr) 315px;min-width:0}
+    .map-wrap{padding:8px;min-width:0;border-right:1px solid var(--line);position:relative}
+    .map-note{display:flex;gap:12px;justify-content:space-between;align-items:center;padding:3px 7px 7px;color:var(--dim);font-size:10px}
+    .map-note strong{color:var(--muted);font-weight:600}
+    .map-scroll{overflow-x:auto;overscroll-behavior-inline:contain}
+    .map-scroll svg{display:block;width:100%;min-width:900px;height:auto}
+    .zone{fill:#0b1017;stroke:#151d27;stroke-width:1}
+    .zone-title{fill:#3f4b59;font-size:10px;font-weight:700;letter-spacing:.13em}
+    .edge{fill:none;stroke:#293341;stroke-width:2.1;vector-effect:non-scaling-stroke;transition:stroke .18s,stroke-width .18s,opacity .18s}
+    .edge.architecture{stroke:#202934;stroke-dasharray:5 8;opacity:.72}
+    .edge.evidence{stroke:#334255}
+    .edge.edge-hot{stroke:var(--flow-color,var(--accent));stroke-width:5;stroke-dasharray:14 10;filter:url(#routeGlow);animation:routeMarch .7s linear infinite;opacity:1}
+    @keyframes routeMarch{to{stroke-dashoffset:-48}}
+    .node{cursor:pointer}
+    .node rect.body{fill:#111822;stroke:#2a3543;stroke-width:1.5;transition:stroke .18s,fill .18s}
+    .node.provider rect.body{fill:#101923}
+    .node.authority rect.body{stroke:#64552d}
+    .node.feedback rect.body{stroke:#4a3d65}
+    .node.monitor rect.body,.node.worker rect.body{stroke:#36515a}
+    .node:hover rect.body,.node.selected rect.body{stroke:var(--accent);stroke-width:2.5}
+    .node-ring{fill:none;stroke:var(--flow-color,var(--accent));stroke-width:2.5;opacity:0;pointer-events:none}
+    .node.node-hot .node-ring{opacity:.9;animation:nodeRing 1s ease-out infinite;filter:url(#nodeGlow)}
+    .node.node-hot rect.body{stroke:var(--flow-color,var(--accent));fill:#14202c}
+    @keyframes nodeRing{0%{stroke-width:2.5;opacity:.95}70%{stroke-width:7;opacity:.18}100%{stroke-width:8;opacity:0}}
+    .node .name{fill:var(--text);font-size:13px;font-weight:680}
+    .node .kind{fill:var(--dim);font-size:9px;text-transform:uppercase}
+    .node .value{fill:var(--text);font-size:17px;font-weight:720}
+    .node .metric{fill:var(--muted);font-size:9px}
+    .node-state{fill:#263241}
+    .node-state.has-value{fill:var(--good)}
+    .work-token{pointer-events:none;filter:url(#tokenGlow)}
+    .token-core{fill:var(--flow-color,var(--accent));stroke:#091019;stroke-width:2.5}
+    .token-halo{fill:none;stroke:var(--flow-color,var(--accent));stroke-width:2;opacity:.8}
+    .token-tail{fill:var(--flow-color,var(--accent))}
+    .arrival{fill:none;stroke:var(--flow-color,var(--accent));stroke-width:3;pointer-events:none;animation:arrivalBurst .72s ease-out forwards;filter:url(#tokenGlow)}
+    @keyframes arrivalBurst{0%{r:7;opacity:1}100%{r:30;opacity:0}}
+    .motion-bar{display:flex;align-items:center;gap:8px;padding:7px 10px;border-top:1px solid #151c25;background:#0a0e14;color:var(--dim);font-size:10px}
+    .motion-bar strong{color:var(--muted);font-weight:600}
+    .motion-line{height:3px;flex:1;background:#131b25;border-radius:99px;overflow:hidden;min-width:80px}
+    .motion-line>span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--good));transition:width .2s}
+
+    .side{min-width:0;background:#0c1016;display:flex;flex-direction:column}
+    .now{padding:14px;border-bottom:1px solid var(--line);min-height:125px}
+    .side-kicker{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.11em}
+    .now h3{margin:5px 0 3px;font-size:14px}
+    .now p{margin:0;color:var(--muted);font-size:12px}
+    .now-meta{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+    .trace-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 7px}
+    .trace{display:grid;max-height:430px;overflow:auto;padding:0 7px 8px}
+    .trace button{display:grid;grid-template-columns:58px minmax(0,1fr);gap:8px;text-align:left;border:0;border-top:1px solid #181f28;background:transparent;color:var(--text);padding:8px 5px}
+    .trace button:hover,.trace button.selected{background:#111720}
+    .trace-time{font-size:10px;color:var(--dim)}
+    .trace-title{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .trace-sub{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .trace-empty{padding:20px 12px;color:var(--dim);font-size:11px;text-align:center}
+    .trust{padding:10px 12px;border-top:1px solid var(--line);font-size:10px;color:var(--dim);margin-top:auto}
+    .trust strong{color:var(--muted)}
+
+    .grid{display:grid;gap:12px}
+    .providers{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:12px}
+    .provider-card{padding:15px 16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+    .provider-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+    .provider-name{text-transform:uppercase;font-size:11px;color:var(--muted);letter-spacing:.12em}
+    .target{font-size:26px;line-height:1;font-weight:720;letter-spacing:-.04em}
+    .target small{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:0}
+    .meter{height:4px;background:#1b222c;border-radius:99px;overflow:hidden;margin:12px 0 9px}
+    .meter>span{display:block;height:100%;background:var(--accent);border-radius:99px}
+    .kv{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px}
+    .gate{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+    .main{grid-template-columns:minmax(0,1.7fr) minmax(340px,.8fr);align-items:start}
+    .stack{display:grid;gap:12px}
+    .panel{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:hidden}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+    .panel-head h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:#bdc6d2;margin:0;font-weight:650}
+    .meta{font-size:11px;color:var(--dim)}
+    .content{padding:12px 14px}
+    .empty{padding:18px;color:var(--dim);text-align:center;font-size:12px}
+    .rows{display:grid}
+    .row{display:grid;grid-template-columns:138px 90px minmax(0,1fr) 110px;gap:10px;padding:9px 2px;border-bottom:1px solid #191f28;align-items:start}
+    .row:last-child{border-bottom:0}
+    .at{font-size:11px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;width:max-content;max-width:100%;border:1px solid var(--line);border-radius:5px;padding:2px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+    .pill.ok{color:var(--good);border-color:#244532}
+    .pill.attn{color:var(--warn);border-color:#4b3d21}
+    .pill.bad{color:var(--bad);border-color:#522929}
+    .title{min-width:0}
+    .title strong{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .title span{display:block;color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .right{text-align:right;color:var(--muted);font-size:11px}
+    .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .metric-card{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+    .metric-card .n{font-size:19px;font-weight:700;letter-spacing:-.03em}
+    .metric-card .l{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin-top:2px}
+    .issue{padding:8px 0;border-bottom:1px solid #191f28}
+    .issue:last-child{border-bottom:0}
+    .issue .code{font-size:11px;color:var(--warn);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .issue .desc{font-size:12px;margin-top:2px}
+    .issue .small{font-size:10px;color:var(--muted);margin-top:2px}
+    .timer{font-size:11px;color:#b6c0cc;padding:7px 0;border-bottom:1px solid #191f28;white-space:pre-wrap;word-break:break-word}
+    .timer:last-child{border-bottom:0}
+    .runtime{display:grid;gap:7px}
+    .runtime-line{display:flex;justify-content:space-between;gap:14px;font-size:11px}
+    .runtime-line span:first-child{color:var(--muted)}
+    .runtime-line span:last-child{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:68%}
+    .footer{margin:18px 2px 4px;color:var(--dim);font-size:10px;display:flex;justify-content:space-between;gap:20px}
+
+    @media(max-width:1140px){
+      .machine-grid{grid-template-columns:1fr}
+      .map-wrap{border-right:0;border-bottom:1px solid var(--line)}
+      .side{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
+      .now{border-bottom:0;border-right:1px solid var(--line)}
+      .trust{grid-column:1/-1}.trace{max-height:260px}
+    }
+    @media(max-width:980px){
+      .providers{grid-template-columns:1fr}.main{grid-template-columns:1fr}.shell{padding:14px}
+      .row{grid-template-columns:112px 76px minmax(0,1fr)}.right{display:none}
+      .machine-head{align-items:flex-start;flex-direction:column}.machine-controls{justify-content:flex-start}
+    }
+    @media(max-width:620px){
+      .top{flex-direction:column}.badges{justify-content:flex-start}.row{grid-template-columns:86px minmax(0,1fr)}
+      .row .pill{display:none}.metrics{grid-template-columns:1fr 1fr}.at{font-size:10px}
+      .side{grid-template-columns:1fr}.now{border-right:0;border-bottom:1px solid var(--line)}
+      .machine-controls{width:100%}.select-wrap{flex:1 1 145px}.select-wrap select{width:100%}
+      .map-note{align-items:flex-start;flex-direction:column;gap:2px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      .edge.edge-hot,.node.node-hot .node-ring,.arrival{animation:none}
+      .work-token{filter:none}
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">p1</div>
+      <div>
+        <h1>post-once · local observability</h1>
+        <div class="sub">Living projection of local runtime truth. The browser can observe, never operate, the machine.</div>
+      </div>
+    </div>
+    <div class="badges">
+      <span class="badge good">read only</span>
+      <span class="badge">127.0.0.1</span>
+      <span id="live" class="badge warn"><span class="dot"></span>connecting</span>
+      <span id="updated" class="badge">no snapshot</span>
+    </div>
+  </header>
+
+  <section id="living-machine" class="machine" aria-labelledby="machineHeading">
+    <div class="machine-head">
+      <div class="machine-title">
+        <div class="eyebrow">Living machine</div>
+        <h2 id="machineHeading">Watch Post-Once work</h2>
+        <p>A route wakes only when persisted local evidence says work moved through it.</p>
+      </div>
+      <div class="machine-controls">
+        <span id="playbackMode" class="mode">live evidence</span>
+        <span id="motionReadout" class="motion-readout">0 moving</span>
+        <button id="pauseVisual" class="control" type="button" disabled>Pause visual</button>
+        <button id="replayRecent" class="control" type="button" disabled>Replay recent</button>
+        <label class="select-wrap">Speed
+          <select id="playbackSpeed" aria-label="Playback speed">
+            <option value="0.6">0.6×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.7">1.7×</option>
+          </select>
+        </label>
+        <label class="select-wrap">Platform
+          <select id="providerFilter" aria-label="Platform filter">
+            <option value="all">All</option>
+            <option value="x">X</option>
+            <option value="threads">Threads</option>
+            <option value="linkedin">LinkedIn</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="machine-grid">
+      <div class="map-wrap">
+        <div class="map-note">
+          <span><strong>Bright moving route</strong> = persisted evidence · <strong>dashed route</strong> = architecture/context only</span>
+          <span>Pause freezes only this picture. Post-Once continues running.</span>
+        </div>
+        <div class="map-scroll">
+          <svg id="machineSvg" viewBox="0 0 1180 640" role="img" aria-label="Live evidence map of the Post-Once publishing, reply and learning loops">
+            <defs>
+              <filter id="routeGlow" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur stdDeviation="2.2" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="tokenGlow" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="4" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <filter id="nodeGlow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="3" result="b"/>
+                <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                <path d="M0,0 L7,3.5 L0,7 z" fill="#3f5064"></path>
+              </marker>
+              <marker id="arrowDim" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                <path d="M0,0 L7,3.5 L0,7 z" fill="#202934"></path>
+              </marker>
+            </defs>
+            <g id="zoneLayer"></g>
+            <g id="edgeLayer"></g>
+            <g id="nodeLayer"></g>
+            <g id="packetLayer"></g>
+          </svg>
+        </div>
+        <div class="motion-bar">
+          <strong id="motionStatus">Waiting for evidence</strong>
+          <div class="motion-line" aria-hidden="true"><span id="motionFill"></span></div>
+          <span id="queueReadout">0 queued</span>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div id="now" class="now" aria-live="polite">
+          <div class="side-kicker">What is happening now</div>
+          <h3 id="nowTitle">Waiting for local evidence</h3>
+          <p id="nowDetail">Stored evidence can be replayed once the first local snapshot arrives.</p>
+          <div id="nowMeta" class="now-meta"></div>
+        </div>
+        <div>
+          <div class="trace-head"><span class="side-kicker">Evidence trace</span><span id="traceCount" class="meta">0 flows</span></div>
+          <div id="trace" class="trace"><div class="trace-empty">No evidence loaded yet.</div></div>
+        </div>
+        <div class="trust"><strong>Trust boundary:</strong> a travelling work token represents one evidence record. Its halo and trail are one visual pulse, not multiple invented jobs. No browser action can publish, retry or change policy.</div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="providers" class="grid providers"></section>
+
+  <main class="grid main">
+    <div class="stack">
+      <section class="panel"><div class="panel-head"><h2>Next rolling plan</h2><span id="planMeta" class="meta"></span></div><div id="plan" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Active schedules</h2><span id="scheduleMeta" class="meta"></span></div><div id="schedules" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Live activity</h2><span class="meta">schedule ledger + receipts</span></div><div id="activity" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Recent publication outcomes</h2><span class="meta">copy redacted</span></div><div id="receipts" class="content"></div></section>
+    </div>
+
+    <aside class="stack">
+      <section class="panel"><div class="panel-head"><h2>Queue supervision</h2><span id="queueState" class="meta"></span></div><div id="queue" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Engagement</h2><span class="meta">message text withheld</span></div><div id="engagement" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Learning feedback</h2><span id="feedbackState" class="meta">persisted state only</span></div><div id="feedback" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Stored performance</h2><span class="meta">no metric capture</span></div><div id="performance" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Replenishment</h2><span class="meta">local source state</span></div><div id="replenishment" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Platform readiness</h2><span class="meta">shared capability truth</span></div><div id="platform" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Automation timers</h2><span class="meta">systemd user</span></div><div id="timers" class="content"></div></section>
+      <section class="panel"><div class="panel-head"><h2>Runtime</h2><span class="meta">no remote Git check</span></div><div id="runtime" class="content"></div></section>
+    </aside>
+  </main>
+
+  <footer class="footer">
+    <span>Server-Sent Events · one-way browser stream · visual playback is client-only</span>
+    <span id="revision" class="mono"></span>
+  </footer>
+</div>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const short = v => v ? String(v).slice(0,10) : '—';
+const when = v => {
+  if (!v) return '—';
+  const d = new Date(v);
+  return Number.isNaN(+d) ? String(v) : d.toLocaleString([], {month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+};
+const timeOnly = v => {
+  if (!v) return '—';
+  const d = new Date(v);
+  return Number.isNaN(+d) ? '—' : d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+};
+const statusClass = s => {
+  s = String(s || '').toLowerCase();
+  if (/verified|healthy|completed|observed|ok|active|available|signals_available/.test(s)) return 'ok';
+  if (/failed|ambiguous|blocked|unavailable|error|stale|conflict/.test(s)) return 'bad';
+  if (/scheduled|pending|warning|partial|executing|attention|deferred|unverified/.test(s)) return 'attn';
+  return '';
+};
+const safeUrl = v => {
+  try {
+    const u = new URL(String(v));
+    return u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
+};
+const unavailable = v => v && v.status === 'unavailable';
+
+const POS = {
+  sources:[95,105], campaigns:[275,105], planner:[455,105], scheduler:[635,105], run_due:[815,105],
+  x:[1035,45], threads:[1035,155], linkedin:[1035,265],
+  engagement:[620,315], reply_worker:[815,315],
+  learning:[455,500], performance:[675,500], readback:[900,500]
+};
+const SIZE = {w:144,h:72};
+const TONE = {normal:'#91b4ff',good:'#7ee2a8',warn:'#f5cb76',bad:'#ff8f8f'};
+
+const machine = {
+  snapshot:null,
+  seen:new Set(),
+  queue:[],
+  active:[],
+  paused:false,
+  speed:1,
+  filter:'all',
+  raf:0,
+  last:0,
+  nextSpawn:0,
+  initialised:false,
+  replaying:false,
+  selectedId:null,
+  replayTotal:0,
+  replayStarted:0,
+  reduced:window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+};
+
+function el(name, attrs={}) {
+  const n = document.createElementNS('http://www.w3.org/2000/svg', name);
+  Object.entries(attrs).forEach(([k,v]) => n.setAttribute(k, String(v)));
+  return n;
+}
+
+function providerAllowed(flow) {
+  return machine.filter === 'all' ||
+    flow.provider === machine.filter ||
+    flow.source === machine.filter ||
+    flow.target === machine.filter;
+}
+
+function packetTone(flow) {
+  const s = String(flow.status || '').toLowerCase();
+  if (/fail|blocked|ambiguous|error/.test(s)) return 'bad';
+  if (/deferred|partial|pending|unverified|executing/.test(s)) return 'warn';
+  if (/verified|completed|available|published/.test(s)) return 'good';
+  return 'normal';
+}
+
+function edgePath(a,b) {
+  const p=POS[a], q=POS[b];
+  if(!p || !q) return '';
+  const dx=q[0]-p[0], dy=q[1]-p[1];
+  let sx,sy,tx,ty;
+
+  if(Math.abs(dx) >= Math.abs(dy)*0.6) {
+    const right=dx>=0;
+    sx=p[0]+(right?SIZE.w/2:-SIZE.w/2);
+    sy=p[1]+SIZE.h/2;
+    tx=q[0]+(right?-SIZE.w/2:SIZE.w/2);
+    ty=q[1]+SIZE.h/2;
+    const bend=Math.max(55,Math.abs(tx-sx)*0.42);
+    return `M ${sx} ${sy} C ${sx+(right?bend:-bend)} ${sy}, ${tx+(right?-bend:bend)} ${ty}, ${tx} ${ty}`;
+  }
+
+  const down=dy>=0;
+  sx=p[0]; sy=p[1]+(down?SIZE.h:0);
+  tx=q[0]; ty=q[1]+(down?0:SIZE.h);
+  const bend=Math.max(55,Math.abs(ty-sy)*0.42);
+  return `M ${sx} ${sy} C ${sx} ${sy+(down?bend:-bend)}, ${tx} ${ty+(down?-bend:bend)}, ${tx} ${ty}`;
+}
+
+function drawZones() {
+  const layer=$('zoneLayer');
+  layer.textContent='';
+  const zones=[
+    {x:20,y:18,w:920,h:190,label:'SUPPLY · DECISION · PUBLICATION'},
+    {x:500,y:250,w:470,h:155,label:'CONVERSATION LOOP'},
+    {x:370,y:445,w:620,h:150,label:'OBSERVE · MEASURE · LEARN'}
+  ];
+  zones.forEach(z=>{
+    layer.appendChild(el('rect',{x:z.x,y:z.y,width:z.w,height:z.h,rx:18,class:'zone'}));
+    const t=el('text',{x:z.x+14,y:z.y+18,class:'zone-title'});
+    t.textContent=z.label;
+    layer.appendChild(t);
+  });
+}
+
+function labelNode(id) {
+  const n=(machine.snapshot?.machine?.nodes || []).find(x=>x.id===id);
+  return n?.label || id;
+}
+
+function nodeDescription(id) {
+  return ({
+    sources:'Observed source repositories and source state. This view does not trigger a network read.',
+    campaigns:'Runtime campaigns available to Post-Once after its existing source and admission boundaries.',
+    planner:'Dry portfolio selection. Persisted bounded learning can influence this future-selection point.',
+    scheduler:'Durable schedule ledger. Work becomes visible here before any provider consequence.',
+    run_due:'The existing publication authority. A durable claim is written immediately before provider consequence.',
+    x:'X provider boundary. Motion here requires publication, reply or readback evidence.',
+    threads:'Threads provider boundary. Motion here requires publication, reply or readback evidence.',
+    linkedin:'LinkedIn member/Page publication and bounded comment boundary. Missing provider permission remains unavailable evidence, never zero activity.',
+    engagement:'Bounded reply collection for recent receipt-backed conversations. Message text stays out of this console.',
+    reply_worker:'Reply send lifecycle. Motion requires a persisted send attempt or outcome.',
+    readback:'Receipt/readback evidence establishing what the provider did or did not verify.',
+    performance:'Stored performance snapshots only. Opening this console never captures metrics.',
+    learning:'Persisted performance feedback. Qualifying evidence can create a bounded preference for future planning.'
+  }[id] || 'Observed Post-Once stage.');
+}
+
+function renderMachine(snapshot) {
+  const m=snapshot.machine || {};
+  machine.snapshot=snapshot;
+
+  const edges=Array.isArray(m.edges)?m.edges:[];
+  const nodes=Array.isArray(m.nodes)?m.nodes:[];
+  const edgeLayer=$('edgeLayer'), nodeLayer=$('nodeLayer');
+  edgeLayer.textContent='';
+  nodeLayer.textContent='';
+  drawZones();
+
+  edges.forEach(e=>{
+    if(!POS[e.source] || !POS[e.target]) return;
+    const p=el('path',{
+      id:`edge-${e.source}-${e.target}`,
+      'data-edge':`${e.source}>${e.target}`,
+      d:edgePath(e.source,e.target),
+      class:`edge ${e.mode==='evidence'?'evidence':'architecture'}`,
+      'marker-end':e.mode==='evidence'?'url(#arrow)':'url(#arrowDim)'
+    });
+    edgeLayer.appendChild(p);
+  });
+
+  nodes.forEach(n=>{
+    const p=POS[n.id];
+    if(!p) return;
+    const g=el('g',{
+      class:`node ${n.kind||''}${machine.selectedId===`node:${n.id}`?' selected':''}`,
+      transform:`translate(${p[0]-SIZE.w/2} ${p[1]})`,
+      tabindex:'0',
+      role:'button',
+      'aria-label':`${n.label}, ${n.value??0} ${n.metric||''}`
+    });
+    g.dataset.node=n.id;
+    g.appendChild(el('rect',{x:-4,y:-4,width:SIZE.w+8,height:SIZE.h+8,rx:15,class:'node-ring'}));
+    g.appendChild(el('rect',{width:SIZE.w,height:SIZE.h,rx:12,class:'body'}));
+
+    const state=el('circle',{cx:SIZE.w-13,cy:SIZE.h-13,r:4,class:`node-state${Number(n.value)>0?' has-value':''}`});
+    g.appendChild(state);
+
+    const kind=el('text',{x:12,y:16,class:'kind'}); kind.textContent=String(n.kind||'stage').toUpperCase(); g.appendChild(kind);
+    const name=el('text',{x:12,y:36,class:'name'}); name.textContent=n.label||n.id; g.appendChild(name);
+    const value=el('text',{x:SIZE.w-12,y:36,class:'value','text-anchor':'end'}); value.textContent=n.value??0; g.appendChild(value);
+    const metric=el('text',{x:12,y:58,class:'metric'}); metric.textContent=n.metric||''; g.appendChild(metric);
+
+    const select=()=>selectNode(n);
+    g.addEventListener('click',select);
+    g.addEventListener('keydown',ev=>{
+      if(ev.key==='Enter' || ev.key===' '){ev.preventDefault();select();}
+    });
+    nodeLayer.appendChild(g);
+  });
+
+  const flows=Array.isArray(m.flows)?m.flows:[];
+  renderTrace(flows);
+  ingestFlows(flows);
+  refreshActivityStyles();
+}
+
+function selectNode(n) {
+  machine.selectedId=`node:${n.id}`;
+  document.querySelectorAll('.node').forEach(x=>x.classList.toggle('selected',x.dataset.node===n.id));
+  $('nowTitle').textContent=n.label;
+  $('nowDetail').textContent=nodeDescription(n.id);
+  $('nowMeta').innerHTML=`<span class="pill">${esc(n.kind||'stage')}</span><span class="pill ${Number(n.value)>0?'ok':''}">${esc(n.value??0)} ${esc(n.metric||'')}</span>`;
+}
+
+function selectFlow(flow) {
+  machine.selectedId=`flow:${flow.id}`;
+  $('nowTitle').textContent=flow.label||flow.kind;
+  $('nowDetail').textContent=`${labelNode(flow.source)} → ${labelNode(flow.target)} · ${flow.evidence||'local evidence'}`;
+  const bits=[flow.status,flow.provider,flow.campaign,flow.schedule_id&&short(flow.schedule_id),when(flow.at)].filter(Boolean);
+  $('nowMeta').innerHTML=bits.map((v,i)=>`<span class="pill ${i===0?statusClass(v):''}">${esc(v)}</span>`).join('');
+  renderTrace(machine.snapshot?.machine?.flows||[]);
+}
+
+function flowLane(flow) {
+  const k=String(flow.kind||'');
+  if(k.startsWith('reply_')) return 'engagement';
+  if(k==='metrics_stored') return 'performance';
+  if(k.startsWith('feedback_')) return 'learning';
+  return 'publication';
+}
+
+function selectReplayFlows(flows) {
+  const allowed=(Array.isArray(flows)?flows:[]).filter(providerAllowed);
+  const bySchedule=new Map();
+
+  allowed.forEach(f=>{
+    if(!f.schedule_id) return;
+    const key=String(f.schedule_id);
+    if(!bySchedule.has(key)) bySchedule.set(key,[]);
+    bySchedule.get(key).push(f);
+  });
+
+  const journeys=[...bySchedule.values()]
+    .map(rows=>rows.sort((a,b)=>new Date(a.at||0)-new Date(b.at||0)))
+    .sort((a,b)=>new Date(b[b.length-1]?.at||0)-new Date(a[a.length-1]?.at||0))
+    .slice(0,4);
+
+  const picked=[];
+  journeys.forEach(rows=>picked.push(...rows));
+
+  const supplements={engagement:5,performance:5,learning:3};
+  Object.entries(supplements).forEach(([lane,limit])=>{
+    allowed.filter(f=>flowLane(f)===lane).slice(0,limit).forEach(f=>picked.push(f));
+  });
+
+  if(picked.length<10){
+    allowed.slice(0,18).forEach(f=>picked.push(f));
+  }
+
+  const unique=new Map();
+  picked.forEach(f=>{if(f?.id) unique.set(f.id,f);});
+  return [...unique.values()]
+    .sort((a,b)=>new Date(a.at||0)-new Date(b.at||0))
+    .slice(-30);
+}
+
+function ingestFlows(flows) {
+  if(!Array.isArray(flows)) return;
+
+  if(!machine.initialised){
+    flows.forEach(f=>machine.seen.add(f.id));
+    machine.initialised=true;
+    $('pauseVisual').disabled=false;
+    $('replayRecent').disabled=false;
+    const recent=selectReplayFlows(flows);
+    if(!machine.reduced && recent.length){
+      beginReplay(recent);
+    } else {
+      setMode(machine.reduced?'paused':'live');
+    }
+    return;
+  }
+
+  const fresh=flows.filter(f=>f.id && !machine.seen.has(f.id)).reverse();
+  fresh.forEach(f=>{
+    machine.seen.add(f.id);
+    if(providerAllowed(f)) enqueue(f,'live');
+  });
+}
+
+function enqueue(flow,mode) {
+  machine.queue.push({flow,mode});
+  if(machine.queue.length>120) machine.queue.splice(0,machine.queue.length-120);
+  updateMotionReadout();
+}
+
+function beginReplay(flows) {
+  clearMotion();
+  machine.replaying=flows.length>0;
+  machine.replayTotal=flows.length;
+  machine.replayStarted=performance.now();
+  flows.forEach(f=>enqueue(f,'replay'));
+  machine.paused=false;
+  machine.nextSpawn=performance.now()+120;
+  $('pauseVisual').textContent='Pause visual';
+  setMode('replay');
+  $('motionStatus').textContent=flows.length?`Replaying ${flows.length} evidence records`:'No replay evidence';
+}
+
+function replay() {
+  if(!machine.snapshot) return;
+  beginReplay(selectReplayFlows(machine.snapshot.machine?.flows||[]));
+}
+
+function clearMotion() {
+  machine.queue=[];
+  machine.active.forEach(a=>a.el.remove());
+  machine.active=[];
+  $('packetLayer').querySelectorAll('.arrival').forEach(x=>x.remove());
+  refreshActivityStyles();
+  updateMotionReadout();
+}
+
+function setMode(mode) {
+  const m=$('playbackMode');
+  m.className='mode'+(mode==='replay'?' replay':mode==='paused'?' paused':'');
+  m.textContent=mode==='replay'?'replay · stored evidence':mode==='paused'?'visual paused':'live evidence';
+}
+
+function togglePause() {
+  machine.paused=!machine.paused;
+  $('pauseVisual').textContent=machine.paused?'Resume visual':'Pause visual';
+  setMode(machine.paused?'paused':machine.replaying?'replay':'live');
+  machine.last=performance.now();
+  $('motionStatus').textContent=machine.paused?'Visual playback paused':'Visual playback running';
+}
+
+function startPacket(item) {
+  const flow=item.flow;
+  if(!providerAllowed(flow)) return false;
+  const path=$(`edge-${flow.source}-${flow.target}`);
+  if(!path) return false;
+
+  const tone=packetTone(flow);
+  const colour=TONE[tone]||TONE.normal;
+  const g=el('g',{class:'work-token'});
+  g.style.setProperty('--flow-color',colour);
+
+  const halo=el('circle',{r:13,class:'token-halo'});
+  const tailA=el('circle',{r:5,class:'token-tail',opacity:.42});
+  const tailB=el('circle',{r:3.5,class:'token-tail',opacity:.22});
+  const core=el('circle',{r:7.5,class:'token-core'});
+  g.appendChild(tailB);g.appendChild(tailA);g.appendChild(halo);g.appendChild(core);
+  $('packetLayer').appendChild(g);
+
+  machine.active.push({
+    flow,mode:item.mode,path,el:g,core,halo,tailA,tailB,tone,colour,
+    t:0,duration:Math.max(1250,2600/machine.speed)
+  });
+
+  selectFlow(flow);
+  refreshActivityStyles();
+  updateMotionReadout();
+  return true;
+}
+
+function placeToken(circle,path,len,ratio) {
+  const r=Math.max(0,Math.min(1,ratio));
+  const pt=path.getPointAtLength(len*r);
+  circle.setAttribute('cx',pt.x);
+  circle.setAttribute('cy',pt.y);
+}
+
+function burstAt(nodeId,tone) {
+  const p=POS[nodeId];
+  if(!p) return;
+  const c=el('circle',{
+    cx:p[0],cy:p[1]+SIZE.h/2,r:7,
+    class:'arrival'
+  });
+  c.style.setProperty('--flow-color',TONE[tone]||TONE.normal);
+  $('packetLayer').appendChild(c);
+  window.setTimeout(()=>c.remove(),760);
+}
+
+function refreshActivityStyles() {
+  document.querySelectorAll('.edge').forEach(e=>{
+    e.classList.remove('edge-hot');
+    e.style.removeProperty('--flow-color');
+  });
+  document.querySelectorAll('.node').forEach(n=>{
+    n.classList.remove('node-hot');
+    n.style.removeProperty('--flow-color');
+  });
+
+  machine.active.forEach(a=>{
+    const edge=$(`edge-${a.flow.source}-${a.flow.target}`);
+    if(edge){
+      edge.classList.add('edge-hot');
+      edge.style.setProperty('--flow-color',a.colour);
+    }
+    [a.flow.source,a.flow.target].forEach(id=>{
+      const n=[...document.querySelectorAll('.node')].find(item=>item.dataset.node===id);
+      if(n){
+        n.classList.add('node-hot');
+        n.style.setProperty('--flow-color',a.colour);
+      }
+    });
+  });
+}
+
+function updateMotionReadout() {
+  $('motionReadout').textContent=`${machine.active.length} moving`;
+  $('queueReadout').textContent=`${machine.queue.length} queued`;
+  const denom=Math.max(1,machine.replayTotal);
+  const done=machine.replaying?Math.max(0,denom-machine.queue.filter(x=>x.mode==='replay').length-machine.active.filter(x=>x.mode==='replay').length):0;
+  $('motionFill').style.width=machine.replaying?`${Math.min(100,Math.round(done/denom*100))}%`:(machine.active.length?'100%':'0%');
+}
+
+function finishPacket(a) {
+  burstAt(a.flow.target,a.tone);
+  a.el.remove();
+  const idx=machine.active.indexOf(a);
+  if(idx>=0) machine.active.splice(idx,1);
+  refreshActivityStyles();
+  updateMotionReadout();
+}
+
+function animate(ts) {
+  const dt=Math.min(80,ts-(machine.last||ts));
+  machine.last=ts;
+
+  if(!machine.paused){
+    const cap=8;
+    if(machine.queue.length && machine.active.length<cap && ts>=machine.nextSpawn){
+      const item=machine.queue.shift();
+      startPacket(item);
+      machine.nextSpawn=ts+Math.max(90,260/machine.speed);
+    }
+
+    machine.active.slice().forEach(a=>{
+      a.t+=dt;
+      const ratio=Math.min(1,a.t/a.duration);
+      const len=a.path.getTotalLength();
+      placeToken(a.core,a.path,len,ratio);
+      placeToken(a.halo,a.path,len,ratio);
+      placeToken(a.tailA,a.path,len,ratio-.035);
+      placeToken(a.tailB,a.path,len,ratio-.075);
+      const pulse=1+Math.sin(a.t/130)*.13;
+      a.halo.setAttribute('r',String(13*pulse));
+
+      if(ratio>=1) finishPacket(a);
+    });
+
+    if(machine.replaying &&
+       !machine.queue.some(x=>x.mode==='replay') &&
+       !machine.active.some(x=>x.mode==='replay')){
+      machine.replaying=false;
+      machine.replayTotal=0;
+      setMode('live');
+      $('motionStatus').textContent='Caught up · watching new evidence';
+      $('motionFill').style.width='0%';
+    } else if(machine.active.length){
+      $('motionStatus').textContent=machine.replaying?'Stored evidence moving through the machine':'New evidence moving through the machine';
+    } else if(!machine.replaying){
+      $('motionStatus').textContent='Live · waiting for the next persisted event';
+    }
+
+    updateMotionReadout();
+  }
+
+  machine.raf=requestAnimationFrame(animate);
+}
+
+function renderTrace(flows) {
+  const shown=(Array.isArray(flows)?flows:[]).filter(providerAllowed).slice(0,36);
+  $('traceCount').textContent=`${shown.length} flows`;
+  $('trace').innerHTML=shown.length
+    ? shown.map(f=>`<button type="button" data-flow="${esc(f.id)}" class="${machine.selectedId===`flow:${f.id}`?'selected':''}">
+        <span class="trace-time">${esc(timeOnly(f.at))}</span>
+        <span>
+          <div class="trace-title">${esc(f.label||f.kind)}</div>
+          <div class="trace-sub">${esc(labelNode(f.source))} → ${esc(labelNode(f.target))}${f.provider?' · '+esc(f.provider):''}</div>
+        </span>
+      </button>`).join('')
+    : '<div class="trace-empty">No evidence for this filter.</div>';
+
+  [...$('trace').querySelectorAll('button[data-flow]')].forEach(b=>b.addEventListener('click',()=>{
+    const f=shown.find(x=>x.id===b.dataset.flow);
+    if(f) selectFlow(f);
+  }));
+}
+
+function providerCards(s) {
+  const st=s.portfolio?.status||{}, plan=s.portfolio?.plan||{}, exp=s.experiment||{};
+  const targets=st.targets||{}, cap=plan.capacity||{}, gates=exp.delivery_gates||{};
+  $('providers').innerHTML=['x','threads','linkedin'].map(p=>{
+    const t=targets[p]||{}, c=cap[p]||{};
+    const target=Number(t.posts_per_day??c.daily_target??0);
+    const used=Number(c.daily_budget_used??0);
+    const remaining=Number(c.daily_budget_remaining??Math.max(0,target-used));
+    const pct=target?Math.min(100,Math.round(used/target*100)):0;
+    const gate=gates[p];
+    const gateText=p==='linkedin'
+      ? 'Independent owner policy'
+      : gate ? `${gate.healthy?'Healthy':'Fallback'} · ${gate.verified_scheduled_posts_24h??0} verified/24h`
+             : 'No experiment gate';
+
+    return `<article class="provider-card">
+      <div class="provider-head">
+        <span class="provider-name">${esc(p)}</span>
+        <span class="pill ${gate?statusClass(gate.healthy?'healthy':'warning'):'ok'}">${p==='linkedin'?'policy':esc(gate?.healthy?'healthy':'base')}</span>
+      </div>
+      <div class="target">${target}<small> / day</small></div>
+      <div class="meter"><span style="width:${pct}%"></span></div>
+      <div class="kv"><span>${used} used</span><span>${remaining} remaining</span><span>${t.replies_per_day??c.reply_target??0} replies</span></div>
+      <div class="gate">${esc(gateText)}</div>
+    </article>`;
+  }).join('');
+}
+
+function rows(items,kind) {
+  if(!items?.length) return '<div class="empty">Nothing to show.</div>';
+  return `<div class="rows">${items.map(r=>{
+    const status=r.status||r.event||kind;
+    const title=r.campaign||r.project||r.schedule_id||'event';
+    const secondary=[r.provider,r.account_label||r.account_id,r.project].filter(Boolean).join(' · ');
+    const url=safeUrl(r.url);
+    const t=url?`<a href="${esc(url)}" target="_blank" rel="noreferrer">${esc(title)}</a>`:esc(title);
+    return `<div class="row">
+      <div class="at">${esc(when(r.at||r.updated_at||r.recorded_at||r.run_at||r.captured_at))}</div>
+      <div><span class="pill ${statusClass(status)}">${esc(status)}</span></div>
+      <div class="title"><strong>${t}</strong><span>${esc(secondary)}</span></div>
+      <div class="right mono">${esc(short(r.post_id||r.schedule_id||''))}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderPlan(s) {
+  const p=s.portfolio?.plan||{};
+  $('planMeta').textContent=`${p.horizon_minutes??75} min · ${p.selection||'dry plan'}`;
+  $('plan').innerHTML=rows((p.plan||[]).map(x=>({...x,at:x.run_at,status:'planned'})),'planned');
+}
+
+function renderSchedules(s) {
+  const a=s.activity||{};
+  $('scheduleMeta').textContent=`${(a.active_schedules||[]).length} active`;
+  $('schedules').innerHTML=rows(a.active_schedules||[],'schedule');
+  $('activity').innerHTML=rows(a.activity||[],'event');
+  $('receipts').innerHTML=rows(a.recent_receipts||[],'receipt');
+}
+
+function renderQueue(s) {
+  const q=s.queue||{};
+  $('queueState').textContent=q.status||'unavailable';
+  if(unavailable(q)){
+    $('queue').innerHTML='<div class="empty">Queue projection unavailable.</div>';
+    return;
+  }
+  const issues=q.issues||[];
+  $('queue').innerHTML=`<div class="metrics">
+      <div class="metric-card"><div class="n">${q.record_count??0}</div><div class="l">records</div></div>
+      <div class="metric-card"><div class="n">${Object.values(q.states||{}).reduce((a,b)=>a+b,0)}</div><div class="l">observed</div></div>
+      <div class="metric-card"><div class="n">${issues.length}</div><div class="l">issues</div></div>
+    </div>
+    ${issues.slice(0,12).map(i=>`<div class="issue"><div class="code">${esc(i.code)}</div><div class="desc">${esc(i.campaign)} · ${esc(i.provider)}</div><div class="small">${esc(i.project||'')} ${i.age_hours!=null?'· '+esc(i.age_hours)+'h':''}</div></div>`).join('')}`;
+}
+
+function renderEngagement(s) {
+  const e=s.engagement||{};
+  if(unavailable(e)){
+    $('engagement').innerHTML='<div class="empty">Engagement projection unavailable.</div>';
+    return;
+  }
+  const pairs=Object.entries(e.counts||{});
+  $('engagement').innerHTML=`<div class="metrics">
+      <div class="metric-card"><div class="n">${pairs.reduce((a,[,v])=>a+Number(v||0),0)}</div><div class="l">inbox states</div></div>
+      <div class="metric-card"><div class="n">${e.nested_pending??0}</div><div class="l">nested pending</div></div>
+      <div class="metric-card"><div class="n">${e.waiting_over_24h??0}</div><div class="l">over 24h</div></div>
+    </div>
+    ${pairs.map(([k,v])=>`<div class="issue"><div class="desc">${esc(k)}</div><div class="small">${esc(v)} item${Number(v)===1?'':'s'}</div></div>`).join('')}`;
+}
+
+function renderFeedback(s) {
+  const f=s.feedback||{};
+  $('feedbackState').textContent=f.status||'not recorded';
+  if(unavailable(f)){
+    $('feedback').innerHTML='<div class="empty">Feedback projection unavailable.</div>';
+    return;
+  }
+  $('feedback').innerHTML=`<div class="metrics">
+      <div class="metric-card"><div class="n">${f.signal_count??0}</div><div class="l">signals</div></div>
+      <div class="metric-card"><div class="n">${f.cohort_count??0}</div><div class="l">cohorts</div></div>
+      <div class="metric-card"><div class="n">${f.observation_count??0}</div><div class="l">observations</div></div>
+    </div>
+    <div class="issue">
+      <div class="code">${f.selection_adjustment_available?'BOUNDED PREFERENCE AVAILABLE':'NO ACTIVE ADJUSTMENT'}</div>
+      <div class="desc">${esc(f.status||'not recorded')}</div>
+      <div class="small">${f.observed_at?'Evaluated '+esc(when(f.observed_at)):'No persisted feedback evaluation yet'} · recomputed by console: no</div>
+    </div>
+    ${(f.signals||[]).slice(0,8).map(x=>`<div class="issue"><div class="desc">${esc(x.provider||'provider')} · ${esc(x.variant||'variant')} · +${esc(x.boost??0)}</div><div class="small">${esc(x.lane||'')} · ${esc(x.evidence_count??0)} evidence posts · expires ${esc(when(x.expires_at))}</div></div>`).join('')}`;
+}
+
+function renderPerformance(s) {
+  const p=s.performance||{};
+  if(unavailable(p)){
+    $('performance').innerHTML='<div class="empty">Stored performance unavailable.</div>';
+    return;
+  }
+  $('performance').innerHTML=`<div class="metrics">
+      <div class="metric-card"><div class="n">${p.snapshot_count??0}</div><div class="l">snapshots</div></div>
+      ${['x','threads'].map(k=>`<div class="metric-card"><div class="n">${p.by_provider?.[k]??0}</div><div class="l">${esc(k)}</div></div>`).join('')}
+    </div>${rows((p.recent||[]).slice(0,8),'metric')}`;
+}
+
+function renderReplenishment(s) {
+  const r=s.replenishment||{};
+  if(unavailable(r)){
+    $('replenishment').innerHTML='<div class="empty">Replenishment projection unavailable.</div>';
+    return;
+  }
+  const obs=r.source_observations||{};
+  $('replenishment').innerHTML=`<div class="metrics">
+      <div class="metric-card"><div class="n">${r.runtime_campaign_count??0}</div><div class="l">runtime campaigns</div></div>
+      <div class="metric-card"><div class="n">${r.observed_repositories??0}</div><div class="l">repositories</div></div>
+      <div class="metric-card"><div class="n">${Object.keys(obs).length}</div><div class="l">source states</div></div>
+    </div>
+    ${Object.entries(obs).slice(0,10).map(([k,v])=>`<div class="issue"><div class="desc">${esc(k)}</div><div class="small">${esc(v.status||'—')} · ${esc(v.pending_count??0)} pending · ${esc(when(v.observed_at))}</div></div>`).join('')}`;
+}
+
+function renderPlatform(s) {
+  const c=s.capabilities||{}, items=Array.isArray(c.capabilities)?c.capabilities:[];
+  const integrity=s.state_integrity||{}, outcomes=s.outcome_connectors||{}, alerts=s.alert_delivery||{};
+  $('platform').innerHTML=`<div class="metrics">
+      <div class="metric-card"><div class="n">${items.length}</div><div class="l">capabilities</div></div>
+      <div class="metric-card"><div class="n">${integrity.invalid_count??0}</div><div class="l">invalid state</div></div>
+      <div class="metric-card"><div class="n">${(outcomes.connectors||[]).length}</div><div class="l">outcome sources</div></div>
+    </div>
+    ${items.map(r=>`<div class="issue"><div class="code">${esc(r.acceptance||r.evidence||r.implementation||'unknown')}</div><div class="desc">${esc(r.label||r.id)}</div><div class="small">${esc([r.configuration,r.authority,r.evidence,r.acceptance].filter(Boolean).join(' → '))}</div></div>`).join('')}
+    <div class="issue"><div class="code">${esc(alerts.status||'not configured')}</div><div class="desc">Alert delivery</div><div class="small">${alerts.enabled?'enabled':'not enabled'} · last delivery ${esc(when(alerts.last_delivery_at))}</div></div>`;
+}
+
+function renderTimers(s) {
+  const t=s.timers||{};
+  $('timers').innerHTML=unavailable(t)
+    ? '<div class="empty">Timer state unavailable.</div>'
+    : (t.timers||[]).map(v=>`<div class="timer mono">${esc(v)}</div>`).join('') || '<div class="empty">No matching timers.</div>';
+}
+
+function renderRuntime(s) {
+  const r=s.runtime||{};
+  const values=[
+    ['CLI',r.cli_version],['branch',r.branch],['commit',short(r.git_commit_sha)],
+    ['checkout',r.checkout_clean===true?'clean':r.checkout_clean===false?'dirty':'unknown'],
+    ['network checked','no'],['publishing authority','no']
+  ];
+  $('runtime').innerHTML=`<div class="runtime">${values.map(([a,b])=>`<div class="runtime-line"><span>${esc(a)}</span><span class="mono">${esc(b??'—')}</span></div>`).join('')}</div>`;
+}
+
+function render(s) {
+  providerCards(s);
+  renderMachine(s);
+  renderPlan(s);
+  renderSchedules(s);
+  renderQueue(s);
+  renderEngagement(s);
+  renderFeedback(s);
+  renderPerformance(s);
+  renderReplenishment(s);
+  renderPlatform(s);
+  renderTimers(s);
+  renderRuntime(s);
+  $('updated').textContent=when(s.observed_at);
+  $('revision').textContent=short(s.revision);
+}
+
+$('pauseVisual').addEventListener('click',togglePause);
+$('replayRecent').addEventListener('click',replay);
+$('playbackSpeed').addEventListener('change',e=>{
+  const n=Number(e.target.value);
+  machine.speed=Number.isFinite(n)&&n>0?n:1;
+  machine.active.forEach(a=>a.duration=Math.max(1250,2600/machine.speed));
+});
+$('providerFilter').addEventListener('change',e=>{
+  machine.filter=e.target.value||'all';
+  clearMotion();
+  renderTrace(machine.snapshot?.machine?.flows||[]);
+});
+
+if(machine.reduced){
+  machine.paused=true;
+  setMode('paused');
+  $('pauseVisual').textContent='Resume visual';
+  $('nowTitle').textContent='Motion preference respected';
+  $('nowDetail').textContent='The map is live but movement is paused. Resume visual if you want animated evidence.';
+}
+machine.raf=requestAnimationFrame(animate);
+
+function acceptSnapshot(s) {
+  if(!s || typeof s!=='object') return;
+  render(s);
+  $('live').className='badge good';
+  $('live').innerHTML='<span class="dot"></span>streaming';
+}
+
+fetch('/api/snapshot',{cache:'no-store'})
+  .then(r=>{if(!r.ok)throw new Error('snapshot');return r.json();})
+  .then(acceptSnapshot)
+  .catch(()=>{});
+
+const stream=new EventSource('/api/stream');
+stream.addEventListener('snapshot',event=>{
+  try{acceptSnapshot(JSON.parse(event.data));}catch{}
+});
+stream.onopen=()=>{
+  $('live').className='badge good';
+  $('live').innerHTML='<span class="dot"></span>streaming';
+};
+stream.onerror=()=>{
+  $('live').className='badge warn';
+  $('live').innerHTML='<span class="dot"></span>reconnecting';
+};
+</script>
+</body>
+</html>
