@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "projects": {
+    "opstruth-chatgpt-plugin": {
+      "label": "OpsTruth for ChatGPT and Codex",
+      "repository": "AyobamiH/opstruth-chatgpt-plugin",
+      "campaign_prefix": "OPSTRUTHPLUGIN",
+      "providers": ["x"],
+      "destinations": {"x": "x-founder"},
+      "required_phrases_any": ["evidence-first repository verification plugin", "Evidence Graph v1", "OpsTruth for ChatGPT and Codex"],
+      "event_enabled": true,
+      "event_problem": "This surface turns repository verification into a conversational tool while preserving OpsTruth's read-only evidence boundary.",
+      "event_cta": "Which repository claim would you want ChatGPT to verify instead of trust?",
+      "claim_boundary": "Plugin/read-only verification framing only; no mutation authority, private-repository access or universal deployment proof.",
+      "default_cta": "Which repository claim would you want ChatGPT to verify instead of trust?",
+      "inventory": [
+        {"title": "Chat should not replace evidence", "lane": "commercial", "priority": 93, "hook": "A confident chat answer is not repository evidence.", "body": "The OpsTruth plugin is built to bind claims to repositories, commits, CI, runtime observations and receipts instead of asking users to trust a summary.", "cta": "What engineering claim do you most often have to verify manually?"},
+        {"title": "Signed snapshots still need trust context", "lane": "commercial", "priority": 90, "hook": "A signature proves integrity, not that the underlying outcome is true.", "body": "Portable evidence snapshots are useful only when signer trust, freshness, authorisation and subject binding remain separate decisions.", "cta": "Which of those checks does your current evidence flow skip?"},
+        {"title": "Verification should stay read-only", "lane": "evergreen", "priority": 77, "hook": "The verifier should not quietly become the repair tool.", "body": "Keeping observation separate from mutation makes it easier to know whether a result came from independent evidence or the executor's own claim.", "cta": "Would you give your verifier write access to the target?"}
+      ]
+    },
+    "evidence-explorer": {
+      "label": "Public Decision Intelligence / Evidence Explorer",
+      "repository": "AyobamiH/evidence-explorer",
+      "campaign_prefix": "PDIX",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["Public Decision Intelligence Console", "public evidence browser", "decision chains"],
+      "event_enabled": true,
+      "event_problem": "The frontend exists to make evidence, entities and decision chains inspectable without weakening the backend truth model.",
+      "event_cta": "What would make a public evidence browser genuinely useful to you?",
+      "claim_boundary": "Frontend/browser framing only; do not imply analyst-grade review tooling or polished public deployment unless separately evidenced.",
+      "default_cta": "What would make a public evidence browser genuinely useful to you?",
+      "inventory": [
+        {"title": "Evidence needs a browse surface", "lane": "commercial", "priority": 86, "hook": "Evidence is hard to use if every answer requires reading the raw corpus again.", "body": "The Evidence Explorer turns documents, entities, grouped search and decision chains into a read-only browse surface over the Public Decision Intelligence backend.", "cta": "Which view would save you the most investigation time?"},
+        {"title": "Decision chains should stay inspectable", "lane": "commercial", "priority": 84, "hook": "A summary hides the path that produced it.", "body": "A useful evidence browser lets you move from a decision chain back to the entities, documents and source-linked details that support it.", "cta": "Where do current research tools make that path disappear?"},
+        {"title": "Frontend should not invent backend truth", "lane": "evergreen", "priority": 73, "hook": "A polished UI should not outrun the evidence model behind it.", "body": "The explorer is intentionally wired to the backend's real public contract rather than maintaining a second interpretation of the data.", "cta": "What truth drift have you seen between backend and dashboard?"}
+      ]
+    },
+    "oneclick-chatgpt-plugin": {
+      "label": "One Click for ChatGPT",
+      "repository": "AyobamiH/oneclick-chatgpt-plugin",
+      "campaign_prefix": "OCCGPT",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["One Click for ChatGPT", "structured handoff", "oneclick_prepare_basic_draft"],
+      "event_enabled": true,
+      "event_problem": "The product turns a rough business idea into a structured website handoff while leaving actual project creation to Lovable.",
+      "event_cta": "What information do you usually forget before asking an AI builder to make a website?",
+      "claim_boundary": "Initial anonymous handoff only; authenticated saved projects and Full Mode remain roadmap items until reviewed end to end.",
+      "default_cta": "What information do you usually forget before asking an AI builder to make a website?",
+      "inventory": [
+        {"title": "A rough idea needs structure before building", "lane": "commercial", "priority": 91, "hook": "The first website iteration is often expensive because the brief is still vague.", "body": "One Click turns the rough business idea into a structured handoff before Lovable creates the project, so the builder starts with more useful context.", "cta": "Which part of your website brief is usually missing on day one?"},
+        {"title": "Handoff is different from project creation", "lane": "commercial", "priority": 88, "hook": "Preparing the brief and building the project are different jobs.", "body": "One Click prepares the structured draft; the separately installed Lovable plugin remains responsible for project creation and later code changes.", "cta": "Where does your current AI website workflow blur those responsibilities?"},
+        {"title": "Anonymous first can be a feature", "lane": "evergreen", "priority": 74, "hook": "Not every useful first interaction needs an account system.", "body": "The initial One Click release keeps the website handoff lightweight and ephemeral instead of pretending saved projects and Full Mode are already available.", "cta": "Would you try a useful handoff before creating an account?"}
+      ]
+    },
+    "lovable-architecture-auditor": {
+      "label": "Lovable Architecture Auditor",
+      "repository": "AyobamiH/founders-oneclickwebsitedesignfactory",
+      "campaign_prefix": "LAA",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["Lovable Architecture Auditor", "architectural audits of Lovable projects", "£1.99"],
+      "event_enabled": false,
+      "claim_boundary": "Current £1.99 no-login audit offer and documented manual delivery flow only; no automated-audit or guaranteed-hardening claim.",
+      "default_cta": "What part of a Lovable project do you understand least after several prompt-driven changes?",
+      "inventory": [
+        {"title": "Prompt-built projects need architecture visibility", "lane": "commercial", "priority": 92, "hook": "A Lovable project can work while its architecture becomes hard to explain.", "body": "The £1.99 audit offer is designed to map the system, data flow, APIs, permissions, AI usage, pain points and unknowns into a reviewable documentation pack.", "cta": "Which part of your Lovable project feels least explainable today?"},
+        {"title": "Unknowns belong in the audit", "lane": "commercial", "priority": 89, "hook": "An architecture audit is weaker when it pretends every dependency is understood.", "body": "I want the output to name unknowns and evidence gaps alongside the system map rather than hide uncertainty behind polished diagrams.", "cta": "What question about your project has nobody been able to answer cleanly?"},
+        {"title": "Architecture docs should live with the project", "lane": "evergreen", "priority": 75, "hook": "A handover PDF becomes stale quickly if the project keeps moving.", "body": "Delivering the audit into the project's own documentation folder makes it easier for later builders and agents to find the current architecture context.", "cta": "Where do your project docs live today?"}
+      ]
+    },
+    "relay-live-business-engagement": {
+      "label": "Relay Live Business Engagement",
+      "repository": "AyobamiH/relay-live-business-engagement-connector",
+      "campaign_prefix": "RLBE",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["Relay Live Business Engagement Connector", "Live Mode", "account admission"],
+      "event_enabled": true,
+      "event_problem": "The connector provides bounded API-first discovery and engagement actions with explicit write approval, account admission and activity evidence.",
+      "event_cta": "Which social engagement action would you automate only if the approval and receipt trail were explicit?",
+      "claim_boundary": "Connector/runtime capability framing only; provider actions remain scope-, permission- and tier-dependent and do not imply universal API availability.",
+      "default_cta": "Which social engagement action would you automate only if the approval and receipt trail were explicit?",
+      "inventory": [
+        {"title": "Live engagement needs an authority boundary", "lane": "commercial", "priority": 88, "hook": "A social agent should not get permanent permission to do everything just because one reply was approved.", "body": "Relay separates discovery, candidate selection, account admission and the exact approved write so live engagement can stay bounded and auditable.", "cta": "Which action would you never allow under a blanket approval?"},
+        {"title": "Discovery and execution should be separate", "lane": "commercial", "priority": 86, "hook": "Finding a conversation is not the same consequence as replying to it.", "body": "The connector exposes read surfaces first and only crosses into a provider write when the action, account and target satisfy the live approval contract.", "cta": "Does your social automation separate reads from writes?"},
+        {"title": "Ambiguous writes should block retry", "lane": "evergreen", "priority": 76, "hook": "Blind retry is dangerous when a provider may already have accepted the first request.", "body": "Activity evidence and idempotency matter because an uncertain write should stop fallback and replay until the external effect is understood.", "cta": "How does your current scheduler handle an uncertain provider response?"}
+      ]
+    },
+    "coding-agent-skills": {
+      "label": "Coding Agent Skills",
+      "repository": "AyobamiH/coding-agent-skills",
+      "campaign_prefix": "CAS",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["Shared, versioned workflows for evidence-driven coding agents", "evidence-pack contract", "coding-agent-skills validate-pack"],
+      "event_enabled": true,
+      "event_problem": "The package turns recurring evidence-driven coding checks into versioned, bounded skills rather than ad-hoc prompts.",
+      "event_cta": "Which coding-agent check do you keep rebuilding from scratch?",
+      "claim_boundary": "Safe evidence-producer framing only; no deployment execution, package installation, target mutation or generic orchestration claim.",
+      "default_cta": "Which coding-agent check do you keep rebuilding from scratch?",
+      "inventory": [
+        {"title": "Agent workflows should be versioned", "lane": "commercial", "priority": 91, "hook": "A useful coding-agent workflow should not depend on remembering the right prompt every time.", "body": "Coding Agent Skills packages evidence-driven checks like route tracing, environment mapping, API review and deployment preflight into reusable versioned workflows.", "cta": "Which check do your agents repeatedly improvise today?"},
+        {"title": "Completion needs an evidence contract", "lane": "commercial", "priority": 89, "hook": "A command being attempted is not evidence that the job completed.", "body": "The shared evidence-pack contract keeps required checks, skipped checks, failures, confidence and unresolved questions visible instead of compressing everything into success/failure.", "cta": "What evidence do you require before accepting an agent handoff?"},
+        {"title": "Audit-only should stay audit-only", "lane": "evergreen", "priority": 77, "hook": "A repository scanner should not quietly become a deployment tool.", "body": "The skills pack deliberately separates audit-only workflows from action-capable work and leaves orchestration, permissions and scheduling to the caller.", "cta": "Where does your tooling blur inspection and mutation?"}
+      ]
+    },
+    "public-decision-intelligence": {
+      "label": "Public Decision Intelligence",
+      "repository": "AyobamiH/public-decision-intelligence",
+      "campaign_prefix": "PDI",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["Public Decision Intelligence Platform", "truth model is the product", "decision-chain assembly"],
+      "event_enabled": true,
+      "event_problem": "The product transforms large public document releases into traceable decision intelligence while preserving source identity, evidence and revision history.",
+      "event_cta": "Which public-document investigation is hardest to reconstruct over time?",
+      "claim_boundary": "Current implemented evidence/decision runtime and preview browse surface only; no analyst-grade collaboration or extracted Postgres production claim.",
+      "default_cta": "Which public-document investigation is hardest to reconstruct over time?",
+      "inventory": [
+        {"title": "The truth model is the product", "lane": "commercial", "priority": 94, "hook": "A chatbot over PDFs is not enough when the question is how a public decision formed.", "body": "Public Decision Intelligence keeps documents, citations, entities, events, claims, relationships and decision chains connected so conclusions can be traced back to source evidence.", "cta": "Which public decision would you want to inspect as a chain rather than a summary?"},
+        {"title": "Corrections should revise the chain", "lane": "commercial", "priority": 91, "hook": "New files should be able to change the story without deleting the old evidence path.", "body": "The decision model is designed for revision, gap detection and alternative interpretations as new source material arrives.", "cta": "How do you currently track when new evidence changes an earlier conclusion?"},
+        {"title": "Real corpus proof matters", "lane": "evergreen", "priority": 79, "hook": "Synthetic fixtures are not enough for an evidence product.", "body": "The current runtime has already processed a real corpus into chunks, citations, entities, events, claims, relationships and decision chains, while the public surface remains deliberately in preview.", "cta": "What real corpus would you use to pressure-test an evidence system?"}
+      ]
+    }
+  }
+}

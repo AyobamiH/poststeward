@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "extensions": {
+    "oneclickpostfactory": {
+      "inventory_append": [
+        {
+          "source_sha": "671b1c07c82058c8fb9293d1297d657adce04d1e",
+          "title": "Planning and publishing should stay separate",
+          "lane": "commercial",
+          "priority": 92,
+          "hook": "Planning and publishing do not need to share one authority.",
+          "body": "OneClickPostFactory plans, queues and records tenant-owned posts; a separate Social Agent worker handles publishing.",
+          "cta": "Which publishing responsibility would you separate first?"
+        },
+        {
+          "source_sha": "671b1c07c82058c8fb9293d1297d657adce04d1e",
+          "title": "One repository should own the product truth",
+          "lane": "commercial",
+          "priority": 89,
+          "hook": "Two repositories should not both look canonical.",
+          "body": "OneClickPostFactory names one app repo as canonical and treats older social-pulse repos as history, not parallel authority.",
+          "cta": "Where does repository ownership become ambiguous?"
+        },
+        {
+          "source_sha": "671b1c07c82058c8fb9293d1297d657adce04d1e",
+          "title": "Validation is not deployment proof",
+          "lane": "evergreen",
+          "priority": 82,
+          "hook": "A green CI run is not deployment evidence.",
+          "body": "OneClickPostFactory separates source validation from production Cloudflare deployment, so live deployment still needs separate proof.",
+          "cta": "What production assumption do you infer from CI?"
+        },
+        {
+          "source_sha": "671b1c07c82058c8fb9293d1297d657adce04d1e",
+          "title": "Production deployment should be explicit",
+          "lane": "evergreen",
+          "priority": 80,
+          "hook": "Production deploys should be deliberate, not automatic.",
+          "body": "Pull requests and pushes validate source; production Cloudflare deployment stays behind a separate approved workflow.",
+          "cta": "Which deploy step deserves explicit approval?"
+        },
+        {
+          "source_sha": "671b1c07c82058c8fb9293d1297d657adce04d1e",
+          "title": "Live traffic needs separate evidence",
+          "lane": "evergreen",
+          "priority": 79,
+          "hook": "CI cannot tell you which build is serving real traffic.",
+          "body": "OneClickPostFactory treats source validation, deploy workflow state and active Cloudflare traffic as separate evidence.",
+          "cta": "What do you check after CI before calling a release live?"
+        }
+      ]
+    }
+  }
+}
