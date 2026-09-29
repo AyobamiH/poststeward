@@ -73,6 +73,7 @@ import {
   executorStatus,
   listRuntimeInstallations,
   renewExecutorLease,
+  requireHostedExecutor,
   revokeRuntimeInstallation,
   setExecutor,
   startRuntimePairing,
@@ -642,6 +643,13 @@ export class Workspace extends DurableObject<Env> {
             409,
           );
         }
+        const operation = byName.get(data.name);
+        const hostedConsequence =
+          operation?.effects.some((effect) =>
+            ["EXTERNAL_PROVIDER_EFFECT", "FUTURE_CONSEQUENCE"].includes(effect),
+          ) === true;
+        if (hostedConsequence && !riskReducingOperations.has(data.name))
+          await requireHostedExecutor(this.env.IDENTITY, data.workspace);
         result = await engine.run(data.name, data.input, data.actor);
         if (data.name === "account_disconnect") {
           const alias = (data.input as { alias?: unknown })?.alias;
