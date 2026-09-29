@@ -5,7 +5,7 @@ VERSION="${POSTSTEWARD_INSTALL_VERSION:-main}"
 PREFIX="${POSTSTEWARD_INSTALL_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/poststeward}"
 BIN_DIR="${POSTSTEWARD_BIN_DIR:-$HOME/.local/bin}"
 ORIGIN="${POSTSTEWARD_ORIGIN:-https://poststeward.com}"
-SOURCE_BASE="${POSTSTEWARD_INSTALL_SOURCE_BASE:-https://raw.githubusercontent.com/AyobamiH/poststeward}"
+REPOSITORY="${POSTSTEWARD_INSTALL_REPOSITORY:-AyobamiH/poststeward}"
 NO_ONBOARD=0
 DRY_RUN=0
 VERIFY=1
@@ -19,21 +19,15 @@ Usage:
   curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash -s -- [options]
 
 Options:
-  --version <ref|sha>       Public poststeward repository ref (default: main)
+  --version <ref|sha>       Public PostSteward ref (default: main)
+  --beta                    Install the beta ref
   --prefix <absolute-path>  Product data prefix (default: ~/.local/share/poststeward)
   --bin-dir <absolute-path> Command directory (default: ~/.local/bin)
   --origin <https-origin>   Hosted PostSteward origin (default: https://poststeward.com)
-  --no-onboard              Install and verify without opening guided onboarding
-  --no-verify               Skip post-install CLI smoke verification
-  --dry-run                 Print the resolved plan without changing files
+  --no-onboard              Install and verify without starting machine pairing
+  --no-verify               Skip candidate runtime smoke verification
+  --dry-run                 Resolve and print the plan without changing files
   -h, --help                Show this help
-
-Environment variables:
-  POSTSTEWARD_INSTALL_VERSION
-  POSTSTEWARD_INSTALL_PREFIX
-  POSTSTEWARD_BIN_DIR
-  POSTSTEWARD_ORIGIN
-  POSTSTEWARD_INSTALL_SOURCE_BASE
 EOF
 }
 
@@ -45,6 +39,7 @@ fail() {
 while (($#)); do
   case "$1" in
     --version) (($# >= 2)) || fail "--version requires a value"; VERSION="$2"; shift 2 ;;
+    --beta) VERSION="beta"; shift ;;
     --prefix) (($# >= 2)) || fail "--prefix requires a value"; PREFIX="$2"; shift 2 ;;
     --bin-dir) (($# >= 2)) || fail "--bin-dir requires a value"; BIN_DIR="$2"; shift 2 ;;
     --origin) (($# >= 2)) || fail "--origin requires a value"; ORIGIN="$2"; shift 2 ;;
@@ -59,35 +54,63 @@ done
 case "$PREFIX" in /*) ;; *) fail "--prefix must be absolute" ;; esac
 case "$BIN_DIR" in /*) ;; *) fail "--bin-dir must be absolute" ;; esac
 case "$ORIGIN" in https://*) ;; *) fail "--origin must be HTTPS" ;; esac
+case "$VERSION" in
+  *[!A-Za-z0-9._-]*) fail "--version accepts a tag/ref name or exact 40-character SHA" ;;
+esac
 
 command -v python3 >/dev/null 2>&1 || fail "python3 is required"
+command -v tar >/dev/null 2>&1 || fail "tar is required"
 python3 - <<'PY' || fail "Python 3.10 or newer is required"
 import sys
 raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 
 if command -v curl >/dev/null 2>&1; then
-  FETCH='curl -fsSL --proto =https --tlsv1.2'
+  fetch_file() { curl -fsSL --proto '=https' --tlsv1.2 "$1" -o "$2"; }
 elif command -v wget >/dev/null 2>&1; then
-  FETCH='wget -qO-'
+  fetch_file() { wget -qO "$2" "$1"; }
 else
   fail "curl or wget is required"
 fi
 
-RUNTIME="$PREFIX/client"
-CLIENT="$RUNTIME/poststeward.py"
+TMP="$(mktemp -d)"
+cleanup() { rm -rf "$TMP"; }
+trap cleanup EXIT
+
+if [[ "$VERSION" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  RESOLVED_SHA="$(printf '%s' "$VERSION" | tr 'A-F' 'a-f')"
+else
+  META="$TMP/commit.json"
+  fetch_file "https://api.github.com/repos/$REPOSITORY/commits/$VERSION" "$META"
+  RESOLVED_SHA="$(python3 - "$META" <<'PY'
+import json, re, sys
+value=json.load(open(sys.argv[1],encoding="utf-8"))
+sha=str(value.get("sha") or "")
+if not re.fullmatch(r"[0-9a-f]{40}", sha):
+    raise SystemExit(2)
+print(sha)
+PY
+  )" || fail "could not resolve requested PostSteward ref"
+fi
+
+RELEASES="$PREFIX/releases"
+RELEASE="$RELEASES/$RESOLVED_SHA"
+CURRENT="$PREFIX/current"
 SHIM="$BIN_DIR/poststeward"
 RECEIPT="${XDG_STATE_HOME:-$HOME/.local/state}/poststeward/install.json"
-CLIENT_URL="$SOURCE_BASE/$VERSION/public/poststeward.py"
+ARCHIVE="$TMP/poststeward.tar.gz"
+EXTRACTED="$TMP/extracted"
+CANDIDATE="$TMP/candidate"
 
 printf '%s\n' "PostSteward install plan"
-printf '  version: %s\n' "$VERSION"
-printf '  source:  %s\n' "$CLIENT_URL"
-printf '  origin:  %s\n' "$ORIGIN"
-printf '  client:  %s\n' "$CLIENT"
-printf '  command: %s\n' "$SHIM"
-printf '  config:  %s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/poststeward"
-printf '  state:   %s\n' "${XDG_STATE_HOME:-$HOME/.local/state}/poststeward"
+printf '  requested: %s\n' "$VERSION"
+printf '  revision:  %s\n' "$RESOLVED_SHA"
+printf '  repository:%s\n' " $REPOSITORY"
+printf '  origin:    %s\n' "$ORIGIN"
+printf '  release:   %s\n' "$RELEASE"
+printf '  command:   %s\n' "$SHIM"
+printf '  config:    %s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/poststeward"
+printf '  state:     %s\n' "${XDG_STATE_HOME:-$HOME/.local/state}/poststeward"
 
 if ((DRY_RUN)); then
   printf '%s\n' "Dry run only; no files changed."
@@ -95,65 +118,99 @@ if ((DRY_RUN)); then
 fi
 
 umask 077
-mkdir -p "$RUNTIME" "$BIN_DIR" "$(dirname "$RECEIPT")"
+mkdir -p "$RELEASES" "$BIN_DIR" "$(dirname "$RECEIPT")"
 
+if [[ -e "$CURRENT && ! -L "$CURRENT" ]]; then
+  fail "managed current runtime path exists but is not a symlink: $CURRENT"
+fi
 if [[ -e "$SHIM" ]]; then
   [[ -f "$SHIM" && ! -L "$SHIM" ]] || fail "existing poststeward command is not a plain managed file"
   grep -Fq '# managed-by: poststeward-installer' "$SHIM" ||
     fail "refusing to overwrite unrelated command: $SHIM"
 fi
 
-TMP_CLIENT="$(mktemp "$RUNTIME/.poststeward.py.XXXXXX")"
-TMP_SHIM="$(mktemp "$BIN_DIR/.poststeward.XXXXXX")"
-trap 'rm -f -- "$TMP_CLIENT" "$TMP_SHIM"' EXIT
+if [[ ! -d "$RELEASE" ]]; then
+  fetch_file "https://github.com/$REPOSITORY/archive/$RESOLVED_SHA.tar.gz" "$ARCHIVE"
+  mkdir -p "$EXTRACTED"
+  tar -xzf "$ARCHIVE" -C "$EXTRACTED"
+  ROOT_ENTRY="$(find "$EXTRACTED" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+  [[ -n "$ROOT_ENTRY" && -d "$ROOT_ENTRY/runtime" ]] ||
+    fail "downloaded revision does not contain the PostSteward runtime"
+  if find "$ROOT_ENTRY/runtime" -type l -print -quit | grep -q .; then
+    fail "runtime archive contains symbolic links; refusing install"
+  fi
+  cp -R "$ROOT_ENTRY/runtime" "$CANDIDATE"
+  [[ -f "$CANDIDATE/poststeward" ]] || fail "candidate has no canonical poststeward entrypoint"
+  [[ -f "$CANDIDATE/src/ocpf_post/product_entry.py" ]] || fail "candidate runtime is incomplete"
+  [[ -f "$CANDIDATE/POSTSTEWARD_RUNTIME_PROVENANCE.json" ]] || fail "candidate provenance is missing"
 
-if [[ "$FETCH" == curl* ]]; then
-  curl -fsSL --proto '=https' --tlsv1.2 "$CLIENT_URL" >"$TMP_CLIENT"
-else
-  wget -qO- "$CLIENT_URL" >"$TMP_CLIENT"
+  if ((VERIFY)); then
+    VERIFY_ROOT="$TMP/verify"
+    mkdir -p "$VERIFY_ROOT/config" "$VERIFY_ROOT/state" "$VERIFY_ROOT/setup" "$VERIFY_ROOT/releases"
+    POSTSTEWARD_RUNTIME_ROOT="$CANDIDATE" \
+    POSTSTEWARD_RUNTIME_CONFIG_DIR="$VERIFY_ROOT/config" \
+    POSTSTEWARD_RUNTIME_STATE_DIR="$VERIFY_ROOT/state" \
+    POSTSTEWARD_SETUP_STATE_DIR="$VERIFY_ROOT/setup" \
+    POSTSTEWARD_RELEASES_DIR="$VERIFY_ROOT/releases" \
+      /bin/sh "$CANDIDATE/poststeward" --version >/dev/null
+    POSTSTEWARD_RUNTIME_ROOT="$CANDIDATE" \
+    POSTSTEWARD_RUNTIME_CONFIG_DIR="$VERIFY_ROOT/config" \
+    POSTSTEWARD_RUNTIME_STATE_DIR="$VERIFY_ROOT/state" \
+    POSTSTEWARD_SETUP_STATE_DIR="$VERIFY_ROOT/setup" \
+    POSTSTEWARD_RELEASES_DIR="$VERIFY_ROOT/releases" \
+      /bin/sh "$CANDIDATE/poststeward" help --json >/dev/null
+  fi
+
+  mv "$CANDIDATE" "$RELEASE"
+  chmod -R go-rwx "$RELEASE" 2>/dev/null || true
 fi
-python3 -m py_compile "$TMP_CLIENT"
-chmod 0600 "$TMP_CLIENT"
-mv -f "$TMP_CLIENT" "$CLIENT"
 
+TMP_LINK="$PREFIX/.current.$$.tmp"
+ln -s "$RELEASE" "$TMP_LINK"
+mv -f "$TMP_LINK" "$CURRENT"
+
+TMP_SHIM="$(mktemp "$BIN_DIR/.poststeward.XXXXXX")"
 cat >"$TMP_SHIM" <<EOF
 #!/bin/sh
 # managed-by: poststeward-installer
 set -eu
-export POSTSTEWARD_DEFAULT_ORIGIN='$ORIGIN'
-exec python3 '$CLIENT' "\$@"
+export POSTSTEWARD_ORIGIN='$ORIGIN'
+export POSTSTEWARD_RUNTIME_ROOT='$CURRENT'
+exec /bin/sh '$CURRENT/poststeward' "\$@"
 EOF
 chmod 0755 "$TMP_SHIM"
 mv -f "$TMP_SHIM" "$SHIM"
-trap - EXIT
 
-POSTSTEWARD_RECEIPT="$RECEIPT" POSTSTEWARD_VERSION="$VERSION" POSTSTEWARD_CLIENT="$CLIENT" POSTSTEWARD_SHIM="$SHIM" POSTSTEWARD_ORIGIN_VALUE="$ORIGIN" python3 - <<'PY'
+POSTSTEWARD_RECEIPT="$RECEIPT" \
+POSTSTEWARD_REQUESTED="$VERSION" \
+POSTSTEWARD_REVISION="$RESOLVED_SHA" \
+POSTSTEWARD_RELEASE="$RELEASE" \
+POSTSTEWARD_ORIGIN_VALUE="$ORIGIN" \
+POSTSTEWARD_REPOSITORY="$REPOSITORY" \
+python3 - <<'PY'
 from datetime import datetime, timezone
 import json, os
 from pathlib import Path
-
-path = Path(os.environ["POSTSTEWARD_RECEIPT"])
-value = {
-    "schema_version": 1,
-    "product": "poststeward",
-    "source_ref": os.environ["POSTSTEWARD_VERSION"],
-    "client": os.environ["POSTSTEWARD_CLIENT"],
-    "command": os.environ["POSTSTEWARD_SHIM"],
-    "origin": os.environ["POSTSTEWARD_ORIGIN_VALUE"],
-    "installed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+path=Path(os.environ["POSTSTEWARD_RECEIPT"])
+value={
+ "schema_version":1,
+ "product":"poststeward",
+ "repository":os.environ["POSTSTEWARD_REPOSITORY"],
+ "requested_ref":os.environ["POSTSTEWARD_REQUESTED"],
+ "resolved_revision":os.environ["POSTSTEWARD_REVISION"],
+ "release_path":os.environ["POSTSTEWARD_RELEASE"],
+ "origin":os.environ["POSTSTEWARD_ORIGIN_VALUE"],
+ "installed_at":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),
 }
-tmp = path.with_name(path.name + ".tmp")
-tmp.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+tmp=path.with_name(path.name+".tmp")
+tmp.write_text(json.dumps(value,sort_keys=True,separators=(",",":"))+"\n",encoding="utf-8")
 tmp.chmod(0o600)
 tmp.replace(path)
 PY
 
-if ((VERIFY)); then
-  "$SHIM" --version
-  "$SHIM" help --json >/dev/null
-fi
-
-printf '%s\n' "Installed PostSteward command: $SHIM"
+"$SHIM" --version
+printf '%s\n' "Installed PostSteward runtime: $RESOLVED_SHA"
+printf '%s\n' "Command: $SHIM"
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
   printf '%s\n' "PATH note: add $BIN_DIR to PATH."
 fi
@@ -163,8 +220,11 @@ if ((NO_ONBOARD)); then
   exit 0
 fi
 
-if [[ -t 0 && -t 1 ]]; then
-  "$SHIM" onboard
+if [[ -r /dev/tty && -w /dev/tty ]]; then
+  "$SHIM" onboard </dev/tty >/dev/tty 2>&1 || {
+    printf '%s\n' "Runtime installed. Onboarding did not finish; resume with: poststeward onboard" >&2
+    exit 3
+  }
 else
   printf '%s\n' "No interactive terminal detected. Run later: poststeward onboard"
 fi
