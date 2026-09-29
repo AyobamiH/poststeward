@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Install the PostSteward client and connect X, Threads and LinkedIn." />
+    <title>PostSteward docs · Install</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/docs.css" />
+    <script type="module" src="/docs-app.js"></script>
+  </head>
+  <body class="docs-app">
+    <header class="docs-topbar">
+      <div class="docs-topbar-inner">
+        <a class="wordmark" href="/" aria-label="PostSteward home"><img class="brand-mark" src="/favicon.svg" alt="" /><span>PostSteward</span></a>
+        <nav aria-label="Documentation shortcuts"><a href="/docs/install.html" aria-current="page">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operations</a><a href="/app">Workspace</a></nav>
+      </div>
+    </header>
+    <div class="docs-shell">
+      <aside class="docs-sidebar" aria-label="Documentation navigation">
+        <div class="docs-sidebar-group"><p>Start</p><nav><a href="/docs/">Start here</a><a href="/docs/install.html" aria-current="page">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operation reference</a></nav></div>
+        <div class="docs-sidebar-group"><p>Machine surfaces</p><nav><a href="/help.json">help.json</a><a href="/openapi.json">OpenAPI</a><a href="/catalog.json">catalog.json</a><a href="/llms.txt">llms.txt</a></nav></div>
+      </aside>
+      <main class="docs-main" id="main-content">
+        <article class="docs-content">
+          <p class="eyebrow">INSTALL POSTSTEWARD</p>
+          <h1>One command, then connect your destinations.</h1>
+          <p class="docs-lead">The installable client brings PostSteward to a human terminal or an agent runtime. Provider OAuth, owner authority and durable provider-effect receipts remain in the hosted PostSteward control plane.</p>
+
+          <section class="docs-section">
+            <h2>macOS, Linux and WSL2</h2>
+            <pre><code>curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash</code></pre>
+            <p>The installer is no-root and user-local. It requires Python 3.10+ and installs <code>poststeward</code> under <code>~/.local/bin</code> by default.</p>
+            <pre><code>poststeward --version
+poststeward onboard</code></pre>
+          </section>
+
+          <section class="docs-section">
+            <h2>Connect X, Threads and LinkedIn.</h2>
+            <p><code>poststeward onboard</code> opens the owner workspace. Sign in, connect any combination of X, Threads and LinkedIn, verify the stable destination identity, then create a scoped and expiring agent grant.</p>
+            <div class="docs-callout" data-kind="warning"><strong>Provider consent stays human-owned.</strong><p>The CLI never turns a successful install into publishing authority. Provider applications, connected identities and agent grants remain separate states.</p></div>
+          </section>
+
+          <section class="docs-section">
+            <h2>Agent surface</h2>
+            <pre><code>poststeward help --json
+poststeward status
+poststeward providers
+poststeward receipts
+poststeward invoke workspace_status '{}'
+poststeward mcp</code></pre>
+            <p>The generic <code>invoke</code> command calls the same operation catalogue used by HTTP and remote MCP. Consequential calls retain PostSteward's idempotency, owner-review and receipt boundaries.</p>
+          </section>
+
+          <section class="docs-section">
+            <h2>Automation / CI</h2>
+            <pre><code>curl -fsSL https://poststeward.com/install.sh | bash -s -- --no-onboard
+curl -fsSL https://poststeward.com/install.sh | bash -s -- --dry-run
+curl -fsSL https://poststeward.com/install.sh | bash -s -- --version &lt;40-char-sha&gt;</code></pre>
+            <p>Use <code>POSTSTEWARD_TOKEN</code> for deliberate non-interactive agent runs rather than writing a token into command history.</p>
+          </section>
+
+          <section class="docs-section">
+            <h2>Why provider credentials are not copied locally</h2>
+            <p>PostSteward already owns the hosted provider-effect ledger and durable receipts. A second independent provider writer on the same account would create split-brain authority. The local client therefore stores only the scoped agent grant; provider credentials remain server-side.</p>
+          </section>
+        </article>
+      </main>
+    </div>
+  </body>
+</html>
