@@ -90,6 +90,26 @@
             </p>
           </section>
 
+          <section id="runtime-authority-panel" class="work-pane secondary" aria-labelledby="runtime-authority-heading">
+            <p class="eyebrow">EXECUTION AUTHORITY</p>
+            <h2 id="runtime-authority-heading">Choose one publishing executor.</h2>
+            <p id="runtime-executor-status" class="muted">Loading executor authority…</p>
+            <div class="field-row">
+              <label>Paired local runtime
+                <select id="runtime-installation-select"></select>
+              </label>
+            </div>
+            <div class="row">
+              <button id="runtime-use-local" type="button">Use selected local runtime</button>
+              <button id="runtime-use-hosted" type="button">Use hosted executor</button>
+            </div>
+            <div id="runtime-installations" class="record-list"></div>
+            <p class="muted">
+              Switching executor authority increments the workspace generation. A stale machine
+              cannot publish merely because it still has an old runtime token.
+            </p>
+          </section>
+
           <section class="product-page-header" aria-labelledby="plan">
             <div>
               <p class="eyebrow">OWNER CONTROL PLANE</p>
