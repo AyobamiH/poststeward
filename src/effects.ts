@@ -1,5 +1,5 @@
 import { Fault, requireValue } from "./common.ts";
-import type { Credential, ProviderAPI, Published } from "./providers.ts";
+import type { Credential, ProviderAPI, PublicationContext, Published } from "./providers.ts";
 import type { Delivery, Identity, Provider } from "./types.ts";
 
 export type EffectStatus =
@@ -192,7 +192,11 @@ export class EffectLedgerProviders implements ProviderAPI {
     );
   }
 
-  async createContainer(delivery: Delivery, credential: Credential): Promise<string> {
+  async createContainer(
+    delivery: Delivery,
+    credential: Credential,
+    context?: PublicationContext,
+  ): Promise<string> {
     await this.assertNotQuarantined();
     const now = this.now();
     const inserted = await this.db
@@ -231,7 +235,7 @@ export class EffectLedgerProviders implements ProviderAPI {
       );
     }
     try {
-      const containerId = await this.inner.createContainer(delivery, credential);
+      const containerId = await this.inner.createContainer(delivery, credential, context);
       await this.db
         .prepare(
           "UPDATE external_containers SET status='created',container_id=?,reason=NULL,updated_at=? WHERE workspace=? AND fingerprint=?",
@@ -265,7 +269,11 @@ export class EffectLedgerProviders implements ProviderAPI {
     }
   }
 
-  async publish(delivery: Delivery, credential: Credential): Promise<Published> {
+  async publish(
+    delivery: Delivery,
+    credential: Credential,
+    context?: PublicationContext,
+  ): Promise<Published> {
     await this.assertNotQuarantined();
     const now = this.now();
     const inserted = await this.db
@@ -313,7 +321,7 @@ export class EffectLedgerProviders implements ProviderAPI {
       );
     }
     try {
-      const published = await this.inner.publish(delivery, credential);
+      const published = await this.inner.publish(delivery, credential, context);
       await this.db
         .prepare(
           "UPDATE external_effects SET status='created',post_id=?,url=?,reason=NULL,updated_at=? WHERE workspace=? AND fingerprint=?",
