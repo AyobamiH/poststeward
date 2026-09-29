@@ -17,6 +17,18 @@ esac
 PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
   python3 -m ocpf_post.automation_authority check >/dev/null
 
+# Cloud lease is the distributed fence. Consequence-capable unattended work
+# must prove this installation still owns the current generation before it
+# reaches any provider path. Collection remains consequence-free and may run
+# while the network/control plane is unavailable.
+case "$ACTION" in
+  run-due|respond)
+    "$ROOT/poststeward" cloud heartbeat >/dev/null
+    ;;
+  refill|collect)
+    ;;
+esac
+
 case "$ACTION" in
   run-due)
     exec "$ROOT/poststeward" run-due
