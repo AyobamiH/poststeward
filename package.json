@@ -13,7 +13,7 @@
     "docs:check": "node --experimental-transform-types scripts/generate-docs.ts --check",
     "assets": "node scripts/export-brand-assets.mjs",
     "build": "npm run assets && wrangler deploy --dry-run --outdir dist",
-    "verify": "npm run check && npm run docs:check && npm run build && npm test",
+    "verify": "npm run check && npm run docs:check && npm run install:check && npm run build && npm test",
     "deploy": "npm run assets && npm run deploy:check && node scripts/deploy-environment.mjs",
     "deploy:check": "node scripts/deploy-check.mjs",
     "slo:observe": "node scripts/advanced-slo-observe.mjs",
@@ -25,7 +25,8 @@
     "edge:apply": "node scripts/production-edge-apply.mjs",
     "governance:check": "node scripts/github-main-protection-check.mjs",
     "governance:apply": "node scripts/github-main-protection-apply.mjs",
-    "format": "prettier --write src scripts tests public/*.js public/*.html public/*.css package.json tsconfig.json wrangler.jsonc .github"
+    "format": "prettier --write src scripts tests public/*.js public/*.html public/*.css package.json tsconfig.json wrangler.jsonc .github",
+    "install:check": "bash -n public/install.sh && bash public/install.sh --help >/dev/null"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
