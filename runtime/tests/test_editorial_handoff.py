@@ -323,7 +323,7 @@ class HandoffTests(unittest.TestCase):
             files = {
                 'bin/git': '#!/bin/sh\nexit 0\n',
                 'bin/timeout': '#!/bin/sh\necho telemetry >> "$LOG"\nexit "$TELEMETRY_EXIT"\n',
-                'post-once': '#!/bin/sh\necho "$*" >> "$LOG"\nif [ "$1 $2" = "portfolio refill" ]; then exit "$REFILL_EXIT"; fi\n',
+                'poststeward': '#!/bin/sh\necho "$*" >> "$LOG"\nif [ "$1 $2" = "portfolio refill" ]; then exit "$REFILL_EXIT"; fi\n',
                 'scripts/run-operating-cycle': '#!/bin/sh\necho report >> "$LOG"\nexit 0\n',
             }
             for name, text in files.items():
