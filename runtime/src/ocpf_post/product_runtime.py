@@ -19,7 +19,15 @@ REFERENCE_REPOSITORY = "AyobamiH/post-once"
 
 
 def standalone_product_active() -> bool:
-    return os.environ.get("POSTSTEWARD_RUNTIME_LINEAGE") == PRODUCT_LINEAGE
+    """Return whether the embedded PostSteward product boundary is active.
+
+    POST_ONCE_PRODUCT_LINEAGE is accepted only as a transitional internal signal for
+    the adopted A-K engine. Product-facing callers must use POSTSTEWARD_RUNTIME_LINEAGE.
+    """
+    return (
+        os.environ.get("POSTSTEWARD_RUNTIME_LINEAGE") == PRODUCT_LINEAGE
+        or os.environ.get("POST_ONCE_PRODUCT_LINEAGE") == PRODUCT_LINEAGE
+    )
 
 
 def _xdg(env_name: str, fallback: Path) -> Path:
