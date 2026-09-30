@@ -5,7 +5,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  statSync,
+  lstatSync,
   writeFileSync,
 } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -45,7 +45,7 @@ function filesUnder(dir) {
         name.endsWith(".egg-info")
       ) continue;
       const path = join(current, name);
-      const stat = statSync(path, { throwIfNoEntry: true });
+      const stat = lstatSync(path, { throwIfNoEntry: true });
       if (stat.isDirectory()) walk(path);
       else if (
         stat.isFile() &&
@@ -56,7 +56,13 @@ function filesUnder(dir) {
     }
   }
   walk(dir);
-  return rows;
+  // Match the installer's globally sorted relative paths. A depth-first walk
+  // orders foo/bar before foo.py; lexical sorting orders foo.py first.
+  return rows.sort((left, right) => {
+    const a = relative(dir, left).replaceAll("\\", "/");
+    const b = relative(dir, right).replaceAll("\\", "/");
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
 }
 
 function treeDigest(dir) {
