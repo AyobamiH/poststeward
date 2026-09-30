@@ -229,6 +229,7 @@ try {
     "/lifecycle",
     "/recovery",
     "/docs/",
+    "/docs/install",
     "/docs/agent-guide",
     "/docs/operations",
     "/privacy",
@@ -239,7 +240,7 @@ try {
   ];
   for (const [width, scheme] of [
     [1440, "light"],
-    [390, "light"],
+    [375, "light"],
     [768, "dark"],
     [320, "light"],
   ]) {
@@ -308,6 +309,9 @@ try {
         assert.equal(violations.length, 0, JSON.stringify(violations));
 
         if (path === "/app") {
+          const providerGeometry = await page.locator(".ux-provider-card").evaluateAll(cards => cards.map(card => ({width:card.getBoundingClientRect().width, scroll:card.scrollWidth, children:[...card.querySelectorAll("*")].map(child=>({right:child.getBoundingClientRect().right,parentRight:card.getBoundingClientRect().right}))})));
+          assert.ok(providerGeometry.every(card=>card.scroll <= card.width + 1 && card.children.every(child=>child.right<=child.parentRight+1)), "Provider content must stay inside its card");
+          assert.match(await page.locator("#advanced-heading").innerText(), /GBP price to be confirmed/);
           assert.match(await page.locator("#runtime-executor-status").innerText(), /Executor hosted · generation 1/);
           assert.equal(await page.locator("#runtime-use-local").isDisabled(), true);
           assert.equal(await page.locator("#runtime-use-hosted").isDisabled(), true);
@@ -414,6 +418,7 @@ try {
     await page.waitForLoadState("networkidle");
     assert.match(await page.locator("#status-note").innerText(), /unavailable/i);
     assert.equal(await page.locator("#release-gates .status-row").count(), 0);
+    await page.screenshot({path:"ux-evidence/status-outage.png",fullPage:true});
     await context.close();
   });
 

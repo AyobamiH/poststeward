@@ -66,7 +66,7 @@ export async function verifyReleaseControl(
       value.gates?.capacity_cost_calibration?.blocking === false &&
       admissionGate(value.gates?.public_signup) &&
       value.gates?.threads_oauth_callback?.state === "live_verified" &&
-      value.gates?.advanced_rollout?.state === "disabled_policy" &&
+      value.gates?.advanced_rollout?.state === "production_ready" &&
       value.runtimeCapabilities?.policies?.advancedEnabled ===
         expectedAdvanced.enabled &&
       value.runtimeCapabilities?.policies?.advancedRolloutMode ===

@@ -109,7 +109,7 @@ test("production preflight validates exact protected environment without exposin
   assert.ok(!serialized.includes(env.OIDC_CLIENT_SECRET));
 });
 
-test("production preflight refuses origin drift and Advanced enablement", async () => {
+test("production preflight refuses origin drift and contradictory global rollout", async () => {
   await assert.rejects(
     () =>
       preflightProductionDeploy(
@@ -130,7 +130,7 @@ test("production preflight refuses origin drift and Advanced enablement", async 
         cloudflare(),
         base,
       ),
-    /Advanced globally disabled/,
+    /reviewed global production/,
   );
 });
 
@@ -256,4 +256,9 @@ test("shared production preflight receives the protected deployment secrets only
     workflow.indexOf("run: npm ci --ignore-scripts") <
       workflow.indexOf("      - name: Verify production resource identity"),
   );
+});
+
+test("production Advanced availability does not fabricate a launch price or payment", async()=>{
+  const report=await preflightProductionDeploy(environment({ADVANCED_ENABLED:"true",ADVANCED_ROLLOUT_MODE:"global",ADVANCED_CANARY_BPS:"0"}),cloudflare(),base);
+  assert.equal(report.advancedDisabled,false); assert.equal(report.billingPriceConfigured,false); assert.equal(report.externalEffectAttempted,false);
 });

@@ -20,7 +20,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `linkedin_poststeward_page_identity` | `live_verified` | `provider_optional` | no | PostSteward LinkedIn Page identity is independently verified as urn:li:organization:146607525; OAuth authority remains separate. |
 | `linkedin_oauth` | `external_setup_required` | `provider_optional` | no | The Page OAuth path is implemented with dedicated Community Management credentials and exact actor verification. The existing OpenID-only app cannot hold Community Management; a dedicated app, provider approval and real owner Page grant remain external. |
 | `linkedin_member_readback` | `external_setup_required` | `provider_optional` | no | Independent member-profile post readback remains unavailable until LinkedIn grants the restricted permission; it is separate from and does not block the organization/Page path. |
-| `advanced_rollout` | `disabled_policy` | `advanced` | no | Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass. |
+| `advanced_rollout` | `production_ready` | `advanced` | no | Owner-authorised Advanced availability retains paid workspace entitlement, explicit profile approval, original agent authority, bounded scheduling and pause controls. GBP price and live merchant setup remain separate; full source-to-provider canary acceptance is not claimed. |
 | `mpp` | `disabled_policy` | `advanced` | no | MPP is a separate optional settlement stream and remains disabled. |
 | `public_signup` | `production_ready` | `public_launch` | no | Owner-authorized public Google signup is approved with verified-email admission, a first-100 workspace cap and 10 new signups per hour. Existing production infrastructure and operator-drill evidence is accepted; distributed-runtime provider acceptance remains separate. |
 | `production_edge` | `live_verified` | `production` | no | The exact production custom domain, Worker binding, security headers, canonical WAF rule and auth rate-limit rule are independently read back and accepted. |
@@ -47,7 +47,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `linkedin_poststeward_page_identity`: `docs/live-external-gates-2026-09-13.md`
 - `linkedin_oauth`: `docs/linkedin-community-application-separation-2026-09-20.md`, `docs/live-external-gates-2026-09-13.md`, `docs/provider-connection-audit-2026-09-19.md`
 - `linkedin_member_readback`: `docs/live-external-gates-2026-09-13.md`
-- `advanced_rollout`: `docs/production-readiness-acceptance.md`
+- `advanced_rollout`: `docs/advanced-gbp-launch-2026-09-30.md`
 - `mpp`: `docs/production-readiness-acceptance.md`
 - `public_signup`: `docs/public-launch-2026-09-30.md`, `actions/35440165248`, `issues/137`, `docs/production-edge-live-evidence-2026-09-19.md`, `docs/operational-alert-live-evidence-2026-09-19.md`, `docs/capacity-cost-live-evidence-2026-09-19.md`
 - `production_edge`: `docs/production-edge-live-evidence-2026-09-19.md`, `actions/35440149519`

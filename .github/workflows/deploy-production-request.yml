@@ -1,12 +1,13 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-30-owner-authorized-public-signup
+# Production deployment request: 2026-09-30-gbp-advanced-and-complete-site-audit
 # This file is the only reviewed push-triggered production deployment request.
 # This request opens verified-email Google signup with the existing first-100 and
 # 10-new-signups-per-hour bounds, and removes internal labels from production UI.
 # LinkedIn remains fail-closed until the central Community Management app is approved and configured.
 # Public signup was explicitly requested by the owner on 30 September 2026.
-# Advanced, MPP and Stripe sandbox remain off; historical operator drill is accepted.
+# Owner requested Advanced availability. GBP amount is undecided: checkout remains unavailable until a live exact Price is configured.
+# MPP and Stripe sandbox remain off; historical operator drill is accepted.
 # It performs a read-only protected-environment preflight before calling the shared deploy workflow.
 # Production uses its own D1, APP_ORIGIN and OIDC. PRODUCTION_CREDENTIAL_MODE may explicitly
 # record temporary reuse of staging credential values. No provider consent, token
@@ -48,10 +49,14 @@ jobs:
       LINKEDIN_MEMBER_READBACK: ${{ vars.LINKEDIN_MEMBER_READBACK }}
       STRIPE_SANDBOX_ENABLED: ${{ vars.STRIPE_SANDBOX_ENABLED }}
       STRIPE_SANDBOX_PRICE_ID: ${{ vars.STRIPE_SANDBOX_PRICE_ID }}
-      ADVANCED_ENABLED: ${{ vars.ADVANCED_ENABLED }}
-      ADVANCED_ROLLOUT_MODE: ${{ vars.ADVANCED_ROLLOUT_MODE }}
-      ADVANCED_CANARY_BPS: ${{ vars.ADVANCED_CANARY_BPS }}
-      ADVANCED_CANARY_SEED: ${{ vars.ADVANCED_CANARY_SEED }}
+      STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID }}
+      ADVANCED_PRICE_AMOUNT_PENCE: ${{ vars.ADVANCED_PRICE_AMOUNT_PENCE }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      ADVANCED_ENABLED: "true"
+      ADVANCED_ROLLOUT_MODE: global
+      ADVANCED_CANARY_BPS: "0"
+      ADVANCED_CANARY_SEED: ""
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
       ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
@@ -81,7 +86,7 @@ jobs:
     with:
       environment: production
       run_pitr_diagnostic: false
-      advanced_rollout_request: environment
+      advanced_rollout_request: enable_production
       production_deploy_request: true
       signup_mode_request: public
     secrets:
@@ -95,6 +100,8 @@ jobs:
       THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
       LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
       LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
       STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
       STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
       OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}

@@ -192,7 +192,8 @@ export function buildConfiguration(base, env) {
     STRIPE_PRICE_ID:
       env.STRIPE_SANDBOX_ENABLED === "true"
         ? env.STRIPE_SANDBOX_PRICE_ID || ""
-        : "",
+        : env.DEPLOY_ENV === "production" ? env.STRIPE_PRICE_ID || "" : "",
+    ADVANCED_PRICE_AMOUNT_PENCE: env.ADVANCED_PRICE_AMOUNT_PENCE || "",
     ADVANCED_ENABLED: advanced.enabled,
     ADVANCED_ROLLOUT_MODE: advanced.mode,
     ADVANCED_CANARY_BPS: advanced.bps,
@@ -308,9 +309,8 @@ export function validateConfiguration(c) {
     demand(
       environment === "production" &&
         c.workers_dev === false &&
-        c.vars.ADVANCED_ENABLED === "false" &&
         c.vars.MPP_ENABLED === "false",
-      "Public signup is allowed only on the custom production origin with Advanced and MPP disabled.",
+      "Public signup is allowed only on the custom production origin with MPP disabled.",
     );
   const advancedEnabled = c.vars.ADVANCED_ENABLED === "true";
   const rolloutMode = c.vars.ADVANCED_ROLLOUT_MODE;
@@ -334,16 +334,18 @@ export function validateConfiguration(c) {
     );
   else
     demand(
-      environment === "staging" &&
+      (environment === "production" && rolloutMode === "global" && canaryBps === 0 && c.workers_dev === false) ||
+      (environment === "staging" &&
         rolloutMode === "canary" &&
         canaryBps >= 1 &&
         canaryBps <= 1000 &&
-        canarySeed.length >= 8,
-      "Advanced may currently be enabled only as a bounded staging canary of at most ten percent.",
+        canarySeed.length >= 8),
+      "Advanced requires a bounded staging canary of at most ten percent or reviewed global production on a custom origin.",
     );
-  demand(
-    rolloutMode !== "global",
-    "Global Advanced rollout is forbidden until canary and SLO acceptance are reviewed.",
+  const price = c.vars.ADVANCED_PRICE_AMOUNT_PENCE || "";
+  if (environment === "production") demand(
+    (!price && !c.vars.STRIPE_PRICE_ID) || (/^[1-9][0-9]{0,6}$/.test(price) && /^price_[A-Za-z0-9_]+$/.test(c.vars.STRIPE_PRICE_ID || "")),
+    "GBP amount in pence and Stripe Price must be configured together; no default launch price.",
   );
   demand(
     c.vars.MPP_ENABLED === "false",
@@ -457,7 +459,30 @@ export function deploymentSecrets(env) {
     values.STRIPE_SECRET_KEY = env.STRIPE_SANDBOX_SECRET_KEY;
     values.STRIPE_WEBHOOK_SECRET = env.STRIPE_SANDBOX_WEBHOOK_SECRET;
   }
+  if (env.DEPLOY_ENV === "production" && env.STRIPE_PRICE_ID) {
+    demand(/^(sk|rk)_live_[A-Za-z0-9_]+$/.test(env.STRIPE_SECRET_KEY || "") &&
+      /^whsec_[A-Za-z0-9_]+$/.test(env.STRIPE_WEBHOOK_SECRET || "") &&
+      /^[1-9][0-9]{0,6}$/.test(env.ADVANCED_PRICE_AMOUNT_PENCE || ""),
+      "GBP production billing requires a live Stripe key, webhook signing secret and exact amount in pence.");
+    values.STRIPE_SECRET_KEY = env.STRIPE_SECRET_KEY;
+    values.STRIPE_WEBHOOK_SECRET = env.STRIPE_WEBHOOK_SECRET;
+  }
   return values;
+}
+
+export async function verifyProductionPrice(env, send = fetch) {
+  if (env.DEPLOY_ENV !== "production" || !env.STRIPE_PRICE_ID) return { enabled: false, reason: "GBP price not configured" };
+  const secrets = deploymentSecrets(env);
+  const response = await send("https://api.stripe.com/v1/prices/" + encodeURIComponent(env.STRIPE_PRICE_ID), {
+    headers: { Authorization: "Bearer " + secrets.STRIPE_SECRET_KEY }, redirect: "error", signal: AbortSignal.timeout(15000),
+  });
+  demand(response.ok, "Live GBP Stripe Price verification refused; no deployment performed.");
+  const price = await response.json();
+  demand(price.id === env.STRIPE_PRICE_ID && price.active === true && price.livemode === true &&
+    price.currency === "gbp" && price.unit_amount === Number(env.ADVANCED_PRICE_AMOUNT_PENCE) &&
+    price.tax_behavior === "inclusive" && price.recurring?.interval === "month" && price.recurring.interval_count === 1,
+    "Live Stripe Price must match the exact configured GBP monthly tax-inclusive total.");
+  return { enabled: true, priceVerified: true, livemode: true, currency: "gbp", amount: price.unit_amount };
 }
 
 export async function verifySandboxPrice(env, send = fetch) {

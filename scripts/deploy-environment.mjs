@@ -10,6 +10,7 @@ import {
   deploymentSecrets,
   validateConfiguration,
   verifySandboxPrice,
+  verifyProductionPrice,
 } from "./deployment-config.mjs";
 
 const c = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
@@ -52,6 +53,7 @@ if (c.vars.ENCRYPTION_ROOT_WRITE === "next") {
 }
 writeFileSync("wrangler.jsonc", JSON.stringify(c, null, 2) + "\n");
 await verifySandboxPrice(process.env);
+await verifyProductionPrice(process.env);
 const db = c.d1_databases[0];
 const response = await fetch(
   `https://api.cloudflare.com/client/v4/accounts/${c.account_id}/d1/database/${db.database_id}`,

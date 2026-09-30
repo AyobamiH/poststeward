@@ -39,7 +39,7 @@ test("staging may enable only a bounded deterministic canary", () => {
   assert.equal(config.vars.ADVANCED_CANARY_SEED, "advanced-v1");
 });
 
-test("deployment refuses broad, malformed or production Advanced rollout", () => {
+test("deployment refuses broad staging and malformed production Advanced rollout", () => {
   assert.throws(
     () =>
       buildConfiguration(base, {
@@ -90,4 +90,10 @@ test("deploy workflow reads only protected non-secret rollout variables", () => 
   ])
     assert.match(workflow, new RegExp(`${name}: \\\$\\{\\{ vars\\.${name} \\}\\}`));
   assert.doesNotMatch(workflow, /secrets\.ADVANCED_CANARY/);
+});
+
+test("reviewed global production enables entitled execution with no default price",()=>{
+  const config=buildConfiguration(base,{...staging,DEPLOY_ENV:"production",APP_ORIGIN:"https://app.poststeward.com",ADVANCED_ENABLED:"true",ADVANCED_ROLLOUT_MODE:"global",ADVANCED_CANARY_BPS:"0",SIGNUP_MODE:"public"});
+  assert.equal(config.vars.ADVANCED_ENABLED,"true"); assert.equal(config.vars.STRIPE_PRICE_ID,""); assert.equal(config.vars.ADVANCED_PRICE_AMOUNT_PENCE,"");
+  assert.throws(()=>buildConfiguration(base,{...staging,DEPLOY_ENV:"production",APP_ORIGIN:"https://app.poststeward.com",ADVANCED_PRICE_AMOUNT_PENCE:"1099"}),/configured together/);
 });

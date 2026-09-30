@@ -59,12 +59,7 @@ export async function preflightProductionDeploy(
     env.STRIPE_SANDBOX_ENABLED !== "true",
     "Stripe sandbox must remain disabled in production.",
   );
-  demand(
-    env.ADVANCED_ENABLED !== "true" &&
-      (env.ADVANCED_ROLLOUT_MODE || "disabled") === "disabled" &&
-      String(env.ADVANCED_CANARY_BPS || "0") === "0",
-    "Production deploy requires Advanced globally disabled.",
-  );
+
 
   const resolved = await resolveCloudflareConfiguration(env, send);
   const configuration = buildConfiguration(base, resolved);
@@ -148,7 +143,9 @@ export async function preflightProductionDeploy(
       workspaceLimit: Number(configuration.vars.PUBLIC_WORKSPACE_LIMIT),
       signupsPerHour: Number(configuration.vars.PUBLIC_SIGNUPS_PER_HOUR),
     },
-    advancedDisabled: true,
+    advancedDisabled: configuration.vars.ADVANCED_ENABLED !== "true",
+    advancedRolloutMode: configuration.vars.ADVANCED_ROLLOUT_MODE,
+    billingPriceConfigured: Boolean(configuration.vars.STRIPE_PRICE_ID),
     mppDisabled: true,
     stripeSandboxDisabled: true,
     externalEffectAttempted: false,

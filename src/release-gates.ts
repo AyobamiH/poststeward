@@ -193,12 +193,12 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "advanced_rollout",
-    state: "disabled_policy",
+    state: "production_ready",
     scope: "advanced",
     blocking: false,
     summary:
-      "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+      "Owner-authorised Advanced availability retains paid workspace entitlement, explicit profile approval, original agent authority, bounded scheduling and pause controls. GBP price and live merchant setup remain separate; full source-to-provider canary acceptance is not claimed.",
+    evidence: ["docs/advanced-gbp-launch-2026-09-30.md"],
   },
   {
     id: "mpp",
@@ -387,6 +387,7 @@ export function releasePolicyViolations(env: Env) {
     if (mode !== "disabled" || bps !== 0)
       violations.push("advanced_disabled_policy_drift");
   } else if (mode === "global") {
+    if (env.DEPLOY_ENV !== "production" || bps !== 0) violations.push("advanced_global_policy_invalid");
     if (!reviewedGateAccepted("advanced_rollout"))
       violations.push("advanced_globally_enabled_before_canary_gate");
   } else if (

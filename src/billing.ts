@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { sandboxBillingEnabled, stripeCredentialAllowed } from "./billing-mode.ts";
+import { billingConfigured, billingPrice, sandboxBillingEnabled, stripeCredentialAllowed } from "./billing-mode.ts";
 import { Mppx, stripe as machineStripe } from "mppx/server";
 import { addMonth, digest, Fault, json, requireValue, uid } from "./common.ts";
 import type { Actor, Entitlement, Env, Store } from "./types.ts";
@@ -9,9 +9,10 @@ export interface Quote {
   workspace: string;
   actor: string;
   mode: "subscription" | "pass";
-  amount: 500;
-  currency: "usd";
-  version: "advanced-v1";
+  amount: number;
+  currency: "usd" | "gbp";
+  version: "advanced-v1" | "advanced-gbp-v1";
+  priceId?: string;
   start: number;
   end: number;
   expires: number;
@@ -50,7 +51,7 @@ export class Billing implements BillingPort {
       (this.env.ADVANCED_ENABLED === "true" || sandboxBillingEnabled(this.env)) &&
       stripeCredentialAllowed(this.env) &&
       !!this.stripe &&
-      !!this.env.STRIPE_PRICE_ID
+      billingConfigured(this.env)
     );
   }
   private requireAvailable() {
@@ -261,10 +262,10 @@ export class Billing implements BillingPort {
       sandbox: sandboxBillingEnabled(this.env),
       webhookEvidence,
       recoveryPending: this.recoveryRequired(),
-      portalAvailable: this.available() && Boolean(this.store.get("billing:customer")),
+      portalAvailable: Boolean(this.stripe && stripeCredentialAllowed(this.env) && this.store.get("billing:customer")),
       entitlement: this.store.get<Entitlement>("entitlement") || null,
       attempt: this.store.get<Attempt>("billing:attempt") || null,
-      price: { amount: 500, currency: "usd", interval: "month" },
+      price: billingPrice(this.env),
       methods: {
         checkout: { available: this.available() && !this.recoveryRequired() },
         mpp: {
@@ -299,14 +300,16 @@ export class Billing implements BillingPort {
       503,
     );
     const now = Date.now();
+    const price = billingPrice(this.env);
     const quote: Quote = {
       id: uid(),
       workspace: this.workspace,
       actor: actor.id,
       mode: input.mode,
-      amount: 500,
-      currency: "usd",
-      version: "advanced-v1",
+      amount: price.amount!,
+      currency: price.currency as Quote["currency"],
+      version: price.currency === "gbp" ? "advanced-gbp-v1" : "advanced-v1",
+      priceId: this.env.STRIPE_PRICE_ID,
       start: now,
       end: addMonth(now),
       expires: now + 600000,
@@ -324,7 +327,7 @@ export class Billing implements BillingPort {
     this.store.put("quote:" + quote.id, quote);
     return {
       ...quote,
-      tax: "Total USD 5.00; configured Stripe price must be tax inclusive or use no additional checkout tax.",
+      tax: `Total ${quote.currency.toUpperCase()} ${(quote.amount / 100).toFixed(2)}; no additional checkout tax or fees.`,
       paymentPath: input.mode === "pass" ? "/payments/" + quote.id : null,
     };
   }
@@ -396,16 +399,18 @@ export class Billing implements BillingPort {
         status: existing.status,
       };
     // All callers, including interrupted retries, use the same Stripe key and parameters.
-    const price = await stripe.prices.retrieve(this.env.STRIPE_PRICE_ID!);
+    const price = await stripe.prices.retrieve(q.priceId || this.env.STRIPE_PRICE_ID!);
     requireValue(
-      price.active &&
+      price.id === (q.priceId || this.env.STRIPE_PRICE_ID) &&
+        price.active &&
         price.livemode === !this.env.STRIPE_SECRET_KEY!.includes("_test_") &&
-        price.currency === "usd" &&
-        price.unit_amount === 500 &&
+        price.currency === q.currency &&
+        price.unit_amount === q.amount &&
+        (q.currency !== "gbp" || price.tax_behavior === "inclusive") &&
         price.recurring?.interval === "month" &&
         price.recurring.interval_count === 1,
       "PRICE_MISMATCH",
-      "Stripe Price must be active USD 5 per month.",
+      "Stripe Price must match the exact quoted currency and monthly total; GBP prices must include tax.",
       503,
     );
     const attempt = this.claim(q);
@@ -449,7 +454,8 @@ export class Billing implements BillingPort {
     }
   }
   async portal(input: any, actor: Actor) {
-    const stripe = this.requireAvailable();
+    requireValue(this.stripe && stripeCredentialAllowed(this.env), "BILLING_UNAVAILABLE", "Billing management requires current Stripe credentials.", 503);
+    const stripe = this.stripe!;
     if (!this.store.get("billing:customer") && this.recoveryRequired()) await this.recoverCheckout();
     const customer = this.store.get<string>("billing:customer");
     requireValue(
@@ -556,11 +562,15 @@ export class Billing implements BillingPort {
       "billing:renewing",
       !["canceled", "incomplete_expired"].includes(sub.status),
     );
+    // Persisted quotes retain their original price after configuration changes.
+    // Pre-GBP restore records without a quote retain the legacy USD contract only.
+    const quoted = this.store.get<Quote>("quote:" + a.quote);
+    const expected = quoted || { amount: 500, currency: "usd", priceId: this.env.STRIPE_PRICE_ID };
     const item = sub.items.data.find(
       (i: any) =>
-        i.price.id === this.env.STRIPE_PRICE_ID &&
-        i.price.unit_amount === 500 &&
-        i.price.currency === "usd" &&
+        i.price.id === (expected.priceId || this.env.STRIPE_PRICE_ID) &&
+        i.price.unit_amount === expected.amount &&
+        i.price.currency === expected.currency &&
         i.quantity === 1,
     );
     const invoice = sub.latest_invoice;
@@ -574,7 +584,7 @@ export class Billing implements BillingPort {
       requireValue(id, "BILLING_RECONCILIATION_PENDING", "Invoice payment requires verification.", 503);
       const intent = await this.stripe.paymentIntents.retrieve(id, { expand: ["latest_charge"] });
       requireValue(intent.id === id && intent.livemode === session.livemode &&
-        intent.status === "succeeded" && intent.currency === "usd" &&
+        intent.status === "succeeded" && intent.currency === expected.currency &&
         intent.latest_charge && typeof intent.latest_charge === "object",
         "BILLING_RECONCILIATION_PENDING", "Payment and charge evidence is incomplete.", 503);
       paymentIntents.push(intent);
@@ -589,8 +599,8 @@ export class Billing implements BillingPort {
     if (
       item &&
       invoice?.status === "paid" &&
-      invoice.currency === "usd" &&
-      invoice.amount_paid >= 500 &&
+      invoice.currency === expected.currency &&
+      invoice.amount_paid >= expected.amount &&
       !invalid &&
       ["active", "past_due", "canceled"].includes(sub.status)
     ) {
@@ -619,8 +629,8 @@ export class Billing implements BillingPort {
       q &&
         pi.metadata?.workspace === this.workspace &&
         pi.metadata?.quote === a.quote &&
-        pi.amount === 500 &&
-        pi.currency === "usd" &&
+        pi.amount === q.amount &&
+        pi.currency === q.currency &&
         pi.livemode === !this.env.STRIPE_SECRET_KEY!.includes("_test_"),
       "PAYMENT_MISMATCH",
       "Payment does not match the server quote.",
@@ -631,6 +641,7 @@ export class Billing implements BillingPort {
       typeof charge === "object" &&
       charge &&
       (charge.refunded || charge.amount_refunded > 0 || charge.disputed);
+    requireValue(pi.status !== "succeeded" || (charge && typeof charge === "object"), "BILLING_RECONCILIATION_PENDING", "Expanded charge evidence is required before granting paid access.", 503);
     if (pi.status === "succeeded" && !invalid) {
       this.store.put("entitlement", {
         kind: "pass",
@@ -700,6 +711,7 @@ export class Billing implements BillingPort {
           const pi = await stripe.paymentIntents.create(
             {
               ...params,
+              expand: [...new Set([...(params.expand || []), "latest_charge"])],
               metadata: {
                 ...params.metadata,
                 workspace: this.workspace,
@@ -732,8 +744,8 @@ export class Billing implements BillingPort {
       realm: new URL(this.env.PUBLIC_ORIGIN).host,
     });
     const outcome = await mppx.charge({
-      amount: "5.00",
-      currency: "usd",
+      amount: (q.amount / 100).toFixed(2),
+      currency: q.currency,
       externalId: q.id,
       metadata: { workspace: this.workspace, quote: q.id },
       scope: this.workspace + ":" + actor.id + ":" + q.id,

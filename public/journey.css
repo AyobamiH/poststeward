@@ -1,0 +1,35 @@
+/* Shared journey fixes; mirrored between the hosted app and public website. */
+:root { --text-tertiary: #60675d; }
+@media(prefers-color-scheme:dark) { :root { --text-tertiary:#abb3a7; } }
+html { scroll-padding-top:6rem; }
+* { box-sizing:border-box; }
+main, section, article, .step > div, .field, .field-grid, .workspace-grid > *, .grid > *, .ux-provider-card { min-width:0; }
+pre { max-width:100%; overflow:auto; }
+pre:focus-visible, summary:focus-visible, [data-copy]:focus-visible { outline:3px solid var(--brand, #bd432b); outline-offset:3px; }
+summary { min-height:28px; padding-block:3px; }
+.skip-link { position:absolute; left:12px; top:-100px; z-index:100; padding:12px; background:var(--bg-surface,#fff); color:var(--text-primary,#161916); }
+.skip-link:focus { top:12px; }
+.agent-surface-inner { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:clamp(24px,5vw,64px); }
+.agent-surface h2 { font-size:clamp(26px,3vw,38px); line-height:1.16; max-width:22ch; }
+.agent-surface .lead { font-size:18px; line-height:1.6; }
+.agent-surface .lead, .agent-surface .muted, .agent-surface .eyebrow { color:var(--text-inverse,#f5f5ef); opacity:1; }
+.agent-surface .muted { font-size:14px; line-height:1.65; }
+.install-inline { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin-block:20px; }
+.install-command { flex:1 1 420px; min-width:0; border:1px solid var(--border-default,#d5d7d0); border-radius:10px; padding:16px; }
+.install-command pre { margin:0 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+.install-command .copy-feedback { min-height:1.5em; margin:8px 0 0; font-size:14px; }
+.install-prerequisites { font-size:14px; line-height:1.65; }
+.ux-provider-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.ux-provider-card { overflow-wrap:anywhere; }
+.ux-provider-card-head, .ux-provider-card-title, .ux-capability-list li { flex-wrap:wrap; }
+.ux-provider-card .ux-pill { white-space:normal; max-width:100%; }
+.ux-capability-list li { font-size:13px; line-height:1.5; }
+.public-page .code-block, .public-page .step, .public-page .panel, .public-page .record-row { min-width:0; max-width:100%; }
+.public-page .field-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
+.public-page .record-head { flex-wrap:wrap; }
+.public-page .record-primary, .public-page .record-secondary, .public-page .op, .public-page .dl-row { overflow-wrap:anywhere; }
+.public-page .button.primary { color:#161916; }
+@media(max-width:768px) { .agent-surface-inner { grid-template-columns:1fr; } .install-inline { display:block; } .install-command { margin-top:16px; } .public-page .workspace-grid { grid-template-columns:minmax(0,1fr); } }
+
+.agent-surface a:not(.button):not(.protocol) { color:var(--text-inverse); text-decoration:underline; }
+.agent-surface .button.primary { background:var(--text-inverse); color:var(--bg-inverse); border-color:var(--text-inverse); }

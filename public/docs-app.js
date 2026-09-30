@@ -29,8 +29,10 @@ function setRuntime(value) {
     ["Environment", value.environment || "unknown"],
     ["Owner admission", value.access?.signupMode || "unknown"],
     ["Provider OAuth", `${providerCount}/3 configured`],
-    ["Advanced", value.payments?.advancedEnabled ? "master enabled" : "master disabled"],
-    ["Rollout", value.payments?.advancedRolloutMode || "disabled"],
+    ["Advanced execution", value.payments?.advancedEnabled ? "available to entitled workspaces" : "unavailable"],
+    ["Rollout", value.runtimeCapabilities?.policies?.advancedRolloutMode || "disabled"],
+    ["Purchase currency", value.payments?.price?.currency?.toUpperCase() || "GBP"],
+    ["New purchases", value.payments?.checkoutConfigured ? "configured; inspect an exact billing quote" : "unavailable until the GBP price and merchant setup are configured"],
     ["Release", typeof value.release === "string" ? value.release.slice(0, 12) : "unknown"],
   ];
   root.replaceChildren();
@@ -133,17 +135,16 @@ async function loadOperations() {
   }
 }
 
-function copyCode(button) {
+async function copyCode(button) {
   const block = button.closest(".docs-code-wrap")?.querySelector("pre");
   if (!block) return;
-  navigator.clipboard?.writeText(block.textContent || "").then(
-    () => {
-      const original = button.textContent;
-      button.textContent = "Copied";
-      setTimeout(() => (button.textContent = original), 1200);
-    },
-    () => {},
-  );
+  let feedback = button.closest(".docs-code-wrap").querySelector(".copy-feedback");
+  if (!feedback) { feedback = make("p", "copy-feedback", ""); feedback.setAttribute("role", "status"); feedback.setAttribute("aria-live", "polite"); button.closest(".docs-code-wrap").append(feedback); }
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+    await navigator.clipboard.writeText(block.textContent.trim());
+    feedback.textContent = "Copied to clipboard.";
+  } catch { feedback.textContent = "Clipboard unavailable. Select and copy the code above."; }
 }
 
 async function boot() {

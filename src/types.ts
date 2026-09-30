@@ -188,6 +188,7 @@ export interface Env {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
+  ADVANCED_PRICE_AMOUNT_PENCE?: string;
   STRIPE_PROFILE_ID?: string;
   MPP_SECRET?: string;
   OPERATIONAL_ALERT_WEBHOOK_URL?: string;

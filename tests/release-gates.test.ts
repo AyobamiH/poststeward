@@ -152,7 +152,8 @@ test("owner-reviewed public signup keeps admission bounds and separate external 
   );
   assert.equal(readiness.runtimeCapabilities.policies.publicSignupsPerHour, 10);
   assert.ok(externalEvidenceGateIds().includes("linkedin_oauth"));
-  assert.ok(externalEvidenceGateIds().includes("advanced_rollout"));
+  assert.equal(readiness.gates.advanced_rollout.state,"production_ready");
+  assert.ok(!externalEvidenceGateIds().includes("advanced_rollout"));
 });
 
 test("policy contradictions are visible instead of silently broadening claims", () => {
@@ -166,7 +167,7 @@ test("policy contradictions are visible instead of silently broadening claims", 
     LINKEDIN_MEMBER_READBACK: "true",
   });
   assert.deepEqual(releasePolicyViolations(unsafe).sort(), [
-    "advanced_globally_enabled_before_canary_gate",
+    "advanced_global_policy_invalid",
     "linkedin_readback_enabled_without_live_permission_evidence",
     "mpp_enabled_before_settlement_gate",
     "public_signup_environment_invalid",
@@ -174,7 +175,7 @@ test("policy contradictions are visible instead of silently broadening claims", 
   const readiness = releaseReadiness(unsafe);
   assert.equal(readiness.policy.healthy, false);
   assert.equal(readiness.gates.private_github_authority.state, "live_verified");
-  assert.equal(readiness.gates.advanced_rollout.state, "disabled_policy");
+  assert.equal(readiness.gates.advanced_rollout.state, "production_ready");
 });
 
 test("public admission bounds fail closed when they drift from the reviewed first-100 policy", () => {

@@ -1,3 +1,5 @@
+> Current update — 30 September 2026: public Google signup is deployed with the first-100 workspace and 10/hour admission bounds. The full installable runtime, scoped remote/local bridge and reviewed recovery generation transitions are adopted. Advanced availability is owner-authorised; its exact GBP launch amount and live merchant configuration remain undecided/unconfigured. See [GBP launch decision](advanced-gbp-launch-2026-09-30.md) and the [generated current gates](current-readiness.md). The dated observations below preserve their original evidence, not current launch policy.
+
 # PostSteward implementation status — 20 September 2026
 
 ## Executive state
@@ -55,7 +57,7 @@ Do not repeat any of these merely to create a newer receipt:
 
 ### CLI
 
-PostSteward's supported command-line contract is shell/cURL over the documented HTTP operations. There is no separately packaged PostSteward binary/update channel promise.
+PostSteward supports shell/cURL over hosted HTTP operations and the full installed local runtime distributed by `https://poststeward.com/install.sh`. Its signed stable manifest pins the exact release and runtime tree. Linux installation is verified; WSL/macOS acceptance remains separate.
 
 ### Remote MCP authorization
 

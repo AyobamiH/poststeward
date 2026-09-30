@@ -513,7 +513,7 @@ Example:
 
 ## billing_quote
 
-Create an exact USD 5 workspace purchase quote: recurring subscription or non-renewing calendar month.
+Create an exact configured GBP workspace purchase quote: recurring subscription or non-renewing calendar month.
 
 - Tier: free
 - Required scope: billing

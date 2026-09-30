@@ -141,10 +141,10 @@ function renderProviders(snapshot) {
     const connections = info.connections || [];
     const card = node("section", "ux-provider-card"); card.setAttribute("aria-label", providers[provider] + " capabilities");
     const head = node("div", "ux-provider-card-head");
-    head.append(node("strong", "", providers[provider]), badge(config?.available === true ? "App configured" : config?.available === false ? "OAuth unconfigured" : "Status unknown", config?.available === false ? "warning" : "neutral"));
+    head.append(node("strong", "", providers[provider]), badge(config?.available === true ? "Connect available" : config?.available === false ? "New connections unavailable" : "Status unknown", config?.available === false ? "warning" : "neutral"));
     card.append(head, node("p", "", accounts.length
-      ? `${accounts.length} active connection(s). Per-account authority is shown here and in the account record below.`
-      : "No active connection. Application configuration alone cannot publish."));
+      ? `${accounts.length} active account(s). Available actions are shown below; connecting another account is a separate step.`
+      : "Connect your account before publishing. Available provider setup alone does not grant account access."));
     const list = node("ul", "ux-capability-list");
     for (const key of ["publish", "readback", "refresh", "metrics"]) {
       const state = providerConnectionCapabilityLabel(key, accounts, connections) || capabilityState(config?.capabilities?.[key]);
