@@ -522,6 +522,10 @@ try {
         await page.waitForFunction(() => document.querySelector('.docs-mobile-menu').open);
         const links=menu.locator('nav a');assert.ok(await links.count()>0);
         for(const link of await links.all()) assert.equal(await link.isVisible(),true,`${path}: expanded docs link hidden`);
+        const summaryBox=await menu.locator('summary').boundingBox();const panelBox=await menu.locator('nav').boundingBox();
+        assert.ok(summaryBox.height>=44,`${path}: docs toggle touch target too small`);
+        assert.ok(panelBox.y>=summaryBox.y+summaryBox.height,`${path}: menu covers its toggle`);
+        assert.ok(panelBox.x>=0&&panelBox.x+panelBox.width<=375,`${path}: menu overflows viewport`);
         await page.keyboard.press('Escape');assert.equal(await menu.getAttribute('open'),null);
         assert.equal(await menu.locator('summary').evaluate(el=>el===document.activeElement),true);
       }

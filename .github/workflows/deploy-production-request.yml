@@ -1,6 +1,6 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-09-30-mobile-docs-menu
+# Production deployment request: 2026-09-30-mobile-docs-placement
 # This file is the only reviewed push-triggered production deployment request.
 # This request opens verified-email Google signup with the existing first-100 and
 # 10-new-signups-per-hour bounds, and removes internal labels from production UI.

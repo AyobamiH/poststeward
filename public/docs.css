@@ -382,6 +382,7 @@
 
 .docs-mobile-menu {
   display: none;
+  position: relative;
 }
 
 @media (max-width: 900px) {
@@ -403,6 +404,7 @@
 
   .docs-mobile-menu summary {
     cursor: pointer;
+    min-height: 44px;
     border: 1px solid var(--border-default);
     border-radius: 8px;
     padding: 8px 10px;
@@ -411,8 +413,8 @@
 
   .docs-mobile-menu nav {
     position: absolute;
-    right: 18px;
-    top: 54px;
+    right: 0;
+    top: calc(100% + 8px);
     display: grid;
     min-width: 220px;
     border: 1px solid var(--border-default);
