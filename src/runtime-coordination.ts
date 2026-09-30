@@ -1,3 +1,4 @@
+import { assertWorkspaceNotDeleted } from "./lifecycle.ts";
 import { digest, Fault, requireValue, uid } from "./common.ts";
 
 export interface RuntimePairingInput {
@@ -405,6 +406,7 @@ export async function authenticateRuntime(
     "Runtime token is invalid, expired or revoked.",
     401,
   );
+  await assertWorkspaceNotDeleted(db, row.workspace);
   await db
     .prepare(
       "UPDATE runtime_installations SET last_seen_at=? WHERE token_hash=?",

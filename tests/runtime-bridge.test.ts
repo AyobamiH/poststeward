@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  beginWorkspaceDeletion,
+  completeWorkspaceDeletion,
+} from "../src/lifecycle.ts";
 import { digest } from "../src/common.ts";
 import { requireCommandEffect } from "../src/runtime-bridge.ts";
 import { environment } from "./helpers.ts";
@@ -399,6 +403,57 @@ test("future scheduled effects retain original grant and exact schedule identity
       ),
       { code: "RUNTIME_COMMAND_EFFECT_REFUSED" },
     );
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("workspace erasure removes runtime credentials and command data, and pending erasure refuses heartbeats", async () => {
+  const { mf, db } = await runtime();
+  try {
+    const { token, grant } = await seed(db);
+    await mf.dispatchFetch(origin + "/api/operations/runtime_inspect", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + grant,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        view: "projects",
+        idempotencyKey: "erase-inspect-001",
+      }),
+    });
+    await beginWorkspaceDeletion(db, "bridge-workspace");
+    const heartbeat = await mf.dispatchFetch(
+      origin + "/api/runtime/heartbeat",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ authorityGeneration: 2 }),
+      },
+    );
+    assert.equal(heartbeat.status, 410);
+    await completeWorkspaceDeletion(db, "bridge-workspace");
+    for (const table of [
+      "runtime_commands",
+      "runtime_transitions",
+      "runtime_installations",
+      "runtime_pairings",
+      "workspace_executors",
+    ]) {
+      const row = await db
+        .prepare(`SELECT count(*) AS count FROM ${table} WHERE workspace=?`)
+        .bind("bridge-workspace")
+        .first<{ count: number }>();
+      assert.equal(row?.count, 0, table);
+    }
+    const denied = await mf.dispatchFetch(origin + "/api/runtime/bindings", {
+      headers: { Authorization: "Bearer " + token },
+    });
+    assert.equal(denied.status, 401);
   } finally {
     await mf.dispose();
   }

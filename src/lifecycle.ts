@@ -56,12 +56,16 @@ export async function beginWorkspaceDeletion(
   );
   if (existing) return existing;
   const results = await db.batch([
-    db.prepare(
-      "INSERT INTO workspace_deletions(workspace,state,requested_at,completed_at,updated_at) VALUES (?,'pending',?,NULL,?) ON CONFLICT(workspace) DO NOTHING",
-    ).bind(workspace, now, now),
-    db.prepare(
-      "INSERT INTO workspace_controls(workspace,publishing_quarantined,reason,quarantined_at,updated_at) VALUES (?,1,'Workspace deletion in progress.',?,?) ON CONFLICT(workspace) DO UPDATE SET publishing_quarantined=1,reason='Workspace deletion in progress.',quarantined_at=excluded.quarantined_at,updated_at=excluded.updated_at",
-    ).bind(workspace, now, now),
+    db
+      .prepare(
+        "INSERT INTO workspace_deletions(workspace,state,requested_at,completed_at,updated_at) VALUES (?,'pending',?,NULL,?) ON CONFLICT(workspace) DO NOTHING",
+      )
+      .bind(workspace, now, now),
+    db
+      .prepare(
+        "INSERT INTO workspace_controls(workspace,publishing_quarantined,reason,quarantined_at,updated_at) VALUES (?,1,'Workspace deletion in progress.',?,?) ON CONFLICT(workspace) DO UPDATE SET publishing_quarantined=1,reason='Workspace deletion in progress.',quarantined_at=excluded.quarantined_at,updated_at=excluded.updated_at",
+      )
+      .bind(workspace, now, now),
   ]);
   requireValue(
     results[0]?.meta.changes === 1,
@@ -93,27 +97,62 @@ export async function completeWorkspaceDeletion(
     409,
   );
   const statements = [
+    ...[
+      "runtime_commands",
+      "runtime_transitions",
+      "runtime_pairings",
+      "runtime_installations",
+      "workspace_executors",
+    ].map((table) =>
+      db.prepare(`DELETE FROM ${table} WHERE workspace=?`).bind(workspace),
+    ),
     db.prepare("DELETE FROM stripe_events WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM stripe_customers WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM external_effects WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM external_containers WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM workspace_recovery_checkpoints WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM workspace_recovery_plans WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM workspace_controls WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM provider_oauth_states WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM provider_identity_bindings WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM github_repository_links WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM github_installations WHERE workspace=?").bind(workspace),
-    db.prepare("DELETE FROM github_install_states WHERE workspace=?").bind(workspace),
+    db
+      .prepare("DELETE FROM stripe_customers WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM external_effects WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM external_containers WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM workspace_recovery_checkpoints WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM workspace_recovery_plans WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM workspace_controls WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM provider_oauth_states WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM provider_identity_bindings WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM github_repository_links WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM github_installations WHERE workspace=?")
+      .bind(workspace),
+    db
+      .prepare("DELETE FROM github_install_states WHERE workspace=?")
+      .bind(workspace),
     db.prepare("DELETE FROM grants WHERE workspace=?").bind(workspace),
-    db.prepare(
-      "DELETE FROM owner_proofs WHERE session_hash IN (SELECT token_hash FROM sessions WHERE workspace=?)",
-    ).bind(workspace),
+    db
+      .prepare(
+        "DELETE FROM owner_proofs WHERE session_hash IN (SELECT token_hash FROM sessions WHERE workspace=?)",
+      )
+      .bind(workspace),
     db.prepare("DELETE FROM sessions WHERE workspace=?").bind(workspace),
     db.prepare("DELETE FROM principals WHERE workspace=?").bind(workspace),
-    db.prepare(
-      "UPDATE workspace_deletions SET state='completed',completed_at=?,updated_at=? WHERE workspace=? AND state='pending'",
-    ).bind(now, now, workspace),
+    db
+      .prepare(
+        "UPDATE workspace_deletions SET state='completed',completed_at=?,updated_at=? WHERE workspace=? AND state='pending'",
+      )
+      .bind(now, now, workspace),
   ];
   const results = await db.batch(statements);
   requireValue(
@@ -123,7 +162,11 @@ export async function completeWorkspaceDeletion(
     500,
   );
   console.warn(
-    JSON.stringify({ event: "workspace_deletion_completed", workspace, at: now }),
+    JSON.stringify({
+      event: "workspace_deletion_completed",
+      workspace,
+      at: now,
+    }),
   );
   return workspaceDeletion(db, workspace);
 }
