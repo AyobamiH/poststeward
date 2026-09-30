@@ -393,6 +393,7 @@ try {
       if (width <= 768) {
         await page.locator(".product-menu > summary").focus();
         await page.keyboard.press("Enter");
+        await page.waitForFunction(() => document.querySelector('.product-menu').open);
         assert.equal(
           await page.locator(".product-menu").getAttribute("open"),
           "",
@@ -518,6 +519,7 @@ try {
       if(path.startsWith('/docs/')) {
         const menu=page.locator('.docs-mobile-menu');
         await menu.locator('summary').focus();await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.docs-mobile-menu').open);
         const links=menu.locator('nav a');assert.ok(await links.count()>0);
         for(const link of await links.all()) assert.equal(await link.isVisible(),true,`${path}: expanded docs link hidden`);
         await page.keyboard.press('Escape');assert.equal(await menu.getAttribute('open'),null);
