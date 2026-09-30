@@ -50,8 +50,9 @@
           </p>
           <div class="hero-actions">
             <a class="button primary" href="/auth/login">Open workspace</a>
+            <a class="button" href="#install-runtime">Install on your machine</a>
           </div>
-          <div class="install-inline"><a class="button" href="/docs/install">Install PostSteward</a><div class="install-command"><pre id="install-command" tabindex="0" aria-label="PostSteward Linux installation command"><code>curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash</code></pre><button class="button" type="button" data-copy="install-command" data-copy-feedback="install-feedback">Copy install command</button><p id="install-feedback" class="copy-feedback" role="status" aria-live="polite"></p><a href="https://poststeward.com/install.sh">Read the PostSteward installer at poststeward.com/install.sh</a><p class="install-prerequisites">Linux · Bash · Python 3.10 or newer. Installation starts inactive; review pairing and activation in your workspace. WSL and macOS acceptance is still pending. <a href="https://poststeward.com/install/">Full installation guide</a>.</p></div></div>
+
           <p class="hero-note">
             Sign in with Google. Connect your accounts and approve what your agents publish.
           </p>
@@ -60,7 +61,7 @@
         <div class="control-map" aria-label="PostSteward publishing control-plane example">
           <div class="control-map-head">
             <div>
-              <p class="machine-label">LIVE CONTRACT</p>
+              <p class="machine-label">EXAMPLE PUBLISHING FLOW</p>
               <p class="operation-name">publish_now</p>
             </div>
             <span class="scope-pill">publish</span>
@@ -102,6 +103,8 @@
           </div>
         </div>
       </section>
+
+          <section id="install-runtime" class="install-inline" aria-labelledby="install-heading"><div class="install-intro"><p class="eyebrow">LOCAL RUNTIME</p><h2 id="install-heading">Run PostSteward on your machine</h2><p>Keep your publishing runtime local, with account credentials protected in the cloud. Pair your machine and review activation in your workspace.</p><a class="button" href="/docs/install">Installation guide</a></div><div class="install-command"><pre id="install-command" tabindex="0" aria-label="PostSteward Linux installation command"><code>curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash</code></pre><button class="button" type="button" data-copy="install-command" data-copy-feedback="install-feedback">Copy install command</button><p id="install-feedback" class="copy-feedback" role="status" aria-live="polite"></p><a href="https://poststeward.com/install.sh">Read the PostSteward installer at poststeward.com/install.sh</a><p class="install-prerequisites">Linux · Bash · Python 3.10 or newer. Installation starts inactive; review pairing and activation in your workspace. WSL and macOS acceptance is still pending. <a href="https://poststeward.com/install/">Full installation guide</a>.</p></div></section>
 
 <section class="journey-choices" aria-labelledby="choose-path"><h2 id="choose-path">Where do you want to start?</h2><div class="journey-choice-grid">
  <a href="/app"><strong>Publish from your workspace</strong><span>Use the hosted service. Connect accounts, approve copy and schedule posts. No installation needed.</span></a>

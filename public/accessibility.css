@@ -1,13 +1,13 @@
 .skip-link { position: fixed; z-index: 1000; left: 16px; top: 12px; transform: translateY(-180%); border: 2px solid var(--focus); border-radius: 8px; padding: 10px 13px; background: var(--bg-surface); color: var(--text-primary); font-weight: 650; text-decoration: none; box-shadow: var(--shadow-float); }
 .skip-link:focus { transform: translateY(0); }
-:target { scroll-margin-top: 88px; }
+:target { scroll-margin-top: 1rem; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 [hidden] { display: none !important; }
 :root { --text-tertiary: #60665c; }
 @media (prefers-color-scheme: dark) { :root { --text-tertiary: #a3ab9e; } }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 main:focus { outline: none; }
-.ux-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 6px 0; }
+.ux-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 12px 20px; margin: 6px 0; }
 .ux-fields > div { min-width: 0; }
 .ux-fields dt { color: var(--text-secondary); font-size: 12px; }
 .ux-fields dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 13px; }

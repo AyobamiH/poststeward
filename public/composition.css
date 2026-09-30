@@ -6,7 +6,7 @@
 :root {
   --page-max: 1280px;
   --section-space: clamp(72px, 9vw, 128px);
-  --section-gap: clamp(36px, 5vw, 72px);
+  --section-gap: clamp(28px, 4vw, 48px);
 }
 
 /* ---------- Shared site shell ---------- */
@@ -18,6 +18,8 @@
 }
 
 .site-header-inner {
+  flex-wrap: wrap;
+  min-width: 0;
   width: min(100%, var(--page-max));
   min-height: 72px;
   margin-inline: auto;
@@ -28,10 +30,11 @@
 }
 
 .site-header nav {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .site-menu {
+  position: relative;
   display: none;
   margin: 0;
   border: 0;
@@ -58,8 +61,8 @@
 
 .site-menu-panel {
   position: absolute;
-  right: 18px;
-  top: 62px;
+  right: 0;
+  top: calc(100% + 8px);
   min-width: 220px;
   display: grid;
   gap: 4px;
@@ -100,7 +103,7 @@
 }
 
 .hero-organised .hero-copy {
-  align-self: center;
+  align-self: start;
 }
 
 .hero-organised .hero-copy h1 {
