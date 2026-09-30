@@ -232,3 +232,28 @@ test("production request passes the pinned Workers subdomain into preflight", ()
     workflow.includes("WORKERS_SUBDOMAIN: ${{ vars.WORKERS_SUBDOMAIN }}"),
   );
 });
+
+test("shared production preflight receives the protected deployment secrets only in its step", () => {
+  const workflow = readFileSync(".github/workflows/deploy.yml", "utf8");
+  const step = workflow
+    .split(
+      "      - name: Verify production resource identity and protected configuration\n",
+    )[1]
+    .split("      - name:")[0];
+  const deployment = workflow
+    .split(
+      "      - name: Validate secrets and database; migrate and deploy\n",
+    )[1]
+    .split("      - name:")[0];
+  const bindings = (value) =>
+    [...value.matchAll(/^          (\w+): \$\{\{ secrets\.(\w+) \}\}$/gm)]
+      .map((match) => [match[1], match[2]])
+      .sort();
+  assert.deepEqual(bindings(step), bindings(deployment));
+  assert.match(step, /if: inputs\.environment == 'production'/);
+  assert.doesNotMatch(workflow.split("    steps:")[0], /secrets\./);
+  assert.ok(
+    workflow.indexOf("run: npm ci --ignore-scripts") <
+      workflow.indexOf("      - name: Verify production resource identity"),
+  );
+});
