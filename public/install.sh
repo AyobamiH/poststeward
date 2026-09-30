@@ -217,7 +217,7 @@ for path in root.rglob("*"):
         continue
     rel=path.relative_to(root)
     if any(
-        part in {"__pycache__", ".pytest_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"}
+        part in {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"}
         or part.endswith(".egg-info")
         for part in rel.parts
     ):
@@ -275,7 +275,7 @@ for path in root.rglob("*"):
         continue
     rel=path.relative_to(root)
     if any(
-        part in {"__pycache__", ".pytest_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"}
+        part in {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"}
         or part.endswith(".egg-info")
         for part in rel.parts
     ):

@@ -66,6 +66,10 @@ Generated `public/releases/*.json` files are build outputs, ignored by Git. They
 be generated from the exact release being bundled; a committed stale channel
 manifest is not release authority.
 
+Manifest/installer hashing also excludes generated Ruff and mypy caches. A local
+build after static analysis must have the same runtime digest as its Git archive;
+dedicated generator and retained-release tests protect this reproducibility rule.
+
 The PR-triggered browser suite also found homepage install-panel contrast failures
 and horizontal overflow at 320/390px. The panel now uses the existing semantic
 surface/text tokens and wraps its command within a shrinkable hero column. Its

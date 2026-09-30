@@ -153,6 +153,34 @@ test("channel reinstall detects alteration of a retained runtime", (t) => {
   assert.match(result.stderr, /existing embedded runtime does not match/);
 });
 
+test("channel reinstall preserves identity after local analyzer caches are created", (t) => {
+  const m = machine(t);
+  assert.equal(m.run().status, 0);
+  for (const name of [".ruff_cache", ".mypy_cache"]) {
+    const cache = join(m.prefix, "releases", revision, name);
+    mkdirSync(cache);
+    writeFileSync(join(cache, "generated-cache"), "local analyzer output\n");
+  }
+  const result = m.run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(readFileSync(m.receipt, "utf8")).runtime_tree_sha256, manifest.runtime_tree_sha256);
+});
+
+test("release manifest digest is independent of local analyzer caches", (t) => {
+  const root = join(fixture, `poststeward-${revision}`);
+  for (const name of [".ruff_cache", ".mypy_cache"]) {
+    const cache = join(root, "runtime", name);
+    mkdirSync(cache);
+    writeFileSync(join(cache, "generated-cache"), "local analyzer output\n");
+    t.after(() => rmSync(cache, { recursive: true, force: true }));
+  }
+  execFileSync(process.execPath, ["scripts/generate-runtime-release-manifest.mjs"], {
+    cwd: root, env: { ...process.env, POSTSTEWARD_RELEASE_SHA: revision, POSTSTEWARD_RELEASE_CHANNEL: "stable" },
+  });
+  const regenerated = JSON.parse(readFileSync(join(root, "public/releases/stable.json"), "utf8"));
+  assert.equal(regenerated.runtime_tree_sha256, manifest.runtime_tree_sha256);
+});
+
 for (const marker of ['{"status":"active"}', '{"status":"unknown"}', 'broken json']) {
   test(`release change refuses active or unverified local authority (${marker})`, (t) => {
     const m = machine(t);

@@ -41,7 +41,7 @@ function filesUnder(dir) {
   function walk(current) {
     for (const name of readdirSync(current).sort()) {
       if (
-        ["__pycache__", ".pytest_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"].includes(name) ||
+        ["__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git", ".venv", "venv", "dist", "build", "htmlcov"].includes(name) ||
         name.endsWith(".egg-info")
       ) continue;
       const path = join(current, name);
