@@ -60,6 +60,8 @@ flowchart TD
 | F9 / P1 | Loading/session interruption and duplicate action risk | In-flight action guidance, single-batch refresh guard, fail-closed expiry hiding, bounded network waits and conservative error copy | Session expiry removes stale forms, read retry recovers, two refresh clicks trigger one batch; no automatic effect retry |
 | F10 / P2 | Pending owner approval otherwise appears as unfamiliar receipt state | Explicit Needs owner approval badge/filter and next-step guidance | Approval remains an owner action; receipt status not promoted to publication |
 
+Receipt dates now format the actual stored IANA timezone rather than attaching a stored-zone label to browser-local time. UK summer/winter offsets and invalid-zone fallbacks have dedicated checks. Publishing/schedule timestamps and server authority are unchanged.
+
 ## Research applied
 
 - Microsoft Fluent official navigation/accessibility source: ordinary `href` links for navigation, named menu controls and separate navigation/disclosure semantics. Use native links/details; do not add a complex client router or introduce a framework to solve simple task navigation. [Navigation accessibility](https://github.com/microsoft/fluentui/blob/master/packages/react-components/react-nav/stories/src/Nav/NavAccessibility.md).

@@ -8,11 +8,24 @@ import {
   accountReadbackLabel,
   oauthRefreshEvidence,
   providerConnectionCapabilityLabel,
+  receiptTime,
 } from "../public/owner-ui.js";
 
 const ui = readFileSync("public/owner-ui.js", "utf8");
 const css = readFileSync("public/production-ux.css", "utf8");
 const presented = readFileSync("src/presented-edge.ts", "utf8");
+
+test('schedule evidence formats the recorded zone including UK daylight saving', () => {
+  const at = Date.UTC(2026,8,30,12,0);
+  assert.match(receiptTime(at,'UTC'),/12:00 · UTC$/);
+  assert.match(receiptTime(at,'Europe\/London'),/13:00 · Europe\/London$/);
+  assert.match(receiptTime(Date.UTC(2026,11,30,12),'Europe\/London'),/12:00 · Europe\/London$/);
+});
+test('missing or invalid schedule zones never falsely label browser-local time', () => {
+  assert.match(receiptTime(Date.UTC(2026,8,30,12),'Unknown\/Zone'),/browser local time; schedule timezone not recorded$/);
+  assert.match(receiptTime(Date.UTC(2026,8,30,12)),/browser local time/);
+  assert.equal(receiptTime(undefined,'UTC'),'Not recorded');
+});
 
 test("owner presentation consumes structured snapshots without taking operational authority", () => {
   assert.match(ui, /renderOwnerSnapshot/);

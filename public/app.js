@@ -9,6 +9,7 @@ import {
 } from "./app-client.js";
 const $ = (id) => document.getElementById(id);
 let session,
+  sessionExpired = false,
   selectedCampaign,
   paused = false,
   oauthInfo,
@@ -46,6 +47,7 @@ async function api(path, input, method = input === undefined ? "GET" : "POST") {
     error.code = data.error?.code;
     error.status = response.status;
     if (response.status === 401) {
+      sessionExpired = Boolean(session) || sessionExpired;
       session = undefined;
       $("workspace-content").hidden = true;
       $("workspace-next-step").hidden = true;
@@ -385,6 +387,7 @@ async function refresh() {
   } catch {
     recovery = undefined;
   }
+  if (!session) { signInNotice("Your session expired. "); return; }
   renderOAuth();
   renderRecovery();
   await loadRuntimeAuthority();
@@ -603,7 +606,7 @@ async function refresh() {
   $("workspace-content").hidden = false;
   $("workspace-next-step").hidden = false;
   $("pause").hidden = false;
-  $("session-notice").textContent = "Workspace data updated. Dates use your browser’s local time unless a schedule timezone is shown.";
+  $("session-notice").textContent = "Workspace data updated. Schedule dates show their recorded timezone; other dates use your browser’s local time.";
   if (firstLoad) document.dispatchEvent(new Event("workspace-ready"));
 }
 for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]"))
@@ -904,6 +907,7 @@ async function openWorkspace() {
 try {
   $("session-notice").textContent = "Loading workspace…";
   session = await api("/api/session");
+  sessionExpired = false;
   $("session-notice").textContent = "Workspace " + session.workspace;
   await prepareRuntimePairing();
   const help = await api("/help.json");
@@ -932,7 +936,7 @@ try {
     history.replaceState(null, "", "/app");
 } catch (e) {
   $("session-notice").replaceChildren();
-  if (e.status === 401) signInNotice();
+  if (e.status === 401 || sessionExpired) signInNotice(sessionExpired ? "Your session expired. " : "");
   else if (!session) {
     $("session-notice").textContent = "Workspace access could not be checked. Use Refresh to try again when your connection is available. ";
     signInNotice($("session-notice").textContent);
