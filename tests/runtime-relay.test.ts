@@ -228,6 +228,42 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
       textDigest: sha("Exact runtime copy."),
     };
 
+    const pause = await mf.dispatchFetch(
+      origin + "/api/operations/publishing_pause",
+      {
+        method: "POST",
+        headers: auth.ownerHeaders,
+        body: JSON.stringify({
+          paused: true,
+          idempotencyKey: "runtime-pause-001",
+        }),
+      },
+    );
+    assert.equal(pause.status, 200, await pause.clone().text());
+    const paused = await mf.dispatchFetch(origin + "/api/runtime/relay", {
+      method: "POST",
+      headers: runtimeHeaders,
+      body: JSON.stringify(relayInput),
+    });
+    assert.equal(paused.status, 409);
+    assert.equal(
+      ((await paused.json()) as any).error.code,
+      "PUBLISHING_PAUSED",
+    );
+    assert.equal(writes, 0);
+    const resume = await mf.dispatchFetch(
+      origin + "/api/operations/publishing_pause",
+      {
+        method: "POST",
+        headers: auth.ownerHeaders,
+        body: JSON.stringify({
+          paused: false,
+          idempotencyKey: "runtime-resume-001",
+        }),
+      },
+    );
+    assert.equal(resume.status, 200, await resume.clone().text());
+
     const first = await mf.dispatchFetch(origin + "/api/runtime/relay", {
       method: "POST",
       headers: runtimeHeaders,

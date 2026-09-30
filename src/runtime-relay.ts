@@ -196,6 +196,12 @@ export async function handleRuntimeRelay(
 
   if (["container_create", "publish"].includes(input.action)) {
     requireValue(
+      env.PUBLISHING_PAUSED !== "true" && store.get<boolean>("paused") !== true,
+      "PUBLISHING_PAUSED",
+      "Publishing is paused in the cloud owner workspace.",
+      409,
+    );
+    requireValue(
       Number.isInteger(input.authorityGeneration),
       "RUNTIME_GENERATION_REQUIRED",
       "Current executor generation is required for a provider write.",
