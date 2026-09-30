@@ -1,0 +1,8 @@
+Installed is not the same as usable.
+
+Capability Intelligence keeps these states separate:
+discovered → present → installed → enabled → authenticated → runnable → verified.
+
+Unknown stays unknown.
+
+What capability state causes you the most confusion?

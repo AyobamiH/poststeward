@@ -1,0 +1,13 @@
+A useful Reddit answer should not die in one thread.
+
+Founders already create good source material every week: a detailed answer, a debugging lesson, a customer explanation, a product decision.
+
+Then the idea gets used once and disappears.
+
+I’m building OneClickPostFactory around a different model: one real source becomes reusable content inventory.
+
+The source is kept. Multiple angles are extracted. Each network gets its own writing shape. The useful idea can keep working without starting from a blank box again.
+
+That source-to-angle loop is the part I care about more than adding another calendar to the internet.
+
+If you already write useful technical answers and want to test this workflow, reply “factory”.

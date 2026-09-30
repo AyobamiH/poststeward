@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "proof-and-state-gtm",
+  "project": "proof-and-state",
+  "document_id": "1qrjfZxzk8QWwhfJXRa6lKVTEUy_KCxbDLukxcOjBwOg",
+  "destinations": {
+    "x": "x-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

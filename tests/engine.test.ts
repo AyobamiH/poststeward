@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Engine } from "../src/engine.ts";
 import { Fault, explicitTime, addMonth } from "../src/common.ts";
+import { runtimeOperations } from "../src/runtime-bridge.ts";
 import { catalog } from "../src/operations/catalog.ts";
 import { harness, owner } from "./helpers.ts";
 import type { Account, Delivery } from "../src/types.ts";
@@ -10,7 +11,11 @@ test("catalogue matches real handlers and every documented example validates", (
   const h = harness();
   assert.deepEqual(
     catalog.map((o) => o.name).sort(),
-    Object.keys(h.engine.handlers).sort(),
+    [
+      ...Object.keys(h.engine.handlers),
+      ...runtimeOperations,
+      "runtime_command_get",
+    ].sort(),
   );
   for (const o of catalog)
     assert.ok(o.schema.safeParse(o.example).success, o.name);

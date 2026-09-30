@@ -1,0 +1,5 @@
+Before asking AI for ten more posts, give it one thing worth saying.
+
+A useful answer beats a vague brief. That's the Lovable lesson I'm carrying into OneClickPostFactory.
+
+Already writing but struggling to reuse it? Reply "factory".

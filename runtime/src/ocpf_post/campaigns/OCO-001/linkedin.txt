@@ -1,0 +1,11 @@
+OpenClaw can be the front door without every specialist workflow becoming a black box.
+
+That is the direction behind OpenClaw Operator.
+
+OpenClaw handles the generic shell and messaging experience. The Operator layer stays focused on bounded specialist work where approvals, run history, incidents and auditable actions matter.
+
+The goal is not another generic dashboard.
+
+It is making specialist operational work easier to delegate without losing the state you need to inspect later.
+
+Which specialist workflow do you still supervise manually?

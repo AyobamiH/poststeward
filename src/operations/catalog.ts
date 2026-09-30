@@ -394,6 +394,61 @@ export const catalog: Operation[] = [
     "billing_status",
   ),
 ];
+catalog.push(
+  op(
+    "runtime_inspect",
+    "Queue bounded inspection of the active local executor. Read runtime_command_get for the result; this is not hosted workspace state.",
+    "read",
+    ["READ_ONLY"],
+    z.strictObject({
+      view: z.enum(["status", "projects", "campaigns", "schedules"]),
+      idempotencyKey: key,
+    }),
+    { view: "schedules", idempotencyKey: "local-inspect-001" },
+    "runtime_command_get",
+  ),
+  op(
+    "runtime_schedule_create",
+    "Queue an exact local campaign/provider schedule on the reviewed local executor. Original agent authority is rechecked before provider effects.",
+    "schedule",
+    ["STATE_WRITE", "FUTURE_CONSEQUENCE"],
+    z.strictObject({
+      campaign: z.string().regex(/^[A-Z][A-Z0-9-]{2,63}$/),
+      provider: z.enum(["x", "threads", "linkedin"]),
+      at: when,
+      timezone: z.string().max(80).default("UTC"),
+      idempotencyKey: key,
+    }),
+    {
+      campaign: "PRODUCT-001",
+      provider: "threads",
+      at: "2026-10-01T12:00:00Z",
+      idempotencyKey: "local-schedule-001",
+    },
+    "runtime_command_get",
+  ),
+  op(
+    "runtime_schedule_cancel",
+    "Queue cancellation of one unclaimed local schedule; never changes executor or owner authority.",
+    "schedule",
+    ["STATE_WRITE"],
+    z.strictObject({
+      scheduleId: z.string().regex(/^sch_[a-f0-9]{32}$/),
+      idempotencyKey: key,
+    }),
+    { scheduleId: "sch_" + "a".repeat(32), idempotencyKey: "local-cancel-001" },
+    "runtime_command_get",
+  ),
+  op(
+    "runtime_command_get",
+    "Read a durable command receipt for this actor. Claimed work is never automatically redispatched; provider receipts remain separate.",
+    "read",
+    ["READ_ONLY"],
+    z.strictObject({ commandId: z.uuid() }),
+    { commandId: "11111111-1111-4111-8111-111111111111" },
+    "runtime_command_get",
+  ),
+);
 export const byName = new Map(catalog.map((o) => [o.name, o]));
 export function describe(o: Operation) {
   const { schema, ...rest } = o;

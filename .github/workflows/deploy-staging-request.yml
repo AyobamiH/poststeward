@@ -1,8 +1,8 @@
 name: Deploy requested staging revision
 run-name: Deploy staging revision ${{ github.sha }}
-# Deployment request: 2026-09-20-advanced-canary-10-percent-sandbox-fix
+# Deployment request: 2026-09-30-distributed-runtime-convergence
 # Updating this file on main is an explicit staging deployment request.
-# Deploy the exact reviewed publication-parity revision and start the bounded 10% Advanced canary.
+# Deploy the exact reviewed distributed runtime, bridge and generation fencing with Advanced stopped.
 # The stable staging cohort seed is configured separately in the protected environment.
 # LinkedIn remains fail-closed until the central Community Management app is approved and configured.
 # Alert delivery remains inert unless a protected webhook destination is configured.
@@ -25,7 +25,7 @@ jobs:
     with:
       environment: staging
       run_pitr_diagnostic: false
-      advanced_rollout_request: start_1000bps
+      advanced_rollout_request: stop
       signup_mode_request: restricted
     # Pass only explicitly named fallbacks, never every repository secret.
     secrets:

@@ -1,0 +1,7 @@
+An AI-built app can look finished while important checks are missing.
+
+Start with an OpsTruth report; use the gaps to frame a focused diagnostic review, not another guess.
+
+https://opstruth.io
+
+What are you least sure has been tested?

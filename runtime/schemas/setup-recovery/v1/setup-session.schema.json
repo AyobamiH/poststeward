@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/setup-session.schema.json",
+  "title": "Post-Once setup session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "mode",
+    "operation_id",
+    "stage",
+    "session_status",
+    "revision",
+    "last_transition_id",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "mode": {
+      "enum": [
+        "fresh",
+        "migrate",
+        "different_operator",
+        "recover",
+        "explore"
+      ]
+    },
+    "operation_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stage": {
+      "enum": [
+        "created",
+        "preflight_ready",
+        "operation_ready",
+        "configuration_ready",
+        "source_drained",
+        "bundle_verified",
+        "restored_quarantined",
+        "provider_authority_ready",
+        "schedule_reconciled",
+        "recovery_review_ready",
+        "verification_ready",
+        "dry_accepted",
+        "activation_ready",
+        "active",
+        "explore_ready",
+        "aborted"
+      ]
+    },
+    "previous_stage": {
+      "enum": [
+        "created",
+        "preflight_ready",
+        "operation_ready",
+        "configuration_ready",
+        "source_drained",
+        "bundle_verified",
+        "restored_quarantined",
+        "provider_authority_ready",
+        "schedule_reconciled",
+        "recovery_review_ready",
+        "verification_ready",
+        "dry_accepted",
+        "activation_ready",
+        "active",
+        "explore_ready",
+        "aborted"
+      ]
+    },
+    "session_status": {
+      "enum": [
+        "open",
+        "completed",
+        "aborted"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "last_transition_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

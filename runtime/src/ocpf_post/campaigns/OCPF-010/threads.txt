@@ -1,0 +1,11 @@
+AI capability is not the product.
+
+A repeatable outcome is.
+
+The systems I trust have a clear input, a controlled flow, a visible result and evidence of what happened.
+
+That lesson came from operating OpenClaw.
+
+It is also shaping how I think about OneClickPostFactory:
+less “look what AI can write”
+more “this useful source-to-distribution workflow can run again”.

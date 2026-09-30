@@ -1,0 +1,9 @@
+A useful agent workflow should not disappear inside an old chat.
+
+If a workflow keeps being reused, it starts behaving more like a product than a prompt.
+
+Agent Shop Products keeps source-backed prompt products and future agent skills as modular, versionable files with public catalogue metadata separated from full payloads.
+
+The current catalogue is real source inventory, not mock products.
+
+What workflow have you reused enough times that it should become a product?

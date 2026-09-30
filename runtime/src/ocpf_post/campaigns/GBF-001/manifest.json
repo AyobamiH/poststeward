@@ -1,0 +1,8 @@
+{
+  "campaign": "GBF-001", "project": "global-bill-forge", "title": "Global invoices change with the customer", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "GBF-README-20260908", "repository": "AyobamiH/global-bill-forge", "path": "README.md", "blob_sha": "79eb3e2d50bc4c1b29098dce2f7602151cebdc2b", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "International invoicing problem framing; deliberately narrows old production-ready wording.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "7a39e19a469a658b169ec9de8d06225015fed0a31233c29f1304a557d2b385d9", "threads": "17b5393d9b296395efed9943739d7cfb19efe4341656ab0481bdf16443201b50", "linkedin": "014617495fc29127f4e55e0b88d24dcc3279a63047988f7b6ed7a0fed2cd6650"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 84, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-15T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

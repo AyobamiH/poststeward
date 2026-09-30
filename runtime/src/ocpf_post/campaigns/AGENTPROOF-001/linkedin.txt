@@ -1,0 +1,13 @@
+When an agent changes a repository, “it succeeded” is not much of a handover.
+
+The consequential action should leave evidence that can be checked later:
+
+what was prepared
+what authority approved it
+what changed
+whether retry was exactly-once
+what signed receipt binds the result
+
+That is the problem AgentProof is working on.
+
+The current release-candidate implementation proves a bounded repository-patch flow and offline receipt verification, but I am not presenting it as a hosted production authority or generally available service yet.

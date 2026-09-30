@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/recovery-review.schema.json",
+  "title": "Post-Once dead-host recovery review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "summary",
+    "checks",
+    "source_installation_id",
+    "source_authority_generation",
+    "target_publishing_authority",
+    "target_automation_enabled",
+    "boundary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "const": "recovery_review_required"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object"
+      }
+    },
+    "source_installation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source_authority_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "target_publishing_authority": {
+      "const": false
+    },
+    "target_automation_enabled": {
+      "const": false
+    },
+    "boundary": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

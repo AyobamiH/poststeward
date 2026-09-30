@@ -1,0 +1,52 @@
+{
+  "campaign": "PAS-001",
+  "project": "proof-and-state",
+  "title": "The code did not change. Governance went stale.",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "Proof & State GTM vault",
+  "providers": ["linkedin"],
+  "source": {
+    "type": "proof_and_state_gtm_vault",
+    "source_id": "P&S-C25-DONESTATE-GOVERNANCE-FRESHNESS-20260907",
+    "source_campaign": 25,
+    "title": "THE CODE DID NOT CHANGE. GOVERNANCE WENT STALE.",
+    "document_id": "1qrjfZxzk8QWwhfJXRa6lKVTEUy_KCxbDLukxcOjBwOg",
+    "document_url": "https://docs.google.com/document/d/1qrjfZxzk8QWwhfJXRa6lKVTEUy_KCxbDLukxcOjBwOg/edit",
+    "recorded_at": "2026-09-07",
+    "revalidated_at": "2026-09-08",
+    "angle": "A successful build is not proof that a time-sensitive governance decision remains current."
+  },
+  "evidence": {
+    "same_release_commit": "4ab47e099c3303d08565a7dbf4cda36bc68b74ce",
+    "post_merge_ci": "https://github.com/AyobamiH/donestate/actions/runs/33869297576",
+    "governance_freshness_run": "https://github.com/AyobamiH/donestate/actions/runs/34127966239",
+    "boundary": "This is a governance freshness failure, not an application outage, completed review, legal resolution, or code regression claim."
+  },
+  "assistance": {
+    "mode": "vault_canonical_copy",
+    "disclosure": "The platform copy is the existing canonical Proof & State GTM vault copy. post-once is only the distribution control plane."
+  },
+  "destinations": {
+    "linkedin": "linkedin-founder"
+  },
+  "schedules": {
+    "linkedin": {
+      "status": "scheduled",
+      "schedule_id": "sch_20824721a467461fbab865ea0800a603",
+      "scheduled_for": "2026-09-08T11:56:00Z",
+      "text_sha256": "5ab7add05dbcadd33da96d98590362550913895a3feefd039dbfb67f6cc29307"
+    }
+  },
+  "receipts": {
+    "linkedin": {
+      "status": "published_unverified",
+      "account_id": "urn:li:person:UBgFeo6HdJ",
+      "recorded_at": "2026-09-08T11:56:27Z",
+      "post_id": "urn:li:share:7503058670885191682",
+      "url": "https://www.linkedin.com/feed/update/urn:li:share:7503058670885191682/",
+      "readback_verified": false,
+      "text_sha256": "5ab7add05dbcadd33da96d98590362550913895a3feefd039dbfb67f6cc29307",
+      "detail": "Provider creation response returned a post id; readback pending."
+    }
+  }
+}

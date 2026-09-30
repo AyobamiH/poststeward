@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/transfer-manifest.schema.json",
+  "title": "Post-Once transfer manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bundle_format_version",
+    "bundle_id",
+    "canonicalization",
+    "digest_algorithm",
+    "transport",
+    "sealed_at",
+    "operation_id",
+    "source_installation_id",
+    "source_authority_generation",
+    "source_post_once_version",
+    "source_revision",
+    "source_state_registry_version",
+    "object_count",
+    "total_object_bytes",
+    "objects"
+  ],
+  "properties": {
+    "bundle_format_version": {
+      "const": 1
+    },
+    "bundle_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "canonicalization": {
+      "const": "post-once-canonical-json-v1"
+    },
+    "digest_algorithm": {
+      "const": "sha256"
+    },
+    "transport": {
+      "const": "ustar+gzip"
+    },
+    "sealed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "operation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source_installation_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source_authority_generation": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_post_once_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "source_revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_state_registry_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "object_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "total_object_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483648
+    },
+    "objects": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "logical_id",
+          "restore_class",
+          "media_type",
+          "digest",
+          "size",
+          "schema_version"
+        ],
+        "properties": {
+          "logical_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)*$",
+            "maxLength": 200
+          },
+          "restore_class": {
+            "enum": [
+              "operation",
+              "historical",
+              "configuration",
+              "held_authority",
+              "evidence"
+            ]
+          },
+          "media_type": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 268435456
+          },
+          "schema_version": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

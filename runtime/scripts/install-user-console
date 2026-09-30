@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/runtime-env"
+case "$ROOT" in
+  *" "*)
+    echo "Refusing install because the repository path contains spaces: $ROOT" >&2
+    exit 2
+    ;;
+esac
+
+PORT="${POSTSTEWARD_CONSOLE_PORT:-8877}"
+case "$PORT" in
+  ''|*[!0-9]*) echo "POSTSTEWARD_CONSOLE_PORT must be an integer" >&2; exit 2 ;;
+esac
+if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
+  echo "POSTSTEWARD_CONSOLE_PORT must be between 1024 and 65535" >&2
+  exit 2
+fi
+
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+mkdir -p "$UNIT_DIR"
+
+cat > "$UNIT_DIR/poststeward-console.service" <<EOF
+[Unit]
+Description=poststeward loopback read-only observability console
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/bin/sh $ROOT/poststeward console --port $PORT
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=default.target
+EOF
+chmod 600 "$UNIT_DIR/poststeward-console.service"
+
+systemctl --user daemon-reload
+systemctl --user enable poststeward-console.service
+systemctl --user restart poststeward-console.service
+systemctl --user status --no-pager poststeward-console.service || true
+
+echo "poststeward console: http://127.0.0.1:$PORT"
+echo "The service is loopback-only and its systemd filesystem namespace is read-only."

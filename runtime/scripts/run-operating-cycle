@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/runtime-env"
+cd "$ROOT"
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Refusing operating cycle with tracked checkout changes." >&2
+  exit 3
+fi
+export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m ocpf_post.operating_cycles "$@"

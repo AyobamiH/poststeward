@@ -1,0 +1,5 @@
+Installed is not the same as usable.
+
+Capability Intelligence separates discovered, installed, enabled, authenticated, runnable and verified instead of collapsing them into one green check.
+
+What capability state causes you the most confusion?

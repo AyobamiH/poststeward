@@ -1,0 +1,5 @@
+Schedulers solve dates.
+
+I’m building OneClickPostFactory for the harder part: keeping the queue supplied with worthwhile ideas from things you already know.
+
+Sources → reusable angles → platform-native drafts → queue.

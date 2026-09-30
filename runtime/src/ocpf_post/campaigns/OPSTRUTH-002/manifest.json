@@ -1,0 +1,30 @@
+{
+  "campaign": "OPSTRUTH-002",
+  "project": "opstruth",
+  "title": "Turn a proof gap into a focused review",
+  "status": "COPY-READY",
+  "canonical_state": "OpsTruth project queue in Proof & State GTM vault",
+  "queue_batch": "gtm-replenishment-20260908",
+  "providers": ["x"],
+  "source": {
+    "type": "github_repository_evidence",
+    "source_id": "OPSTRUTH-FOCUSED-DIAGNOSTIC-20260908",
+    "repository": "AyobamiH/opstruth",
+    "path": "README.md",
+    "blob_sha": "958156fa0f151f7c4530ebbfd10c21e327ba4a1f",
+    "url": "https://github.com/AyobamiH/opstruth/blob/main/README.md",
+    "sections": ["Example Output", "Who It Is For", "Focused Diagnostic Reviews"],
+    "revalidated_at": "2026-09-08",
+    "angle": "Use missing-check evidence to define a focused diagnostic review rather than another confidence claim."
+  },
+  "intent": {
+    "audience": "Founders and agencies reviewing AI-built applications",
+    "objective": "Prompt report use and qualified diagnostic-review conversations",
+    "cta": "Identify the part of the application whose testing is uncertain"
+  },
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Based on the documented diagnostic-review workflow; no new release or customer result is claimed."},
+  "claim_boundary": "A report is not a security certification, complete production audit, legal assurance or repair. No pricing, free review or guaranteed outcome is offered.",
+  "payload_sha256": {"x": "52013c86813cc5c8e6a40a6e0200c3034ac8c5516b583c28ce2d9b7d771e42c8"},
+  "schedules": {},
+  "receipts": {}
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "parcelbasis-gtm",
+  "project": "parcelbasis",
+  "document_id": "1o6ErQC6u06yXIZmN5tUnPc1Xvc26IJvdlOGNw5TX0_c",
+  "destinations": {
+    "x": "x-founder"
+  },
+  "max_age_minutes": 60
+}

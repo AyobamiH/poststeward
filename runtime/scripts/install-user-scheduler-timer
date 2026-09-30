@@ -1,0 +1,71 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/runtime-env"
+case "$ROOT" in
+  *" "*)
+    echo "Refusing install because the repository path contains spaces: $ROOT" >&2
+    exit 2
+    ;;
+esac
+
+CONFIG_ROOT="$POST_ONCE_CONFIG_DIR"
+STATE_ROOT="$POST_ONCE_STATE_DIR"
+mkdir -p "$CONFIG_ROOT" "$STATE_ROOT"
+chmod 700 "$CONFIG_ROOT" "$STATE_ROOT" 2>/dev/null || true
+
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+mkdir -p "$UNIT_DIR"
+chmod 700 "${XDG_CONFIG_HOME:-$HOME/.config}" 2>/dev/null || true
+
+cat > "$UNIT_DIR/poststeward-run-due.service" <<EOF
+[Unit]
+Description=Run due PostSteward schedules
+
+[Service]
+Type=oneshot
+WorkingDirectory=$ROOT
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=POST_ONCE_CONFIG_DIR=$CONFIG_ROOT
+Environment=POST_ONCE_STATE_DIR=$STATE_ROOT
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=$CONFIG_ROOT $STATE_ROOT
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ExecStart=/bin/sh $ROOT/scripts/run-unattended run-due
+EOF
+
+cat > "$UNIT_DIR/poststeward-run-due.timer" <<'EOF'
+[Unit]
+Description=Wake PostSteward scheduler every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+chmod 600 "$UNIT_DIR/poststeward-run-due.service" "$UNIT_DIR/poststeward-run-due.timer"
+systemctl --user daemon-reload
+if [ "${OCPF_POST_STAGE_ONLY:-0}" = "1" ]; then
+  :
+elif [ "${OCPF_POST_DEFER_TIMER_START:-0}" = "1" ]; then
+  systemctl --user enable poststeward-run-due.timer
+else
+  systemctl --user enable --now poststeward-run-due.timer
+fi
+systemctl --user status --no-pager poststeward-run-due.timer || true
+
+echo "Installed local user timer. It runs this checkout; software updates remain an explicit operator action."

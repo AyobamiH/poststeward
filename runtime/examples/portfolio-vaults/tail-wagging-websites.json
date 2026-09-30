@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "tail-wagging-websites-gtm",
+  "project": "tail-wagging-websites",
+  "document_id": "1WBPp-zhUe1kfw-B3NcqWL2mYFkrVZ4xPnBnCh61_zMk",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

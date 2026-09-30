@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "oneclick-chatgpt-plugin-gtm",
+  "project": "oneclick-chatgpt-plugin",
+  "document_id": "19wcy3LyJUdgE3ch3dTi3nPmBT6Qc9LgK3_iAqgVqcuw",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

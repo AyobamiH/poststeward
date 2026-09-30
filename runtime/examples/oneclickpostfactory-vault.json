@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "oneclickpostfactory-gtm",
+  "project": "oneclickpostfactory",
+  "document_id": "1BqfOPKUL0T48IH7gnd8m_JNUMyQ9d3GMFX7TXM7XOeg",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

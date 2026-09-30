@@ -1,0 +1,66 @@
+{
+  "campaign": "OCPF-009",
+  "project": "oneclickpostfactory",
+  "title": "A clean UI is not the production system",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "OneClickPostFactory GTM vault",
+  "providers": ["x", "threads", "linkedin"],
+  "source": {
+    "type": "reddit_owner_post",
+    "source_id": "LV-01",
+    "subreddit": "r/lovablebuildershub",
+    "author": "u/Advanced_Pudding9228",
+    "title": "I built a Lovable-to-production content workflow for people who already use Reddit as signal",
+    "url": "https://www.reddit.com/r/lovablebuildershub/comments/1tm5qa1/i_built_a_lovabletoproduction_content_workflow/",
+    "retrieved_at": "2026-09-07",
+    "angle": "The visible AI-generated interface is only the start; a usable production workflow requires truthful credential ownership, failure/retry state, history and tenant boundaries."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_adaptation",
+    "disclosure": "Platform drafts were prepared as GTM-assisted adaptations from the owner-authored Reddit source. They are not represented as OneClickPostFactory-generated output."
+  },
+  "source_bank": "https://docs.google.com/document/d/10aHkgx0LU1HKDHA_nTy9nzNFOA6LPMtqlwXNaSBtE4s/edit",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "receipts": {
+    "linkedin": {
+      "status": "published_unverified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_0f2191381e6f40af92cd3b32b7de53f6",
+      "scheduled_for": "2026-09-08T09:01:00Z",
+      "recorded_at": "2026-09-08T09:01:29Z",
+      "post_id": "urn:li:share:7503014634723987458",
+      "url": "https://www.linkedin.com/feed/update/urn:li:share:7503014634723987458/",
+      "text_sha256": "124044de933e1d3006ebf49a13a96cd6e931b7b875909e1da2a4c22dc8c2363b",
+      "readback_verified": false,
+      "detail": "Provider creation response returned a durable post id; API readback remains unavailable or unverified."
+    },
+    "x": {
+      "status": "published_verified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_78fde0d6de91462eb5ac3d39f8c7cb02",
+      "scheduled_for": "2026-09-08T09:06:00Z",
+      "recorded_at": "2026-09-08T09:06:09Z",
+      "post_id": "2097250116230926396",
+      "url": "https://x.com/JohnWOE15/status/2097250116230926396",
+      "text_sha256": "f5e26ab62bf726b39db8bb676e97cc2603c79ffc4ea123c9a9992c15b125e492",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    },
+    "threads": {
+      "status": "published_verified",
+      "delivery": "timer-driven scheduled publication",
+      "schedule_id": "sch_aea8829a34a2411398ae0f41901470fc",
+      "scheduled_for": "2026-09-08T09:11:00Z",
+      "recorded_at": "2026-09-08T09:12:05Z",
+      "post_id": "18367556983210708",
+      "url": "https://www.threads.com/@tailwaggingwebdesigns/post/DdBVd19kR_P",
+      "text_sha256": "8ea80beeaa0010163d7f7987a3bd57ab0c6f28a06f1f39fa946fd27233558a77",
+      "readback_verified": true,
+      "detail": "Provider creation response and readback agree on id/text."
+    }
+  }
+}

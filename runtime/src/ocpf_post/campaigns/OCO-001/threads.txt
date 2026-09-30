@@ -1,0 +1,11 @@
+OpenClaw can be the front door.
+
+Specialist work still benefits from bounded lanes with:
+approvals
+run history
+incidents
+auditable actions
+
+That is where I’m focusing OpenClaw Operator.
+
+Which specialist workflow do you still supervise manually?

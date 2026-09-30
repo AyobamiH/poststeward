@@ -1,0 +1,96 @@
+{
+  "campaign": "OCPF-010",
+  "project": "oneclickpostfactory",
+  "title": "AI capability is not the offer. Repeatable outcome is.",
+  "status": "PUBLISHED / CONSUMED",
+  "canonical_state": "OneClickPostFactory GTM vault",
+  "providers": ["x", "threads", "linkedin"],
+  "source": {
+    "type": "reddit_owner_post",
+    "source_id": "OC-02",
+    "subreddit": "r/OpenclawBot",
+    "author": "u/Advanced_Pudding9228",
+    "title": "OpenClaw Doesn’t Make Money By Itself. Control + Repeatable Flows Do.",
+    "url": "https://www.reddit.com/r/OpenclawBot/comments/1t4a5qh/openclaw_doesnt_make_money_by_itself_control/",
+    "retrieved_at": "2026-09-07",
+    "angle": "Customers pay for repeatable outcomes they can trust, not abstract AI capability."
+  },
+  "assistance": {
+    "mode": "gtm_assisted_adaptation",
+    "disclosure": "Platform drafts were prepared as GTM-assisted adaptations from the owner-authored Reddit source. They are not represented as OneClickPostFactory-generated output."
+  },
+  "source_bank": "https://docs.google.com/document/d/10aHkgx0LU1HKDHA_nTy9nzNFOA6LPMtqlwXNaSBtE4s/edit",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "schedules": {
+    "linkedin": {
+      "status": "scheduled",
+      "schedule_id": "sch_b5751f318b3345869b9880b4fb2ea4c6",
+      "scheduled_for": "2026-09-08T10:40:00Z",
+      "text_sha256": "d8db588e64fda68d29bb686dc22bb8538262a08f3c0b7d2ea15007189406c09f"
+    },
+    "x": {
+      "status": "scheduled",
+      "schedule_id": "sch_121e9606a1df452597ed1ca1e025a584",
+      "scheduled_for": "2026-09-08T10:45:00Z",
+      "text_sha256": "54f6872642f0c887de200b6ff0a5316264e21e16b5461d613fdd236b44ae003e"
+    },
+    "threads": {
+      "status": "scheduled",
+      "schedule_id": "sch_847a0a99deae487a9ae258f2c6e01e66",
+      "scheduled_for": "2026-09-08T10:50:00Z",
+      "text_sha256": "fab72f964d6fa84b377300b295df76a6cee3810a421e1d5bea036066e3068a02"
+    }
+  },
+  "receipts": {
+    "linkedin": {
+      "status": "published_unverified",
+      "recorded_at": "2026-09-08T10:40:37Z",
+      "post_id": "urn:li:share:7503039587708121088",
+      "url": "https://www.linkedin.com/feed/update/urn:li:share:7503039587708121088/",
+      "readback_verified": false,
+      "text_sha256": "d8db588e64fda68d29bb686dc22bb8538262a08f3c0b7d2ea15007189406c09f"
+    },
+    "x": {
+      "status": "published_verified",
+      "recorded_at": "2026-09-08T10:45:17Z",
+      "post_id": "2097275070204772388",
+      "url": "https://x.com/JohnWOE15/status/2097275070204772388",
+      "readback_verified": true,
+      "text_sha256": "54f6872642f0c887de200b6ff0a5316264e21e16b5461d613fdd236b44ae003e"
+    },
+    "threads": {
+      "status": "published_verified",
+      "recorded_at": "2026-09-08T10:51:14Z",
+      "post_id": "18126235618761680",
+      "url": "https://www.threads.com/@tailwaggingwebdesigns/post/DdBg0Izl_b0",
+      "readback_verified": true,
+      "text_sha256": "fab72f964d6fa84b377300b295df76a6cee3810a421e1d5bea036066e3068a02"
+    }
+  },
+  "performance": {
+    "first_capture_at": "2026-09-08T11:47:00Z",
+    "x": {
+      "impressions": 4,
+      "likes": 0,
+      "replies": 0,
+      "reposts": 0,
+      "quotes": 0,
+      "bookmarks": 0
+    },
+    "threads": {
+      "views": 22,
+      "likes": 0,
+      "replies": 0,
+      "reposts": 0,
+      "quotes": 0
+    },
+    "linkedin": {
+      "availability": "unavailable",
+      "detail": "LinkedIn member-post analytics are not exposed under the current permission boundary; no zero values are inferred."
+    }
+  }
+}

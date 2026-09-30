@@ -1,0 +1,5 @@
+A useful maintenance brief says what must not change.
+
+DoneState starts with an objective, allowed actions and limits, not an open-ended "fix everything".
+
+What's one repository task you'd delegate with clear boundaries?

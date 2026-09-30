@@ -11,3 +11,5 @@ coverage/
 /public/og-image.png
 /public/favicon.ico
 /ux-evidence/
+# Generated at build/deploy time from the exact release being bundled.
+/public/releases/*.json

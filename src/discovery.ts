@@ -29,6 +29,16 @@ export function help(
         availability: "Requires a browser with WebMCP enabled.",
       },
     },
+    localExecutor: {
+      inspect: "runtime_inspect",
+      schedule: "runtime_schedule_create",
+      cancel: "runtime_schedule_cancel",
+      receipt: "runtime_command_get",
+      polling:
+        "Paired local runtime polls outbound; no inbound machine port is needed.",
+      authority:
+        "Commands bind the current installation/generation and original grant. Claimed commands are never automatically replayed.",
+    },
     plans,
     operations: catalog
       .filter((o) => !scope || o.name.startsWith(scope))

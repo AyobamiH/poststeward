@@ -1,0 +1,5 @@
+A useful agent workflow should not disappear inside an old chat.
+
+Agent Shop Products keeps source-backed prompt products and future skills as versionable product files instead of mock inventory.
+
+What workflow have you reused enough times that it should be a product?

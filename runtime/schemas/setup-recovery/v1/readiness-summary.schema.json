@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://post-once.local/schemas/setup-recovery/v1/readiness-summary.schema.json",
+  "title": "Post-Once readiness summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mode",
+    "status",
+    "check_count",
+    "required_blocker_codes",
+    "attention_codes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "mode": {
+      "enum": [
+        "fresh",
+        "migrate",
+        "different_operator",
+        "recover",
+        "explore"
+      ]
+    },
+    "status": {
+      "enum": [
+        "BLOCKED",
+        "RECOVERY_REVIEW_REQUIRED",
+        "READY_WITH_OPTIONAL_GAPS",
+        "READY",
+        "EXPLORE_ONLY"
+      ]
+    },
+    "check_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "required_blocker_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "attention_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    }
+  }
+}

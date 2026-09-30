@@ -1,0 +1,19 @@
+The code did not change. Three days later, governance was red.
+
+On 4 September, DoneState's release commit passed post-merge CI.
+
+On 7 September, a separate scheduled governance check ran against exactly the same commit and failed. An unresolved governance item had crossed its recorded review deadline.
+
+No code change was needed for that record to become stale.
+
+That does not mean the application went down. It does not mean the old CI result changed. It means a successful build was never proof that every operational decision would remain current.
+
+This is the distinction we are building Proof & State around: what passed, what is still supported by evidence, and what needs someone's attention.
+
+The overdue item still needed review. Detecting it was not the same as resolving it.
+
+When an AI system says "done", does that answer have a review date?
+
+Receipts:
+CI passed: https://github.com/AyobamiH/donestate/actions/runs/33869297576
+Freshness check failed: https://github.com/AyobamiH/donestate/actions/runs/34127966239

@@ -1,0 +1,14 @@
+One thing writing about OpenClaw made very clear to me: a system is only useful if it can tell you what actually happened.
+
+That applies to social automation too.
+
+If a publishing job targets three platforms and one fails, the whole job should not collapse into one vague “failed” state.
+
+The destinations that succeeded should stay successful.
+The destination that failed should keep a truthful retry state.
+The history should tell you exactly what happened.
+
+That is the rule I am carrying into OneClickPostFactory.
+
+“Post everywhere” is easy to demo.
+Knowing which consequence happened, which did not, and what is safe to retry is what makes the workflow usable.

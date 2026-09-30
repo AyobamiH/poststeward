@@ -1,7 +1,7 @@
 import type { Env } from "./types.ts";
 
 const ownerPaths = new Set(["/app", "/pilot", "/advanced-inventory", "/lifecycle", "/recovery"]);
-export const publicPages = ["/", "/docs/", "/docs/agent-guide", "/docs/operations", "/privacy", "/terms", "/security", "/support", "/status"];
+export const publicPages = ["/", "/docs/", "/docs/install", "/docs/agent-guide", "/docs/operations", "/privacy", "/terms", "/security", "/support", "/status"];
 const navigation = [["/app", "Workspace"], ["/pilot", "Acceptance"], ["/advanced-inventory", "Inventory"], ["/lifecycle", "Data"], ["/recovery", "Recovery"]];
 export function canonicalPath(path: string) {
   if (path === "/index.html") return "/";
@@ -19,7 +19,7 @@ export function wantsHtml(request: Request) {
   });
 }
 export function machinePath(path: string) {
-  return /^\/(?:api|mcp|payments|webhooks|internal)(?:\/|$)/.test(path) || /\.(?:json|xml|md|txt|js|css|svg|png|ico|webmanifest)$/.test(path);
+  return /^\/(?:api|mcp|payments|webhooks|internal)(?:\/|$)/.test(path) || /\.(?:json|xml|md|txt|js|css|svg|png|ico|webmanifest|sh|py)$/.test(path);
 }
 export function humanBrowserPath(path: string) {
   return ["/auth/login", "/auth/callback", "/sources/github/setup", "/sources/github/callback"].includes(path) || /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path);
@@ -101,7 +101,7 @@ async function presentHtml(request: Request, response: Response, env: Env) {
     .on(".environment-badge", { element(e) { e.setInnerContent(environment); e.setAttribute("title", `Runtime environment: ${environment}`); } })
     .on(".product-nav", { element(e) { e.setAttribute("aria-label", "Product navigation"); e.setInnerContent(productNavigation(path), { html: true }); } })
     .on(".product-menu-panel", { element(e) { e.setInnerContent(productNavigation(path, true), { html: true }); } })
-    .on(".site-footer-links", { element(e) { e.setInnerContent('<a href="/docs/agent-guide">Agent guide</a><a href="/docs/operations">Operations</a><a href="/help.json">Machine help</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="/support">Support</a><a href="/status">Status</a>', { html: true }); } });
+    .on(".site-footer-links", { element(e) { e.setInnerContent('<a href="/docs/install">Install</a><a href="/docs/agent-guide">Agent guide</a><a href="/docs/operations">Operations</a><a href="/help.json">Machine help</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="/support">Support</a><a href="/status">Status</a>', { html: true }); } });
   if (home) {
     rewriter.on(".hero-note", { element(e) { e.setInnerContent(runtimeHeroNote(env)); } });
     rewriter.on("#advanced-state", { element(e) { e.setInnerContent(env.ADVANCED_ENABLED === "true" ? "Advanced access is subject to workspace rollout eligibility, verified entitlement and explicitly enabled profiles." : "Advanced automation is disabled in this runtime. Payment alone does not start automation."); } });

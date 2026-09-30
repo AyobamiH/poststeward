@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "project": "post-once",
+  "repository": "AyobamiH/post-once",
+  "label": "post-once",
+  "campaign_prefix": "POSTONCE",
+  "providers": ["x"],
+  "destinations": {"x": "x-founder"},
+  "required_phrases_any": ["receipt-backed", "runtime project"],
+  "event_enabled": true,
+  "allow_private_events": true,
+  "event_problem": "Keep publishing authority and receipts together.",
+  "event_cta": "What evidence does your scheduler preserve?",
+  "claim_boundary": "Source-level publishing capabilities only; no claim of deployment, customer adoption or business outcomes.",
+  "inventory": [
+    {
+      "title": "Publishing needs a receipt",
+      "lane": "evergreen",
+      "priority": 72,
+      "hook": "A queued post is not proof of publication.",
+      "body": "post-once binds campaign copy to an authorised account and records the publishing outcome.",
+      "cta": "What evidence does your scheduler preserve?",
+      "ttl_hours": 168
+    }
+  ]
+}

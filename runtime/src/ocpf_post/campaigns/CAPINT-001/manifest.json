@@ -1,0 +1,8 @@
+{
+  "campaign": "CAPINT-001", "project": "capability-intelligence", "title": "Installed is not usable", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "CAPINT-README-20260908", "repository": "AyobamiH/capability-intelligence", "path": "README.md", "blob_sha": "0ff53338223c5157f164478c8d4348d0011f7470", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "Lifecycle-readiness framing from public CLI contract.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "f5ef530c3003866f98b9e8bb3d59d963411e16d5df43f412224dd7ceaf26e74c", "threads": "71d842ad0d06d06b0a0bfe69c21a3c3d6b33321150cb97070a1bef344e7aa51d", "linkedin": "276e0fc46252c8247688fb2b184d8c3b2d6f0af5c43dc271bda7f2c7aafc137d"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 95, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-10T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$ROOT/scripts/runtime-env"
+case "$ROOT" in
+  *" "*) echo "Refusing unattended execution because repository path contains spaces: $ROOT" >&2; exit 2 ;;
+esac
+
+ACTION="${1:-}"
+case "$ACTION" in
+  run-due|refill|collect|respond) ;;
+  *) echo "Usage: run-unattended {run-due|refill|collect|respond}" >&2; exit 2 ;;
+esac
+
+# Local last-mile fence. This check never claims to fence another host.
+PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
+  python3 -m ocpf_post.automation_authority check >/dev/null
+
+# Cloud lease is the distributed fence. Consequence-capable unattended work
+# must prove this installation still owns the current generation before it
+# reaches any provider path. Collection remains consequence-free and may run
+# while the network/control plane is unavailable.
+case "$ACTION" in
+  run-due|respond)
+    "$ROOT/poststeward" cloud heartbeat >/dev/null
+    ;;
+  refill|collect)
+    ;;
+esac
+
+case "$ACTION" in
+  run-due)
+    exec "$ROOT/poststeward" run-due
+    ;;
+  refill)
+    exec "$ROOT/scripts/run-portfolio-refill"
+    ;;
+  collect)
+    exec "$ROOT/scripts/run-operating-cycle" collect
+    ;;
+  respond)
+    exec "$ROOT/scripts/run-operating-cycle" respond
+    ;;
+esac

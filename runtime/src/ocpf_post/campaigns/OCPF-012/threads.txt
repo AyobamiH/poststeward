@@ -1,0 +1,8 @@
+The useful content problem is not “make more AI text.”
+
+It is keeping real source material moving:
+source → angle → native draft → review → publish → receipt.
+
+That is the direction I’m building OneClickPostFactory around.
+
+Where does your publishing workflow usually break?

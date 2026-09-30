@@ -1,0 +1,7 @@
+A useful agent workflow should not disappear inside an old chat.
+
+If you keep reusing it, it should become something inspectable and versionable.
+
+Agent Shop Products is the catalogue I’m building around source-backed prompt products and future skills.
+
+What workflow have you reused enough times that it should be a product?

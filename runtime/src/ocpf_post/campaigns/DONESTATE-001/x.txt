@@ -1,0 +1,5 @@
+DoneState reached VERIFIED while canary PR #115 stayed open and unmerged.
+
+Receipt, validation, exact-head CI and independent OpsTruth verification completed. Merge authority remained separate.
+
+Verification did not silently become permission to merge.

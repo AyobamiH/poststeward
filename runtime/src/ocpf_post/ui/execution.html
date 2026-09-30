@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Post-Once · autonomous social publishing operations</title>
+<style>
+:root{
+  --bg:#07090d;--surface:#0d1117;--surface2:#111720;--surface3:#151d27;--line:#202936;--line2:#2c3848;
+  --text:#edf1f6;--muted:#96a2b2;--dim:#657182;--good:#75dfaa;--warn:#f3c86c;--bad:#ff8585;
+  --blue:#8db5ff;--cyan:#77dbe8;--violet:#bd9cff;--pink:#ef9fcb;--radius:14px;
+}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh}
+button,select,input{font:inherit}button{cursor:pointer}button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.shell{max-width:1840px;margin:0 auto;padding:18px}.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:12px}.brand{display:flex;gap:11px;align-items:center}.mark{width:39px;height:39px;border:1px solid var(--line2);border-radius:10px;display:grid;place-items:center;background:var(--surface3);font-weight:800;letter-spacing:-.04em}.brand h1{font-size:17px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:2px;max-width:920px}.sub strong{color:var(--cyan);font-size:10px;letter-spacing:.11em}.badges{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.badge,.chip{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.badge.good,.chip.good{color:var(--good);border-color:#284b3a}.badge.warn,.chip.warn{color:var(--warn);border-color:#4c3e22}.badge.bad,.chip.bad{color:var(--bad);border-color:#562b2b}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:5px}
+
+.hero{border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}.hero-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:14px 16px;border-bottom:1px solid var(--line)}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--cyan);font-weight:750}.hero h2{font-size:21px;margin:2px 0 2px;letter-spacing:-.025em}.hero p{margin:0;color:var(--muted);font-size:12px}.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.control{border:1px solid var(--line2);background:var(--surface);color:var(--text);min-height:35px;border-radius:8px;padding:6px 10px}.control:hover{border-color:#44566e}.control.active{border-color:#436da8;background:#101b29}.control:disabled{opacity:.45;cursor:not-allowed}.select{display:flex;gap:5px;align-items:center;color:var(--muted);font-size:10px}.select select{border:1px solid var(--line2);background:var(--surface);color:var(--text);border-radius:8px;min-height:35px;padding:6px 25px 6px 8px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;min-width:0}.stage{min-width:0;border-right:1px solid var(--line);position:relative}.stage-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 12px;color:var(--dim);font-size:10px;border-bottom:1px solid #141b24}.legend{display:flex;gap:11px;flex-wrap:wrap}.legend span{display:flex;align-items:center;gap:5px}.sample{display:inline-block;width:22px;height:2px;background:#3b4a5e}.sample.intent{background:repeating-linear-gradient(90deg,#3b4a5e 0 5px,transparent 5px 9px)}.sample.state{background:repeating-linear-gradient(90deg,#3b4a5e 0 2px,transparent 2px 6px)}.map-scroll{overflow:auto}.map-scroll svg{display:block;width:100%;min-width:1080px;height:auto;background:#090d12}
+.zone{fill:#0a0e14;stroke:#151e29}.zone.observe{fill:#0b1017}.zone.decide{fill:#0c1018}.zone.execute{fill:#0d1016}.zone.learn{fill:#0b0f17}.zone-title{fill:#465465;font-size:10px;font-weight:800;letter-spacing:.14em}.zone-sub{fill:#394555;font-size:9px}.edge{fill:none;stroke:#344255;stroke-width:2.1;vector-effect:non-scaling-stroke;opacity:.83;transition:opacity .15s,stroke .15s,stroke-width .15s}.edge.intent{stroke:#26313f;stroke-dasharray:7 8;opacity:.63}.edge.state{stroke:#293746;stroke-dasharray:2 6}.edge.dimmed{opacity:.12}.edge.hot{stroke:var(--flow,#8db5ff);stroke-width:4;opacity:1}
+.node{cursor:pointer;transition:opacity .15s}.node.dimmed{opacity:.18}.node .body{fill:#111821;stroke:#2c3948;stroke-width:1.5}.node.gate .body{stroke:#66572e}.node.authority .body{stroke:#745233}.node.provider .body{fill:#111923}.node.feedback .body{stroke:#51446d}.node.measurement .body{stroke:#365766}.node.buffer .body{stroke:#40516a}.node.hot .body,.node.selected .body{stroke:var(--flow,#8db5ff);stroke-width:2.8;fill:#15212d}.node .kind{fill:#687588;font-size:10.2px;letter-spacing:.1em}.node .name{fill:var(--text);font-size:14.4px;font-weight:700}.node .value{fill:var(--text);font-size:21px;font-weight:760}.node .metric{fill:#8693a5;font-size:10px}.node .activity-count{fill:var(--cyan);font-size:9.2px;font-weight:760;letter-spacing:.03em}.node .activity-count.hot{fill:var(--good)}.node .state-dot{fill:#344151}.node .state-dot.good{fill:var(--good)}.node .state-dot.warn{fill:var(--warn)}.node .state-dot.bad{fill:var(--bad)}.node-ring{fill:none;stroke:var(--flow,#8db5ff);stroke-width:2;opacity:0}.node.hot .node-ring{opacity:.8}
+.glyph{fill:none;stroke:#607087;stroke-width:1.5;opacity:.85}.glyph-fill{fill:#607087;opacity:.7}
+.token{pointer-events:none}.token .halo{fill:none;stroke:var(--flow);stroke-width:2;opacity:.65}.token .core{fill:var(--flow);stroke:#06080b;stroke-width:2}.token .tail{fill:var(--flow);opacity:.34}.token.quiet .halo{opacity:.25}.token.quiet .core{opacity:.72}.freeze-mark{stroke:var(--bad);stroke-width:2.5}.arrival{fill:none;stroke:var(--flow);stroke-width:2.5;opacity:.7}
+
+.timeline{border-top:1px solid var(--line);padding:10px 12px;background:#090d12}.timeline-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:7px}.timeline-title{font-size:11px;font-weight:700}.timeline-meta{font-size:10px;color:var(--muted)}.scrub{display:grid;grid-template-columns:72px minmax(120px,1fr) 72px;gap:9px;align-items:center}.scrub time{font-size:10px;color:var(--dim)}.scrub time:last-child{text-align:right}input[type=range]{width:100%;accent-color:var(--blue)}.journey-strip{display:flex;gap:5px;overflow-x:auto;padding-top:7px}.beat{border:1px solid var(--line);background:#0d131b;color:var(--muted);border-radius:7px;padding:5px 7px;font-size:9px;white-space:nowrap}.beat:hover,.beat.active{color:var(--text);border-color:#49658a;background:#111b29}.beat.good{border-bottom-color:var(--good)}.beat.warn{border-bottom-color:var(--warn)}.beat.bad{border-bottom-color:var(--bad)}
+
+.side{background:#0b0f15;display:flex;flex-direction:column;min-width:0}.now{padding:13px;border-bottom:1px solid var(--line)}.side-kicker{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}.now h3{font-size:14px;margin:5px 0 3px}.now p{font-size:11px;color:var(--muted);margin:0}.meta-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}.inspector{padding:12px;border-bottom:1px solid var(--line);min-height:154px}.inspector h3{font-size:13px;margin:5px 0 4px}.inspector p{font-size:11px;color:var(--muted);margin:0}.inspector-actions{display:flex;gap:6px;margin-top:9px}.mini{border:1px solid var(--line2);background:var(--surface);color:var(--text);border-radius:7px;padding:5px 7px;font-size:10px}.mini:disabled{opacity:.4}.trace-head{display:flex;justify-content:space-between;align-items:center;padding:9px 10px 5px}.trace{overflow:auto;max-height:360px;padding:0 7px 8px}.trace button{width:100%;display:grid;grid-template-columns:52px minmax(0,1fr);gap:7px;text-align:left;border:0;border-top:1px solid #171e27;background:transparent;color:var(--text);padding:7px 5px}.trace button:hover,.trace button.selected{background:#111821}.trace-time{font-size:9px;color:var(--dim)}.trace-title{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.trace-sub{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.trust{margin-top:auto;border-top:1px solid var(--line);padding:9px 10px;color:var(--dim);font-size:9px}.trust strong{color:var(--muted)}
+
+.state-rail{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:10px}.state-card{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 11px;min-width:0}.state-card .k{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--dim)}.state-card .v{font-size:18px;font-weight:740;margin-top:2px}.state-card .d{font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.state-card .bar{height:3px;background:#171f29;border-radius:99px;margin-top:7px;overflow:hidden}.state-card .bar span{display:block;height:100%;background:var(--blue);border-radius:99px}
+
+.intent-panel{border:1px solid var(--line);border-radius:14px;background:var(--surface);margin-top:10px;overflow:hidden}.panel-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}.panel-head h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;margin:0;color:#c3ccd7}.intent-grid{display:grid;grid-template-columns:1.2fr .8fr}.intent-list,.collector-list{padding:8px 12px}.intent-list{border-right:1px solid var(--line)}.row{display:grid;grid-template-columns:80px 82px minmax(0,1fr) 118px;gap:8px;padding:7px 0;border-bottom:1px solid #171e27;align-items:start;font-size:10px}.row:last-child{border-bottom:0}.row .muted{color:var(--muted)}.row .truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stage-row{display:grid;grid-template-columns:minmax(0,1fr) 70px;gap:8px;padding:7px 0;border-bottom:1px solid #171e27;font-size:10px}.stage-row:last-child{border-bottom:0}.footer{display:flex;justify-content:space-between;gap:12px;color:var(--dim);font-size:9px;padding:12px 2px 2px}
+.acceptance-panel{border:1px solid var(--line);border-radius:14px;background:var(--surface);margin-top:10px;overflow:hidden}.acceptance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.acceptance-block{padding:10px 12px;min-width:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}.acceptance-block:nth-child(3n){border-right:0}.acceptance-block:nth-last-child(-n+3){border-bottom:0}.acceptance-summary{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:7px}.acceptance-summary strong{font-size:11px}.acceptance-list{max-height:260px;overflow:auto}.acceptance-row{display:grid;grid-template-columns:74px minmax(0,1fr) 96px;gap:8px;align-items:start;padding:7px 0;border-bottom:1px solid #171e27;font-size:10px}.acceptance-row:last-child{border-bottom:0}.acceptance-row .detail{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.acceptance-row .right{text-align:right;color:var(--muted)}.acceptance-boundary{padding:8px 12px;border-top:1px solid var(--line);font-size:9px;color:var(--dim)}
+
+@media(max-width:1180px){.layout{grid-template-columns:1fr}.stage{border-right:0;border-bottom:1px solid var(--line)}.side{display:grid;grid-template-columns:1fr 1fr}.trace-wrap{grid-column:1/-1}.trust{grid-column:1/-1}.state-rail{grid-template-columns:1fr 1fr}.intent-grid,.acceptance-grid{grid-template-columns:1fr}.intent-list{border-right:0;border-bottom:1px solid var(--line)}.acceptance-block{border-right:0;border-bottom:1px solid var(--line)}.acceptance-block:last-child{border-bottom:0}}
+@media(max-width:760px){.shell{padding:10px}.top,.hero-head{flex-direction:column}.badges,.controls{justify-content:flex-start}.layout .side{display:block}.state-rail{grid-template-columns:1fr}.row{grid-template-columns:68px minmax(0,1fr)}.row>:nth-child(2),.row>:nth-child(4){display:none}.scrub{grid-template-columns:54px minmax(100px,1fr) 54px}}
+@media(prefers-reduced-motion:reduce){.edge,.node{transition:none}.token .halo{display:none}}
+
+/* Operations-surface composition. Runtime semantics remain unchanged; this layer only
+   arranges and correlates the existing read-only execution projection. */
+html,body{overflow:auto}
+.shell{max-width:none;min-height:100vh;height:auto;padding:10px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.cockpit{height:calc(100dvh - 20px);min-height:680px;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);gap:8px}
+.top{margin-bottom:0;flex:0 0 auto;padding:0 2px}
+.command-bar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;flex:0 0 auto}
+.command-stat{min-width:0;border:1px solid var(--line);background:#0b1016;border-radius:10px;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.command-stat .label{font-size:9px;text-transform:uppercase;letter-spacing:.11em;color:var(--dim)}
+.command-stat strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.command-stat button{border:0;background:transparent;color:inherit;padding:0;width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left}
+.operator-model{display:grid;grid-template-columns:repeat(6,minmax(108px,1fr)) minmax(270px,1.75fr);gap:6px;min-width:0}
+.operator-stage,.volume-diagnosis{border:1px solid var(--line);background:#0b1016;border-radius:10px;padding:6px 9px;min-width:0}
+.operator-stage{position:relative}
+.operator-stage:not(:nth-child(6))::after{content:'→';position:absolute;right:-7px;top:50%;transform:translateY(-50%);z-index:2;color:#536276;font-size:10px}
+.operator-stage .flow-label,.volume-diagnosis .flow-label{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.11em;color:var(--dim);white-space:nowrap}
+.operator-stage strong{display:block;margin-top:2px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.operator-stage small{display:block;margin-top:1px;font-size:8.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.operator-stage.good{border-color:#284b3a}.operator-stage.warn{border-color:#4c3e22}.operator-stage.bad{border-color:#562b2b}
+.volume-diagnosis strong{display:block;margin-top:2px;font-size:11px}.volume-diagnosis small{display:block;margin-top:1px;font-size:9px;color:var(--muted);line-height:1.25}
+.volume-diagnosis.good{border-color:#284b3a}.volume-diagnosis.warn{border-color:#4c3e22}.volume-diagnosis.bad{border-color:#562b2b}
+.hero{height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+.hero-head{flex:0 0 auto;padding:10px 14px}
+.hero-head .controls{flex-wrap:nowrap;align-self:flex-start}
+.hero h2{font-size:20px;margin:2px 0 2px}
+.hero p{font-size:11px;line-height:1.4;max-width:900px}
+.layout{height:100%;min-height:0;align-items:stretch}
+.stage{display:flex;flex-direction:column;height:100%;min-height:0}
+.map-scroll{flex:1;min-height:0;overflow:hidden;position:relative}
+.map-scroll svg{min-width:0;width:100%;height:100%;min-height:0}
+.side{min-height:0;overflow:hidden}
+.trace-wrap{display:flex;flex-direction:column;min-height:0;flex:1}
+.trace{max-height:none;min-height:0;flex:1}
+.timeline{flex:0 0 auto;padding:8px 12px}.timeline-head{margin-bottom:5px}.journey-strip{padding-top:5px}.future-strip{padding-top:5px;margin-top:5px}
+.future-strip{display:flex;align-items:center;gap:5px;overflow-x:auto;padding-top:7px;border-top:1px solid #141b24;margin-top:7px}
+.future-label{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding-right:3px;white-space:nowrap}
+.future-beat{border:1px dashed #344255;background:#0a0f15;color:var(--muted);border-radius:7px;padding:5px 7px;font-size:9px;white-space:nowrap}
+.future-beat.committed{border-style:solid;border-color:#45617f;color:#c2d3e8}
+.future-beat.projected{opacity:.78}
+.now-marker{font-size:8px;font-weight:800;letter-spacing:.12em;color:var(--cyan);padding:0 4px;white-space:nowrap}
+.zoom-group{display:flex;gap:4px;align-items:center}
+.zoom-group .control{min-width:34px;min-height:31px;padding:4px 8px}
+.stage-tools{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0}
+.context-label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.context-label strong{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:#c4ceda}
+.context-label span{font-size:9px;color:var(--dim)}
+.system-drawer-wrap{position:fixed;inset:0;z-index:40;pointer-events:none}
+.system-scrim{position:absolute;inset:0;background:rgba(2,4,7,.64);opacity:0;transition:opacity .16s}
+.system-drawer{position:absolute;right:0;top:0;bottom:0;width:min(760px,92vw);background:#080c11;border-left:1px solid var(--line2);transform:translateX(100%);transition:transform .18s ease;display:flex;flex-direction:column;box-shadow:-18px 0 54px rgba(0,0,0,.38)}
+.system-drawer-wrap.open{pointer-events:auto}
+.system-drawer-wrap.open .system-scrim{opacity:1}
+.system-drawer-wrap.open .system-drawer{transform:translateX(0)}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:16px;border-bottom:1px solid var(--line);background:#0b1016}
+.drawer-head h2{font-size:16px;margin:2px 0}.drawer-head p{font-size:10px;color:var(--muted);margin:2px 0 0}
+.drawer-scroll{overflow:auto;padding:10px 12px 18px}
+.drawer-actions{display:grid;gap:7px;margin-top:10px}
+.drawer-actions .control{text-align:left;width:100%}
+.evidence-below{display:grid;gap:10px}
+.evidence-below .state-rail{margin-top:0}
+.evidence-below .intent-panel,.evidence-below .acceptance-panel{margin-top:0}
+.attention-roots{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:10px}
+.attention-root{display:grid;grid-template-columns:86px minmax(0,1fr);gap:8px;padding:6px 0;border-bottom:1px solid #171e27;font-size:10px}
+.attention-root:last-child{border-bottom:0}.attention-root span:first-child{color:var(--warn);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.attention-root span:last-child{color:var(--muted)}
+.footer{flex:0 0 auto;padding:0 2px}
+@media(max-width:1180px), (max-height:720px){
+  .cockpit{height:auto;min-height:0;display:flex;flex-direction:column}
+  .hero{height:auto;display:flex;flex-direction:column;overflow:visible}
+  .hero-head .controls{flex-wrap:wrap}
+  .command-bar{grid-template-columns:1fr 1fr}
+  .operator-model{grid-template-columns:repeat(3,minmax(0,1fr))}.volume-diagnosis{grid-column:1/-1}
+  .layout{height:auto}
+  .map-scroll{overflow:auto}
+  .map-scroll svg{height:auto;min-width:1080px}.side{overflow:visible}
+}
+@media(max-width:760px){.command-bar{grid-template-columns:1fr}.operator-model{grid-template-columns:1fr 1fr}.volume-diagnosis{grid-column:1/-1}.system-drawer{width:100vw}}
+/* Canvas workspace: chrome never sets the graph's camera or clips its controls. */
+[hidden]{display:none!important}
+.shell,.cockpit,.hero,.layout,.stage,.top,.brand,.brand>div,.hero-head>div{min-width:0}
+.shell{padding:12px;gap:14px}
+.cockpit{height:auto;min-height:0;display:flex;flex-direction:column;gap:8px}
+.top{align-items:center;flex-wrap:wrap;gap:10px}
+.brand h1{font-size:18px}.brand .sub{font-size:12px}
+.command-stat .label,.command-stat strong{font-size:12px}
+.command-stat{padding:7px 10px}.command-bar{grid-template-columns:repeat(5,minmax(0,1fr))}
+.pipeline-disclosure{border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px}
+.pipeline-disclosure>summary{padding:6px 12px;cursor:pointer;color:var(--muted)}
+.pipeline-disclosure>summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.pipeline-disclosure .operator-model{padding:8px;grid-template-columns:repeat(6,minmax(0,1fr))}
+.pipeline-disclosure .volume-diagnosis{grid-column:1/-1}
+.operator-stage .flow-label,.volume-diagnosis .flow-label{font-size:11px;white-space:normal}
+.operator-stage strong,.volume-diagnosis strong{font-size:14px;white-space:normal}
+.operator-stage small,.volume-diagnosis small{font-size:12px;white-space:normal}
+.hero{height:calc(100dvh - 150px);min-height:640px;display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden}
+.hero-head{padding:10px 14px;align-items:center;gap:12px;flex-direction:row;flex-wrap:wrap}
+.hero h2{font-size:20px;margin:0;line-height:1.2}.hero .eyebrow{font-size:10px;margin-bottom:3px}
+.hero-head .controls{flex-wrap:wrap;align-self:center;gap:6px}
+.control,.zoom-group .control{min-height:38px;padding:7px 11px;font-size:13px}
+.control[aria-pressed=true]{background:#132739;border-color:var(--cyan);color:var(--cyan)}
+.layout{height:100%;min-height:0;display:grid;grid-template-columns:minmax(0,1fr)}
+.layout.details-open{grid-template-columns:minmax(0,1fr) 340px}
+.stage{height:100%;min-height:0;display:flex;flex-direction:column;border-right:0}
+.stage-top{padding:8px 12px;flex-wrap:wrap;flex-shrink:0;color:var(--muted);gap:10px}
+.stage-tools{justify-content:space-between;flex:1;gap:12px;flex-wrap:wrap}
+.zoom-group{flex-wrap:wrap;gap:5px}.zoom-output{width:48px;text-align:center;font-size:13px;font-variant-numeric:tabular-nums}
+.stage-jump{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px;min-width:0}
+.stage-jump select{width:190px;max-width:100%;min-width:0;min-height:38px;padding:6px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line2);border-radius:8px;font-size:13px}
+.map-scroll{position:relative;min-height:180px;overflow:hidden;flex:1;background:#080d14}
+.map-scroll #map{display:block;width:100%;height:100%;min-width:0;min-height:0;cursor:grab;touch-action:none;user-select:none;outline-offset:-3px}
+.map-scroll #map.is-panning{cursor:grabbing}.map-scroll #map .node{cursor:pointer}
+.node .name{font-size:17px}.node .metric{font-size:12px}.node .activity-count{font-size:11px}
+.node .kind{fill:#9aa8bc}.node .metric{fill:#adb9c9}
+.zone-sub{display:none}.zone-title{fill:#8293aa;font-size:12px;letter-spacing:.06em}
+.node:focus-visible .body{stroke:var(--cyan);stroke-width:3}
+.canvas-nav{flex-shrink:0;min-height:86px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 12px;background:#0b111a}
+.nav-copy{min-width:0}.nav-copy strong{font-size:13px;font-weight:650}.nav-copy p{font-size:12px;margin:3px 0;color:var(--muted)}
+.nav-copy .legend{font-size:11px;color:var(--muted);gap:10px;margin-top:5px}
+.nav-map{display:flex;align-items:center;gap:10px;flex-shrink:0;font-size:11px;color:var(--muted)}
+#miniMap{width:146px;height:71px;display:block;border:1px solid var(--line2);border-radius:6px;background:#080d14;cursor:crosshair;touch-action:none}
+#miniMap .mini-node{fill:#34485b;stroke:none}#miniMap .mini-node.selected{fill:var(--cyan)}
+#miniViewport{fill:#8db5ff;fill-opacity:.1;stroke:var(--cyan);stroke-width:1.5;vector-effect:non-scaling-stroke;pointer-events:none}
+.timeline{flex:0 0 auto;max-height:210px;overflow:auto;padding:12px;border-top:1px solid var(--line)}
+.timeline-title,.timeline-meta,.scrub time,.beat,.future-beat{font-size:12px}
+.timeline-head{flex-wrap:wrap}.replay-controls{justify-content:flex-start;margin-bottom:10px}
+.journey-strip,.future-strip{max-width:100%;scrollbar-width:thin;padding-bottom:4px}
+.side{display:flex;flex-direction:column;min-height:0;overflow:auto;border-left:1px solid var(--line)}
+.context-label{padding:10px 12px;position:sticky;top:0;background:var(--surface);z-index:1}
+.context-label strong,.side-kicker{font-size:11px}.context-label .mini{min-height:34px}
+.inspector{order:1;min-height:0;padding:16px}.context-label{order:0}.now{order:2}.trace-wrap{order:3;min-height:170px;flex:1}.trust{order:4}
+.inspector h3{font-size:20px;line-height:1.25;margin:7px 0 10px;overflow-wrap:anywhere}
+.inspector p,.now p{font-size:14px;line-height:1.6;overflow-wrap:anywhere}.now h3{font-size:15px}
+.inspector .chip{font-size:11px;text-transform:none;overflow-wrap:anywhere;max-width:100%}
+.inspector-actions{flex-wrap:wrap}.mini{font-size:12px;min-height:36px;padding:6px 9px}
+.trace-title{font-size:13px}.trace-sub,.trace-time,.trust{font-size:11px}.trace{flex:1;min-height:120px;max-height:320px}
+.trace-title,.trace-sub{white-space:normal;overflow-wrap:anywhere}
+body.canvas-focused{overflow:hidden}
+.hero.canvas-focus{position:fixed;inset:10px;z-index:30;width:auto;height:auto;min-height:0;max-height:none;margin:0;box-shadow:0 0 0 20px var(--bg)}
+.canvas-focus .hero-head{padding:10px 14px}.canvas-focus .map-scroll{min-height:100px}
+.evidence-below{min-width:0}.footer{flex-wrap:wrap;font-size:11px}
+.system-drawer{visibility:hidden}.system-drawer-wrap.open .system-drawer{visibility:visible}
+@media(max-width:1100px){
+  .command-stat{display:block}.command-stat strong{display:block;text-align:left}.command-stat button{display:block}
+  .pipeline-disclosure .operator-model{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:860px){
+  .command-bar{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .layout.details-open{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(260px,1fr) 240px}
+  .layout.details-open .side{border-left:0;border-top:1px solid var(--line);display:block;overflow:auto}
+  .layout.details-open .context-label{display:flex}.side .trace{max-height:180px}
+  .hero{min-height:720px}.hero:has(.layout.details-open){min-height:980px}
+  .hero.canvas-focus{min-height:0}.canvas-focus .layout.details-open{grid-template-rows:minmax(100px,1fr) 200px}
+  .nav-map>span{display:none}.nav-copy .legend{display:none}
+}
+@media(max-width:560px){
+  .shell{padding:8px}.top{gap:8px}.brand .mark{width:34px;height:34px}.badges{justify-content:flex-start}
+  .badges .badge{font-size:9px;padding:3px 6px}.command-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .command-stat .label,.command-stat strong{font-size:11px}.pipeline-disclosure .operator-model{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hero-head .controls{width:100%;justify-content:flex-start}.hero-head{padding:12px}
+  .control,.zoom-group .control{min-height:40px;padding:7px 10px}.stage-tools{gap:8px}
+  .stage-jump{width:100%}.stage-jump select{flex:1;width:auto}
+  .canvas-nav{min-height:70px;gap:8px}.nav-map{display:none}.nav-copy strong{font-size:12px}
+  .hero.canvas-focus{inset:0;border-radius:0}.canvas-focus .hero-head .eyebrow{display:none}
+  .canvas-focus .hero-head{padding:8px}.canvas-focus .hero-head h2{font-size:16px}
+  .canvas-focus .canvas-nav{min-height:52px;padding:6px 10px}.canvas-focus .nav-copy p{font-size:11px}
+  .canvas-focus .layout.details-open{grid-template-rows:minmax(100px,1fr) 170px}
+}
+@media(max-height:540px){
+  .canvas-focus .hero-head .eyebrow,.canvas-focus .nav-copy .legend,.canvas-focus .nav-map{display:none}
+  .canvas-focus .hero-head{padding:6px 10px}.canvas-focus .canvas-nav{min-height:46px;padding:6px 10px}
+  .canvas-focus .timeline{max-height:130px}.canvas-focus .stage-top{padding:5px 10px}
+}
+/* Supporting evidence scrolls below the workspace; inspector blocks never shrink
+   into each other when the selected explanation or event metadata is long. */
+.hero{height:calc(100dvh - 111px)}
+.hero-head{padding:6px 14px}
+.canvas-nav{min-height:72px}#miniMap{width:114px;height:55px}
+.side>.context-label,.side>.inspector,.side>.now,.side>.trust{flex:0 0 auto}
+.side>.trace-wrap{flex:1 0 180px}
+
+
+/* Owner operations home: direct evidence first; the canvas is secondary. */
+.owner-home{border:1px solid var(--line);background:#0a0f15;border-radius:10px;padding:18px}
+.owner-home-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:14px}
+.owner-home-head h2{font-size:22px;line-height:1.15;margin:0 0 5px;letter-spacing:-.025em}
+.owner-home-head p{margin:0;color:var(--muted);font-size:13px;max-width:800px}
+.owner-readonly{font-size:12px;color:var(--muted);white-space:nowrap}
+.owner-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+.owner-panel{grid-column:span 4;border-top:1px solid var(--line2);padding:13px 2px 4px;min-width:0}
+.owner-panel.wide{grid-column:span 8}.owner-panel.half{grid-column:span 6}
+.owner-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:9px}
+.owner-panel-head h3{font-size:15px;margin:0 0 2px}.owner-panel-head p{font-size:12px;color:var(--muted);margin:0}.owner-panel-head strong{font-size:18px;white-space:nowrap}
+.owner-list{display:grid;gap:0;min-width:0}
+.owner-list-row{display:grid;grid-template-columns:70px 76px minmax(140px,1.4fr) minmax(130px,1fr) 112px 48px;gap:9px;align-items:center;padding:9px 0;border-top:1px solid #171e27;font-size:12px;min-width:0}
+.owner-list-row:first-child{border-top:0}.owner-list-row.schedule{grid-template-columns:70px 76px minmax(140px,1.4fr) minmax(120px,1fr) 92px}
+.owner-time{color:var(--muted);font-variant-numeric:tabular-nums}.owner-provider{font-weight:700}
+.owner-primary{min-width:0}.owner-primary strong,.owner-primary small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.owner-primary small{font-size:11px;color:var(--muted);margin-top:1px}.owner-source{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.owner-status{font-size:11px}.owner-status.good{color:var(--good)}.owner-status.warn{color:var(--warn)}.owner-status.bad{color:var(--bad)}
+.owner-link{text-align:right}.owner-link a{font-size:12px}.owner-empty{padding:12px 0;color:var(--muted);font-size:12px;border-top:1px solid #171e27}
+.owner-facts{display:grid;gap:0}.owner-fact{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:8px 0;border-top:1px solid #171e27;font-size:12px}
+.owner-fact:first-child{border-top:0}.owner-fact span{color:var(--muted)}.owner-fact strong{text-align:right}
+.owner-fact strong.good{color:var(--good)}.owner-fact strong.warn{color:var(--warn)}.owner-fact strong.bad{color:var(--bad)}
+.owner-note{font-size:12px;color:var(--muted);line-height:1.45;margin-top:7px}
+.owner-attention-row{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid #171e27;font-size:12px}
+.owner-attention-row:first-child{border-top:0}.owner-attention-row strong{color:var(--warn)}.owner-attention-row span{color:var(--muted)}
+.command-stat .label{text-transform:none;letter-spacing:0;font-size:12px}
+.hero-head{padding:6px 14px}.system-drawer{box-shadow:none}
+@media(max-width:1100px){.owner-panel,.owner-panel.wide,.owner-panel.half{grid-column:span 6}.owner-list-row{grid-template-columns:64px 70px minmax(140px,1fr) 105px}.owner-source,.owner-link{display:none}.owner-list-row.schedule{grid-template-columns:64px 70px minmax(140px,1fr) 90px}}
+@media(max-width:700px){.owner-home{padding:14px}.owner-home-head{display:block}.owner-readonly{display:block;margin-top:8px}.owner-panel,.owner-panel.wide,.owner-panel.half{grid-column:1/-1}.owner-list-row,.owner-list-row.schedule{grid-template-columns:58px 62px minmax(0,1fr)}.owner-source,.owner-link,.owner-status{display:none}.owner-home-head h2{font-size:20px}}
+
+</style>
+</head>
+<body>
+<div class="shell">
+<div id="operationsCockpit" class="cockpit">
+<header class="top">
+  <div class="brand"><div class="mark">p1</div><div><h1>Post-Once</h1><div class="sub">Local publishing operations · evidence-backed and read only</div></div></div>
+  <div class="badges"><span class="badge good">read only</span><span class="badge">127.0.0.1</span><span id="streamBadge" class="badge warn"><span class="dot"></span>connecting</span><span id="updatedBadge" class="badge">no snapshot</span></div>
+</header>
+
+<section class="command-bar" aria-label="Post-Once operating summary">
+  <div class="command-stat"><span class="label">Runtime</span><strong id="coreStatus">observing</strong></div>
+  <div class="command-stat"><span class="label">Active now</span><strong id="activeStatus">0 active</strong></div>
+  <div class="command-stat"><span class="label">Verified evidence</span><strong id="verifiedStatus">0 effects</strong></div>
+  <div class="command-stat"><span class="label">Next scheduled</span><strong id="nextStatus">—</strong></div>
+  <div class="command-stat"><button id="systemButton" type="button" aria-controls="systemDrawer" aria-expanded="false"><span class="label">Attention</span><strong id="attentionStatus">0 roots</strong></button></div>
+</section>
+
+<section id="ownerHome" class="owner-home" aria-labelledby="ownerHeading">
+  <div class="owner-home-head">
+    <div><h2 id="ownerHeading">Owner operations</h2><p>What published today, what is actually booked next, where supply came from, and what needs attention.</p></div>
+    <span class="owner-readonly">Local evidence only · no publish controls</span>
+  </div>
+  <div class="owner-grid">
+    <article class="owner-panel wide"><div class="owner-panel-head"><div><h3>Today</h3><p id="ownerTodayMeta">Waiting for effective publication evidence.</p></div><strong id="ownerTodayCount">—</strong></div><div id="ownerTodayList" class="owner-list"><div class="owner-empty">Waiting for the first snapshot.</div></div></article>
+    <article class="owner-panel"><div class="owner-panel-head"><div><h3>Scheduled next 24 hours</h3><p>Durable reservations only; forecasts are not bookings.</p></div><strong id="ownerScheduleCount">—</strong></div><div id="ownerScheduleList" class="owner-list"><div class="owner-empty">Waiting for durable schedules.</div></div></article>
+    <article class="owner-panel"><div class="owner-panel-head"><div><h3>Pacing</h3><p>Saved daily pace is separate from the hard safety ceiling.</p></div></div><div id="ownerPacing" class="owner-facts"><div class="owner-empty">Waiting for saved pacing evidence.</div></div></article>
+    <article class="owner-panel"><div class="owner-panel-head"><div><h3>Supply</h3><p>Protected runway, current eligible work and pressure.</p></div><strong id="ownerSupplyCount">—</strong></div><div id="ownerSupply" class="owner-facts"><div class="owner-empty">Waiting for reserve evidence.</div></div></article>
+    <article class="owner-panel"><div class="owner-panel-head"><div><h3>Conversations</h3><p>Inbound lifecycle and account reply modes.</p></div><strong id="ownerConversationCount">—</strong></div><div id="ownerConversations" class="owner-facts"><div class="owner-empty">Waiting for conversation evidence.</div></div></article>
+    <article class="owner-panel half"><div class="owner-panel-head"><div><h3>Needs attention</h3><p>Root conditions, not duplicated symptoms.</p></div><strong id="ownerAttentionCount">—</strong></div><div id="ownerAttention"><div class="owner-empty">Waiting for health evidence.</div></div></article>
+    <article class="owner-panel half"><div class="owner-panel-head"><div><h3>System</h3><p>Running revision, state integrity, timers and snapshot cost.</p></div></div><div id="ownerSystem" class="owner-facts"><div class="owner-empty">Waiting for runtime evidence.</div></div></article>
+  </div>
+</section>
+
+<section id="execution-visualizer" class="hero" aria-labelledby="heading">
+  <div class="hero-head">
+    <div><h2 id="heading">Pipeline forensic view</h2></div>
+    <div class="controls">
+      <span id="modeBadge" class="badge good">live evidence</span>
+      <button id="historyToggle" class="control" type="button" aria-controls="historyPanel" aria-expanded="false">History</button>
+      <button id="detailsToggle" class="control" type="button" aria-controls="contextPanel" aria-expanded="false">Details</button>
+      <button id="fullScreen" class="control" type="button" aria-pressed="false">Focus canvas</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="stage">
+      <div class="stage-top">
+        <div class="stage-tools">
+          <div class="zoom-group" aria-label="Map view controls">
+            <button id="fitView" class="control" type="button" aria-pressed="true">Overview</button>
+            <button id="readableView" class="control" type="button" aria-pressed="false">Read labels</button>
+            <button id="zoomOut" class="control" type="button" aria-label="Zoom out">−</button>
+            <output id="zoomOutput" class="zoom-output" aria-label="Canvas zoom">100%</output>
+            <button id="zoomIn" class="control" type="button" aria-label="Zoom in">+</button>
+          </div>
+          <label class="stage-jump" for="stageJump">Go to stage <select id="stageJump"><option value="">Choose a stage…</option></select></label>
+        </div>
+      </div>
+      <div class="map-scroll">
+        <svg id="map" viewBox="0 0 1740 840" role="img" aria-label="Post-Once execution state machine">
+          <defs>
+            <marker id="arrowEvidence" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 z" fill="#41536a"/></marker>
+            <marker id="arrowIntent" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 z" fill="#293747"/></marker>
+          </defs>
+          <g id="zoneLayer"></g><g id="edgeLayer"></g><g id="nodeLayer"></g><g id="tokenLayer"></g>
+        </svg>
+      </div>
+      <div class="canvas-nav">
+        <div class="nav-copy">
+          <strong id="viewStatus" role="status">Overview · waiting for evidence</strong>
+          <p id="canvasHint">Drag or scroll to pan · Ctrl/⌘ + scroll to zoom · 0 to fit · R to read</p>
+          <div class="legend"><span><i class="sample"></i> evidence</span><span><i class="sample state"></i> state</span><span><i class="sample intent"></i> intent</span><span id="motionStatus">0 moving · 0 evidence beats</span></div>
+        </div>
+        <div class="nav-map"><span>Navigator<br>Click to explore</span><svg id="miniMap" viewBox="0 0 1740 840" aria-label="Map navigator. Use Go to stage for keyboard navigation." role="img"><g id="miniNodes"></g><rect id="miniViewport" x="0" y="0" width="1740" height="840"/></svg></div>
+      </div>
+      <div id="historyPanel" class="timeline" hidden>
+        <div class="controls replay-controls">
+      <button id="replayBtn" class="control" type="button" disabled>Replay evidence</button>
+      <button id="playBtn" class="control" type="button" disabled>Pause replay</button>
+      <button id="liveBtn" class="control active" type="button" disabled>Return live</button>
+      <label class="select">Speed <select id="speed"><option value="0.6">0.6×</option><option value="1" selected>1×</option><option value="1.6">1.6×</option><option value="2.3">2.3×</option></select></label>
+        </div>
+        <div class="timeline-head"><div><div class="timeline-title">Evidence history</div><div id="timelineLabel" class="timeline-meta">Live mode follows incoming evidence. Replay is deterministic and scrub-able.</div></div><div id="journeyLabel" class="timeline-meta">all journeys</div></div>
+        <div class="scrub"><time id="timeStart">—</time><input id="timeline" type="range" min="0" max="1000" value="1000" aria-label="Evidence replay timeline"><time id="timeEnd">—</time></div>
+        <div id="journeyStrip" class="journey-strip"></div>
+        <div id="futureStrip" class="future-strip"><span class="future-label">Up next</span><span class="now-marker">NOW</span></div>
+      </div>
+    </div>
+
+    <aside id="contextPanel" class="side" aria-label="Selected stage and evidence" hidden>
+      <div class="context-label"><strong>Stage &amp; evidence</strong><button id="closeDetails" class="mini" type="button" aria-label="Close details">Close</button></div>
+      <div class="now"><div class="side-kicker">Current activity</div><h3 id="nowTitle">Connecting to local evidence</h3><p id="nowText">Waiting for the first read-only snapshot.</p><div id="nowMeta" class="meta-row"></div></div>
+      <div class="inspector"><div class="side-kicker">Inspector</div><h3 id="inspectTitle">Select a node or evidence beat</h3><p id="inspectText">Click any stage to understand its current state. Click an evidence beat to isolate the journey that produced it.</p><div id="inspectMeta" class="meta-row"></div><div class="inspector-actions"><button id="focusJourney" class="mini" type="button" disabled>Focus journey</button><button id="zoomSelection" class="mini" type="button" disabled>Zoom selection</button><button id="clearJourney" class="mini" type="button" disabled>Clear focus</button></div></div>
+      <div class="trace-wrap"><div class="trace-head"><span class="side-kicker">Evidence trace</span><span id="traceCount" class="timeline-meta">0 beats</span></div><div id="trace" class="trace"></div></div>
+      <div class="trust"><strong>Trust boundary:</strong> this page cannot publish, retry, admit inventory, change policy, refresh credentials or capture metrics. Replay changes only the picture.</div>
+    </aside>
+  </div>
+</section>
+</div>
+
+<div class="evidence-below">
+<details class="pipeline-disclosure"><summary>Publishing stages &amp; current limiter</summary>
+<section class="operator-model" aria-label="Post-Once automatic publishing operating model">
+  <article id="opStageSupply" class="operator-stage"><span class="flow-label">1 · Supply</span><strong id="opSupplyValue">—</strong><small id="opSupplyDetail">reserve projection loading</small></article>
+  <article id="opStageAdmission" class="operator-stage"><span class="flow-label">2 · Admission</span><strong id="opAdmissionValue">—</strong><small id="opAdmissionDetail">eligibility gate</small></article>
+  <article id="opStageAutomaticSchedule" class="operator-stage"><span class="flow-label">3 · Automatic schedule</span><strong id="opScheduleValue">—</strong><small id="opScheduleDetail">allocator → durable reservation</small></article>
+  <article id="opStageExecute" class="operator-stage"><span class="flow-label">4 · Execute</span><strong id="opExecuteValue">—</strong><small id="opExecuteDetail">run-due consequence boundary</small></article>
+  <article id="opStageProvider" class="operator-stage"><span class="flow-label">5 · Provider</span><strong id="opProviderValue">—</strong><small id="opProviderDetail">X / Threads / LinkedIn</small></article>
+  <article id="opStageVerify" class="operator-stage"><span class="flow-label">6 · Verify</span><strong id="opVerifyValue">—</strong><small id="opVerifyDetail">receipt / readback</small></article>
+  <article id="volumeDiagnosis" class="volume-diagnosis"><span class="flow-label">Why volume is low</span><strong id="volumeDiagnosisTitle">Reading the same live snapshot…</strong><small id="volumeDiagnosisDetail">This diagnosis is read-only and current-state only.</small></article>
+</section>
+</details>
+  <section id="stateRail" class="state-rail"></section>
+  <section id="intentPanel" class="intent-panel"><div class="panel-head"><h3>Planning & collection evidence</h3><span class="timeline-meta">dry planning is shown separately from completed movement</span></div><div class="intent-grid"><div id="intentList" class="intent-list"></div><div id="collectorList" class="collector-list"></div></div></section>
+  <section id="acceptancePanel" class="acceptance-panel" aria-labelledby="acceptanceHeading"><div class="panel-head"><h3 id="acceptanceHeading">Acceptance watch · PC-01 → PC-06</h3><span class="timeline-meta">exact evidence projections · no controls</span></div><div class="acceptance-grid"><div id="pc01Acceptance" class="acceptance-block"></div><div id="pc02Acceptance" class="acceptance-block"></div><div id="pc03Acceptance" class="acceptance-block"></div><div id="pc04Acceptance" class="acceptance-block"></div><div id="pc05Acceptance" class="acceptance-block"></div><div id="pc06Acceptance" class="acceptance-block"></div></div><div class="acceptance-boundary">Acceptance views can explain progress or evidence gaps. They cannot publish, retry, lower thresholds, refresh a source, create a reservation, repair an incident, or turn missing evidence into success.</div></section>
+  <section id="platformPanel" class="acceptance-panel" aria-labelledby="platformHeading"><div class="panel-head"><h3 id="platformHeading">Platform readiness</h3><span class="timeline-meta">implementation ≠ configuration ≠ authority ≠ evidence ≠ acceptance</span></div><div id="platformReadiness" class="acceptance-list" style="padding:10px 12px"></div><div class="acceptance-boundary">Platform readiness is a local projection. Blocked does not mean failed, and the browser cannot grant provider approval, enable an account, repair state or deliver an alert.</div></section>
+</div>
+
+<div id="systemDrawerWrap" class="system-drawer-wrap" aria-hidden="true">
+  <div id="systemScrim" class="system-scrim"></div>
+  <aside id="systemDrawer" class="system-drawer" role="dialog" aria-modal="true" aria-labelledby="systemHeading" inert>
+    <div class="drawer-head"><div><div class="eyebrow">System health</div><h2 id="systemHeading">Root conditions and supporting evidence</h2><p>The full acceptance, intent and readiness surfaces remain continuously visible below the machine. This drawer is the fast route to what needs attention.</p></div><button id="closeSystem" class="control" type="button">Close</button></div>
+    <div class="drawer-scroll">
+      <div id="attentionRoots" class="attention-roots"><div class="trace-sub">Waiting for the first snapshot.</div></div>
+      <div class="drawer-actions">
+        <button id="jumpIntent" class="control" type="button">Go to future intent & collector state</button>
+        <button id="jumpAcceptance" class="control" type="button">Go to Acceptance Watch · PC-01 → PC-06</button>
+        <button id="jumpPlatform" class="control" type="button">Go to platform readiness</button>
+      </div>
+    </div>
+  </aside>
+</div>
+<footer class="footer"><span>Server-Sent Events · one-way browser stream · <a href="/classic">open classic forensic console</a></span><span id="revision" class="mono"></span></footer>
+</div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeNum=v=>Number.isFinite(Number(v))?Number(v):0;
+const short=v=>v?String(v).slice(0,10):'—';
+const ts=v=>{const n=+new Date(v);return Number.isFinite(n)?n:0};
+const timeOnly=v=>{const d=new Date(v);return Number.isNaN(+d)?'—':d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});};
+const fullTime=v=>{const d=new Date(v);return Number.isNaN(+d)?'—':d.toLocaleString([],{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});};
+const toneClass=t=>['good','warn','bad'].includes(t)?t:'';
+const acceptanceTone=s=>{s=String(s||'').toLowerCase();if(/unavailable|attention|error|mismatch|ambiguous/.test(s))return'bad';if(/open|partial|deferred|unsupported|missing|not_|stale|low_exposure/.test(s))return'warn';if(/observed|eligible|qualifying|verified|complete/.test(s))return'good';return'';};
+const toneColor=t=>t==='good'?'#75dfaa':t==='warn'?'#f3c86c':t==='bad'?'#ff8585':'#8db5ff';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const ease=p=>1-Math.pow(1-clamp(p,0,1),3);
+
+const POS={
+  sources:[130,120],observer:[370,120],buffer:[610,120],
+  work:[130,250],editorial:[370,250],vault:[610,250],
+  admission:[860,120],inventory:[1110,120],service:[1360,120],scheduler:[1610,120],
+  run_due:[1610,355],
+  learning:[470,440],measure_24:[780,315],measure_72:[780,440],measure_168:[780,565],readback:[1090,440],
+  x:[1370,315],threads:[1370,440],linkedin:[1370,565],
+  engagement:[995,700],reply_worker:[1265,700]
+};
+const SIZE={w:200,h:96};
+const ZONES=[
+  {x:20,y:25,w:700,h:310,title:'TRUTH → MARKET SUPPLY',sub:'repository evidence and ChatGPT Work editorial supply converge without granting publication authority',cls:'observe'},
+  {x:735,y:25,w:720,h:220,title:'ADMIT & DECIDE',sub:'backpressure, accepted inventory, fair service',cls:'decide'},
+  {x:1470,y:25,w:250,h:655,title:'CONSEQUENCE',sub:'durable claim before provider effect',cls:'execute'},
+  {x:330,y:270,w:1125,h:420,title:'VERIFY · MEASURE · LEARN',sub:'provider evidence returns through readback and distinct age windows',cls:'learn'},
+  {x:840,y:695,w:615,h:135,title:'CONVERSATION LOOP',sub:'observe → reviewed reply → provider',cls:'learn'}
+];
+const model={snapshot:null,nodes:[],edges:[],events:[],byId:new Map(),mode:'live',streamOpen:false,playing:false,speed:1,playhead:1000,timeline:[],timelineStart:0,timelineEnd:0,lastFrame:0,selected:null,focusKey:null,seen:new Set(),livePulses:[],reduced:matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches,topologyKey:null,zoom:1,viewX:870,viewY:420,lastLiveEvent:null,nowEventId:null,initialised:false,activityBurstTimer:null};
+
+function edgeId(a,b){return `edge-${a}-${b}`;}
+function nodeLabel(id){return model.byId.get(id)?.label||id;}
+function svgEl(name,attrs={}){const e=document.createElementNS('http://www.w3.org/2000/svg',name);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,String(v));return e;}
+function pathD(a,b){const p=POS[a],q=POS[b];if(!p||!q)return '';
+  if(a===b)return `M ${p[0]+SIZE.w*.32} ${p[1]} C ${p[0]-42} ${p[1]-62}, ${p[0]+SIZE.w+42} ${p[1]-62}, ${p[0]+SIZE.w*.68} ${p[1]}`;
+  if(a==='learning'&&b==='service'){
+    const sx=p[0],sy=p[1],tx=q[0],ty=q[1]+SIZE.h;
+    return `M ${sx} ${sy} C ${sx} 260, 1210 260, ${tx} ${ty}`;
+  }
+  if((a==='x'||a==='threads')&&b==='engagement'){
+    const sx=p[0]-SIZE.w/2,sy=p[1]+SIZE.h/2,tx=q[0],ty=q[1];
+    return `M ${sx} ${sy} C ${sx-20} 650, ${tx+65} 650, ${tx} ${ty}`;
+  }
+  if(a==='reply_worker'&&(b==='x'||b==='threads')){
+    const sx=p[0]+SIZE.w/2,sy=p[1]+SIZE.h/2,tx=q[0]+SIZE.w/2,ty=q[1]+SIZE.h/2,rail=1490;
+    return `M ${sx} ${sy} C ${rail} ${sy}, ${rail} ${ty}, ${tx} ${ty}`;
+  }
+  const dx=q[0]-p[0],dy=q[1]-p[1];
+  if(Math.abs(dx)>=Math.abs(dy)*.6){
+    const right=dx>=0,sx=p[0]+(right?SIZE.w/2:-SIZE.w/2),sy=p[1]+SIZE.h/2,tx=q[0]+(right?-SIZE.w/2:SIZE.w/2),ty=q[1]+SIZE.h/2;
+    const bend=Math.max(48,Math.abs(tx-sx)*.4);
+    return `M ${sx} ${sy} C ${sx+(right?bend:-bend)} ${sy}, ${tx+(right?-bend:bend)} ${ty}, ${tx} ${ty}`;
+  }
+  const down=dy>=0,sx=p[0],sy=p[1]+(down?SIZE.h:0),tx=q[0],ty=q[1]+(down?0:SIZE.h);
+  const bend=Math.max(48,Math.abs(ty-sy)*.42);
+  return `M ${sx} ${sy} C ${sx} ${sy+(down?bend:-bend)}, ${tx} ${ty+(down?-bend:bend)}, ${tx} ${ty}`;
+}
+
+function drawZones(){const layer=$('zoneLayer');layer.textContent='';ZONES.forEach(z=>{const r=svgEl('rect',{x:z.x,y:z.y,width:z.w,height:z.h,rx:18,class:`zone ${z.cls}`});layer.appendChild(r);const t=svgEl('text',{x:z.x+14,y:z.y+20,class:'zone-title'});t.textContent=z.title;layer.appendChild(t);const s=svgEl('text',{x:z.x+14,y:z.y+35,class:'zone-sub'});s.textContent=z.sub;layer.appendChild(s);});}
+function drawEdges(){const layer=$('edgeLayer');layer.textContent='';model.edges.forEach(e=>{if(!POS[e.source]||!POS[e.target])return;const p=svgEl('path',{id:edgeId(e.source,e.target),d:pathD(e.source,e.target),class:`edge ${e.mode||'evidence'}`,'data-edge':`${e.source}>${e.target}`,'marker-end':e.mode==='intent'?'url(#arrowIntent)':'url(#arrowEvidence)'});layer.appendChild(p);});}
+function drawGlyph(g,n){const x=SIZE.w-34,y=70;if(n.kind==='gate'){g.appendChild(svgEl('line',{x1:x-8,y1:y-11,x2:x-8,y2:y+5,class:'glyph'}));g.appendChild(svgEl('line',{x1:x+1,y1:y-11,x2:x+1,y2:y+5,class:'glyph'}));}
+  else if(n.kind==='buffer'){for(let i=0;i<3;i++)g.appendChild(svgEl('line',{x1:x-12,y1:y-8+i*5,x2:x+5,y2:y-8+i*5,class:'glyph'}));}
+  else if(n.kind==='measurement'){g.appendChild(svgEl('circle',{cx:x-3,cy:y-4,r:9,class:'glyph'}));g.appendChild(svgEl('circle',{cx:x-3,cy:y-4,r:2.5,class:'glyph-fill'}));}
+  else if(n.kind==='feedback'){g.appendChild(svgEl('path',{d:`M${x-13} ${y} q10 -18 20 0`,class:'glyph'}));}
+}
+function nodeLabelLines(label){const text=String(label||''),words=text.split(/\s+/).filter(Boolean);if(text.length<=15||words.length<2)return [text];const lines=[''];for(const word of words){const next=(lines[lines.length-1]+' '+word).trim();if(next.length<=15||lines[lines.length-1]==='')lines[lines.length-1]=next;else lines.push(word);}return lines.slice(0,2);}
+function setNodeName(el,label){const lines=nodeLabelLines(label);el.textContent='';lines.forEach((line,i)=>{const t=svgEl('tspan',{x:12,y:lines.length===1?42:34+i*18});t.textContent=line;el.appendChild(t);});}
+function drawNodes(){const layer=$('nodeLayer');layer.textContent='';model.nodes.forEach(n=>{const p=POS[n.id];if(!p)return;const g=svgEl('g',{id:`node-${n.id}`,class:`node ${n.kind||''}`,transform:`translate(${p[0]-SIZE.w/2} ${p[1]})`,tabindex:'0',role:'button','aria-label':`${n.label}: ${n.value??0} ${n.metric||''}`});g.dataset.node=n.id;g.appendChild(svgEl('rect',{x:-6,y:-6,width:SIZE.w+12,height:SIZE.h+12,rx:18,class:'node-ring'}));g.appendChild(svgEl('rect',{width:SIZE.w,height:SIZE.h,rx:13,class:'body'}));const kind=svgEl('text',{x:12,y:17,class:'kind'});kind.textContent=String(n.kind||'stage').toUpperCase();g.appendChild(kind);const name=svgEl('text',{x:12,y:42,class:'name'});setNodeName(name,n.label);g.appendChild(name);const val=svgEl('text',{x:SIZE.w-14,y:42,'text-anchor':'end',class:'value'});val.textContent=n.value??0;g.appendChild(val);const metric=svgEl('text',{x:12,y:72,class:'metric'});metric.textContent=n.metric||'';g.appendChild(metric);const activity=svgEl('text',{x:SIZE.w-14,y:88,'text-anchor':'end',class:'activity-count'});activity.textContent='↻ 0';g.appendChild(activity);g.appendChild(svgEl('circle',{cx:SIZE.w-15,cy:15,r:5,class:`state-dot ${stateTone(n.status)}`}));drawGlyph(g,n);const choose=()=>selectNode(model.byId.get(n.id)||n);g.addEventListener('click',choose);g.addEventListener('focus',()=>{if(camera.mode!=='overview'&&g.matches(':focus-visible')){const p=POS[n.id];if(p){model.viewX=p[0];model.viewY=p[1]+SIZE.h/2;applyZoom();}}});g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();choose();}});layer.appendChild(g);});}
+function stateTone(s){s=String(s||'').toLowerCase();if(/failed|ambiguous|attention|unavailable|error/.test(s))return'bad';if(/paused|waiting|partial|executing|planned|pending/.test(s))return'warn';if(/open|observed|available|verified|active|signals/.test(s))return'good';return'';}
+function evidenceCounts(events){const counts=new Map(),add=id=>{if(id&&POS[id])counts.set(id,(counts.get(id)||0)+1);};for(const e of events||[]){if(!e)continue;add(e.source);if(e.target&&e.target!==e.source)add(e.target);}return counts;}
+function replayEvidenceCounts(){const counts=new Map(),add=id=>{if(id&&POS[id])counts.set(id,(counts.get(id)||0)+1);};for(const beat of model.timeline){const e=beat.event;if(model.playhead>=beat.start)add(e.source);if(e.target&&e.target!==e.source&&model.playhead>=beat.end)add(e.target);}return counts;}
+function currentEvidenceCounts(){return model.mode==='replay'?replayEvidenceCounts():evidenceCounts(model.events);}
+function renderNodeEvidenceCounts(counts=currentEvidenceCounts(),bursts=new Map()){model.nodes.forEach(n=>{const g=$(`node-${n.id}`);if(!g)return;const count=safeNum(counts.get(n.id)),burst=safeNum(bursts.get(n.id)),activity=g.querySelector('.activity-count');if(activity){activity.textContent=`↻ ${count}${burst?`  +${burst}`:''}`;activity.setAttribute('class',`activity-count${burst?' hot':''}`);}g.setAttribute('aria-label',`${n.label}: ${n.value??0} ${n.metric||''}; ${count} persisted evidence movements touching this stage`);});}
+function topologySignature(){return JSON.stringify({nodes:model.nodes.map(n=>[n.id,n.kind]),edges:model.edges.map(e=>[e.source,e.target,e.mode])});}
+function patchGraph(){model.byId=new Map(model.nodes.map(n=>[n.id,n]));model.nodes.forEach(n=>{const g=$(`node-${n.id}`);if(!g)return;g.setAttribute('aria-label',`${n.label}: ${n.value??0} ${n.metric||''}`);const name=g.querySelector('.name'),value=g.querySelector('.value'),metric=g.querySelector('.metric'),dot=g.querySelector('.state-dot');if(name)setNodeName(name,n.label||n.id);if(value)value.textContent=n.value??0;if(metric)metric.textContent=n.metric||'';if(dot)dot.setAttribute('class',`state-dot ${stateTone(n.status)}`);});highlightSelection();applyFocus();renderNavigator();if(model.selected?.type==='node'){const fresh=model.byId.get(model.selected.value.id);if(fresh){if($('contextPanel').hidden)model.selected.value=fresh;else selectNode(fresh);}}}
+function renderGraph(){model.byId=new Map(model.nodes.map(n=>[n.id,n]));drawZones();drawEdges();drawNodes();model.topologyKey=topologySignature();applyFocus();renderNavigator();if(camera.mode==='overview')fitView();else applyZoom();renderNodeEvidenceCounts();}
+// Camera coordinates are world units; zoom is CSS pixels per world unit.
+// The viewBox follows the viewport aspect ratio, so there is no letterbox offset.
+const camera={mode:'overview',padding:32,maxZoom:3,focus:false,returnFocus:null,pointers:new Map(),gesture:null,suppressClickUntil:0};
+function viewportSize(){const r=$('map').getBoundingClientRect();return {width:Math.max(1,r.width),height:Math.max(1,r.height)};}
+function overviewScale(){const {width,height}=viewportSize();return Math.max(.05,Math.min(Math.max(1,width-camera.padding*2)/1740,Math.max(1,height-camera.padding*2)/840));}
+function constrainCentre(value,visible,world,pad){return visible>=world+pad*2?world/2:clamp(value,visible/2-pad,world+pad-visible/2);}
+function applyZoom(){
+  const {width,height}=viewportSize();
+  model.zoom=clamp(Number.isFinite(model.zoom)?model.zoom:overviewScale(),overviewScale(),camera.maxZoom);
+  const w=width/model.zoom,h=height/model.zoom,pad=camera.padding/model.zoom;
+  model.viewX=constrainCentre(model.viewX,w,1740,pad);model.viewY=constrainCentre(model.viewY,h,840,pad);
+  $('map').setAttribute('viewBox',`${model.viewX-w/2} ${model.viewY-h/2} ${w} ${h}`);
+  $('zoomOutput').textContent=`${Math.round(model.zoom*100)}%`;
+  $('fitView').setAttribute('aria-pressed',String(camera.mode==='overview'));
+  $('readableView').setAttribute('aria-pressed',String(camera.mode!=='overview'));
+  $('zoomOut').disabled=model.zoom<=overviewScale()+.001;$('zoomIn').disabled=model.zoom>=camera.maxZoom-.001;
+  $('viewStatus').textContent=camera.mode==='overview'?`Overview · ${model.nodes.length} stages · choose Read labels for detail`:`Reading view · ${Math.round(model.zoom*100)}% · drag to explore`;
+  updateMiniViewport();
+}
+function setZoom(value,clientX,clientY){
+  const rect=$('map').getBoundingClientRect(),old=Math.max(.01,model.zoom);
+  const px=Number.isFinite(clientX)?clientX-rect.left-rect.width/2:0,py=Number.isFinite(clientY)?clientY-rect.top-rect.height/2:0;
+  const anchorX=model.viewX+px/old,anchorY=model.viewY+py/old;
+  model.zoom=clamp(value,overviewScale(),camera.maxZoom);camera.mode='reading';
+  model.viewX=anchorX-px/model.zoom;model.viewY=anchorY-py/model.zoom;applyZoom();
+}
+function fitView(){camera.mode='overview';model.zoom=overviewScale();model.viewX=870;model.viewY=420;applyZoom();}
+function readableView(){setZoom(Math.max(1.25,overviewScale()));}
+function panView(dx,dy){camera.mode='reading';model.viewX+=dx;model.viewY+=dy;applyZoom();}
+function zoomSelection(){
+  if(model.selected?.type==='node'){
+    const p=POS[model.selected.value.id];if(p){model.viewX=p[0];model.viewY=p[1]+SIZE.h/2;}
+  }else if(model.selected?.type==='event'){
+    const a=POS[model.selected.value.source],b=POS[model.selected.value.target];
+    if(a&&b){model.viewX=(a[0]+b[0])/2;model.viewY=(a[1]+b[1])/2+SIZE.h/2;}
+  }
+  readableView();$('map').focus({preventScroll:true});
+}
+function setDetails(open,returnFocus=false){
+  const layout=document.querySelector('.layout');layout.classList.toggle('details-open',open);
+  $('contextPanel').hidden=!open;$('detailsToggle').setAttribute('aria-expanded',String(open));
+  if(returnFocus)$('detailsToggle').focus({preventScroll:true});
+  requestAnimationFrame(()=>{if(camera.mode==='overview')fitView();else applyZoom();});
+}
+function setHistory(open){
+  $('historyPanel').hidden=!open;$('historyToggle').setAttribute('aria-expanded',String(open));
+  requestAnimationFrame(()=>{if(camera.mode==='overview')fitView();else applyZoom();});
+}
+function toggleFullscreen(){
+  const target=$('execution-visualizer');camera.focus=!camera.focus;
+  if(camera.focus){closeSystem();camera.returnFocus=document.activeElement;}
+  target.classList.toggle('canvas-focus',camera.focus);document.body.classList.toggle('canvas-focused',camera.focus);
+  $('fullScreen').textContent=camera.focus?'Exit focus':'Focus canvas';$('fullScreen').setAttribute('aria-pressed',String(camera.focus));
+  for(const el of document.querySelectorAll('.top,.command-bar,.pipeline-disclosure,.evidence-below,.footer'))el.inert=camera.focus;
+  if(camera.focus){target.setAttribute('role','dialog');target.setAttribute('aria-modal','true');$('map').focus({preventScroll:true});}
+  else{target.removeAttribute('role');target.removeAttribute('aria-modal');camera.returnFocus?.focus({preventScroll:true});}
+  requestAnimationFrame(()=>{if(camera.mode==='overview')fitView();else applyZoom();});
+}
+function updateMiniViewport(){
+  const mini=$('miniViewport');if(!mini)return;const v=$('map').viewBox.baseVal;
+  mini.setAttribute('x',Math.max(0,v.x));mini.setAttribute('y',Math.max(0,v.y));
+  mini.setAttribute('width',Math.max(0,Math.min(1740,v.x+v.width)-Math.max(0,v.x)));
+  mini.setAttribute('height',Math.max(0,Math.min(840,v.y+v.height)-Math.max(0,v.y)));
+}
+function renderNavigator(){
+  const select=$('stageJump'),previous=select.value;select.replaceChildren(new Option('Choose a stage…',''));
+  const layer=$('miniNodes');layer.textContent='';
+  for(const n of model.nodes){const p=POS[n.id];if(!p)continue;select.add(new Option(n.label||n.id,n.id));
+    const r=svgEl('rect',{x:p[0]-SIZE.w/2,y:p[1],width:SIZE.w,height:SIZE.h,rx:12,class:`mini-node${model.selected?.type==='node'&&model.selected.value.id===n.id?' selected':''}`});
+    layer.appendChild(r);
+  }
+  if(model.byId.has(previous))select.value=previous;updateMiniViewport();
+}
+function beginGesture(){
+  const pts=[...camera.pointers.values()];if(!pts.length){camera.gesture=null;return;}
+  const a=pts[0],b=pts[1];camera.gesture={x:b?(a.x+b.x)/2:a.x,y:b?(a.y+b.y)/2:a.y,d:b?Math.hypot(a.x-b.x,a.y-b.y):0,zoom:model.zoom,cx:model.viewX,cy:model.viewY,moved:!!b};
+}
+function initCanvasWorkspace(){
+  const map=$('map');map.setAttribute('tabindex','0');map.setAttribute('role','group');map.setAttribute('aria-describedby','canvasHint');
+  $('detailsToggle').addEventListener('click',()=>setDetails($('contextPanel').hidden));$('closeDetails').addEventListener('click',()=>setDetails(false,true));
+  $('historyToggle').addEventListener('click',()=>setHistory($('historyPanel').hidden));$('readableView').addEventListener('click',readableView);
+  $('stageJump').addEventListener('change',e=>{const n=model.byId.get(e.target.value);if(!n)return;selectNode(n);requestAnimationFrame(zoomSelection);});
+  map.addEventListener('wheel',e=>{e.preventDefault();const unit=e.deltaMode===1?16:e.deltaMode===2?map.clientHeight:1;
+    if(e.ctrlKey||e.metaKey)setZoom(model.zoom*Math.exp(-e.deltaY*unit*.008),e.clientX,e.clientY);
+    else panView(e.deltaX*unit/model.zoom,e.deltaY*unit/model.zoom);
+  },{passive:false});
+  map.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;camera.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});beginGesture();
+    if(camera.pointers.size>1){for(const id of camera.pointers.keys())map.setPointerCapture(id);camera.suppressClickUntil=performance.now()+400;}
+  });
+  map.addEventListener('pointermove',e=>{
+    if(!camera.pointers.has(e.pointerId)||!camera.gesture)return;
+    camera.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const pts=[...camera.pointers.values()],a=pts[0],b=pts[1],g=camera.gesture;
+    const x=b?(a.x+b.x)/2:a.x,y=b?(a.y+b.y)/2:a.y;
+    if(!g.moved&&Math.hypot(x-g.x,y-g.y)<5)return;
+    g.moved=true;e.preventDefault();if(!map.hasPointerCapture(e.pointerId))map.setPointerCapture(e.pointerId);map.classList.add('is-panning');camera.mode='reading';
+    const rect=map.getBoundingClientRect();
+    if(b&&g.d>0){model.zoom=clamp(g.zoom*Math.hypot(a.x-b.x,a.y-b.y)/g.d,overviewScale(),camera.maxZoom);
+      model.viewX=g.cx+(g.x-rect.left-rect.width/2)/g.zoom-(x-rect.left-rect.width/2)/model.zoom;
+      model.viewY=g.cy+(g.y-rect.top-rect.height/2)/g.zoom-(y-rect.top-rect.height/2)/model.zoom;
+    }else{model.viewX=g.cx-(x-g.x)/g.zoom;model.viewY=g.cy-(y-g.y)/g.zoom;}
+    applyZoom();
+  });
+  const endPointer=e=>{
+    if(!camera.pointers.has(e.pointerId))return;
+    if(camera.gesture?.moved)camera.suppressClickUntil=performance.now()+400;
+    camera.pointers.delete(e.pointerId);if(map.hasPointerCapture(e.pointerId))map.releasePointerCapture(e.pointerId);
+    map.classList.remove('is-panning');beginGesture();
+  };
+  window.addEventListener('pointerup',endPointer);window.addEventListener('pointercancel',endPointer);map.addEventListener('lostpointercapture',endPointer);
+  window.addEventListener('blur',()=>{for(const pointerId of [...camera.pointers.keys()])endPointer({pointerId});});
+  map.addEventListener('click',e=>{if(performance.now()<camera.suppressClickUntil){e.preventDefault();e.stopImmediatePropagation();}},true);
+  map.addEventListener('dblclick',e=>{const node=e.target.closest('[data-node]');if(node){const n=model.byId.get(node.dataset.node);if(n){selectNode(n);requestAnimationFrame(zoomSelection);}}});
+  map.addEventListener('keydown',e=>{
+    if(e.ctrlKey||e.metaKey||e.altKey)return;let handled=true;
+    if(e.key==='+'||e.key==='=')setZoom(model.zoom*1.2);else if(e.key==='-')setZoom(model.zoom/1.2);
+    else if(e.key==='0'||e.key==='Home')fitView();else if(e.key.toLowerCase()==='r')readableView();
+    else if(e.key==='ArrowLeft')panView(-70/model.zoom,0);else if(e.key==='ArrowRight')panView(70/model.zoom,0);
+    else if(e.key==='ArrowUp')panView(0,-70/model.zoom);else if(e.key==='ArrowDown')panView(0,70/model.zoom);else handled=false;
+    if(handled)e.preventDefault();
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      if($('systemDrawerWrap').classList.contains('open'))return;
+      if(camera.focus){e.preventDefault();toggleFullscreen();}else if(!$('contextPanel').hidden)setDetails(false,true);
+    }
+    if(e.key==='Tab'&&camera.focus){
+      const list=[...$('execution-visualizer').querySelectorAll('button:not([disabled]),select,input,[tabindex="0"]')].filter(el=>el.getClientRects().length&&!el.closest('[hidden]'));
+      const first=list[0],last=list.at(-1);
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}
+    }
+  });
+  const mini=$('miniMap');let miniDragging=false;
+  const navigateMini=e=>{const p=mini.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const matrix=mini.getScreenCTM();if(!matrix)return;const world=p.matrixTransform(matrix.inverse());model.viewX=world.x;model.viewY=world.y;readableView();};
+  mini.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();miniDragging=true;mini.setPointerCapture(e.pointerId);navigateMini(e);});
+  mini.addEventListener('pointermove',e=>{if(miniDragging)navigateMini(e);});
+  for(const name of ['pointerup','pointercancel','lostpointercapture'])mini.addEventListener(name,()=>{miniDragging=false;});
+  const resize=new ResizeObserver(()=>{if(camera.mode==='overview')fitView();else applyZoom();});resize.observe(map.parentElement);
+  fitView();
+}
+
+
+function nodeDescription(id){const d={sources:'Current product and repository truth. A quiet repository does not stop market continuity, and observation itself grants no publication authority.',observer:'Independent source observation for the deterministic evidence path. It can keep discovering changes while ordinary admission is paused.',buffer:'Observed repository revisions waiting for destination-specific consumption. Buffered evidence is not yet accepted inventory.',work:'Generated current-work projection: evidence gates, deadlines, editorial demand and safe next actions. It is read-only and performs none of those actions.',editorial:'ChatGPT Work editorial demand and continuity state. It translates current product truth into useful audience-recognition supply without requiring a new commit.',vault:'Canonical Google Drive/Docs approved supply. Vault entries still pass schema, digest, identity, freshness and history checks before Post-Once can admit them.',admission:'Backpressure and hysteresis decide whether ordinary new inventory may enter. Existing accepted work can continue draining while this gate is paused.',inventory:'Copy-ready, fresh, unreserved deliveries that have already passed their authority and freshness boundaries.',service:'Dry fair-service selection. Timely, aged, standard and bounded learning turns compete inside existing capacity. This is intent until a schedule is persisted.',scheduler:'Durable future authority with frozen payload and destination identity. It still has not crossed the provider consequence boundary.',run_due:'The consequential boundary. A durable executing claim is written before provider side effects; after that, blind retry is forbidden.',x:'X provider boundary. Only receipt-backed consequences and reply evidence animate here.',threads:'Threads provider boundary. Only receipt-backed consequences and reply evidence animate here.',linkedin:'LinkedIn publication boundary. Readback may remain unverified when permission is unavailable.',readback:'Independent evidence about what actually happened at the provider, kept separate from creation success.',engagement:'Bounded reply collection from recent receipt-backed conversations, including nested replies to verified responses.',reply_worker:'Reviewed reply lifecycle. A send claim precedes the external consequence, and uncertain outcomes are never blindly resent.',measure_24:'The 24-hour performance cohort. Missing or unavailable evidence stays unknown rather than being reconstructed later.',measure_72:'The distinct 72-hour performance cohort. It never backfills or relabels the 24-hour cohort.',measure_168:'The distinct 168-hour performance cohort. Age windows remain separate when learning evaluates evidence.',learning:'Persisted matched-topic feedback. Only qualifying bounded preferences can influence future service selection; it does not rewrite history.'};return d[id]||'Observed Post-Once stage.';}
+function selectNode(n){model.selected={type:'node',value:n};const beats=safeNum(currentEvidenceCounts().get(n.id));$('inspectTitle').textContent=n.label;$('inspectText').textContent=nodeDescription(n.id);$('inspectMeta').innerHTML=`<span class="chip ${toneClass(stateTone(n.status))}">${esc(n.status||'state')}</span><span class="chip">${esc(n.value??0)} ${esc(n.metric||'')}</span><span class="chip">↻ ${beats} stage beats</span>`;$('focusJourney').disabled=true;$('zoomSelection').disabled=false;highlightSelection();if($('contextPanel').hidden)setDetails(true);renderNavigator();}
+function selectEvent(e){model.selected={type:'event',value:e};$('inspectTitle').textContent=`${e.verb||'MOVES'} · ${e.label||e.kind}`;$('inspectText').textContent=`${nodeLabel(e.source)} → ${nodeLabel(e.target)} · proven by ${e.evidence||'local evidence'}.`;$('inspectMeta').innerHTML=[e.status,e.provider,e.campaign,e.schedule_id&&short(e.schedule_id),e.target_age_hours&&`${e.target_age_hours}h`,fullTime(e.at)].filter(Boolean).map((v,i)=>`<span class="chip ${i===0?toneClass(e.tone):''}">${esc(v)}</span>`).join('');$('focusJourney').disabled=!e.journey_key;$('zoomSelection').disabled=false;highlightSelection();renderTrace();if($('contextPanel').hidden)setDetails(true);renderNavigator();}
+function highlightSelection(){document.querySelectorAll('.node.selected').forEach(n=>n.classList.remove('selected'));if(model.selected?.type==='node')$(`node-${model.selected.value.id}`)?.classList.add('selected');}
+
+function focusEvents(){return model.focusKey?model.events.filter(e=>e.journey_key===model.focusKey):model.events;}
+function applyFocus(){const allowed=model.focusKey?new Set(focusEvents().flatMap(e=>[e.source,e.target])):null;document.querySelectorAll('.node').forEach(n=>n.classList.toggle('dimmed',!!allowed&&!allowed.has(n.dataset.node)));document.querySelectorAll('.edge').forEach(p=>{if(!allowed){p.classList.remove('dimmed');return;}const [a,b]=(p.dataset.edge||'>').split('>');p.classList.toggle('dimmed',!allowed.has(a)||!allowed.has(b));});$('journeyLabel').textContent=model.focusKey?model.focusKey:'all journeys';$('clearJourney').disabled=!model.focusKey;}
+function focusJourney(){const e=model.selected?.type==='event'?model.selected.value:null;if(!e?.journey_key)return;model.focusKey=e.journey_key;applyFocus();buildReplayTimeline();renderTrace();renderJourneyStrip();startReplay(false);}
+function clearJourney(){model.focusKey=null;applyFocus();buildReplayTimeline();renderTrace();renderJourneyStrip();startReplay(false);}
+
+function buildReplayTimeline(){const items=focusEvents().filter(e=>ts(e.at)).slice().sort((a,b)=>ts(a.at)-ts(b.at));model.timeline=[];if(!items.length){model.timelineStart=model.timelineEnd=0;return;}model.timelineStart=ts(items[0].at);model.timelineEnd=ts(items[items.length-1].at);let cursor=0;let prev=model.timelineStart;const weights=items.map((e,i)=>{if(i===0)return 1;const gap=Math.max(0,(ts(e.at)-prev)/1000);prev=ts(e.at);return 1+Math.min(8,Math.log1p(gap));});const total=weights.reduce((a,b)=>a+b,0);items.forEach((e,i)=>{cursor+=weights[i];const start=Math.max(0,Math.round((cursor/total)*930)-35);const duration=motionDuration(e);model.timeline.push({event:e,start,end:Math.min(1000,start+duration)});});$('timeStart').textContent=timeOnly(items[0].at);$('timeEnd').textContent=timeOnly(items[items.length-1].at);}
+function motionDuration(e){if(e.motion==='pulse')return 55;if(e.kind==='ambiguous_effect')return 120;if(e.kind==='metrics_stored')return 65;if(e.kind==='feedback_available')return 95;return 82;}
+function renderLiveModeBadge(){
+  if(model.mode!=='live')return;
+  const observed=ts(model.snapshot?.observed_at),age=observed?Math.max(0,Date.now()-observed):Infinity;
+  const fresh=Number.isFinite(age)&&age<=20000,atomic=model.snapshot?.consistency?.atomic===true;
+  const badge=$('modeBadge');
+  badge.className=`badge ${model.streamOpen&&fresh?'good':'warn'}`;
+  badge.textContent=!model.streamOpen?'stream reconnecting':!fresh?'stale snapshot':`live · ${Math.round(age/1000)}s`;
+  badge.title=atomic?'transactional snapshot':'Composite local read model; component evidence timestamps may differ.';
+}
+function startReplay(reset=true){if(!model.timeline.length)return;model.mode='replay';model.playing=!model.reduced;if(reset)model.playhead=0;$('timeline').value=String(Math.round(model.playhead));$('modeBadge').className='badge warn';$('modeBadge').textContent='replay · narrative clock';$('liveBtn').classList.remove('active');$('playBtn').disabled=false;$('playBtn').textContent=model.playing?'Pause replay':'Play replay';renderReplayFrame();}
+function returnLive(){model.mode='live';model.playing=false;model.playhead=1000;$('timeline').value='1000';renderLiveModeBadge();$('liveBtn').classList.add('active');$('playBtn').disabled=true;clearVisualActivity();renderNodeEvidenceCounts(evidenceCounts(model.events));renderNow();}
+function togglePlay(){if(model.mode!=='replay')return;model.playing=!model.playing;$('playBtn').textContent=model.playing?'Pause replay':'Play replay';model.lastFrame=performance.now();}
+
+function clearVisualActivity(){document.querySelectorAll('.edge.hot').forEach(x=>{x.classList.remove('hot');x.style.removeProperty('--flow');});document.querySelectorAll('.node.hot').forEach(x=>{x.classList.remove('hot');x.style.removeProperty('--flow');});$('tokenLayer').textContent='';}
+function activateNode(id,color){const n=$(`node-${id}`);if(n){n.classList.add('hot');n.style.setProperty('--flow',color);}}
+function activateEdge(e,color){const p=$(edgeId(e.source,e.target));if(p){p.classList.add('hot');p.style.setProperty('--flow',color);}return p;}
+function tokenAt(e,path,progress){if(!path)return;const len=path.getTotalLength();let p=clamp(progress,0,1);if(e.kind==='execution_blocked')p=Math.min(p,.58);if(e.kind==='ambiguous_effect')p=Math.min(p,.84);const pt=path.getPointAtLength(len*p);const back=path.getPointAtLength(len*Math.max(0,p-.045));const g=svgEl('g',{class:`token ${e.kind==='metrics_stored'?'quiet':''}`,style:`--flow:${toneColor(e.tone)}`});const tail=svgEl('path',{d:`M ${back.x} ${back.y} L ${pt.x} ${pt.y}`,class:'tail','stroke-width':e.kind==='metrics_stored'?5:10,stroke:toneColor(e.tone),'stroke-linecap':'round'});g.appendChild(tail);g.appendChild(svgEl('circle',{cx:pt.x,cy:pt.y,r:e.kind==='metrics_stored'?8:13,class:'halo'}));g.appendChild(svgEl('circle',{cx:pt.x,cy:pt.y,r:e.kind==='metrics_stored'?4:7,class:'core'}));if((e.kind==='ambiguous_effect'||e.kind==='execution_blocked')&&progress>.88){g.appendChild(svgEl('line',{x1:pt.x-7,y1:pt.y-7,x2:pt.x+7,y2:pt.y+7,class:'freeze-mark'}));g.appendChild(svgEl('line',{x1:pt.x+7,y1:pt.y-7,x2:pt.x-7,y2:pt.y+7,class:'freeze-mark'}));}$('tokenLayer').appendChild(g);}
+function pulseNode(e,progress){const color=toneColor(e.tone);activateNode(e.source,color);const p=POS[e.source];if(!p)return;const r=8+24*ease(progress);const c=svgEl('circle',{cx:p[0],cy:p[1]+SIZE.h/2,r,fill:'none',stroke:color,'stroke-width':2,opacity:1-progress});$('tokenLayer').appendChild(c);}
+function renderReplayFrame(){clearVisualActivity();const active=[];const passed=[];for(const beat of model.timeline){if(model.playhead>=beat.start)passed.push(beat);if(model.playhead>=beat.start&&model.playhead<=beat.end)active.push(beat);}renderNodeEvidenceCounts(replayEvidenceCounts());active.forEach(b=>{const e=b.event,color=toneColor(e.tone),progress=(model.playhead-b.start)/Math.max(1,b.end-b.start);if(e.motion==='pulse'||e.source===e.target){pulseNode(e,progress);return;}activateNode(e.source,color);activateNode(e.target,color);const path=activateEdge(e,color);tokenAt(e,path,ease(progress));});const current=active[active.length-1]?.event||passed[passed.length-1]?.event;if(current){$('nowTitle').textContent=`${current.verb||'MOVES'} · ${current.label}`;$('nowText').textContent=`${nodeLabel(current.source)} → ${nodeLabel(current.target)} · ${current.evidence}`;$('nowMeta').innerHTML=`<span class="chip ${toneClass(current.tone)}">${esc(current.status||current.tone)}</span><span class="chip">${esc(fullTime(current.at))}</span>`;}$('motionStatus').textContent=`${active.length} moving · ${model.timeline.length} evidence beats`;$('timeline').value=String(Math.round(model.playhead));const pct=Math.round(model.playhead/10);$('timelineLabel').textContent=`Deterministic replay · ${pct}% · ${model.focusKey?'focused journey':'all recent evidence'}`;renderJourneyStrip(current?.id);}
+
+function eventPriority(e){if(e.kind==='ambiguous_effect'||e.kind==='execution_blocked'||e.tone==='bad')return 5;if(e.source==='run_due'||e.target==='run_due'||['x','threads','linkedin'].includes(e.target))return 4;if(e.target==='readback'||e.kind==='publication_receipt'||e.kind==='reply_readback')return 3;if(e.kind==='metrics_stored'||e.kind==='feedback_evaluated')return 2;return 1;}
+function renderCurrentEvent(e,concurrent=1){if(!e)return;model.lastLiveEvent=e;model.nowEventId=e.id;$('nowTitle').textContent=`${e.verb||'MOVES'} · ${e.label||e.kind}`;$('nowText').textContent=`${nodeLabel(e.source)} → ${nodeLabel(e.target)} · proven by ${e.evidence||'local evidence'}.`;$('nowMeta').innerHTML=[e.status,e.provider,e.campaign,e.schedule_id&&short(e.schedule_id),fullTime(e.at),concurrent>1&&`+${concurrent-1} concurrent`].filter(Boolean).map((v,i)=>`<span class="chip ${i===0?toneClass(e.tone):''}">${esc(v)}</span>`).join('');}
+function livePulse(e){model.lastLiveEvent=e;if(!model.reduced){model.livePulses.push({event:e,started:performance.now(),duration:1900});if(model.livePulses.length>12)model.livePulses.splice(0,model.livePulses.length-12);}renderCurrentEvent(e,Math.max(1,model.livePulses.length));}
+function renderLivePulses(now){clearVisualActivity();model.livePulses=model.livePulses.filter(p=>now-p.started<p.duration);const visible=model.livePulses.slice().sort((a,b)=>eventPriority(b.event)-eventPriority(a.event)||(b.started-a.started)).slice(0,4);visible.forEach(p=>{const e=p.event,progress=(now-p.started)/p.duration,color=toneColor(e.tone);if(e.motion==='pulse'||e.source===e.target){pulseNode(e,progress);return;}activateNode(e.source,color);activateNode(e.target,color);const path=activateEdge(e,color);tokenAt(e,path,ease(progress));});if(visible.length){const primary=visible[0].event;if(model.nowEventId!==primary.id)renderCurrentEvent(primary,model.livePulses.length);}$('motionStatus').textContent=model.livePulses.length>4?`${visible.length} highlighted · ${model.livePulses.length} concurrent · ${model.events.length} evidence beats`:`${visible.length} moving · ${model.events.length} evidence beats`;}
+function frame(now){const dt=Math.min(80,now-(model.lastFrame||now));model.lastFrame=now;if(model.mode==='replay'&&model.playing){model.playhead+=dt*model.speed*.075;if(model.playhead>=1000){model.playhead=1000;model.playing=false;$('playBtn').textContent='Play replay';}renderReplayFrame();}else if(model.mode==='live')renderLivePulses(now);requestAnimationFrame(frame);}
+
+function renderJourneyStrip(activeId){const beats=model.timeline;$('journeyStrip').innerHTML=beats.slice(0,70).map(b=>`<button type="button" class="beat ${toneClass(b.event.tone)} ${activeId===b.event.id?'active':''}" data-id="${esc(b.event.id)}">${esc(b.event.verb||'MOVE')} · ${esc(short(b.event.campaign||b.event.project||b.event.kind))}</button>`).join('');$('journeyStrip').querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{const b=beats.find(x=>x.event.id===btn.dataset.id);if(!b)return;model.mode='replay';model.playing=false;model.playhead=b.start+1;$('playBtn').disabled=false;$('playBtn').textContent='Play replay';selectEvent(b.event);renderReplayFrame();}));}
+function renderTrace(){const items=focusEvents().slice(0,60);$('traceCount').textContent=`${items.length} beats`;$('trace').innerHTML=items.length?items.map(e=>`<button type="button" data-id="${esc(e.id)}" class="${model.selected?.type==='event'&&model.selected.value.id===e.id?'selected':''}"><span class="trace-time">${esc(timeOnly(e.at))}</span><span><div class="trace-title">${esc(e.verb||'MOVES')} · ${esc(e.label||e.kind)}</div><div class="trace-sub">${esc(nodeLabel(e.source))} → ${esc(nodeLabel(e.target))}${e.campaign?' · '+esc(e.campaign):''}</div></span></button>`).join(''):'<div class="trace-sub" style="padding:12px">No evidence beats in this focus.</div>';$('trace').querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{const e=items.find(x=>x.id===btn.dataset.id);if(e)selectEvent(e);}));}
+
+function operatorTone(status){status=String(status||'').toLowerCase();if(/empty|blocked|failed|attention|unavailable|error/.test(status))return'bad';if(/emergency|fallback|watch|paused|waiting|limited|planned/.test(status))return'warn';if(/healthy|open|ready|scheduled|executing|observed|verified/.test(status))return'good';return'';}
+function ownerRows(value){if(Array.isArray(value))return value;if(value&&typeof value==='object')return Object.values(value);return[];}
+function ownerPretty(value){return String(value||'—').replaceAll('_',' ').replaceAll('-',' ').replace(/\b\w/g,c=>c.toUpperCase());}
+function ownerCampaignIndex(){const rows=model.snapshot?.replenishment?.campaigns||[];return new Map(rows.filter(r=>r?.campaign).map(r=>[String(r.campaign),r]));}
+function ownerSourceText(row){if(row?.vault_id)return `Vault · ${row.vault_id}`;if(row?.source_type==='evidence_grounded_generation')return 'Evidence-grounded generation';if(row?.source_type==='repository_product_truth')return row.source_repository?`Repository · ${row.source_repository}`:'Repository evidence';if(row?.source_type==='owner_approved')return 'Owner-approved source';if(row?.source_repository)return `Repository · ${row.source_repository}`;if(row?.source_type)return ownerPretty(row.source_type);return 'Recorded campaign';}
+function ownerOrigin(row,index){return {...(index.get(String(row?.campaign||''))||{}),...row};}
+function ownerSafeLink(url){const value=String(url||'');return /^https?:\/\//.test(value)?`<a href="${esc(value)}" target="_blank" rel="noopener noreferrer">open</a>`:'—';}
+function ownerFact(label,value,tone=''){return `<div class="owner-fact"><span>${esc(label)}</span><strong class="${toneClass(tone)}">${esc(value)}</strong></div>`;}
+function renderOwnerHome(){
+  const snapshot=model.snapshot||{},activity=snapshot.activity||{},today=activity.today||{},effects=Array.isArray(today.effects)?today.effects:[],index=ownerCampaignIndex(),providerCounts=today.provider_counts||{};
+  $('ownerTodayCount').textContent=`${effects.length} published`;
+  $('ownerTodayMeta').textContent=`${safeNum(providerCounts.x)} X · ${safeNum(providerCounts.threads)} Threads · ${safeNum(providerCounts.linkedin)} LinkedIn · ${today.date||'current local day'}`;
+  $('ownerTodayList').innerHTML=effects.length?effects.slice(0,12).map(raw=>{const row=ownerOrigin(raw,index),verified=row.effective_verified===true||row.readback_verified===true||row.status==='published_verified',status=verified?'verified':String(row.status||'published').replaceAll('_',' ');return `<div class="owner-list-row"><span class="owner-time">${esc(timeOnly(row.published_at||row.recorded_at))}</span><span class="owner-provider">${esc(String(row.provider||'—').toUpperCase())}</span><span class="owner-primary"><strong>${esc(ownerPretty(row.project||'unknown project'))}</strong><small>${esc(row.campaign||'—')}</small></span><span class="owner-source" title="${esc(ownerSourceText(row))}">${esc(ownerSourceText(row))}</span><span class="owner-status ${verified?'good':'warn'}">${esc(status)}</span><span class="owner-link">${ownerSafeLink(row.url)}</span></div>`;}).join(''):'<div class="owner-empty">No receipt-backed publication effects are recorded for the current local day.</div>';
+
+  const observed=ts(snapshot.observed_at)||Date.now(),horizon=observed+86400000;
+  const schedules=(activity.active_schedules||[]).filter(r=>r?.status==='scheduled'&&ts(r.run_at)>=observed&&ts(r.run_at)<=horizon).slice().sort((a,b)=>ts(a.run_at)-ts(b.run_at));
+  $('ownerScheduleCount').textContent=`${schedules.length} booked`;
+  $('ownerScheduleList').innerHTML=schedules.length?schedules.slice(0,8).map(raw=>{const row=ownerOrigin(raw,index);return `<div class="owner-list-row schedule"><span class="owner-time">${esc(timeOnly(row.run_at))}</span><span class="owner-provider">${esc(String(row.provider||'—').toUpperCase())}</span><span class="owner-primary"><strong>${esc(ownerPretty(row.project||'unknown project'))}</strong><small>${esc(row.campaign||'—')}</small></span><span class="owner-source">${esc(ownerSourceText(row))}</span><span class="owner-status good">scheduled</span></div>`;}).join(''):'<div class="owner-empty">No durable reservations are booked in the next 24 hours.</div>';
+
+  const pace=snapshot.portfolio?.status?.release_pacing||{},accounts=ownerRows(pace.accounts),grouped={};
+  for(const row of accounts){if(row?.scope==='additional_account'&&row?.enabled!==true)continue;const provider=String(row?.provider||'');if(!provider)continue;const g=grouped[provider]||(grouped[provider]={target:0,ceiling:0});g.target+=safeNum(row.normal_originals_per_day??row.daily_target);g.ceiling=Math.max(g.ceiling,safeNum(row.hard_daily_ceiling));}
+  const paceHtml=['x','threads','linkedin'].filter(p=>grouped[p]).map(p=>{const g=grouped[p],used=safeNum(providerCounts[p]),remain=Math.max(0,g.target-used);return ownerFact(ownerPretty(p),`${used} / ${g.target} today · ${remain} remaining`)+(g.ceiling?ownerFact(`${ownerPretty(p)} safety ceiling`,`${g.ceiling}/account/day`):'');}).join('');
+  $('ownerPacing').innerHTML=paceHtml||'<div class="owner-empty">Saved pacing evidence is unavailable in this snapshot.</div>';
+
+  const reserve=snapshot.operator?.reserve||{},counts=reserve.status_counts||{},routes=safeNum(reserve.route_count);
+  $('ownerSupplyCount').textContent=`${safeNum(reserve.available_items)} protected`;
+  $('ownerSupply').innerHTML=[ownerFact('Routes',String(routes)),ownerFact('Runway',reserve.min_runway_days==null?'unknown':`${Number(reserve.min_runway_days).toFixed(1)}–${Number(reserve.max_runway_days??reserve.min_runway_days).toFixed(1)} days`,safeNum(counts.empty)?'warn':'good'),ownerFact('Empty / emergency',`${safeNum(counts.empty)} / ${safeNum(counts.emergency)}`,safeNum(counts.empty)||safeNum(counts.emergency)?'warn':'good'),ownerFact('Eligible now',String(safeNum(reserve.eligible_now))),ownerFact('Planned / scheduled',`${safeNum(reserve.planned_now)} / ${safeNum(reserve.scheduled_now)}`)].join('')+(Array.isArray(reserve.pressure_projects)&&reserve.pressure_projects.length?`<div class="owner-note">Pressure: ${esc(reserve.pressure_projects.slice(0,5).map(ownerPretty).join(' · '))}${reserve.pressure_projects.length>5?' · …':''}</div>`:'');
+
+  const engagement=snapshot.engagement||{},engCounts=engagement.counts||{},worker=engagement.worker||{},modes=worker.provider_mode_counts||{},waiting=safeNum(engCounts.pending)+safeNum(engCounts.drafted),modeText=Object.entries(modes).sort().map(([key,count])=>{const [provider,mode]=key.split(':');return `${ownerPretty(provider)} ${mode} ${count}`;}).join(' · ')||'No account reply modes configured';
+  $('ownerConversationCount').textContent=`${waiting} waiting`;
+  $('ownerConversations').innerHTML=[ownerFact('Pending / drafted',`${safeNum(engCounts.pending)} / ${safeNum(engCounts.drafted)}`,waiting?'warn':'good'),ownerFact('Waiting over 24h',String(safeNum(engagement.waiting_over_24h)),safeNum(engagement.waiting_over_24h)?'warn':'good'),ownerFact('Nested pending',String(safeNum(engagement.nested_pending))),ownerFact('Reply worker',worker.enabled?'enabled':'disabled',worker.enabled?'good':'warn'),ownerFact('Model ready',worker.model_ready?'yes':'no',worker.model_ready?'good':'warn')].join('')+`<div class="owner-note">${esc(modeText)}</div>`;
+
+  const roots=attentionRoots(snapshot);$('ownerAttentionCount').textContent=`${roots.length} root${roots.length===1?'':'s'}`;$('ownerAttention').innerHTML=roots.length?roots.slice(0,8).map(r=>`<div class="owner-attention-row"><strong>${esc(r.code)}</strong><span>${esc(r.detail)}</span></div>`).join(''):'<div class="owner-empty">No root attention conditions in the current local projection.</div>';
+
+  const runtime=snapshot.runtime||{},state=snapshot.state_integrity||{},timers=snapshot.timers||{},timing=snapshot.projection_timing_ms||{},timerCount=Array.isArray(timers.timers)?timers.timers.length:0,total=safeNum(timing.total),portfolioMs=safeNum(timing.portfolio);
+  $('ownerSystem').innerHTML=[ownerFact('Runtime',runtime.cli_version||'unknown'),ownerFact('Revision',short(runtime.git_commit_sha)),ownerFact('State integrity',`${state.status||'unknown'} · ${safeNum(state.invalid_count)} invalid`,safeNum(state.invalid_count)?'bad':'good'),ownerFact('Timers observed',String(timerCount),timerCount?'good':'warn'),ownerFact('Snapshot cost',total?`${(total/1000).toFixed(1)}s`:'unknown',total>5000?'warn':'good'),ownerFact('Portfolio projection',portfolioMs?`${(portfolioMs/1000).toFixed(1)}s`:'unknown',portfolioMs>5000?'warn':'good')].join('');
+}
+
+function renderOperatorModel(){
+  const op=model.snapshot?.operator||{},stages=Array.isArray(op.stages)?op.stages:[],byId=new Map(stages.map(row=>[row.id,row]));
+  const bindings=[
+    ['supply','opStageSupply','opSupplyValue','opSupplyDetail'],
+    ['admission','opStageAdmission','opAdmissionValue','opAdmissionDetail'],
+    ['automatic_schedule','opStageAutomaticSchedule','opScheduleValue','opScheduleDetail'],
+    ['execute','opStageExecute','opExecuteValue','opExecuteDetail'],
+    ['provider','opStageProvider','opProviderValue','opProviderDetail'],
+    ['verify','opStageVerify','opVerifyValue','opVerifyDetail'],
+  ];
+  for(const[id,cardId,valueId,detailId]of bindings){const row=byId.get(id)||{};const card=$(cardId);card.className=`operator-stage ${operatorTone(row.status)}`;$(valueId).textContent=row.status?`${String(row.status).replaceAll('_',' ')} · ${safeNum(row.value)}`:'—';$(detailId).textContent=row.detail||'no current projection';}
+  const diagnosis=op.diagnosis||{},box=$('volumeDiagnosis');box.className=`volume-diagnosis ${toneClass(diagnosis.tone)}`;$('volumeDiagnosisTitle').textContent=diagnosis.title||'No current diagnosis';$('volumeDiagnosisDetail').textContent=diagnosis.detail||op.boundary||'Current-state evidence only.';
+}
+
+function renderNow(){
+  if(model.mode==='live'&&model.lastLiveEvent){renderCurrentEvent(model.lastLiveEvent,Math.max(1,model.livePulses.length));return;}
+  const diagnosis=model.snapshot?.operator?.diagnosis||{};
+  if(diagnosis.code&&diagnosis.code!=='no_current_limiter'){
+    $('nowTitle').textContent=diagnosis.title||'Current operating condition';
+    $('nowText').textContent=diagnosis.detail||'Read-only current-state diagnosis.';
+    const reserve=model.snapshot?.operator?.reserve||{},counts=reserve.status_counts||{};
+    $('nowMeta').innerHTML=`<span class="chip ${toneClass(diagnosis.tone)}">${esc(String(diagnosis.code).replaceAll('_',' '))}</span><span class="chip">${safeNum(counts.emergency)} emergency routes</span><span class="chip">${safeNum(counts.fallback)} fallback routes</span>`;
+    return;
+  }
+  const admission=model.snapshot?.admission||{},exec=model.snapshot?.execution||{};
+  const node=id=>exec.nodes?.find(n=>n.id===id)||{};
+  const editorial=node('editorial'),vault=node('vault'),inventory=node('inventory'),scheduler=node('scheduler'),learning=node('learning'),work=node('work');
+  const mode=admission.mode||'unknown';
+  $('nowTitle').textContent=mode==='paused'?'Admission is paused; accepted work can still drain':'Build-to-market tunnel is observing and serving accepted work';
+  $('nowText').textContent=`${safeNum(editorial.value)} editorial requests · ${safeNum(vault.value)} active vault entries · ${safeNum(inventory.value)} eligible deliveries · ${safeNum(scheduler.value)} active schedules · ${safeNum(learning.value)} learning signals.`;
+  $('nowMeta').innerHTML=`<span class="chip ${mode==='open'?'good':'warn'}">admission ${esc(mode)}</span><span class="chip">${safeNum(work.value)} current work items</span><span class="chip">${safeNum(model.snapshot?.collection?.stages?.length)} collector stages</span>`;
+}
+function renderStateRail(){
+  const a=model.snapshot?.admission||{},exec=model.snapshot?.execution||{};
+  const node=id=>exec.nodes?.find(n=>n.id===id)||{};
+  const eligible=safeNum((a.metrics||{}).eligible_unreserved),high=Math.max(1,safeNum((a.thresholds||{}).global_high_water)),pressure=Math.min(100,eligible/high*100);
+  const reserve=model.snapshot?.operator?.reserve||{},reserveCounts=reserve.status_counts||{},reserveRoutes=safeNum(reserve.route_count),reserveRisk=safeNum(reserveCounts.empty)+safeNum(reserveCounts.emergency)+safeNum(reserveCounts.fallback);
+  const cards=[
+    ['Admission',String(a.mode||'unknown').toUpperCase(),(a.reasons||[]).join(', ')||'no persisted reason',pressure],
+    ['Supply reserve',reserveRoutes,`${safeNum(reserveCounts.emergency)} emergency · ${safeNum(reserveCounts.fallback)} fallback`,reserveRoutes?Math.max(0,100-(reserveRisk/reserveRoutes*100)):0],
+    ['Current work',safeNum(node('work').value),`${safeNum(model.snapshot?.work?.summary?.deadlines_within_24h)} deadlines <24h`,Math.min(100,safeNum(node('work').value)*4)],
+    ['Service intent',safeNum((exec.intent||{}).planned_count),`${safeNum((exec.intent||{}).decision_count)} dry decisions`,Math.min(100,safeNum((exec.intent||{}).planned_count)*8)],
+    ['Consequence',safeNum(node('run_due').value),`${safeNum(node('scheduler').value)} active schedules`,safeNum(node('run_due').value)?100:0]
+  ];
+  $('stateRail').innerHTML=cards.map(c=>`<article class="state-card"><div class="k">${esc(c[0])}</div><div class="v">${esc(c[1])}</div><div class="d">${esc(c[2])}</div><div class="bar"><span style="width:${clamp(c[3],0,100)}%"></span></div></article>`).join('');
+}
+function renderTemporalFuture(){const schedules=(model.snapshot?.activity?.active_schedules||[]).filter(r=>r.status==='scheduled'&&r.run_at).slice().sort((a,b)=>ts(a.run_at)-ts(b.run_at)).slice(0,6);const projected=(model.snapshot?.execution?.intent?.plan||[]).filter(r=>r.run_at).slice().sort((a,b)=>ts(a.run_at)-ts(b.run_at)).slice(0,6);const rows=[...schedules.map(r=>`<span class="future-beat committed">COMMITTED · ${esc(timeOnly(r.run_at))} · ${esc((r.provider||'—').toUpperCase())} · ${esc(short(r.campaign))}</span>`),...projected.map(r=>`<span class="future-beat projected">PROJECTED · ${esc(timeOnly(r.run_at))} · ${esc((r.provider||'—').toUpperCase())} · ${esc(short(r.campaign))}</span>`)];$('futureStrip').innerHTML=`<span class="future-label">Up next</span><span class="now-marker">NOW</span>`+(rows.join('')||'<span class="trace-sub">No committed or projected work in the current horizon.</span>');}
+function renderIntent(){const intent=model.snapshot?.execution?.intent||{};const plan=(intent.plan||[]).slice(0,12);$('intentList').innerHTML=plan.length?plan.map(r=>`<div class="row"><span class="muted">${esc(timeOnly(r.run_at))}</span><span>${esc(r.provider||'—')}</span><span class="truncate">${esc(r.campaign||'—')} · ${esc(r.project||'')}</span><span class="muted truncate">${esc(r.service_kind||r.learning_role||r.lane||'dry plan')}</span></div>`).join(''):'<div class="trace-sub">No dry-planned slots in the current horizon.</div>';const stages=model.snapshot?.collection?.stages||[];$('collectorList').innerHTML=stages.length?stages.map(s=>`<div class="stage-row"><span>${esc(s.stage)}</span><span class="chip ${toneClass(stateTone(s.status))}">${esc(s.status)}</span></div>`).join(''):'<div class="trace-sub">No persisted collection cycle yet.</div>';renderTemporalFuture();}
+
+function acceptanceCard(id,title,section,rows){const el=$(id);if(!el)return;const status=section?.status||'not recorded';el.innerHTML=`<div class="acceptance-summary"><strong>${esc(title)}</strong><span class="chip ${acceptanceTone(status)}">${esc(status)}</span></div><div class="acceptance-list">${rows||'<div class="trace-sub">No persisted acceptance evidence yet.</div>'}</div>`;}
+function renderAcceptance(){const sections=model.snapshot?.acceptance?.sections||{};
+  const pc1=sections.pc01_editorial_supply||{},requests=Array.isArray(pc1.open_requests)?pc1.open_requests:[];
+  acceptanceCard('pc01Acceptance','PC-01 · Editorial supply',pc1,requests.slice(0,8).map(r=>`<div class="acceptance-row"><span><strong>${esc((r.provider||'—').toUpperCase())}</strong></span><span class="detail">${esc(r.project||'—')} · ${esc((r.demand_reasons||[]).join(', ')||'open request')} · stock ${safeNum(r.runnable)}/${safeNum(r.stock_floor)} · runway ${safeNum(r.editorial_runway_hours)}h${r.market_cold?' · MARKET COLD':''}</span><span class="right">${esc(short(r.request_id))}</span></div>`).join('')||`<div class="trace-sub">${safeNum(pc1.open_request_count)} open · handoff ${esc(pc1.handoff?.status||'unknown')}</div>`);
+
+  const pc2=sections.pc02_source_vault||{},badSources=(pc2.sources||[]).filter(r=>r.status!=='observed'||r.source_ok===false),badVaults=(pc2.vaults||[]).filter(r=>r.status!=='observed');
+  acceptanceCard('pc02Acceptance','PC-02 · Source & vault reads',pc2,[...badSources.slice(0,4).map(r=>`<div class="acceptance-row"><span><strong>SRC</strong></span><span class="detail">${esc(r.project||'—')}</span><span class="right"><span class="chip ${acceptanceTone(r.status)}">${esc(r.status)}</span></span></div>`),...badVaults.slice(0,4).map(r=>`<div class="acceptance-row"><span><strong>VAULT</strong></span><span class="detail">${esc(r.vault_id||'—')} · ${esc(r.project||'')}</span><span class="right"><span class="chip ${acceptanceTone(r.status)}">${esc(r.status)}</span></span></div>`)].join('')||'<div class="trace-sub">All currently observed sources and enabled vaults are current.</div>');
+
+  const pc3=sections.pc03_publication_readback||{},unresolved=(pc3.results||[]).filter(r=>r.status!=='verified');
+  acceptanceCard('pc03Acceptance','PC-03 · Publication readback',pc3,unresolved.slice(0,8).map(r=>`<div class="acceptance-row"><span><strong>${esc((r.provider||'—').toUpperCase())}</strong></span><span class="detail">${esc(r.campaign||'—')} · ${esc(r.status||'unknown')}</span><span class="right">${esc(short(r.post_id||r.schedule_id))}</span></div>`).join('')||'<div class="trace-sub">No unresolved known-ID publication readbacks.</div>');
+
+  const pc4=sections.pc04_learning||{},targets=Array.isArray(pc4.targets)?pc4.targets:[];
+  acceptanceCard('pc04Acceptance','PC-04 · Index-4 learning',pc4,targets.map(t=>{const qualifying=(t.measurements||[]).filter(m=>m?.persisted_feedback?.qualifying_observation).map(m=>m.target_age_hours+'h');const measured=(t.measurements||[]).filter(m=>m?.snapshot?.availability==='available').map(m=>m.target_age_hours+'h');const gate=t.challenger_sampling_gate||{},gateStatus=gate.acceptance_status||gate.status||'unknown';return `<div class="acceptance-row"><span><strong>${esc((t.provider||'—').toUpperCase())}</strong></span><span class="detail">${esc(t.publication?.status||'unknown')} · measured ${esc(measured.join(', ')||'none')} · qualifying ${esc(qualifying.join(', ')||'none')}</span><span class="right"><span class="chip ${acceptanceTone(gateStatus)}">${esc(gateStatus)}</span></span></div>`;}).join(''));
+
+  const pc5=sections.pc05_effect_reconciliation||{};
+  acceptanceCard('pc05Acceptance','PC-05 · Effect reconciliation',pc5,`<div class="acceptance-row"><span><strong>AUTO</strong></span><span class="detail">automatic reconciliation work remaining</span><span class="right">${safeNum(pc5.campaign_automatic_work_remaining_count)}</span></div><div class="acceptance-row"><span><strong>GATED</strong></span><span class="detail">provider permission-gated effects</span><span class="right">${safeNum(pc5.campaign_permission_gated_count)}</span></div><div class="acceptance-row"><span><strong>MANUAL</strong></span><span class="detail">manual-review campaign effects</span><span class="right">${safeNum(pc5.campaign_manual_review_count)}</span></div><div class="acceptance-row"><span><strong>REPLY</strong></span><span class="detail">unresolved reply effects</span><span class="right">${safeNum(pc5.reply_unresolved_count)}</span></div><div class="acceptance-row"><span><strong>HIST</strong></span><span class="detail">retained historical failed schedules</span><span class="right">${safeNum(pc5.historical_failed_schedule_count)}</span></div>`);
+
+  const pc6=sections.pc06_inbound_coverage||{},scopes=Array.isArray(pc6.scopes)?pc6.scopes:[];
+  acceptanceCard('pc06Acceptance','PC-06 · Inbound coverage',pc6,scopes.slice(0,10).map(s=>`<div class="acceptance-row"><span><strong>${esc((s.provider||'—').toUpperCase())}</strong></span><span class="detail">${esc(s.reason||s.status||'unknown')} · ${safeNum(s.inbox_item_count)} items · depth ${safeNum(s.max_conversation_depth)} · roots pending ${safeNum(s.roots_not_yet_scanned)}</span><span class="right"><span class="chip ${acceptanceTone(s.status)}">${esc(s.status||'unknown')}</span></span></div>`).join(''));
+}
+
+function attentionRoots(snapshot){
+  const roots=[],caps=snapshot?.capabilities||{},state=snapshot?.state_integrity||{},sections=snapshot?.acceptance?.sections||{},work=snapshot?.work||{},operator=snapshot?.operator||{};
+  for(const id of [...(caps.core_blockers||[]),...(caps.activated_optional_blockers||[])])roots.push({code:'CAPABILITY',detail:id});
+  if(safeNum(state.invalid_count)>0||String(state.critical_ledger_status||'').toLowerCase()==='blocked')roots.push({code:'LEDGER',detail:`${safeNum(state.invalid_count)} invalid · ${state.critical_ledger_status||'unknown'}`});
+  for(const [id,row] of Object.entries(sections)){const status=String(row?.status||'').toLowerCase();if(status&&status!=='observed'&&status!=='complete'&&status!=='verified')roots.push({code:id.replace(/^pc0?/,'PC-').replace(/_.*/,''),detail:status});}
+  if(safeNum(work?.summary?.deadlines_within_24h)>0)roots.push({code:'DEADLINE',detail:`${safeNum(work.summary.deadlines_within_24h)} work item(s) inside 24h`});
+  if(operator?.diagnosis?.code&&operator.diagnosis.code!=='no_current_limiter')roots.push({code:'VOLUME',detail:operator.diagnosis.title||operator.diagnosis.code});
+  const cold=(work.items||[]).filter(r=>r?.evidence?.market_cold===true).length;
+  if(cold)roots.push({code:'MARKET-COLD',detail:`${cold} route${cold===1?'':'s'} need editorial continuity`});
+  const ambiguity=(model.events||[]).find(e=>e.kind==='ambiguous_effect');
+  if(ambiguity)roots.push({code:'AMBIGUITY',detail:`${ambiguity.provider||'provider'} · ${short(ambiguity.campaign||ambiguity.schedule_id)}`});
+  const seen=new Set();
+  return roots.filter(r=>{const k=r.code+'|'+r.detail;if(seen.has(k))return false;seen.add(k);return true;}).slice(0,12);
+}
+function renderCommandBar(){const exec=model.snapshot?.execution||{},node=id=>exec.nodes?.find(n=>n.id===id)||{},caps=model.snapshot?.capabilities||{},roots=attentionRoots(model.snapshot);$('coreStatus').textContent=String(caps.core_status||caps.status||'observing').toUpperCase();$('coreStatus').style.color=(caps.core_status||caps.status)==='attention'?'var(--warn)':'var(--good)';const active=safeNum(node('run_due').value)+safeNum(node('reply_worker').value);$('activeStatus').textContent=`${active} active · ${safeNum(node('scheduler').value)} scheduled`;$('verifiedStatus').textContent=`${safeNum(node('readback').value)} effects`;const next=(model.snapshot?.activity?.active_schedules||[]).filter(r=>r.status==='scheduled'&&r.run_at).slice().sort((a,b)=>ts(a.run_at)-ts(b.run_at))[0];$('nextStatus').textContent=next?`${timeOnly(next.run_at)} · ${String(next.provider||'—').toUpperCase()}`:'—';$('attentionStatus').textContent=`${roots.length} root${roots.length===1?'':'s'}`;$('attentionStatus').style.color=roots.length?'var(--warn)':'var(--good)';$('attentionRoots').innerHTML=roots.length?roots.map(r=>`<div class="attention-root"><span>${esc(r.code)}</span><span>${esc(r.detail)}</span></div>`).join(''):'<div class="trace-sub">No root attention conditions in the current local projection.</div>';}
+function renderPlatform(){const root=model.snapshot?.capabilities||{},rows=Array.isArray(root.capabilities)?root.capabilities:[];const state=model.snapshot?.state_integrity||{};const connectors=model.snapshot?.outcome_connectors||{};const alerts=model.snapshot?.alert_delivery||{};const detail=rows.map(r=>{const states=[r.configuration,r.authority,r.evidence,r.acceptance].filter(Boolean);const final=states[states.length-1]||r.implementation||'unknown';return `<div class="acceptance-row"><span><strong>${esc(r.label||r.id||'capability')}</strong></span><span class="detail">${esc(states.join(' → ')||r.implementation||'unknown')}</span><span class="right"><span class="chip ${acceptanceTone(final)}">${esc(final)}</span></span></div>`;}).join('');$('platformReadiness').innerHTML=detail+`<div class="acceptance-row"><span><strong>STATE</strong></span><span class="detail">${safeNum(state.invalid_count)} invalid · critical ${esc(state.critical_ledger_status||'unknown')}</span><span class="right"><span class="chip ${acceptanceTone(state.status)}">${esc(state.status||'unknown')}</span></span></div><div class="acceptance-row"><span><strong>OUTCOMES</strong></span><span class="detail">${esc(connectors.status||'not configured')}</span><span class="right">${safeNum((connectors.connectors||[]).length)} sources</span></div><div class="acceptance-row"><span><strong>ALERTS</strong></span><span class="detail">${esc(alerts.status||'not configured')}</span><span class="right">${alerts.enabled?'enabled':'off'}</span></div>`;}
+
+function acceptSnapshot(s){if(!s||typeof s!=='object')return;const wasInitialised=model.initialised,oldIds=new Set(model.events.map(e=>e.id));model.snapshot=s;const exec=s.execution||{};model.nodes=Array.isArray(exec.nodes)?exec.nodes:[];model.edges=Array.isArray(exec.edges)?exec.edges:[];model.events=Array.isArray(exec.events)?exec.events:[];model.events.forEach(e=>model.seen.add(e.id));const newEvents=model.events.filter(e=>!oldIds.has(e.id)).reverse(),signature=topologySignature();if(model.topologyKey!==signature)renderGraph();else patchGraph();buildReplayTimeline();renderTrace();renderJourneyStrip();renderOwnerHome();renderOperatorModel();renderStateRail();renderIntent();renderAcceptance();renderPlatform();renderCommandBar();if(model.mode==='live'){const bursts=wasInitialised?evidenceCounts(newEvents):new Map();renderNodeEvidenceCounts(evidenceCounts(model.events),bursts);if(bursts.size){clearTimeout(model.activityBurstTimer);model.activityBurstTimer=setTimeout(()=>{if(model.mode==='live')renderNodeEvidenceCounts(evidenceCounts(model.events));},2200);}renderNow();}else renderReplayFrame();$('revision').textContent=short(s.revision);$('updatedBadge').textContent=fullTime(s.observed_at);renderLiveModeBadge();$('replayBtn').disabled=!model.events.length;$('liveBtn').disabled=false;if(model.mode==='live'&&wasInitialised)newEvents.forEach(livePulse);model.initialised=true;}
+
+function openSystem(){const w=$('systemDrawerWrap'),d=$('systemDrawer');w.classList.add('open');w.setAttribute('aria-hidden','false');d.removeAttribute('inert');$('systemButton').setAttribute('aria-expanded','true');$('closeSystem').focus();}
+function closeSystem(){const w=$('systemDrawerWrap'),d=$('systemDrawer');w.classList.remove('open');w.setAttribute('aria-hidden','true');d.setAttribute('inert','');$('systemButton').setAttribute('aria-expanded','false');if(document.activeElement&&d.contains(document.activeElement))$('systemButton').focus();}
+$('replayBtn').addEventListener('click',()=>startReplay(true));$('playBtn').addEventListener('click',togglePlay);$('liveBtn').addEventListener('click',returnLive);$('focusJourney').addEventListener('click',focusJourney);$('zoomSelection').addEventListener('click',zoomSelection);$('clearJourney').addEventListener('click',clearJourney);$('speed').addEventListener('change',e=>{model.speed=clamp(Number(e.target.value)||1,.25,3);});$('zoomOut').addEventListener('click',()=>setZoom(model.zoom/1.2));$('zoomIn').addEventListener('click',()=>setZoom(model.zoom*1.2));$('fitView').addEventListener('click',fitView);$('fullScreen').addEventListener('click',toggleFullscreen);$('systemButton').addEventListener('click',openSystem);$('closeSystem').addEventListener('click',closeSystem);$('systemScrim').addEventListener('click',closeSystem);$('jumpIntent').addEventListener('click',()=>{closeSystem();$('intentPanel').scrollIntoView({behavior:'smooth',block:'start'});});$('jumpAcceptance').addEventListener('click',()=>{closeSystem();$('acceptancePanel').scrollIntoView({behavior:'smooth',block:'start'});});$('jumpPlatform').addEventListener('click',()=>{closeSystem();$('platformPanel').scrollIntoView({behavior:'smooth',block:'start'});});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSystem();});$('timeline').addEventListener('input',e=>{if(!model.timeline.length)return;model.mode='replay';model.playing=false;model.playhead=clamp(Number(e.target.value)||0,0,1000);$('modeBadge').className='badge warn';$('modeBadge').textContent='replay · scrubbed';$('playBtn').disabled=false;$('playBtn').textContent='Play replay';$('liveBtn').classList.remove('active');renderReplayFrame();});
+initCanvasWorkspace();
+requestAnimationFrame(frame);
+fetch('/api/snapshot',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('snapshot');return r.json();}).then(acceptSnapshot).catch(()=>{});
+const stream=new EventSource('/api/stream');
+stream.addEventListener('snapshot',event=>{try{acceptSnapshot(JSON.parse(event.data));}catch{}});
+stream.onopen=()=>{model.streamOpen=true;$('streamBadge').className='badge good';$('streamBadge').innerHTML='<span class="dot"></span>streaming';renderLiveModeBadge();};
+stream.onerror=()=>{model.streamOpen=false;$('streamBadge').className='badge warn';$('streamBadge').innerHTML='<span class="dot"></span>reconnecting';renderLiveModeBadge();};
+setInterval(renderLiveModeBadge,1000);
+</script>
+</body>
+</html>

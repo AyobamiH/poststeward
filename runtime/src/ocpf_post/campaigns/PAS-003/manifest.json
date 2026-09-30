@@ -1,0 +1,36 @@
+{
+  "campaign": "PAS-003",
+  "project": "proof-and-state",
+  "title": "A handover that survives the chat",
+  "status": "COPY-READY",
+  "canonical_state": "Proof & State GTM vault / Campaign 26",
+  "queue_batch": "gtm-replenishment-20260908",
+  "providers": ["x", "linkedin"],
+  "source": {
+    "type": "public_product_positioning",
+    "source_id": "PAS-HANDOVER-QUESTIONS-20260908",
+    "repository": "AyobamiH/proof-and-state-website",
+    "path": "src/content/products.ts",
+    "blob_sha": "19eafdc4a4660b956284a47214513e4e73765d59",
+    "url": "https://github.com/AyobamiH/proof-and-state-website/blob/main/src/content/products.ts",
+    "revalidated_at": "2026-09-08",
+    "angle": "A useful AI-work handover states the changes, checks and remaining decisions rather than depending on a chat summary."
+  },
+  "intent": {
+    "audience": "Founders and engineering teams handing over AI-assisted work",
+    "objective": "Identify handover problems and direct relevant readers to the product overview",
+    "cta": "Describe which answer is missing from an AI handover"
+  },
+  "assistance": {
+    "mode": "gtm_assisted_product_positioning",
+    "disclosure": "New buyer-problem framing from existing public product boundaries, not a new engineering milestone. post-once only distributes it."
+  },
+  "claim_boundary": "No universal audit coverage, new release, verified customer outcome or released AgentProof capability is claimed. Founder LinkedIn is not the company page.",
+  "destinations": {"x": "x-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {
+    "x": "46994d5c9fc15d35dfe26d83a571d43a1b10f69b5853180ac7ce21c62faee199",
+    "linkedin": "af4fa6230a21aac7b3029d005953dab8efed3779b7c027d59628ff87a90e2a1c"
+  },
+  "schedules": {},
+  "receipts": {}
+}

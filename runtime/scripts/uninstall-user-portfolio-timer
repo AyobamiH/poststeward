@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+TIMERS="poststeward-portfolio-refill.timer poststeward-collection.timer poststeward-replies.timer"
+
+systemctl --user disable --now $TIMERS 2>/dev/null || true
+rm -f   "$UNIT_DIR/poststeward-portfolio-refill.timer"   "$UNIT_DIR/poststeward-portfolio-refill.service"   "$UNIT_DIR/poststeward-collection.timer"   "$UNIT_DIR/poststeward-collection.service"   "$UNIT_DIR/poststeward-replies.timer"   "$UNIT_DIR/poststeward-replies.service"
+systemctl --user daemon-reload
+for unit in $TIMERS; do
+  systemctl --user reset-failed "$unit" 2>/dev/null || true
+done
+
+echo "Removed PostSteward portfolio/refill/collection/reply user units. Publisher timer and all evidence remain intact."

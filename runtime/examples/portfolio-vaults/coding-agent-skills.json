@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "coding-agent-skills-gtm",
+  "project": "coding-agent-skills",
+  "document_id": "1T3jFo-46kEFr86w1s4RUaXM-jqUobFTKDnsRHeT68kc",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

@@ -1,0 +1,447 @@
+.TH OCPF-POST 1 "21 September 2026" "post-once 0.28.29" "Post-Once Manual"
+.SH NAME
+ocpf-post \- receipt-backed social publishing, scheduling and portfolio operations
+.SH SYNOPSIS
+.B ocpf-post
+.I command
+.RI [ options ]
+.SH DESCRIPTION
+Post-Once is a fail-closed operator control plane. Commands are classified by consequence and durable external effects are receipt-backed.
+Use \fBocpf-post help COMMAND --json\fR for machine-readable argument/default metadata.
+.SH AUTOMATIC PORTFOLIO MODEL
+Normal portfolio scheduling is automatic after eligible inventory reaches the allocator:
+Supply -> Admission -> Automatic schedule -> Execute -> Provider -> Verify.
+A low publication count can therefore come from upstream reserve or admission pressure even when the scheduler is healthy.
+The 100 logical-publications/account/day boundary is a safety circuit breaker, not a content generator or posting target.
+The living console derives its current why-volume-is-low diagnosis from the same read-only snapshot; historical causality still requires dated schedule-versus-receipt evidence.
+Admission is freshly evaluated read-only on each operator snapshot while persisted hysteresis provenance is shown separately. Provider rejection classes are diagnostic only and never grant automatic replay authority.
+Account-wide definite provider failures feed a bounded ledger-derived write circuit. The circuit suppresses new reservations and defers only pre-consequence scheduled work; three consecutive generic forbidden failures also open it, while candidate-specific failures do not.
+.SH COMMANDS
+.TP
+\fBocpf\-post engagement reconcile\fR
+Verify existing reply IDs and append exact\-context readback evidence. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post performance outcomes\fR
+Inspect or import explicit receipt\-linked enquiries, sign\-ups and sales. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post accounts list\fR
+Inspect additional identities, activation and credential presence. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post accounts import\fR
+Preview or add inactive X/Threads/LinkedIn identities, project aliases and independent budgets. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post accounts connect\fR
+Verify credentials for an inactive additional account, including non\-secret reuse of the existing LinkedIn member credential for a Page actor. Consequence: AUTHORITY_CHANGE. --reuse-default is accepted only for LinkedIn organization/organizationBrand actors and stores no copied access token; the Page is still verified independently before enablement.
+.TP
+\fBocpf\-post accounts enable\fR
+Preview or enable an independently budgeted account after identity verification. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post accounts disable\fR
+Disable future use of an additional account; existing effects remain recorded. Consequence: FUTURE_CONSEQUENCE.
+.TP
+\fBocpf\-post operations\fR
+Observe project or portfolio milestones and optionally save a private report. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --save. --all joins each registered project's generated, brief and vault schedules to exact receipts. Saved by the bounded collector; no provider call, publication or repair.
+.TP
+\fBocpf\-post campaign receipts\fR
+Join reviewed brief schedules to publication receipts. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post campaign reconcile\fR
+Preview or perform bounded GET\-only reconciliation of existing publication effects. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. --apply performs read-only provider GETs and writes separate reconciliation evidence; it never publishes, retries, resets or deletes.
+.TP
+\fBocpf\-post vault register\fR
+Preview or register designated document authority. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. --enable trusts approved entries from this document's editors; apply requires reviewed hash.
+.TP
+\fBocpf\-post vault extend\fR
+Review adding a provider destination without replacing existing vault authority. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Apply requires a review hash covering current policy, account identities and document copy. Existing destinations cannot be replaced.
+.TP
+\fBocpf\-post vault sync\fR
+Observe approved vault revisions and withdrawals; admit new packages within destination budgets. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post vault status\fR
+Read vault configuration and local observations. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post vault coverage\fR
+Reconcile expected vault projects and platform entries with local authority, freshness and intact imports. Consequence: READ_ONLY. No Google read or repair. HOLD projects stay outside expected publishing coverage; imports do not prove publication.
+.TP
+\fBocpf\-post vault credentials\fR
+Install private operator\-owned Google refresh credentials. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post vault auth\fR
+Connect read\-only Google access using Desktop OAuth and PKCE. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post evidence check\fR
+Preview or observe a scoped revision\-bound HTTPS JSON application check. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post performance review\fR
+Compare receipt\-linked metrics at matching post ages and destinations. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post performance capture\-due\fR
+Preview or capture metrics near a target post age. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post campaign brief\fR
+Compile and preview or import reviewed evidence briefs with distinct editorial angles. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply. Apply requires the reviewed input hash. Manual-only by default; --allocate opts into existing scheduling policy. Evidence references are not independently verified; full rendered copy needs review.
+.TP
+\fBocpf\-post replenish source receipts\fR
+Find matching scheduled publication receipts for a project's generated source campaigns. Consequence: READ_ONLY. Local JSON across source revisions; no provider call. A direct or brief-imported campaign does not complete the generated-source milestone. Pending is not failure.
+.TP
+\fBocpf\-post replenish source evidence\fR
+Read exact\-commit GitHub workflow and deployment observations. Consequence: READ_ONLY. Optional --sha must be a full commit SHA. JSON report; no cursor, copy or authority changes. Missing observations are not negative proof or production verification.
+.TP
+\fBocpf\-post campaign explain\fR
+Explain local copy provenance, allocation exclusions, schedules and receipts. Consequence: READ_ONLY. Local snapshot only. No GitHub/provider calls. Expected account binding is not live identity verification.
+.TP
+\fBocpf\-post replenish source import\fR
+Preview or register an inactive runtime GitHub source policy. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Add-only registration. --apply requires the reviewed input_sha256. Does not fetch GitHub or enable replenishment.
+.TP
+\fBocpf\-post replenish source list\fR
+Read runtime source policies and activation state as JSON. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post replenish source preview\fR
+Read GitHub and preview exact static copy, bound identities and the event policy. Consequence: READ_ONLY. Returns review_sha256. No campaigns, cursors or schedules are written.
+.TP
+\fBocpf\-post replenish source enable\fR
+Authorise a runtime source for future replenishment and allocator selection. Consequence: FUTURE_CONSEQUENCE. Requires --expected-sha256 from a fresh source preview. Pins repository identity and baselines existing commits. No immediate social post.
+.TP
+\fBocpf\-post replenish source disable\fR
+Stop new replenishment from a runtime source. Consequence: FUTURE_CONSEQUENCE. Existing campaigns and reservations remain authorised; cancel unwanted schedules separately.
+.TP
+\fBocpf\-post registry import\fR
+Preview or add a runtime project with expected account bindings. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. --apply requires the reviewed input SHA-256. Add-only local authority; does not connect accounts or import credentials.
+.TP
+\fBocpf\-post campaign import\fR
+Preview or add approved runtime copy, with explicit optional allocator opt\-in. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply. --apply requires the reviewed input SHA-256. No provider call. --allocate explicitly authorises future selection by the running portfolio allocator. Omit --allocate for manual-only copy.
+.TP
+\fBocpf\-post health\fR
+Inspect local publishing evidence, freshness, capacity and automation health. Consequence: READ_ONLY. No provider calls or repair. Exit 0=ok, 1=warning, 2=unknown, 3=attention. See docs/HEALTH.md.
+.TP
+\fBocpf\-post doctor\fR
+Check local prerequisites and stored configuration state. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post setup interactive\fR
+Run the resumable fresh/explore terminal setup wizard. Consequence: LOCAL_STATE_WRITE. Bare 'ocpf-post setup' is an alias. Creates only bootstrap-local setup state; never connects providers, installs services or enables publishing.
+.TP
+\fBocpf\-post setup admission\fR
+Prove host capabilities and classify existing installation state before guided setup. Consequence: READ_ONLY. Reads bootstrap/runtime authority evidence only. Production mode additionally requires a reachable systemd user manager; no provider call or mutation occurs.
+.TP
+\fBocpf\-post setup browser\fR
+Serve the secure loopback\-only browser renderer over the same SetupEngine. Consequence: AUTHORITY_CHANGE. Safe inspection: close the browser without applying reviewed actions. The listener is fixed to 127.0.0.1 and uses a process-local session plus CSRF/origin checks. Starting the renderer changes no authority; browser forms preserve each underlying setup command's preview/review/apply gate.
+.TP
+\fBocpf\-post setup beta\fR
+Enroll, observe, inspect or decide an explicitly bounded local beta ring. Consequence: LOCAL_STATE_WRITE. Safe inspection: --action status. Beta evidence is private, append-only and hash-chained. Rehearsal cannot unlock runtime adoption review; only an owner-canary decision can become bootstrap-runtime-adoption ready. The command never enables publishing authority by itself.
+.TP
+\fBocpf\-post setup adoption\-review\fR
+Build an evidence\-backed package for this project's own Post\-Once\-derived runtime adoption. Consequence: READ_ONLY. Returns BLOCKED unless the owner-canary beta decision is BOOTSTRAP_RUNTIME_ADOPTION_READY. AyobamiH/post-once and the operator's existing local Post-Once are permanently outside the mutation path.
+.TP
+\fBocpf\-post setup start\fR
+Start fresh, explore, or same\-operator source setup from explicit inputs. Consequence: LOCAL_STATE_WRITE. The source identity can be used for healthy migration or immutable recovery points. Dead-host recovery itself starts from setup restore --recovery.
+.TP
+\fBocpf\-post setup status\fR
+Read the latest or named bootstrap setup session and control\-store health. Consequence: READ_ONLY. Opens an existing setup database read-only and does not create one when missing.
+.TP
+\fBocpf\-post setup resume\fR
+Resume one incomplete setup session from its last committed revision. Consequence: LOCAL_STATE_WRITE. Uses durable revision-checked transitions; never restarts or replaces an existing session silently.
+.TP
+\fBocpf\-post setup export\fR
+Preview or seal a credential\-free healthy migration bundle from a quiescent source. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. --apply retires only the bootstrap source authority model after writer-unit quiescence is observed, then seals an immutable bundle. It never stops services, copies credentials or calls a provider.
+.TP
+\fBocpf\-post setup recovery\-point\fR
+Preview or seal an immutable credential\-free point for later dead\-host recovery. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Requires a quiescent source and exact review hash. Sealing never retires the source, changes provider credentials, re-arms schedules or enables publishing.
+.TP
+\fBocpf\-post setup inspect\-bundle\fR
+Verify a healthy migration or dead\-host recovery artifact without granting authority. Consequence: READ_ONLY. Use --recovery for recovery points. Verification materializes only bounded quarantine state; production roots are untouched.
+.TP
+\fBocpf\-post setup restore\fR
+Verify and quarantine a healthy migration bundle or dead\-host recovery point on a new installation. Consequence: LOCAL_STATE_WRITE. --recovery requires an explicit source-loss time and acceptable data-loss window. Recovery marks the old installation unknown and never activates the target.
+.TP
+\fBocpf\-post setup verify\fR
+Verify target provider identity evidence and reconcile migration/recovery schedules. Consequence: LOCAL_STATE_WRITE. Use --recovery for a dead-host target. Milestone G stops at RECOVERY_REVIEW_READY with stale-host authority explicitly unresolved; no service activation or provider consequence.
+.TP
+\fBocpf\-post setup verify\-fresh\fR
+Read\-only verify a connected provider plus user\-owned project/content before fresh activation. Consequence: LOCAL_STATE_WRITE. Provider observation is read-only: no refresh or publication. The exact immutable account ID must match and standalone runtime state must contain a user-owned project plus an enabled source or imported campaign. Historical packaged owner defaults never satisfy this gate.
+.TP
+\fBocpf\-post setup connect\-x\fR
+Connect and read\-back verify one X account for Fresh beta onboarding. Consequence: AUTHORITY_CHANGE. Runs OAuth Authorization Code + PKCE, then proves the exact account through a read-only identity request. A prompted/file client secret is persisted only after successful authorization. No post, schedule, source activation or unattended-automation activation occurs.
+.TP
+\fBocpf\-post setup onboard\-x\fR
+Bind the connected X identity to one user project and manual\-only campaign, then advance Fresh verification. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Preview is non-mutating. --apply performs reviewed add-only local project/campaign imports with allocator opt-in disabled, then uses read-only provider readiness to advance to verification_ready. It never publishes or activates unattended automation.
+.TP
+\fBocpf\-post setup activate\fR
+Preview or apply the unattended\-publishing activation gate. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Apply requires an exact review hash. State/config promotion and timer staging occur while the local automation marker is inactive; the marker write is the final cutover. Recovery requires structured resolution of every recovery-review blocker.
+.TP
+\fBocpf\-post setup deactivate\fR
+Preview or apply marker\-first unattended\-automation deactivation. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Apply writes the local automation marker inactive before disabling timers. Durable receipts/schedules are never rolled backwards.
+.TP
+\fBocpf\-post x auth\fR
+Run X OAuth 2.0 Authorization Code + PKCE. Consequence: AUTHORITY_CHANGE. Changes local provider authorisation state.
+.TP
+\fBocpf\-post x status\fR
+Read back the exact authenticated X account. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post x refresh\fR
+Refresh the stored X access token. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post x logout\fR
+Remove/revoke the stored X token. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post campaign show\fR
+Show one built\-in campaign payload. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post publish\fR
+Dry\-run or explicitly publish one X campaign. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: omit --live. --live creates an external provider consequence; terminal receipts block blind duplicates.
+.TP
+\fBocpf\-post receipt\fR
+Show the latest local X publication receipt. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post threads status\fR
+Read back the authenticated Threads account. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post threads refresh\fR
+Refresh Threads provider authorisation when supported. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post threads publish\fR
+Dry\-run or explicitly publish one Threads campaign. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: omit --live. --live creates an external provider consequence.
+.TP
+\fBocpf\-post threads receipt\fR
+Show the latest local Threads receipt. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post linkedin status\fR
+Read back the authenticated LinkedIn account. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post linkedin refresh\fR
+Refresh LinkedIn provider authorisation when supported. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post linkedin publish\fR
+Dry\-run or explicitly publish one LinkedIn campaign. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: omit --live. --live creates an external provider consequence.
+.TP
+\fBocpf\-post linkedin receipt\fR
+Show the latest local LinkedIn receipt. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post schedule create\fR
+Create one durable future provider reservation. Consequence: FUTURE_CONSEQUENCE. Does not publish immediately.
+.TP
+\fBocpf\-post schedule list\fR
+List active schedules, or all schedule history with \-\-all. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post schedule inspect\fR
+Inspect one schedule and immutable event history without exposing scheduled copy. Consequence: READ_ONLY. Local state only. Redacts scheduled post text and never calls a provider or mutates the schedule.
+.TP
+\fBocpf\-post schedule cancel\fR
+Cancel a schedule before it is claimed. Consequence: FUTURE_CONSEQUENCE. Prevents the scheduled external consequence when cancellation succeeds.
+.TP
+\fBocpf\-post run\-due\fR
+Execute due schedules through provider consequence paths. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: --check. Without --check this may create external posts.
+.TP
+\fBocpf\-post registry list\fR
+List registered GTM projects and campaign prefixes. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post registry show\fR
+Show one project and its stable account aliases. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post registry resolve\fR
+Resolve one project\-scoped account alias. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post performance capture\fR
+Read provider metrics and append a local performance snapshot. Consequence: LOCAL_STATE_WRITE.
+.TP
+\fBocpf\-post performance show\fR
+Show the latest local performance snapshot. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post performance compare\fR
+Compare latest snapshots across campaigns/providers. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post portfolio status\fR
+Show eligible inventory, active reservations and daily targets. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post portfolio experiment reconcile\fR
+Inspect or reconcile the scoped, expiring owner capacity trial. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply. --apply starts once when existing fair policy and receipt gates match; changes effective capacity, never base policy or posts.
+.TP
+\fBocpf\-post portfolio experiment status\fR
+Read effective trial targets and delivery gates. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post portfolio experiment report\fR
+Compare receipt\-linked before/during metrics at equivalent post ages. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --save. Descriptive only. Missing metrics/conversions stay unknown. --save writes the private report.
+.TP
+\fBocpf\-post portfolio experiment stop\fR
+Permanently stop this trial without altering existing reservations. Consequence: FUTURE_CONSEQUENCE.
+.TP
+\fBocpf\-post engagement conversation\fR
+Read known ancestors of a collected inbound reply. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post engagement worker\-status\fR
+Inspect recurring reply decisions, budgets and model readiness. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post engagement process\fR
+Run the configured account\-scoped model review and response worker. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: omit --apply. --apply may send through enabled automatic account policies; X requires a recorded written provider approval. No tools available to model; ambiguous effects never retry.
+.TP
+\fBocpf\-post performance feedback\fR
+Build bounded account\-specific selection preferences from comparable evidence. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Requires five matched topics within an account/lane/template. A winner gains three points above the template base, restoring legacy variant discounts where present (at most eleven total). Existing fairness, expiry and alternate exploration remain. No copy or quota changes.
+.TP
+\fBocpf\-post engagement status\fR
+Read reply collection status and optional inbox items. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post engagement sync\fR
+Collect bounded inbound replies/comments to recent receipt\-backed X/Threads/LinkedIn posts. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. --apply uses existing host credentials, verifies account and stores replies; never sends. Missing scopes remain unavailable.
+.TP
+\fBocpf\-post engagement draft\fR
+Store exact response text bound to collected account and reply context. Consequence: LOCAL_STATE_WRITE.
+.TP
+\fBocpf\-post engagement send\fR
+Preview or explicitly send one reviewed reply with a durable outcome record. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: omit --live. --live requires --expected-sha256 and fresh exact context. Crash/ambiguous/terminal effects block repeats. No automatic replies.
+.TP
+\fBocpf\-post engagement dismiss\fR
+Dismiss a pending reply with a recorded reason. Consequence: LOCAL_STATE_WRITE.
+.TP
+\fBocpf\-post portfolio plan\fR
+Dry\-plan the rolling portfolio horizon with diversity controls. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post portfolio refill\fR
+Plan or create durable near\-term portfolio reservations. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. --apply writes schedules; it never publishes directly.
+.TP
+\fBocpf\-post portfolio reconcile\fR
+Cancel allocator\-owned schedules whose campaign is no longer fresh. Consequence: FUTURE_CONSEQUENCE.
+.TP
+\fBocpf\-post portfolio policy\fR
+Show or update the private portfolio policy. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --write-default and --selection. --selection fair|legacy changes future allocation; preserves cadence and existing reservations. --write-default resets policy only with --force when present.
+.TP
+\fBocpf\-post portfolio snapshot\fR
+Capture stable allocator inputs and a reproducible baseline. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --output. No runtime state mutation; optional new private JSON artifact. No credentials or social copy text.
+.TP
+\fBocpf\-post portfolio replay\fR
+Compare baseline and fair selection from a frozen queue, including waiting and expiry risk. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --output. Entirely offline; optional new private JSON artifact. Never creates schedules or posts.
+.TP
+\fBocpf\-post portfolio watch\fR
+Inspect automatic queue age, deadline and unresolved outcome supervision. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Every applied refill observes before and after allocation. --apply records local evidence only. Alerts are in health/journal, not email or push. Exit 0=ok, 2=unknown/stale/unavailable, 3=attention.
+.TP
+\fBocpf\-post replenish status\fR
+Show runtime campaign inventory and GitHub source cursor state. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post replenish lock\-status\fR
+Inspect the source\-operation coordination lease. Consequence: READ_ONLY. Point-in-time lease observation only. Never breaks or deletes an active lock.
+.TP
+\fBocpf\-post replenish wait\fR
+Wait a bounded interval for the source\-operation lock to become available. Consequence: READ_ONLY. Does not reserve the lock after it becomes available; the subsequent operation must acquire it normally.
+.TP
+\fBocpf\-post replenish acknowledge\-gap\fR
+Review and archive a source gap before explicitly resuming observation from its head. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply. Apply requires the exact review hash. Unobserved history is explicitly acknowledged; old evidence, campaigns and schedules are retained.
+.TP
+\fBocpf\-post replenish observe\fR
+Collect bounded source revisions independently of inventory pressure. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Saved observations and pending evidence do not create campaigns or advance consumed-event cursors.
+.TP
+\fBocpf\-post portfolio calendar\fR
+Join saved reservations, observed outcomes and provisional selections by account. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --save. Read-only unless --save writes the local report. Forecasts are not reservations.
+.TP
+\fBocpf\-post portfolio volume\-audit\fR
+Compare one local day of durable schedules with receipt\-backed publication effects and adjacent\-day volume. Consequence: READ_ONLY. Local ledgers only. No provider call, refill, reservation, replay or causal claim; non-published schedule outcomes remain explicit.
+.TP
+\fBocpf\-post replenish recover\-generated\fR
+Preview or recover reviewed legacy generated copy as fresh successor inventory. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply. Apply requires the exact review_sha256 from a fresh preview. Creates successor COPY-READY inventory with fresh scoped admission only; never rewrites legacy manifests, schedules posts or calls a social provider.
+.TP
+\fBocpf\-post replenish refresh\fR
+Admit saved source evidence per destination within inventory budgets. Consequence: FUTURE_CONSEQUENCE. Safe inspection: omit --apply. --apply consumes saved fresh observations per destination without GitHub reads or expiry renewal. Observed and consumed revisions are separate. --project limits admission to one enabled source.
+.TP
+\fBocpf\-post replenish reconcile\fR
+Disable runtime campaigns superseded by a newer source snapshot. Consequence: LOCAL_STATE_WRITE.
+.TP
+\fBocpf\-post outcome\-connectors status\fR
+Inspect registered receipt\-linked HTTPS outcome connectors and cursor state. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post outcome\-connectors import\fR
+Preview or register an inactive bounded HTTPS outcome source. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Registration stores endpoint/source authority only; credentials and activation are separate.
+.TP
+\fBocpf\-post outcome\-connectors connect\fR
+Store a private bearer credential for an inactive outcome connector. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post outcome\-connectors enable\fR
+Preview or enable bounded pull\-only outcome ingestion. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Remote events still must match exact verified publication identities.
+.TP
+\fBocpf\-post outcome\-connectors disable\fR
+Disable future outcome\-source reads while preserving imported evidence. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post outcome\-connectors sync\fR
+Pull bounded authorised outcome pages and persist exact receipt\-linked business events. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Public HTTPS only, durable cursor after ingest, idempotent replay; no causal inference or social-provider consequence.
+.TP
+\fBocpf\-post alerts status\fR
+Inspect configured incident\-notification delivery state. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post alerts configure\fR
+Preview or configure an inactive public\-HTTPS incident notification destination. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post alerts connect\fR
+Store a private bearer credential for the alert destination. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post alerts enable\fR
+Preview or enable deduplicated incident notification delivery. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post alerts disable\fR
+Disable future incident notifications while preserving incident state. Consequence: AUTHORITY_CHANGE.
+.TP
+\fBocpf\-post alerts send\fR
+Deliver new/resolved deduplicated operating incidents to the authorised endpoint. Consequence: EXTERNAL_PROVIDER_EFFECT. Safe inspection: omit --apply. External effect is notification delivery only; it cannot publish, repair, retry or acknowledge social consequences.
+.TP
+\fBocpf\-post capabilities\fR
+Show implementation, configuration, authority, evidence and acceptance state. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post work status\fR
+Show one generated current\-work projection with blockers, deadlines, dependencies and no\-replay/no\-renew flags. Consequence: READ_ONLY. Consolidates existing local evidence only; it never performs the suggested actions.
+.TP
+\fBocpf\-post config show\fR
+Show effective configuration origins and policy presence without secret values. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post credentials keyring status\fR
+Inspect optional OS keyring/keychain backend and provider credential presence. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post credentials keyring migrate\fR
+Preview or migrate one default provider credential from a private file into the OS keyring. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Apply requires an exact review hash; the file is removed only after keyring readback verification.
+.TP
+\fBocpf\-post credentials keyring restore\fR
+Preview or restore one provider credential from the OS keyring to a private mode\-0600 file. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. The private file is fsync'd before keyring authority is removed.
+.TP
+\fBocpf\-post state inventory\fR
+Fingerprint and classify local state/config files without exposing contents. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post state verify\fR
+Validate structured state and fail closed on corrupt durable ledgers. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post state archive\fR
+Preview or create a consistent credential\-free state\-evidence archive. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post state migrate\fR
+Preview or apply explicitly implemented schema migrations. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. There is no implicit repair; corrupt evidence blocks migration.
+.TP
+\fBocpf\-post state segment\fR
+Preview or move an immutable prefix of a critical ledger into numbered segments while preserving logical order. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Apply requires an exact review hash and shares the writer lock with new ledger appends.
+.TP
+\fBocpf\-post state recover\-segment\fR
+Preview or recover an interrupted critical\-ledger segmentation transaction. Consequence: LOCAL_STATE_WRITE. Safe inspection: omit --apply. Recovery completes or rolls back only the structural move; ledger rows are never edited.
+.TP
+\fBocpf\-post runtime status\fR
+Attest the checkout, local state integrity and capability readiness. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post runtime install\fR
+Preview or install/reconcile Post\-Once user automation and console units. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post runtime uninstall\fR
+Preview or remove Post\-Once user units without deleting evidence. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post runtime reconcile\fR
+Preview or safely restore user\-unit paths to the current clean checkout. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply.
+.TP
+\fBocpf\-post runtime upgrade\fR
+Preview or switch user\-unit software to one exact locally available Git revision. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Requires state integrity and an exact review hash; never fetches Git or rolls evidence backwards.
+.TP
+\fBocpf\-post runtime rollback\fR
+Preview or switch software to the previously recorded compatible revision. Consequence: AUTHORITY_CHANGE. Safe inspection: omit --apply. Software rollback only; publication/schedule evidence remains current.
+.TP
+\fBocpf\-post console\fR
+Serve or snapshot the loopback\-only read\-only observability console. Consequence: READ_ONLY.
+.TP
+\fBocpf\-post help\fR
+Discover the complete CLI capability catalogue in text or JSON. Consequence: READ_ONLY.
+.SH SAFETY
+Published, ambiguous and executing effects are not blind-retry authority. Inspect receipts/readback before any replacement consequence.
+.SH DISCOVERY
+Run \fBocpf-post help --json\fR for the complete catalogue and parser arguments.
+.SH FILES
+~/.config/oneclickpostfactory/post-once/ contains local authority/configuration. ~/.local/state/oneclickpostfactory/post-once/ contains durable local evidence by default.
+.SH SEE ALSO
+ocpf-post help, ocpf-post doctor, ocpf-post health, ocpf-post capabilities, ocpf-post state verify, ocpf-post runtime status

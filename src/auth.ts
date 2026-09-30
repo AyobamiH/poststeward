@@ -28,6 +28,39 @@ function stateCookie(value: string, maxAge: number) {
   return `__Host-login=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
 }
 const token = () => `${uid()}.${uid()}`;
+
+function validatedLoginReturnPath(value: unknown, origin: string) {
+  const candidate = typeof value === "string" && value ? value : "/app";
+  let url: URL;
+  try {
+    url = new URL(candidate, origin);
+  } catch {
+    throw new Fault("RETURN_NOT_ALLOWED", "Choose a documented sign-in destination.", 400);
+  }
+  requireValue(
+    url.origin === origin && !url.hash && ["/app", "/pilot"].includes(url.pathname),
+    "RETURN_NOT_ALLOWED",
+    "Choose a documented sign-in destination.",
+    400,
+  );
+  if (url.pathname === "/pilot") {
+    requireValue(!url.search, "RETURN_NOT_ALLOWED", "Pilot sign-in does not accept query state.", 400);
+    return "/pilot";
+  }
+  const keys = [...url.searchParams.keys()];
+  if (!keys.length) return "/app";
+  requireValue(
+    keys.length === 2 &&
+      keys.includes("runtime_pairing") &&
+      keys.includes("code") &&
+      /^[0-9a-f-]{36}$/i.test(url.searchParams.get("runtime_pairing") || "") &&
+      /^[A-Za-z2-9]{8}$/.test(url.searchParams.get("code") || ""),
+    "RETURN_NOT_ALLOWED",
+    "Only a bounded runtime-pairing return is allowed.",
+    400,
+  );
+  return `/app?runtime_pairing=${encodeURIComponent(url.searchParams.get("runtime_pairing")!)}&code=${encodeURIComponent(url.searchParams.get("code")!)}`;
+}
 export async function authenticate(
   request: Request,
   env: Env,
@@ -273,8 +306,10 @@ export async function resolveOwnerPrincipal(
 }
 
 export async function login(request: Request, env: Env): Promise<Response> {
-  const returnPath = new URL(request.url).searchParams.get("return") || "/app";
-  requireValue(["/app", "/pilot"].includes(returnPath), "RETURN_NOT_ALLOWED", "Choose a documented sign-in destination.");
+  const returnPath = validatedLoginReturnPath(
+    new URL(request.url).searchParams.get("return"),
+    env.PUBLIC_ORIGIN,
+  );
   const { as, client } = await oidc(env),
     state = oauth.generateRandomState(),
     verifier = oauth.generateRandomCodeVerifier(),
@@ -407,7 +442,7 @@ export async function callback(request: Request, env: Env): Promise<Response> {
     // No usable new session is returned unless its completion proof also commits.
     await env.IDENTITY.batch(statements);
     const headers = new Headers({
-      Location: destination?.return_path === "/pilot" ? "/pilot" : "/app",
+      Location: validatedLoginReturnPath(destination?.return_path, env.PUBLIC_ORIGIN),
       "Cache-Control": "no-store",
     });
     headers.append("Set-Cookie", sessionCookie(session, 86400));

@@ -1,0 +1,12 @@
+One platform failed.
+
+That should not erase the destinations that already succeeded.
+
+A useful publishing system should keep truthful state per destination:
+
+successful stays successful
+failed stays retryable
+history says what actually happened
+
+“Post everywhere” is the demo.
+Knowing what happened is the product.

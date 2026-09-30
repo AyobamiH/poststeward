@@ -1,0 +1,696 @@
+{
+  "revision": "synthetic-canvas-fixture",
+  "observed_at": "2026-09-21T12:30:00Z",
+  "execution": {
+    "nodes": [
+      {
+        "id": "sources",
+        "label": "Product sources",
+        "kind": "source",
+        "value": 12,
+        "metric": "sources observed",
+        "status": "observed"
+      },
+      {
+        "id": "observer",
+        "label": "Source observer",
+        "kind": "control",
+        "value": 4,
+        "metric": "observed revisions",
+        "status": "observed"
+      },
+      {
+        "id": "buffer",
+        "label": "Revision buffer",
+        "kind": "buffer",
+        "value": 6,
+        "metric": "buffered revisions",
+        "status": "available"
+      },
+      {
+        "id": "work",
+        "label": "Current work",
+        "kind": "control",
+        "value": 18,
+        "metric": "open evidence items",
+        "status": "attention"
+      },
+      {
+        "id": "editorial",
+        "label": "Editorial demand",
+        "kind": "editorial",
+        "value": 5,
+        "metric": "open supply requests",
+        "status": "observed"
+      },
+      {
+        "id": "vault",
+        "label": "Drive vaults",
+        "kind": "vault",
+        "value": 0,
+        "metric": "active approved entries",
+        "status": "waiting"
+      },
+      {
+        "id": "admission",
+        "label": "Admission gate",
+        "kind": "gate",
+        "value": 25,
+        "metric": "eligible deliveries",
+        "status": "paused"
+      },
+      {
+        "id": "inventory",
+        "label": "Accepted inventory",
+        "kind": "buffer",
+        "value": 25,
+        "metric": "ready deliveries",
+        "status": "available"
+      },
+      {
+        "id": "service",
+        "label": "Fair service",
+        "kind": "control",
+        "value": 7,
+        "metric": "dry decisions",
+        "status": "planned"
+      },
+      {
+        "id": "scheduler",
+        "label": "Schedule authority",
+        "kind": "authority",
+        "value": 7,
+        "metric": "durable schedules",
+        "status": "observed"
+      },
+      {
+        "id": "run_due",
+        "label": "Consequence boundary",
+        "kind": "authority",
+        "value": 0,
+        "metric": "executing",
+        "status": "waiting"
+      },
+      {
+        "id": "learning",
+        "label": "Learning",
+        "kind": "feedback",
+        "value": 0,
+        "metric": "active signals",
+        "status": "waiting"
+      },
+      {
+        "id": "measure_24",
+        "label": "24h measure",
+        "kind": "measurement",
+        "value": 2,
+        "metric": "stored snapshots",
+        "status": "observed"
+      },
+      {
+        "id": "measure_72",
+        "label": "72h measure",
+        "kind": "measurement",
+        "value": 19,
+        "metric": "stored snapshots",
+        "status": "observed"
+      },
+      {
+        "id": "measure_168",
+        "label": "168h measure",
+        "kind": "measurement",
+        "value": 39,
+        "metric": "stored snapshots",
+        "status": "observed"
+      },
+      {
+        "id": "readback",
+        "label": "Readback",
+        "kind": "verification",
+        "value": 31,
+        "metric": "verified effects",
+        "status": "verified"
+      },
+      {
+        "id": "x",
+        "label": "X",
+        "kind": "provider",
+        "value": 17,
+        "metric": "verified receipts",
+        "status": "verified"
+      },
+      {
+        "id": "threads",
+        "label": "Threads",
+        "kind": "provider",
+        "value": 14,
+        "metric": "verified receipts",
+        "status": "verified"
+      },
+      {
+        "id": "linkedin",
+        "label": "LinkedIn",
+        "kind": "provider",
+        "value": 0,
+        "metric": "verified receipts",
+        "status": "waiting"
+      },
+      {
+        "id": "engagement",
+        "label": "Conversation inbox",
+        "kind": "control",
+        "value": 8,
+        "metric": "observed replies",
+        "status": "observed"
+      },
+      {
+        "id": "reply_worker",
+        "label": "Reply worker",
+        "kind": "control",
+        "value": 0,
+        "metric": "active responses",
+        "status": "waiting"
+      }
+    ],
+    "edges": [
+      {
+        "source": "sources",
+        "target": "observer",
+        "mode": "evidence"
+      },
+      {
+        "source": "observer",
+        "target": "buffer",
+        "mode": "evidence"
+      },
+      {
+        "source": "work",
+        "target": "editorial",
+        "mode": "evidence"
+      },
+      {
+        "source": "editorial",
+        "target": "vault",
+        "mode": "evidence"
+      },
+      {
+        "source": "buffer",
+        "target": "admission",
+        "mode": "evidence"
+      },
+      {
+        "source": "vault",
+        "target": "admission",
+        "mode": "evidence"
+      },
+      {
+        "source": "admission",
+        "target": "inventory",
+        "mode": "evidence"
+      },
+      {
+        "source": "inventory",
+        "target": "service",
+        "mode": "evidence"
+      },
+      {
+        "source": "service",
+        "target": "scheduler",
+        "mode": "intent"
+      },
+      {
+        "source": "scheduler",
+        "target": "run_due",
+        "mode": "evidence"
+      },
+      {
+        "source": "run_due",
+        "target": "x",
+        "mode": "evidence"
+      },
+      {
+        "source": "run_due",
+        "target": "threads",
+        "mode": "evidence"
+      },
+      {
+        "source": "run_due",
+        "target": "linkedin",
+        "mode": "evidence"
+      },
+      {
+        "source": "x",
+        "target": "readback",
+        "mode": "evidence"
+      },
+      {
+        "source": "threads",
+        "target": "readback",
+        "mode": "evidence"
+      },
+      {
+        "source": "linkedin",
+        "target": "readback",
+        "mode": "evidence"
+      },
+      {
+        "source": "readback",
+        "target": "measure_24",
+        "mode": "evidence"
+      },
+      {
+        "source": "readback",
+        "target": "measure_72",
+        "mode": "evidence"
+      },
+      {
+        "source": "readback",
+        "target": "measure_168",
+        "mode": "evidence"
+      },
+      {
+        "source": "measure_24",
+        "target": "learning",
+        "mode": "evidence"
+      },
+      {
+        "source": "measure_72",
+        "target": "learning",
+        "mode": "evidence"
+      },
+      {
+        "source": "measure_168",
+        "target": "learning",
+        "mode": "evidence"
+      },
+      {
+        "source": "learning",
+        "target": "service",
+        "mode": "evidence"
+      },
+      {
+        "source": "x",
+        "target": "engagement",
+        "mode": "evidence"
+      },
+      {
+        "source": "threads",
+        "target": "engagement",
+        "mode": "evidence"
+      },
+      {
+        "source": "engagement",
+        "target": "reply_worker",
+        "mode": "evidence"
+      },
+      {
+        "source": "reply_worker",
+        "target": "x",
+        "mode": "evidence"
+      },
+      {
+        "source": "reply_worker",
+        "target": "threads",
+        "mode": "evidence"
+      }
+    ],
+    "events": [
+      {
+        "id": "fixture-event-0",
+        "source": "sources",
+        "target": "observer",
+        "at": "2026-09-21T12:00:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-1",
+        "source": "observer",
+        "target": "buffer",
+        "at": "2026-09-21T12:01:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-2",
+        "source": "work",
+        "target": "editorial",
+        "at": "2026-09-21T12:02:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-3",
+        "source": "editorial",
+        "target": "vault",
+        "at": "2026-09-21T12:03:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-4",
+        "source": "buffer",
+        "target": "admission",
+        "at": "2026-09-21T12:04:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-5",
+        "source": "vault",
+        "target": "admission",
+        "at": "2026-09-21T12:05:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-6",
+        "source": "admission",
+        "target": "inventory",
+        "at": "2026-09-21T12:06:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-7",
+        "source": "inventory",
+        "target": "service",
+        "at": "2026-09-21T12:07:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-8",
+        "source": "service",
+        "target": "scheduler",
+        "at": "2026-09-21T12:08:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-9",
+        "source": "scheduler",
+        "target": "run_due",
+        "at": "2026-09-21T12:09:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-10",
+        "source": "run_due",
+        "target": "x",
+        "at": "2026-09-21T12:10:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-11",
+        "source": "run_due",
+        "target": "threads",
+        "at": "2026-09-21T12:11:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-12",
+        "source": "run_due",
+        "target": "linkedin",
+        "at": "2026-09-21T12:12:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-13",
+        "source": "x",
+        "target": "readback",
+        "at": "2026-09-21T12:13:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-14",
+        "source": "threads",
+        "target": "readback",
+        "at": "2026-09-21T12:14:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-15",
+        "source": "linkedin",
+        "target": "readback",
+        "at": "2026-09-21T12:15:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-16",
+        "source": "readback",
+        "target": "measure_24",
+        "at": "2026-09-21T12:16:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-17",
+        "source": "readback",
+        "target": "measure_72",
+        "at": "2026-09-21T12:17:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-18",
+        "source": "readback",
+        "target": "measure_168",
+        "at": "2026-09-21T12:18:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      },
+      {
+        "id": "fixture-event-19",
+        "source": "measure_24",
+        "target": "learning",
+        "at": "2026-09-21T12:19:00Z",
+        "verb": "VERIFIES",
+        "label": "Synthetic browser-test evidence",
+        "kind": "publication_receipt",
+        "status": "verified",
+        "tone": "good",
+        "evidence": "TEST FIXTURE ONLY",
+        "journey_key": "fixture-journey",
+        "provider": "threads",
+        "campaign": "TEST-CAMPAIGN"
+      }
+    ],
+    "intent": {
+      "plan": []
+    }
+  },
+  "capabilities": {
+    "status": "observed",
+    "core_status": "observed",
+    "capabilities": []
+  },
+  "admission": {
+    "mode": "paused",
+    "metrics": {
+      "eligible_unreserved": 25
+    },
+    "thresholds": {
+      "global_high_water": 30
+    },
+    "reasons": [
+      "synthetic fixture"
+    ]
+  },
+  "activity": {
+    "active_schedules": [
+      {
+        "status": "scheduled",
+        "provider": "x",
+        "campaign": "TEST-CAMPAIGN",
+        "run_at": "2026-09-21T14:35:00Z"
+      }
+    ]
+  },
+  "operator": {
+    "stages": [
+      {
+        "id": "supply",
+        "status": "empty",
+        "value": 32,
+        "detail": "Synthetic fixture, not live operations."
+      },
+      {
+        "id": "admission",
+        "status": "paused",
+        "value": 25,
+        "detail": "Synthetic fixture, not live operations."
+      },
+      {
+        "id": "automatic_schedule",
+        "status": "scheduled",
+        "value": 7,
+        "detail": "Synthetic fixture, not live operations."
+      },
+      {
+        "id": "execute",
+        "status": "waiting",
+        "value": 0,
+        "detail": "Synthetic fixture, not live operations."
+      },
+      {
+        "id": "provider",
+        "status": "observed",
+        "value": 80,
+        "detail": "Synthetic fixture, not live operations."
+      },
+      {
+        "id": "verify",
+        "status": "verified",
+        "value": 31,
+        "detail": "Synthetic fixture, not live operations."
+      }
+    ]
+  },
+  "collection": {
+    "stages": []
+  },
+  "acceptance": {
+    "sections": {}
+  }
+}

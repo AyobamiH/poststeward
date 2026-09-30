@@ -1,0 +1,5 @@
+Deploy success did not prove the exact container revision was already serving.
+
+In the Tax Lien Intelligence staging path, live verification now waits for repeated exact-revision readiness before proceeding.
+
+Rollout is a transition. Readiness needs its own evidence.

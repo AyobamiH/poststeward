@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "product": "poststeward",
+  "component": "local-runtime",
+  "source_repository": "AyobamiH/post-once-bootstrap",
+  "source_revision": "7e7f05e455f6e0e2508f54f64e3658b2f905e89b",
+  "source_tree": "8b02cabd91a8e9bd78b2f885883a2e5e10cdd910",
+  "source_release": "0.28.29",
+  "field_proven_runtime_revision": "3b294e7a4040159ab885797bd7750b8513bca7d0",
+  "adoption_note": "The exact A-K standalone runtime lineage is adopted as the PostSteward local-runtime foundation. Product-facing identity and cloud coordination are intentionally changed after this snapshot; original Post-Once remains outside the mutation path.",
+  "original_post_once_repository": "AyobamiH/post-once",
+  "original_post_once_mutation_allowed": false
+}

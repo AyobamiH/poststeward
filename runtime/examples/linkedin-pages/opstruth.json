@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "provider": "linkedin",
+  "account_id": "urn:li:organization:146607534",
+  "label": "OpsTruth",
+  "bindings": [
+    {
+      "project": "opstruth",
+      "alias": "linkedin-opstruth-page"
+    }
+  ],
+  "policy": {
+    "daily_target": 6,
+    "window_start": "08:00",
+    "window_end": "20:00",
+    "development_max": 2,
+    "commercial_min": 3,
+    "minimum_spacing_minutes": 120
+  }
+}

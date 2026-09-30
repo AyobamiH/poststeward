@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "openclaw-operator-gtm",
+  "project": "openclaw-operator",
+  "document_id": "1Px24PobLWjifOG6b6HTU8UHX9ndvTnymA99AaXVkelQ",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

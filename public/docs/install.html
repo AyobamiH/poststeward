@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="description" content="Install the full PostSteward local runtime and pair it with X, Threads and LinkedIn." />
+<title>PostSteward docs · Install</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/style.css" />
+<link rel="stylesheet" href="/docs.css" />
+</head>
+<body class="docs-app">
+<header class="docs-topbar"><div class="docs-topbar-inner"><a class="wordmark" href="/"><img class="brand-mark" src="/favicon.svg" alt="" /><span>PostSteward</span></a><nav><a href="/docs/install.html" aria-current="page">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operations</a><a href="/app">Workspace</a></nav></div></header>
+<div class="docs-shell">
+<aside class="docs-sidebar"><div class="docs-sidebar-group"><p>Start</p><nav><a href="/docs/">Start here</a><a href="/docs/install.html" aria-current="page">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operation reference</a></nav></div></aside>
+<main class="docs-main"><article class="docs-content">
+<p class="eyebrow">INSTALL POSTSTEWARD</p>
+<h1>Install the real local runtime.</h1>
+<p class="docs-lead">PostSteward Cloud owns identity, provider OAuth and the executor fence. The installed PostSteward runtime owns local projects, schedules, portfolio work, receipts and Setup &amp; Recovery.</p>
+<section class="docs-section"><h2>Install</h2><pre><code>curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash</code></pre><p>The installer is no-root, pins an exact release, verifies the embedded runtime tree and then starts machine pairing when a terminal is available.</p></section>
+<section class="docs-section"><h2>Pair and connect</h2><pre><code>poststeward onboard
+poststeward status --json
+poststeward doctor --json</code></pre><p>Approve the exact machine in the owner workspace, then connect X, Threads and/or LinkedIn there. Provider secrets remain cloud-side; the local runtime receives only an installation token and non-secret verified account bindings.</p></section>
+<section class="docs-section"><h2>Configure local Fresh state</h2><pre><code>poststeward configure \
+  --project example-project \
+  --label "Example Project" \
+  --timezone Europe/London \
+  --pace regular \
+  --text-file first-reviewed-post.txt</code></pre><p>Preview first, then apply the exact returned SHA-256. The initial campaign remains manual-only.</p></section>
+<section class="docs-section"><h2>One executor, one effect fence</h2><p>The owner explicitly hands execution from hosted mode to one paired local installation. Local provider effects require a live lease plus the current authority generation and cross the existing D1 external-effect ledger before X, Threads or LinkedIn is called.</p><div class="docs-callout" data-kind="warning"><strong>No split brain.</strong><p>Hosted publishing is fenced while local execution is active. Local deactivation self-fences the cloud generation before closing the local marker/timers; hosted execution is not automatically re-enabled.</p></div></section>
+<section class="docs-section"><h2>Agents</h2><pre><code>poststeward help --json
+poststeward portfolio status --json
+poststeward schedule list
+poststeward cloud mcp</code></pre><p>Humans retain OAuth/admin/recovery authority. Agents consume deterministic local JSON surfaces or scoped remote MCP/HTTP grants.</p></section>
+<section class="docs-section"><h2>Lifecycle</h2><pre><code>poststeward activate --json
+poststeward deactivate --reason "maintenance" --json
+poststeward update --channel stable --dry-run</code></pre><p>Activation, deactivation and executor handoffs remain review/evidence gated. Updating an active local publisher is refused.</p></section>
+</article></main></div></body></html>

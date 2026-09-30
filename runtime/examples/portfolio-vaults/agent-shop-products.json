@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "agent-shop-products-gtm",
+  "project": "agent-shop-products",
+  "document_id": "1PYqQDDyf8Et5A94QkO8ioJvqh_qzVChG1DFGNepMUns",
+  "destinations": {
+    "x": "x-founder",
+    "threads": "threads-founder",
+    "linkedin": "linkedin-founder"
+  },
+  "max_age_minutes": 60
+}

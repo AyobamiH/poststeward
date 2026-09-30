@@ -1,0 +1,5 @@
+When an agent changes a repository, “it succeeded” is not much of a handover.
+
+I want the action to leave evidence you can verify later: what was approved, what changed and which receipt proves it.
+
+That is the problem AgentProof is working on.

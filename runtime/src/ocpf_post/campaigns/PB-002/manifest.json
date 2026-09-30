@@ -1,0 +1,30 @@
+{
+  "campaign": "PB-002",
+  "project": "parcelbasis",
+  "title": "A shortlist is not a decision record",
+  "status": "COPY-READY",
+  "canonical_state": "ParcelBasis GTM vault",
+  "queue_batch": "gtm-replenishment-20260908",
+  "providers": ["x"],
+  "source": {
+    "type": "github_repository_evidence",
+    "source_id": "PARCELBASIS-REVIEW-DECISION-RECORD-20260908",
+    "repository": "AyobamiH/tax-lien-intelligence-platform",
+    "path": "README.md",
+    "blob_sha": "04092138fe26a413079cb18aa70a0ff0d739f540",
+    "url": "https://github.com/AyobamiH/tax-lien-intelligence-platform/blob/main/README.md",
+    "sections": ["Current State", "workspace access and review boundaries"],
+    "revalidated_at": "2026-09-08",
+    "angle": "Understand county-list review friction and preserve the reasons and open checks behind a shortlist."
+  },
+  "intent": {
+    "audience": "People reviewing county parcel and tax-lien lists",
+    "objective": "Identify a concrete review-workflow problem for product discovery",
+    "cta": "Describe the most time-consuming part of county-list review"
+  },
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "In-development product framing from documented scoring, comparison, decision-history and checklist work."},
+  "claim_boundary": "No public-launch, validated valuation, investment recommendation, legal conclusion, return guarantee or compliance-grade audit claim. No private dataset or credential is disclosed.",
+  "payload_sha256": {"x": "fde2047762c6ca5176310e13d5f71ae1e32bc93c250c3515236adef1888b1590"},
+  "schedules": {},
+  "receipts": {}
+}

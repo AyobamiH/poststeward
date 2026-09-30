@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "projects": {
+    "oneclickpostfactory": {
+      "label": "OneClickPostFactory",
+      "repository": "AyobamiH/oneclickpostfactory",
+      "campaign_prefix": "OCPF",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["B2B social-publishing application", "tenant-owned publications"],
+      "event_enabled": false,
+      "claim_boundary": "Product/workflow framing only; no claim that product-generated copy or every provider is live.",
+      "default_cta": "Where does your publishing workflow usually break?",
+      "inventory": [
+        {"title": "Source material should not die once", "lane": "commercial", "priority": 94, "hook": "A useful answer should not become disposable content.", "body": "The better workflow keeps the source, extracts a useful angle, adapts it to the destination and records what actually published.", "cta": "What useful source are you currently leaving unused?"},
+        {"title": "Queue supply is the hard problem", "lane": "commercial", "priority": 93, "hook": "A social calendar is easy to draw. Keeping it supplied is harder.", "body": "I care about turning real source material into reusable publishing inventory, not starting from a blank prompt every morning.", "cta": "What keeps your content queue empty?"},
+        {"title": "Publishing needs destination truth", "lane": "evergreen", "priority": 76, "hook": "Publishing is not just text plus a date.", "body": "The useful system also knows which account was authorised, what payload was reserved, what consequence happened and what is safe to retry.", "cta": "Which publishing state do your tools hide from you?"}
+      ]
+    },
+    "proof-and-state": {
+      "label": "Proof & State",
+      "repository": "AyobamiH/proof-and-state",
+      "campaign_prefix": "PAS",
+      "providers": ["x", "linkedin"],
+      "destinations": {"x": "x-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["governance layer", "portfolio governance", "separate trust domain"],
+      "event_enabled": true,
+      "event_problem": "The portfolio problem is preserving authority, evidence and product boundaries without allowing an executor or verifier to certify itself.",
+      "event_cta": "Where does your AI-work handover lose authority or evidence context?",
+      "claim_boundary": "Portfolio governance and evidence-boundary framing only; no claim that every portfolio product or deployment is currently available.",
+      "default_cta": "Where does your AI-work handover lose authority or evidence context?",
+      "inventory": [
+        {"title": "Execution and verification should stay separate", "lane": "commercial", "priority": 94, "hook": "The system that did the work should not be the only system saying it succeeded.", "body": "Proof & State keeps execution, independent verification and evidence indexing as separate responsibilities so one product cannot silently certify itself.", "cta": "Where does self-certification creep into your AI workflow?"},
+        {"title": "Authority needs a durable handover", "lane": "commercial", "priority": 92, "hook": "An AI handover is weak if the next person has to reconstruct who was allowed to do what.", "body": "The useful record keeps authority, exact state, evidence references and remaining decisions together instead of depending on chat history.", "cta": "Which handover fact do you most often have to reconstruct?"},
+        {"title": "Trust domains should not collapse", "lane": "evergreen", "priority": 78, "hook": "Fast automation gets dangerous when every trust role collapses into one process.", "body": "Execution, observation and evidence can cooperate without becoming the same authority. That separation makes later review more meaningful.", "cta": "Which trust role is currently doing too much in your stack?"}
+      ]
+    },
+    "donestate": {
+      "label": "DoneState",
+      "repository": "AyobamiH/donestate",
+      "campaign_prefix": "DONESTATE",
+      "providers": ["x"],
+      "destinations": {"x": "x-founder"},
+      "required_phrases_any": ["executes authorised work", "authority envelope", "AMBIGUOUS_EFFECT"],
+      "event_enabled": true,
+      "event_problem": "The product problem is letting an agent execute bounded repository work without turning model judgement into authority or completion proof.",
+      "event_cta": "What repository task would you delegate if the authority boundary and completion evidence were explicit?",
+      "claim_boundary": "Authorised execution and durable-state framing only; no self-verification, merge, deployment, or general production-fleet authority claim.",
+      "default_cta": "What repository task would you delegate if the authority boundary and completion evidence were explicit?",
+      "inventory": [
+        {"title": "Delegate the outcome, not every tool call", "lane": "commercial", "priority": 95, "hook": "Supervising every agent command is not the same as governing the outcome.", "body": "DoneState lets the human define an objective and authority envelope while the harness chooses implementation steps inside that boundary.", "cta": "Which coding task still needs too much command-by-command supervision?"},
+        {"title": "Done is not verified", "lane": "commercial", "priority": 93, "hook": "A successful command is not a completion proof.", "body": "DoneState keeps execution state separate from independent verification and stops at the handoff boundary until an external verifier attests the exact result.", "cta": "What evidence would you require before accepting an agent task as complete?"},
+        {"title": "Ambiguous effects should stop", "lane": "evergreen", "priority": 80, "hook": "The dangerous retry is the one after you do not know whether the first effect happened.", "body": "DoneState treats uncertain consequential effects as AMBIGUOUS_EFFECT instead of blindly replaying them.", "cta": "Which agent action would you never want retried blindly?"}
+      ]
+    },
+    "parcelbasis": {
+      "label": "Tax Lien Intelligence",
+      "repository": "AyobamiH/tax-lien-intelligence-platform",
+      "campaign_prefix": "PB",
+      "providers": ["x"],
+      "destinations": {"x": "x-founder"},
+      "required_phrases_any": ["explainable scoring", "decision history", "county parcel and tax lien data"],
+      "event_enabled": true,
+      "event_problem": "The customer problem is turning messy county data into a reviewable decision trail rather than another opaque score.",
+      "event_cta": "Which part of county-list review consumes the most time?",
+      "claim_boundary": "Decision-support workflow only; no investment-return or legal/tax outcome claim.",
+      "default_cta": "Which part of county-list review consumes the most time?",
+      "inventory": [
+        {"title": "A shortlist needs reasons", "lane": "commercial", "priority": 92, "hook": "A ranked parcel list is not yet a decision record.", "body": "The useful workflow keeps the evidence, scoring reasons, comparison state and the decision history together so a later review can explain why an item moved forward.", "cta": "What do you currently have to reconstruct by hand?"},
+        {"title": "County data needs repair before ranking", "lane": "commercial", "priority": 89, "hook": "Bad county data does not become trustworthy because you sorted it.", "body": "Import mapping, repair and explainable scoring matter because the review is only as useful as the evidence that survived ingestion.", "cta": "Where does your current county-data workflow break first?"},
+        {"title": "Watchlists need decision context", "lane": "evergreen", "priority": 74, "hook": "A watchlist without decision context becomes another pile of names.", "body": "The durable value is knowing what changed, why the item is still interesting, and what review step comes next.", "cta": "What context disappears from your watchlist today?"}
+      ]
+    },
+    "agentproof": {
+      "label": "AgentProof",
+      "repository": "AyobamiH/agentproof",
+      "campaign_prefix": "AGENTPROOF",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["signed Receipt V2", "repository_patch.v1", "independently verifiable evidence"],
+      "event_enabled": true,
+      "event_problem": "The problem is giving consequential agent actions a verifiable authority and receipt trail.",
+      "event_cta": "What agent action would you refuse to trust without a receipt?",
+      "claim_boundary": "Release-candidate and source-consumption framing only; no hosted production authority claim.",
+      "default_cta": "What agent action would you refuse to trust without a receipt?",
+      "inventory": [
+        {"title": "Success needs a receipt", "lane": "commercial", "priority": 93, "hook": "An agent saying ‘done’ is not the same as proving what happened.", "body": "For consequential repository changes I want the prepared state, approval, execution and signed receipt to remain independently checkable afterwards.", "cta": "What would you want in the receipt?"},
+        {"title": "Authority should be explicit", "lane": "commercial", "priority": 91, "hook": "The executor should not quietly become the approval authority.", "body": "Keeping proposer, approver, executor, signer and verifier distinct makes the trust boundary inspectable instead of implied.", "cta": "Where does authority blur in your agent workflow?"},
+        {"title": "Exactly-once matters", "lane": "evergreen", "priority": 78, "hook": "Retries are where safe automation gets interesting.", "body": "A consequential agent action needs a way to distinguish a safe repeat from a second mutation after an uncertain first attempt.", "cta": "Which retry path worries you most?"}
+      ]
+    },
+    "global-bill-forge": {
+      "label": "Global Bill Forge",
+      "repository": "AyobamiH/global-bill-forge",
+      "campaign_prefix": "GBF",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["international currencies", "locale-aware formatting", "right-to-left layouts"],
+      "event_enabled": false,
+      "claim_boundary": "International invoicing problem framing; do not repeat old production-ready wording without deployment proof.",
+      "default_cta": "Which international invoicing edge case costs you the most manual work?",
+      "inventory": [
+        {"title": "Currency is not just a symbol", "lane": "commercial", "priority": 86, "hook": "Changing £ to $ is not international invoicing.", "body": "Locale formatting, numbering systems, payment details and paper conventions can change the document too.", "cta": "Which international format catches you out most often?"},
+        {"title": "RTL changes the document", "lane": "commercial", "priority": 84, "hook": "A global invoice has to work when the reading direction changes too.", "body": "RTL/LTR layout support is a document problem, not a cosmetic afterthought when the customer operates in a different script.", "cta": "Do you currently rebuild documents for RTL customers?"},
+        {"title": "Payment detail varies by market", "lane": "evergreen", "priority": 72, "hook": "The payment block is part of the invoice contract.", "body": "Bank transfer, routing, mobile-wallet and regional payment details do not fit one universal field set.", "cta": "Which payment detail do your templates handle badly?"}
+      ]
+    },
+    "openclaw-operator": {
+      "label": "OpenClaw Operator",
+      "repository": "AyobamiH/openclaw-operator",
+      "campaign_prefix": "OCO",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["governed task", "specialist orchestrator", "auditable specialist runtime lanes"],
+      "event_enabled": true,
+      "event_problem": "The product direction is bounded specialist operational work behind OpenClaw, with approvals and durable state where it matters.",
+      "event_cta": "Which specialist workflow do you still supervise manually?",
+      "claim_boundary": "OpenClaw remains the front door; this is specialist orchestration, not a replacement generic shell.",
+      "default_cta": "Which specialist workflow do you still supervise manually?",
+      "inventory": [
+        {"title": "Specialist lanes need state", "lane": "commercial", "priority": 92, "hook": "A general agent shell is not the same as a governed specialist workflow.", "body": "For operational work I want approvals, run history, incidents and bounded specialist state behind the front door.", "cta": "Which specialist lane would you delegate first?"},
+        {"title": "OpenClaw can stay the front door", "lane": "commercial", "priority": 90, "hook": "The answer is not another generic dashboard.", "body": "OpenClaw can handle the general shell while the Operator layer focuses on specialist orchestration that needs stronger state and auditability.", "cta": "Where do you need more than a generic chat surface?"},
+        {"title": "Handover should survive the chat", "lane": "evergreen", "priority": 75, "hook": "Operational agent work should still make sense after the chat scrolls away.", "body": "Runs, approvals and incidents are useful because they preserve what happened independently of the conversation that triggered it.", "cta": "What state do you lose when an agent session ends?"}
+      ]
+    },
+    "agrolink-nigeria": {
+      "label": "AgroLink Nigeria",
+      "repository": "AyobamiH/ng-agro-connect",
+      "campaign_prefix": "AGROLINK",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["raw material suppliers", "Multi-Sector Marketplace", "AgroLink Nigeria"],
+      "event_enabled": false,
+      "claim_boundary": "Discovery/problem framing only; broad README feature list is not treated as verified live capability.",
+      "default_cta": "Which step creates the most friction in Nigerian raw-material trade?",
+      "inventory": [
+        {"title": "Listings are only the start", "lane": "commercial", "priority": 82, "hook": "A supplier listing does not complete a raw-material trade.", "body": "Buyers still need confidence around quality, terms, logistics and follow-through before a marketplace becomes operationally useful.", "cta": "Which part of the trade still happens off-platform for you?"},
+        {"title": "Trust is part of marketplace design", "lane": "commercial", "priority": 80, "hook": "Marketplace liquidity is not enough if counterparties cannot evaluate trust.", "body": "Quality evidence and clear commercial terms are part of the transaction workflow, not just catalogue metadata.", "cta": "What proof do buyers ask you for before they move?"},
+        {"title": "Cross-border trade adds coordination cost", "lane": "evergreen", "priority": 70, "hook": "Cross-border raw-material trade is a coordination problem as much as a discovery problem.", "body": "Language, currency, logistics and documentation all add friction after buyer and supplier find each other.", "cta": "Which coordination step causes the longest delay?"}
+      ]
+    },
+    "agent-shop-products": {
+      "label": "Agent Shop Products",
+      "repository": "AyobamiH/agent-shop-products",
+      "campaign_prefix": "ASP",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["source-backed", "prompt products", "agent-first shop"],
+      "event_enabled": true,
+      "event_problem": "The product question is when a reusable agent workflow deserves a versioned product boundary instead of living in old chats.",
+      "event_cta": "What workflow have you reused enough times that it should become a product?",
+      "claim_boundary": "Current source-backed catalogue only; no future commerce or premium inventory claim.",
+      "default_cta": "What workflow have you reused enough times that it should become a product?",
+      "inventory": [
+        {"title": "Reusable workflows deserve versioning", "lane": "commercial", "priority": 87, "hook": "If you keep reusing an agent workflow, it starts behaving like a product.", "body": "Versioned source, catalogue metadata and explicit evidence boundaries make it easier to inspect and improve than a prompt buried in chat history.", "cta": "Which workflow have you copied more than three times?"},
+        {"title": "Catalogue metadata is not the payload", "lane": "commercial", "priority": 84, "hook": "A product catalogue should not require publishing every underlying payload.", "body": "Separating public metadata from the source product itself gives discovery a clean boundary without pretending the whole commerce layer already exists.", "cta": "What metadata would you need before trying an agent product?"},
+        {"title": "No mock inventory", "lane": "evergreen", "priority": 76, "hook": "A shop full of placeholder agent products teaches you nothing about demand.", "body": "I would rather keep the catalogue source-backed and small than manufacture inventory that has no real workflow behind it.", "cta": "Would you rather see fewer real workflows or a bigger synthetic catalogue?"}
+      ]
+    },
+    "opstruth": {
+      "label": "OpsTruth",
+      "repository": "AyobamiH/opstruth",
+      "campaign_prefix": "OPSTRUTH",
+      "providers": ["x"],
+      "destinations": {"x": "x-founder"},
+      "required_phrases_any": ["Read-only operational truth checks", "proof-oriented report", "what was not verified"],
+      "event_enabled": true,
+      "event_problem": "The product problem is separating verified evidence, skipped checks and unknowns instead of turning absence into confidence.",
+      "event_cta": "What part of your AI-assisted build are you least sure was actually verified?",
+      "claim_boundary": "Read-only verification framing; no mutation authority or blanket production-readiness claim.",
+      "default_cta": "What part of your AI-assisted build are you least sure was actually verified?",
+      "inventory": [
+        {"title": "Unknown should stay unknown", "lane": "commercial", "priority": 91, "hook": "Missing evidence should not become a green check.", "body": "A useful engineering verifier keeps failed, skipped, not-configured and not-verified states distinct so the report tells you what still needs proof.", "cta": "Which missing check gets mistaken for success in your stack?"},
+        {"title": "Read-only is a feature", "lane": "commercial", "priority": 89, "hook": "A verifier does not need mutation authority to tell you what it can prove.", "body": "Keeping the checking layer read-only makes the evidence boundary easier to inspect and limits what a diagnostic tool can accidentally change.", "cta": "Would you give your verifier write access?"},
+        {"title": "Confidence needs scope", "lane": "evergreen", "priority": 75, "hook": "Checks passed is incomplete without saying which checks ran.", "body": "Confidence becomes more useful when the report also names runtime, route or production evidence that was never observed.", "cta": "What does your current CI report leave unproven?"}
+      ]
+    },
+    "capability-intelligence": {
+      "label": "Capability Intelligence",
+      "repository": "AyobamiH/capability-intelligence",
+      "campaign_prefix": "CAPINT",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["discovered -> present -> installed", "Capability Intelligence answers three questions", "authority visibility"],
+      "event_enabled": true,
+      "event_problem": "The product problem is helping an agent distinguish discoverable capability from something it is actually authorised and ready to use.",
+      "event_cta": "Which capability state causes the most confusion in your stack?",
+      "claim_boundary": "Read-only capability discovery and decision support; no automatic installation or execution claim.",
+      "default_cta": "Which capability state causes the most confusion in your stack?",
+      "inventory": [
+        {"title": "Installed is not runnable", "lane": "commercial", "priority": 95, "hook": "Installed is not the same as runnable.", "body": "Capability Intelligence keeps discovered, present, installed, enabled, authenticated, runnable and verified separate instead of flattening them into one checkbox.", "cta": "Which lifecycle state does your tooling collapse?"},
+        {"title": "Authority belongs in recommendations", "lane": "commercial", "priority": 93, "hook": "A useful tool recommendation should include the authority it would require.", "body": "The best candidate is not always the most powerful one; lower-authority, better-matched capabilities can be the safer decision.", "cta": "Do your agents explain the authority cost of the tool they pick?"},
+        {"title": "Unknown is a valid lifecycle state", "lane": "evergreen", "priority": 78, "hook": "Unknown is a better answer than invented readiness.", "body": "A cached schema does not prove authentication, and an installed plugin does not prove it is enabled or verified.", "cta": "Where does your stack guess instead of saying unknown?"}
+      ]
+    },
+    "tail-wagging-websites": {
+      "label": "Tail Wagging Websites",
+      "repository": "AyobamiH/wagging-web-wins",
+      "campaign_prefix": "TWW",
+      "providers": ["x", "threads", "linkedin"],
+      "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+      "required_phrases_any": ["pet care business web design services", "Website Design & Rebuilds", "Local SEO & Content"],
+      "event_enabled": false,
+      "claim_boundary": "Direct service/problem framing from current service list; no blanket security or guaranteed-growth claim.",
+      "default_cta": "Where do pet-care customers drop out of your website journey?",
+      "inventory": [
+        {"title": "Pretty is not enough", "lane": "commercial", "priority": 90, "hook": "A pet-care website is not doing its job just because it looks good.", "body": "The useful path connects local search, clear service pages, easy enquiry, follow-up automation and ongoing care.", "cta": "If your site gets traffic but not enquiries, where do people drop off?"},
+        {"title": "Local SEO and conversion belong together", "lane": "commercial", "priority": 88, "hook": "Ranking locally is only half the job if the visitor still cannot decide what to do next.", "body": "Service-page clarity and enquiry flow matter because traffic only becomes useful when the next step is obvious.", "cta": "Which page on your pet-care site gets traffic but weak enquiries?"},
+        {"title": "Website care is operational", "lane": "evergreen", "priority": 73, "hook": "A website is not finished the day it launches.", "body": "Content, forms, automations, speed and maintenance keep changing after the first version, especially for a local service business.", "cta": "What part of your site has quietly gone stale?"}
+      ]
+    }
+  }
+}

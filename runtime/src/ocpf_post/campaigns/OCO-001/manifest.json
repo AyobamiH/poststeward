@@ -1,0 +1,8 @@
+{
+  "campaign": "OCO-001", "project": "openclaw-operator", "title": "Front door plus governed specialist lanes", "status": "COPY-READY", "providers": ["x", "threads", "linkedin"],
+  "source": {"type": "repository_product_truth", "source_id": "OCO-README-20260908", "repository": "AyobamiH/openclaw-operator", "path": "README.md", "blob_sha": "6d162b0602ed920094b04bfd7934b99eabd44648", "revalidated_at": "2026-09-08"},
+  "assistance": {"mode": "gtm_assisted_product_positioning", "disclosure": "Prepared from current repository truth for founder distribution. post-once schedules and publishes only; it did not generate the underlying product evidence."}, "claim_boundary": "Current product direction: OpenClaw front door, governed specialist lanes.",
+  "destinations": {"x": "x-founder", "threads": "threads-founder", "linkedin": "linkedin-founder"},
+  "payload_sha256": {"x": "f27f23dade1972d5d9ae3a56f6c7d1a90d45e91ea87c517f1c5499748b3c05e1", "threads": "57c0536a51c5897055ccba2e824801601828b777464d9cc04ac55d8f1c75ccd2", "linkedin": "511f0b07a24b165b1404cb67f8256e7c577df24005abcc965ed88a507045d189"},
+  "allocation": {"enabled": true, "lane": "commercial", "priority": 94, "prepared_at": "2026-09-08T20:18:00+01:00", "expires_at": "2026-09-10T23:59:00+01:00"}, "schedules": {}, "receipts": {}
+}

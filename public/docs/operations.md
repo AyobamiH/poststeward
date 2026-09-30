@@ -566,3 +566,80 @@ Example:
   "idempotencyKey": "portal-001"
 }
 ```
+
+## runtime_inspect
+
+Queue bounded inspection of the active local executor. Read runtime_command_get for the result; this is not hosted workspace state.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: runtime_command_get
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{
+  "view": "schedules",
+  "idempotencyKey": "local-inspect-001"
+}
+```
+
+## runtime_schedule_create
+
+Queue an exact local campaign/provider schedule on the reviewed local executor. Original agent authority is rechecked before provider effects.
+
+- Tier: free
+- Required scope: schedule
+- Effects: STATE_WRITE, FUTURE_CONSEQUENCE
+- Inspect with: runtime_command_get
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "campaign": "PRODUCT-001",
+  "provider": "threads",
+  "at": "2026-10-01T12:00:00Z",
+  "idempotencyKey": "local-schedule-001"
+}
+```
+
+## runtime_schedule_cancel
+
+Queue cancellation of one unclaimed local schedule; never changes executor or owner authority.
+
+- Tier: free
+- Required scope: schedule
+- Effects: STATE_WRITE
+- Inspect with: runtime_command_get
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "scheduleId": "sch_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "idempotencyKey": "local-cancel-001"
+}
+```
+
+## runtime_command_get
+
+Read a durable command receipt for this actor. Claimed work is never automatically redispatched; provider receipts remain separate.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: runtime_command_get
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{
+  "commandId": "11111111-1111-4111-8111-111111111111"
+}
+```

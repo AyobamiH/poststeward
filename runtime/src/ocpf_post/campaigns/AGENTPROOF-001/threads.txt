@@ -1,0 +1,10 @@
+When an agent changes a repository, “it succeeded” is not much of a handover.
+
+The action should leave evidence you can verify later:
+what was approved
+what changed
+what receipt proves it
+
+That is the problem AgentProof is working on.
+
+The current release-candidate work is still pre-release, not a hosted production authority.
