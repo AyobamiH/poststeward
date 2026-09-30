@@ -489,6 +489,13 @@ try {
     assert.equal(await page.locator('#workspace-content').isVisible(),true);
     await context.close();
   });
+  await check('Expiry during a secondary status read cannot reveal stale owner controls', async () => {
+    const context=await ownerContext({'/api/connections/oauth/status':route=>route.fulfill({status:401,json:{error:{message:'Synthetic late expiry',code:'UNAUTHENTICATED'}}})});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#workspace-content').isVisible(),false);
+    assert.match(await page.locator('#session-notice').innerText(), /session expired.*Sign in/s);
+    await context.close();
+  });
   await check('Repeated refresh while a read is pending causes one request batch', async () => {
     const context=await ownerContext();const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
     let calls=0, release;

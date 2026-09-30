@@ -597,6 +597,7 @@ async function refresh() {
     oauthInfo,
     recovery,
   });
+  if (!session) { signInNotice("Your session expired. "); return; }
   renderWorkspaceTask({ accounts, projects, receipts, paused });
   const firstLoad = $("workspace-content").hidden;
   $("workspace-content").hidden = false;
