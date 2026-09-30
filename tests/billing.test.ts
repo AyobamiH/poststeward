@@ -14,6 +14,8 @@ function setup() {
       STRIPE_SECRET_KEY: "sk_test_not_real",
       STRIPE_PROFILE_ID: "profile_test_not_real",
       STRIPE_PRICE_ID: "price_test",
+      ADVANCED_PRICE_AMOUNT_PENCE: "500",
+      STRIPE_WEBHOOK_SECRET: "whsec_test_only",
     };
   const calls: any[] = [];
   const client: any = {
@@ -25,7 +27,8 @@ function setup() {
         id: "price_test",
         livemode: false,
         active: true,
-        currency: "usd",
+        tax_behavior: "inclusive",
+        currency: "gbp",
         unit_amount: 500,
         recurring: { interval: "month", interval_count: 1 },
       }),
@@ -147,11 +150,11 @@ test("disabled deployment cannot quote or charge for incomplete Advanced", async
     code: "BILLING_UNAVAILABLE",
   });
 });
-test("quote fixes USD 5 and one-time access does not auto-renew", async () => {
+test("quote fixes configured GBP amount and one-time access does not auto-renew", async () => {
   const h = setup();
   const q = await h.billing.quote({ mode: "pass" }, owner);
   assert.equal(q.amount, 500);
-  assert.equal(q.currency, "usd");
+  assert.equal(q.currency, "gbp");
   assert.equal(q.autoRenew, false);
   assert.equal(q.workspace, owner.workspace);
   assert.ok(q.end > q.start + 27 * 86400000);
@@ -186,7 +189,7 @@ test("price mismatch fails before any checkout session is created", async () => 
     id: "wrong",
     active: true,
     unit_amount: 5000,
-    currency: "usd",
+    currency: "gbp",
     recurring: { interval: "month" },
   });
   const q = await h.billing.quote({ mode: "subscription" }, owner);
@@ -270,6 +273,7 @@ test("staging sandbox Checkout does not require or enable Advanced or MPP", asyn
     ADVANCED_ENABLED: "false", MPP_ENABLED: "false",
     STRIPE_SANDBOX_ENABLED: "true", STRIPE_WEBHOOK_SECRET: "whsec_sandbox",
   });
+  h.client.prices.retrieve = async () => ({ id:"price_test", active:true, livemode:false, currency:"usd", unit_amount:500, recurring:{interval:"month",interval_count:1} });
   assert.equal((await h.billing.status()).sandbox, true);
   const q = await h.billing.quote({ mode: "subscription" }, owner);
   await h.billing.checkout({ quote: q.id }, owner);
@@ -323,14 +327,14 @@ test("subscription settlement reconciles once and later refund or dispute revoke
       return ({
       id: "sub_test", status: "active", customer: "cus_test", metadata: { workspace: owner.workspace },
       items: { data: [{ quantity: 1, current_period_end: until,
-        price: { id: "price_test", unit_amount: 500, currency: "usd" } }] },
-      latest_invoice: { status: "paid", currency: "usd", amount_paid: 500,
+        price: { id: "price_test", unit_amount: 500, currency: "gbp" } }] },
+      latest_invoice: { status: "paid", currency: "gbp", amount_paid: 500,
         payments: { has_more: false, data: [{ payment: { payment_intent: "pi_test" } }] } },
     }); } };
     h.client.paymentIntents.retrieve = async (id: string, params: any) => {
       assert.equal(id, "pi_test");
       assert.deepEqual(params.expand, ["latest_charge"]);
-      return { id, livemode: false, status: "succeeded", currency: "usd", latest_charge: charge };
+      return { id, livemode: false, status: "succeeded", currency: "gbp", latest_charge: charge };
     };
     const retrievePayment = h.client.paymentIntents.retrieve;
     h.client.paymentIntents.retrieve = async () => { throw new Error("Provider unavailable"); };
@@ -375,6 +379,9 @@ test("pre-upgrade quotes keep their original Checkout parameters on retry", asyn
   const q = await h.billing.quote({ mode: "subscription" }, owner);
   const legacy: any = h.store.get("quote:" + q.id);
   delete legacy.integrationIdentifier;
+  delete legacy.priceId;
+  legacy.currency="usd"; legacy.version="advanced-v1";
+  h.client.prices.retrieve=async()=>({id:"price_test",active:true,livemode:false,currency:"usd",unit_amount:500,recurring:{interval:"month",interval_count:1}});
   h.store.put("quote:" + q.id, legacy);
   h.store.put("billing:attempt", {
     quote: q.id, mode: "subscription", startedAt: Date.now(), status: "pending",
@@ -540,4 +547,48 @@ test("recovery still verifies refund evidence and never grants from a subscripti
   const q = await h.billing.quote({ mode: "subscription" }, owner);
   await assert.rejects(h.billing.checkout({ quote: q.id }, owner), { code: "SUBSCRIPTION_STILL_OPEN" });
   assert.equal(h.calls.length, 0);
+});
+
+test("undecided GBP price fails before creating a quote or Checkout", async () => {
+  const h = setup(); h.env.ADVANCED_PRICE_AMOUNT_PENCE = "";
+  const status = await h.billing.status();
+  assert.equal(status.price.currency, "gbp"); assert.equal(status.price.amount, null);
+  assert.equal(status.methods.checkout.available, false);
+  await assert.rejects(h.billing.quote({mode:"subscription"}, owner), {code:"BILLING_UNAVAILABLE"});
+  assert.equal(h.store.list("quote:").length,0); assert.equal(h.calls.length,0);
+});
+test("quote locks its GBP price and receipt after the launch amount changes", async () => {
+  const h = setup(); const q = await h.billing.quote({mode:"subscription"},owner);
+  h.env.ADVANCED_PRICE_AMOUNT_PENCE = "1099"; h.env.STRIPE_PRICE_ID = "price_new";
+  let retrieved; h.client.prices.retrieve = async (id:any) => { retrieved=id; return {id,active:true,livemode:false,currency:"gbp",unit_amount:500,tax_behavior:"inclusive",recurring:{interval:"month",interval_count:1}}; };
+  await h.billing.checkout({quote:q.id},owner);
+  assert.equal(retrieved,"price_test"); assert.equal(h.calls[0].p.line_items[0].price,"price_test");
+  assert.equal(h.store.get<any>("quote:"+q.id).amount,500);
+});
+test("GBP exclusive-tax and USD prices cannot create Checkout", async () => {
+  for (const override of [{tax_behavior:"exclusive"},{currency:"usd"},{unit_amount:1099}]) {
+    const h=setup(); const q=await h.billing.quote({mode:"subscription"},owner);
+    h.client.prices.retrieve=async()=>({id:"price_test",active:true,livemode:false,currency:"gbp",unit_amount:500,tax_behavior:"inclusive",recurring:{interval:"month",interval_count:1},...override});
+    await assert.rejects(h.billing.checkout({quote:q.id},owner),{code:"PRICE_MISMATCH"});
+    assert.equal(h.calls.length,0); assert.equal(h.store.get("billing:attempt"),undefined);
+  }
+});
+test("production test keys cannot create a GBP purchase", async()=>{
+  const h=setup(); h.env.DEPLOY_ENV="production";
+  assert.equal((await h.billing.status()).methods.checkout.available,false);
+  await assert.rejects(h.billing.quote({mode:"subscription"},owner),{code:"BILLING_UNAVAILABLE"});
+});
+
+test("GBP machine payment uses a non-default immutable total with expanded charge evidence", async()=>{
+  const h=setup(); h.env.ADVANCED_PRICE_AMOUNT_PENCE="1234";
+  let charges=0;
+  h.client.paymentIntents.create=async(params:any)=>{
+    charges++; assert.equal(params.amount,1234); assert.equal(params.currency,"gbp"); assert.ok(params.expand.includes("latest_charge"));
+    return {...params,id:"pi_gbp_exact",livemode:false,status:"succeeded",latest_charge:{refunded:false,amount_refunded:0,disputed:false}};
+  };
+  const q=await h.billing.quote({mode:"pass"},owner); const url="https://publish.example/payments/"+q.id;
+  const challenge=Challenge.fromResponse(await h.billing.machinePayment(new Request(url,{method:"POST"}),owner,q.id));
+  const header=Credential.serialize({challenge,payload:{spt:"spt_synthetic",externalId:q.id}});
+  const response=await h.billing.machinePayment(new Request(url,{method:"POST",headers:{"Payment-Authorization":header}}),owner,q.id);
+  assert.equal(response.status,200);assert.equal(charges,1);assert.equal(h.store.get<Entitlement>("entitlement")?.until,q.end);
 });

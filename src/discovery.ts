@@ -1,4 +1,5 @@
 import { catalog, describe, plans } from "./operations/catalog.ts";
+import { billingPrice } from "./billing-mode.ts";
 import type { Env } from "./types.ts";
 export function help(
   env: Pick<
@@ -7,6 +8,10 @@ export function help(
     | "MPP_ENABLED"
     | "RELEASE_SHA"
     | "WORKSPACE_REQUEST_LIMIT"
+    | "STRIPE_SANDBOX_ENABLED"
+    | "DEPLOY_ENV"
+    | "ADVANCED_PRICE_AMOUNT_PENCE"
+    | "STRIPE_PRICE_ID"
   >,
   scope?: string,
 ) {
@@ -39,7 +44,7 @@ export function help(
       authority:
         "Commands bind the current installation/generation and original grant. Claimed commands are never automatically replayed.",
     },
-    plans,
+    plans: { ...plans, currency: billingPrice(env).currency, advanced: { ...plans.advanced, amount: billingPrice(env).amount, priceStatus: billingPrice(env).configured ? "configured" : "not_configured" } },
     operations: catalog
       .filter((o) => !scope || o.name.startsWith(scope))
       .map((o) => ({
@@ -72,7 +77,7 @@ export function openapi() {
       title: "PostSteward",
       version: "0.1.0",
       description:
-        "Free agent-directed publication and explicit scheduling. Advanced continuing operation is USD 5 per month.",
+        "Free agent-directed publication and explicit scheduling. Advanced continuing operation uses a configured GBP monthly workspace price; inspect billing_status before requesting an exact quote.",
     },
     paths: Object.fromEntries(
       catalog.map((o) => [

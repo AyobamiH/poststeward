@@ -23,8 +23,8 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
           Object.entries(environment).filter(([, v]) => typeof v === "string"),
         ) as Record<string, string>),
         // This local runtime test intentionally exercises the pre-existing
-        // Advanced path. Global mode exists in runtime semantics but production
-        // deployment policy rejects it until canary + SLO acceptance.
+        // Advanced and GBP machine-payment path with synthetic records only.
+        // Production availability and live payment acceptance remain separate.
         ADVANCED_ENABLED: "true",
         ADVANCED_ROLLOUT_MODE: "global",
         ADVANCED_CANARY_BPS: "0",
@@ -32,6 +32,8 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
         MPP_ENABLED: "true",
         STRIPE_SECRET_KEY: "sk_test_not_real",
         STRIPE_PRICE_ID: "price_test",
+        ADVANCED_PRICE_AMOUNT_PENCE:"500",
+        STRIPE_WEBHOOK_SECRET:"whsec_test_only",
         STRIPE_PROFILE_ID: "profile_test",
         MPP_SECRET: "test-mpp-key-".repeat(5),
       },

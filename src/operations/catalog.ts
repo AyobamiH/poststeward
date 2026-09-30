@@ -365,7 +365,7 @@ export const catalog: Operation[] = [
   ),
   op(
     "billing_quote",
-    "Create an exact USD 5 workspace purchase quote: recurring subscription or non-renewing calendar month.",
+    "Create an exact configured GBP workspace purchase quote: recurring subscription or non-renewing calendar month.",
     "billing",
     ["STATE_WRITE"],
     z.strictObject({
@@ -468,7 +468,7 @@ export function describe(o: Operation) {
   };
 }
 export const plans = {
-  currency: "usd",
+  currency: "gbp",
   free: {
     amount: 0,
     features: [
@@ -481,7 +481,8 @@ export const plans = {
     ],
   },
   advanced: {
-    amount: 500,
+    amount: null,
+    priceStatus: "not_configured",
     interval: "month",
     features: [
       "source_monitoring",
@@ -492,6 +493,6 @@ export const plans = {
     ],
   },
   providerCharges:
-    "Separate; X requires a customer-funded developer application.",
+    "Provider API charges, where applicable, are separate. X uses the configured PostSteward OAuth application.",
   overages: "No automatic overage charges.",
 };

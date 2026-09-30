@@ -30,7 +30,7 @@ function readiness(overrides = {}) {
         blocking: true,
       },
       threads_oauth_callback: { state: "live_verified" },
-      advanced_rollout: { state: "disabled_policy" },
+      advanced_rollout: { state: "production_ready" },
     },
     runtimeCapabilities: {
       policies: {

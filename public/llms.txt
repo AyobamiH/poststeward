@@ -1,6 +1,6 @@
 # PostSteward — Social publishing for AI agents
 
-Hosted execution of approved social content. Free immediate publication and explicit scheduling, account routing, receipts, export and on-demand metrics. Advanced continuing campaign management costs USD 5 per workspace per month.
+Hosted execution of approved social content. Free immediate publication and explicit scheduling, account routing, receipts, export and on-demand metrics. Advanced continuing campaign management costs configured GBP price per workspace per month.
 
 - [Live help and capability catalogue](/help.json): operation schemas, effects, scopes, current availability and payment methods.
 - [Agent guide](/docs/agent-guide.md): authentication, exact-content workflow and recovery.

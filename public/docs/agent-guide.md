@@ -1,6 +1,6 @@
 # PostSteward agent guide
 
-Free includes direct reviewed publishing and explicit future scheduling. Advanced is USD 5 per workspace per month when the deployed rollout policy enables it and adds bounded continuing operation around reviewed sources. Payment never grants posting authority by itself. Read `/help.json` and `/readiness.json` for the deployment's actual availability.
+Free includes direct reviewed publishing and explicit future scheduling. Advanced uses a configured GBP monthly workspace price when the deployed rollout policy enables it and adds bounded continuing operation around reviewed sources. Payment never grants posting authority by itself. Read `/help.json` and `/readiness.json` for the deployment's actual availability.
 
 ## Connect
 

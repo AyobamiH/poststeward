@@ -1144,7 +1144,7 @@
   },
   {
     "name": "billing_quote",
-    "description": "Create an exact USD 5 workspace purchase quote: recurring subscription or non-renewing calendar month.",
+    "description": "Create an exact configured GBP workspace purchase quote: recurring subscription or non-renewing calendar month.",
     "scope": "billing",
     "tier": "free",
     "effects": [

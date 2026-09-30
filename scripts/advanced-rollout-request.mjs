@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 
 const requests = Object.freeze({
   environment: null,
+  enable_production: null,
   start_100bps: 100,
   start_500bps: 500,
   start_1000bps: 1000,
@@ -28,6 +29,12 @@ export function resolveAdvancedRolloutRequest(request, env = process.env) {
   };
   if (selected === "environment") return { request: selected, ...current };
 
+  if (selected === "enable_production") {
+    demand(env.DEPLOY_ENV === "production" && env.GITHUB_REF === "refs/heads/main" &&
+      env.GITHUB_REPOSITORY === "AyobamiH/poststeward" && env.GITHUB_ACTOR === "AyobamiH",
+      "Production Advanced requires the owner-reviewed main deployment request.");
+    return { request: selected, ADVANCED_ENABLED: "true", ADVANCED_ROLLOUT_MODE: "global", ADVANCED_CANARY_BPS: "0", ADVANCED_CANARY_SEED: "" };
+  }
   demand(env.DEPLOY_ENV === "staging", "Advanced rollout changes are staging-only.");
   demand(
     env.GITHUB_REF === "refs/heads/main" &&

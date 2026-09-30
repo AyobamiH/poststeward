@@ -6,6 +6,7 @@ import {
   deploymentSecrets,
   validateConfiguration,
   verifySandboxPrice,
+  verifyProductionPrice,
 } from "../scripts/deployment-config.mjs";
 const base = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
 const environment = {
@@ -335,7 +336,7 @@ test("sandbox deployment is explicit, staging-only, and keeps paid automation di
   assert.equal(c.vars.MPP_ENABLED, "false");
   assert.throws(
     () => buildConfiguration(base, { ...sandbox, DEPLOY_ENV: "production" }),
-    /sandbox/,
+    /GBP|sandbox/,
   );
   assert.throws(
     () => buildConfiguration(base, { ...sandbox, STRIPE_SANDBOX_PRICE_ID: "" }),
@@ -390,4 +391,15 @@ test("sandbox preflight rejects live keys before network and rejects live or wro
   assert.equal(values.STRIPE_SECRET_KEY, env.STRIPE_SANDBOX_SECRET_KEY);
   assert.equal(values.STRIPE_WEBHOOK_SECRET, env.STRIPE_SANDBOX_WEBHOOK_SECRET);
   assert.equal(values.STRIPE_SANDBOX_SECRET_KEY, undefined);
+});
+
+test("live GBP deployment verifies exact tax-inclusive monthly Price before any write", async()=>{
+ const env={...environment,DEPLOY_ENV:"production",STRIPE_PRICE_ID:"price_gbp",ADVANCED_PRICE_AMOUNT_PENCE:"1099",STRIPE_SECRET_KEY:"sk_live_synthetic",STRIPE_WEBHOOK_SECRET:"whsec_synthetic",ENCRYPTION_KEY:Buffer.alloc(32,7).toString("base64"),OIDC_CLIENT_SECRET:"synthetic-owner-secret",ALLOWED_OWNER_EMAILS:"owner@example.com"};
+ const price={id:"price_gbp",livemode:true,active:true,currency:"gbp",unit_amount:1099,tax_behavior:"inclusive",recurring:{interval:"month",interval_count:1}};
+ const send=async(url,options)=>{ assert.equal(options.method,undefined); assert.match(url,/prices\/price_gbp$/); return Response.json(price); };
+ assert.equal((await verifyProductionPrice(env,send)).amount,1099);
+ for(const [field,bad] of [["currency","usd"],["unit_amount",500],["livemode",false],["tax_behavior","exclusive"]]){
+  await assert.rejects(verifyProductionPrice(env,async()=>Response.json({...price,[field]:bad})),/exact configured GBP/);
+ }
+ assert.deepEqual(await verifyProductionPrice({...env,STRIPE_PRICE_ID:""},send),{enabled:false,reason:"GBP price not configured"});
 });

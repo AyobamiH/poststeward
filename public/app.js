@@ -353,7 +353,7 @@ async function refresh() {
     activeAccounts.map((account) => account.provider),
   ).size;
   $("readiness").textContent =
-    `Release ${readiness.release.slice(0, 12)} · ${readiness.access.signupMode} signup · provider apps ${Object.values(readiness.providers).filter((x) => x.oauth).length}/3 · active connections ${activeAccounts.length} across ${connectedProviders} provider(s) · Advanced ${readiness.payments.advancedEnabled ? "enabled" : "disabled"}`;
+    `You have ${activeAccounts.length} connected account(s) across ${connectedProviders} provider(s). Review your destination and exact copy before publishing.`;
   $("publishing-capabilities").textContent = JSON.stringify(
     capabilities,
     null,
@@ -480,6 +480,8 @@ async function refresh() {
       billingRoot,
       "Stripe sandbox only. Test payments do not enable Advanced automation.",
     );
+  const priceHeading = $("advanced-heading");
+  if (priceHeading) priceHeading.textContent = "Advanced · " + (billing.price.amount === null ? "GBP price to be confirmed" : new Intl.NumberFormat("en-GB", { style: "currency", currency: billing.price.currency.toUpperCase() }).format(billing.price.amount / 100) + " per month");
   const entitlement = billing.entitlement;
   const covered =
     !!entitlement && !entitlement.revoked && entitlement.until > Date.now();
@@ -504,7 +506,7 @@ async function refresh() {
                 ? "Payment recorded. No current access period is confirmed."
                 : billing.methods.checkout.available
                   ? "No payment recorded. Subscription checkout is available."
-                  : "Purchases remain disabled pending settlement acceptance.";
+                  : "GBP price to be confirmed. New purchases are unavailable; Free publishing remains available.";
   billingRoot.append(summary);
   if (billing.attempt || entitlement || billing.recoveryPending) {
     const receipt = {
@@ -837,7 +839,7 @@ $("subscribe").onclick = () =>
     });
     $("quote").hidden = false;
     $("quote").replaceChildren(
-      document.createTextNode("$5.00 USD per month. Automatically renews. "),
+      document.createTextNode(`${new Intl.NumberFormat("en-GB", { style: "currency", currency: q.currency.toUpperCase() }).format(q.amount / 100)} per workspace per month. Automatically renews. ${q.tax} Quote expires ${new Date(q.expires).toLocaleString("en-GB")}. `),
     );
     button($("quote"), "Continue to Stripe", async () => {
       const checkout = await invoke("billing_checkout", {
@@ -889,7 +891,7 @@ try {
     );
   else if (params.get("connection") === "denied")
     show(
-      "Provider authorization was declined. No connection was created.",
+      "Provider authorisation was declined. No connection was created.",
       true,
     );
   if (params.has("connected") || params.has("connection"))

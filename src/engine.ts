@@ -1,3 +1,4 @@
+import { billingPrice } from "./billing-mode.ts";
 import { byName, plans } from "./operations/catalog.ts";
 import { guardControlledPublication } from "./controlled.ts";
 import {
@@ -69,7 +70,7 @@ export class Engine {
           dailyDeliveryAttempts: Number(env.DAILY_DELIVERY_LIMIT),
           activeSchedules: Number(env.ACTIVE_SCHEDULE_LIMIT),
         },
-        prices: plans,
+        prices: { ...plans, currency: billingPrice(env).currency, advanced: { ...plans.advanced, amount: billingPrice(env).amount, priceStatus: billingPrice(env).configured ? "configured" : "not_configured" } },
       }),
       publishing_capabilities: () => {
         const accounts = this.store

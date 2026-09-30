@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -58,19 +58,14 @@
             <span class="hero-accent">Keep proof of what happened.</span>
           </h1>
           <p class="lead">
-            PostSteward sits between an agent's approved intent and the social provider.
-            It keeps destination, authority, timing and evidence explicit around every
-            consequential write.
+            Give your agent access to publish approved copy on X and Threads,
+            with explicit schedules and receipts showing what happened.
+            You control the accounts and permissions. LinkedIn Page access requires provider approval.
           </p>
           <div class="hero-actions">
             <a class="button primary" href="/auth/login">Open workspace</a>
-            <a class="button" href="/docs/install.html">Install PostSteward</a>
           </div>
-          <div class="hero-install" aria-label="Install PostSteward">
-            <p class="machine-label">LINUX · PYTHON 3.10+</p>
-            <pre><code>curl -fsSL https://poststeward.com/install.sh | bash</code></pre>
-            <p class="muted">Install the PostSteward runtime, pair this machine, then connect X, Threads and LinkedIn through your owner workspace.</p>
-          </div>
+          <div class="install-inline"><a class="button" href="/docs/install">Install PostSteward</a><div class="install-command"><pre id="install-command" tabindex="0" aria-label="PostSteward Linux installation command"><code>curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash</code></pre><button class="button" type="button" data-copy="install-command" data-copy-feedback="install-feedback">Copy install command</button><p id="install-feedback" class="copy-feedback" role="status" aria-live="polite"></p><a href="https://poststeward.com/install.sh">Read the PostSteward installer at poststeward.com/install.sh</a><p class="install-prerequisites">Linux · Bash · Python 3.10 or newer. Installation starts inactive; review pairing and activation in your workspace. WSL and macOS acceptance is still pending. <a href="https://poststeward.com/install/">Full installation guide</a>.</p></div></div>
           <p class="hero-note">
             Sign in with Google. Connect your accounts and approve what your agents publish.
           </p>
@@ -284,11 +279,12 @@
       <section class="agent-surface" id="agents" aria-labelledby="agent-surface-title">
         <div class="agent-surface-inner">
           <div>
-            <p class="eyebrow">BUILT TO BE DISCOVERED BY SOFTWARE</p>
-            <h2 id="agent-surface-title">The website is the owner surface. The operation catalogue is the agent surface.</h2>
+            <p class="eyebrow">CONNECT AN AGENT</p>
+            <h2 id="agent-surface-title">Connect your agent to approved publishing.</h2>
             <p class="lead">
-              HTTP, remote MCP and supported browser WebMCP use the same generated
-              operation catalogue and the same workspace authority checks.
+              Let your agent submit reviewed copy, schedule it and inspect the result.
+              Start with an owner-issued token limited to the operations it needs.
+              Choose remote MCP or HTTP; supported browsers can also use WebMCP.
             </p>
             <div class="protocol-row">
               <a class="protocol" href="/openapi.json">OpenAPI</a>
@@ -297,12 +293,13 @@
               <a class="protocol" href="/docs/operations.md">operations</a>
             </div>
             <p class="muted">
-              X and LinkedIn become available when their provider applications are
-              accepted and verified in the deployed runtime. Provider API fees, if any,
-              are separate from PostSteward.
+              Keep approval and account connections in your workspace.
+              <a href="/docs/agent-guide">Read the agent setup guide</a> for transport setup
+              and the operation catalogue. LinkedIn Page access needs provider approval.
+              Provider API fees, if any, are separate.
             </p>
           </div>
-          <pre class="machine-example">POST /api/operations/schedule_create
+          <pre tabindex="0" class="machine-example">POST /api/operations/schedule_create
 Authorization: Bearer &lt;scoped-agent-token&gt;
 
 {
@@ -333,7 +330,7 @@ Authorization: Bearer &lt;scoped-agent-token&gt;
           <article data-plan="free">
             <span class="plan-chip">FREE · HOSTED</span>
             <h2>Direct the work</h2>
-            <p class="plan-price">$0 <span>service subscription</span></p>
+            <p class="plan-price">£0 <span>service subscription</span></p>
             <p class="plan-copy">
               Publish approved campaigns, create explicit schedules and preserve the
               resulting evidence for both humans and agents.
@@ -347,12 +344,13 @@ Authorization: Bearer &lt;scoped-agent-token&gt;
             </ul>
           </article>
           <article data-plan="advanced">
-            <span class="plan-chip">ADVANCED · $5 / MONTH</span>
+            <span class="plan-chip">ADVANCED</span>
             <h2>Keep reviewed work moving</h2>
-            <p class="plan-price">$5 <span>per workspace / month</span></p>
+            <p class="plan-price">GBP <span>monthly price to be confirmed</span></p>
             <p class="plan-copy">
-              Add bounded continuing operation around reviewed sources and templates
-              without turning source material into instructions.
+              Monitor reviewed sources, fill your publishing queue from approved templates,
+              space posts and collect scheduled metrics. You approve each automation profile;
+              Advanced does not write original content or expand your agent’s permissions.
             </p>
             <ul class="plan-list organised">
               <li>Source monitoring and replenishment</li>
@@ -361,9 +359,9 @@ Authorization: Bearer &lt;scoped-agent-token&gt;
               <li>Inspectable inventory and category state</li>
             </ul>
             <p id="advanced-state" class="muted">
-              Advanced is coming soon. Free publishing and scheduling are available today.
+              Purchases open when the GBP monthly price is confirmed. Free publishing and scheduling are available now.
             </p>
-            <a href="/plans.json">Inspect the plan contract →</a>
+            <a href="/app#advanced">View Advanced in your workspace →</a>
           </article>
         </div>
       </section>

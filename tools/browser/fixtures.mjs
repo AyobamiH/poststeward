@@ -181,7 +181,8 @@ export const fixture = {
     deliveries: receipts.slice(0, 3),
   },
   "/api/operations/billing_status": {
-    sandbox: true,
+    sandbox: false,
+    price: {amount:null,currency:"gbp",interval:"month",configured:false},
     methods: { checkout: { available: false } },
     portalAvailable: false,
   },

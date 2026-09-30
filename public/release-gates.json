@@ -170,12 +170,12 @@
     },
     {
       "id": "advanced_rollout",
-      "state": "disabled_policy",
+      "state": "production_ready",
       "scope": "advanced",
       "blocking": false,
-      "summary": "Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass.",
+      "summary": "Owner-authorised Advanced availability retains paid workspace entitlement, explicit profile approval, original agent authority, bounded scheduling and pause controls. GBP price and live merchant setup remain separate; full source-to-provider canary acceptance is not claimed.",
       "evidence": [
-        "docs/production-readiness-acceptance.md"
+        "docs/advanced-gbp-launch-2026-09-30.md"
       ]
     },
     {
