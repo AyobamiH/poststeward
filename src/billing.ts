@@ -327,7 +327,7 @@ export class Billing implements BillingPort {
     this.store.put("quote:" + quote.id, quote);
     return {
       ...quote,
-      tax: `Total ${quote.currency.toUpperCase()} ${(quote.amount / 100).toFixed(2)}; no additional checkout tax or fees.`,
+      tax: `Total ${quote.currency.toUpperCase()} ${(quote.amount / 100).toFixed(2)}; no additional PostSteward checkout tax or fees.`,
       paymentPath: input.mode === "pass" ? "/payments/" + quote.id : null,
     };
   }

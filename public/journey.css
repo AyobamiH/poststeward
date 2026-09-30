@@ -14,7 +14,7 @@ summary { min-height:28px; padding-block:3px; }
 .agent-surface .lead { font-size:18px; line-height:1.6; }
 .agent-surface .lead, .agent-surface .muted, .agent-surface .eyebrow { color:var(--text-inverse,#f5f5ef); opacity:1; }
 .agent-surface .muted { font-size:14px; line-height:1.65; }
-.install-inline { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin-block:20px; }
+.install-inline { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:16px; align-items:start; margin-block:20px; }
 .install-command { flex:1 1 420px; min-width:0; border:1px solid var(--border-default,#d5d7d0); border-radius:10px; padding:16px; }
 .install-command pre { margin:0 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
 .install-command .copy-feedback { min-height:1.5em; margin:8px 0 0; font-size:14px; }
