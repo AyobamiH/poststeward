@@ -31,6 +31,7 @@ class _ReadbackBoundary:
 
 def get_provider(name: str, **kwargs):
     normalized = name.strip().lower()
+    bridge_command_id = kwargs.pop("bridge_command_id", None)
     from ocpf_post.product_runtime import standalone_product_active
     if standalone_product_active():
         from ocpf_post.providers.poststeward_relay import PostStewardRelayProvider
@@ -38,8 +39,10 @@ def get_provider(name: str, **kwargs):
             normalized,
             account_id=kwargs.pop("account_id", None),
             effect_scope=kwargs.pop("effect_scope", None),
-            bridge_command_id=kwargs.pop("bridge_command_id", None),
+            bridge_command_id=bridge_command_id,
         )
+    if bridge_command_id is not None:
+        raise ValueError("Remote cloud commands require the canonical PostSteward runtime")
     if normalized == "x":
         return XProvider(**kwargs)
     if normalized == "threads":
@@ -78,7 +81,7 @@ def for_account(name, account_id, *, factory=None, require_enabled=True, registe
                 normalized,
                 account_id=identity,
                 effect_scope=kwargs.pop("effect_scope", None),
-            bridge_command_id=kwargs.pop("bridge_command_id", None),
+                bridge_command_id=kwargs.pop("bridge_command_id", None),
             )
         )
     if row:
