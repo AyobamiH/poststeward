@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 export POSTSTEWARD_RUNTIME_ROOT="$ROOT"
 export POSTSTEWARD_REQUIRE_CLOUD_FENCE=1
 PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m ocpf_post.product_entry "$@"
