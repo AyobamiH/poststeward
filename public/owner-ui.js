@@ -1,5 +1,6 @@
 /** Read-only presentation. Existing application handlers retain every operation. */
 export const receiptStates = {
+  pending_approval: ["Needs owner approval", "warning"],
   scheduled: ["Scheduled", "pending"], executing: ["Executing", "pending"],
   waiting_container: ["Waiting for Threads", "pending"], cancelled: ["Cancelled", "cancelled"],
   published_verified: ["Verified", "verified"], published_unverified: ["Needs readback", "warning"],

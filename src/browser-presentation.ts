@@ -4,7 +4,7 @@ import { socialPages, socialPreviewTags, socialImagePath } from "./social-previe
 
 const ownerPaths = new Set(["/app", "/pilot", "/advanced-inventory", "/lifecycle", "/recovery"]);
 export const publicPages = ["/", "/docs/", "/docs/install", "/docs/agent-guide", "/docs/operations", "/privacy", "/terms", "/security", "/support", "/status"];
-const navigation = [["/app", "Workspace"], ["/advanced-inventory", "Inventory"], ["/lifecycle", "Data"], ["/recovery", "Recovery"]];
+const navigation = [["/app", "Overview"], ["/app#destinations", "Social accounts"], ["/app#publishing", "Create & schedule"], ["/app#evidence-panel", "Schedules & results"], ["/app#agent-access", "Agent permissions"], ["/app#advanced", "Advanced & billing"], ["/advanced-inventory", "Automation inventory"], ["/app#runtime-authority-panel", "Local runtime"], ["/lifecycle", "Data & deletion"], ["/recovery", "Recovery"], ["/docs/", "Help & guides"], ["/support", "Support"]];
 export function canonicalPath(path: string) {
   if (path === "/index.html") return "/";
   if (["/docs", "/docs/index.html"].includes(path)) return "/docs/";
@@ -27,7 +27,7 @@ export function humanBrowserPath(path: string) {
   return ["/auth/login", "/auth/callback", "/sources/github/setup", "/sources/github/callback"].includes(path) || /^\/connections\/oauth\/(x|threads|linkedin)\/callback$/.test(path);
 }
 export function productNavigation(path: string, mobile = false) {
-  return navigation.map(([href, label]) => `<a href="${href}"${canonicalPath(path) === href ? ' aria-current="page"' : ""}>${label}</a>`).join("") + (mobile ? '<a href="/docs/agent-guide">Agent guide</a>' : "");
+  return navigation.map(([href, label]) => `<a href="${href}"${canonicalPath(path) === href ? ' aria-current="page"' : ""}>${label}</a>`).join("");
 }
 function safeOrigin(env: Env) {
   try {
@@ -98,6 +98,7 @@ async function presentHtml(request: Request, response: Response, env: Env) {
     .on("a.skip-link", { element(e) { e.remove(); } })
     .on("head", { element(e) {
       e.append('<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" /><link rel="icon" href="/favicon.ico" sizes="any" /><link rel="stylesheet" href="/accessibility.css" /><link rel="stylesheet" href="/production-ux.css" /><link rel="stylesheet" href="/journey.css" /><script src="/journey.js" defer></script>', { html: true });
+      e.append('<script src="/wayfinding.js" defer></script>', { html: true });
       if (owner) e.append('<script type="module" src="/owner-ui.js"></script>', { html: true });
       if (preview) e.append(preview, { html: true });
     } })

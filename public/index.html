@@ -27,24 +27,10 @@
           <img class="brand-mark" src="/favicon.svg" alt="" />
           <span>PostSteward</span>
         </a>
-        <nav aria-label="Primary navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href="#evidence">Evidence</a>
-          <a href="#agents">For agents</a>
-          <a href="#pricing">Pricing</a>
-          <a href="/docs/agent-guide.md">Docs</a>
-          <a class="button primary" href="/auth/login">Open workspace</a>
-        </nav>
+        <nav aria-label="Primary navigation"><a href="#how-it-works">How it works</a><a href="/docs/#start">Get started</a><a href="/docs/install">Install</a><a href="/docs/">Help &amp; guides</a><a href="#pricing">Pricing</a><a class="button primary" href="/app">Open workspace</a></nav>
         <details class="site-menu">
           <summary>Menu</summary>
-          <div class="site-menu-panel">
-            <a href="#how-it-works">How it works</a>
-            <a href="#evidence">Evidence</a>
-            <a href="#agents">For agents</a>
-            <a href="#pricing">Pricing</a>
-            <a href="/docs/agent-guide.md">Agent guide</a>
-            <a href="/auth/login">Open workspace</a>
-          </div>
+          <div class="site-menu-panel"><a href="#how-it-works">How it works</a><a href="/docs/#start">Get started</a><a href="/docs/install">Install</a><a href="/docs/">Help &amp; guides</a><a href="#pricing">Pricing</a><a class="button primary" href="/app">Open workspace</a></div>
         </details>
       </div>
     </header>
@@ -82,14 +68,14 @@
           <div class="control-map-body">
             <div class="flow-node">
               <div class="node-title">
-                <strong>Agent intent</strong>
+                <strong>Reviewed post</strong>
                 <code>campaign_01J…</code>
               </div>
               <p>Exact reviewed copy plus an explicit destination and idempotency key.</p>
             </div>
             <div class="flow-node control">
               <div class="node-title">
-                <strong>PostSteward control plane</strong>
+                <strong>Your publishing rules</strong>
                 <span class="machine-label">FENCED</span>
               </div>
               <div class="control-gates" aria-label="Publishing gates">
@@ -100,7 +86,7 @@
             </div>
             <div class="flow-node">
               <div class="node-title">
-                <strong>Provider destination</strong>
+                <strong>Connected social account</strong>
                 <span class="machine-label">EXPLICIT</span>
               </div>
               <div class="destination-set" aria-label="Supported social destinations">
@@ -117,6 +103,10 @@
         </div>
       </section>
 
+<section class="journey-choices" aria-labelledby="choose-path"><h2 id="choose-path">Where do you want to start?</h2><div class="journey-choice-grid">
+ <a href="/app"><strong>Publish from your workspace</strong><span>Use the hosted service. Connect accounts, approve copy and schedule posts. No installation needed.</span></a>
+ <a href="/docs/agent-guide"><strong>Connect an agent</strong><span>You control its accounts, permissions and approval. Use remote MCP or HTTP.</span></a>
+ <a href="/docs/install"><strong>Run on your own machine</strong><span>Install on Linux, pair the machine and review the switch to local execution. Account credentials stay in the cloud.</span></a></div></section>
       <section class="contract-rail" aria-label="PostSteward operating contract">
         <div class="contract-item">
           <span class="machine-label">INTENT</span>
@@ -142,8 +132,7 @@
             <h2 id="story-title">A post moves through one deliberate sequence.</h2>
           </div>
           <p>
-            The interface mirrors the execution model: capture intent, route it through
-            bounded authority, then inspect what the provider actually did.
+            Connect an account, review your text, choose when to publish and check the result. You stay in control of what your agent may do.
           </p>
         </div>
 

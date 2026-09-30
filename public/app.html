@@ -42,9 +42,9 @@
               aria-label="Mobile product navigation"
             >
               <a href="/app" aria-current="page">Workspace</a>
-              <a href="/pilot">Acceptance</a>
-              <a href="/advanced-inventory.html">Inventory</a>
-              <a href="/lifecycle">Data</a>
+              <a href="/pilot">Provider checks</a>
+              <a href="/advanced-inventory">Automation inventory</a>
+              <a href="/lifecycle">Data &amp; deletion</a>
               <a href="/recovery">Recovery</a>
               <a href="/docs/agent-guide.md">Agent guide</a>
             </nav>
@@ -55,12 +55,12 @@
 
     <div class="product-frame-shell">
       <aside class="product-sidebar" aria-label="Product navigation">
-        <p class="product-sidebar-label">Control plane</p>
+        <p class="product-sidebar-label">Your workspace</p>
         <nav class="product-nav">
           <a href="/app" aria-current="page">Workspace</a>
-          <a href="/pilot">Acceptance</a>
-          <a href="/advanced-inventory.html">Inventory</a>
-          <a href="/lifecycle">Data</a>
+          <a href="/pilot">Provider checks</a>
+          <a href="/advanced-inventory">Automation inventory</a>
+          <a href="/lifecycle">Data &amp; deletion</a>
           <a href="/recovery">Recovery</a>
         </nav>
         <div class="product-sidebar-foot">
@@ -71,7 +71,33 @@
 
       <main class="product-main">
         <div class="product-page">
+          <section class="product-page-header" aria-labelledby="plan">
+            <div>
+              <p class="eyebrow">YOUR WORKSPACE</p>
+              <h1 id="plan">Your publishing workspace</h1>
+              <p class="page-description">
+                Connect accounts, review exact copy and schedule posts. Check every delivery in Schedules &amp; results.
+              </p>
+              <div class="page-state-row">
+                <p id="readiness" class="muted"></p>
+                <p id="webmcp-status" class="muted"></p>
+              </div>
+            </div>
+            <div class="product-page-actions">
+              <button hidden id="pause" type="button">Pause publishing</button>
+            </div>
+          </section>
           <div id="session-notice" role="status">Loading workspace…</div>
+          <p class="workspace-plan" id="workspace-plan">Free publishing and scheduling · Advanced requires an entitled workspace.</p>
+          <section class="task-guidance" id="workspace-next-step" aria-labelledby="workspace-next-heading" hidden>
+            <h2 id="workspace-next-heading">Loading your next step…</h2><p>Waiting for current workspace data.</p><a class="button primary" href="#destinations">Connect an account</a>
+          </section>
+          <nav class="task-links" aria-label="Workspace tasks">
+            <a href="#destinations">Connect accounts</a><a href="#publishing">Create &amp; schedule</a><a href="#evidence-panel">Schedules &amp; results</a><a href="#agent-access">Agent permissions</a><a href="#advanced">Advanced &amp; billing</a><a href="#runtime-authority-panel">Local runtime</a>
+          </nav>
+          <noscript><p>Sign in and enable JavaScript to use workspace controls. <a href="/docs/">Help &amp; guides</a> remain available.</p></noscript>
+          <div id="workspace-content" hidden>
+
 
           <section
             id="runtime-pairing-panel"
@@ -101,102 +127,11 @@
             </p>
           </section>
 
-          <section
-            id="runtime-authority-panel"
-            class="work-pane secondary"
-            aria-labelledby="runtime-authority-heading"
-          >
-            <p class="eyebrow">EXECUTION AUTHORITY</p>
-            <h2 id="runtime-authority-heading">
-              Choose one publishing executor.
-            </h2>
-            <p id="runtime-executor-status" class="muted">
-              Loading executor authority…
-            </p>
-            <div class="field-row">
-              <label
-                >Paired local runtime
-                <select id="runtime-installation-select"></select>
-              </label>
-            </div>
-            <details>
-              <summary>Move a migrated or recovered runtime</summary>
-              <p class="muted">
-                Pair the target as a new installation. On that machine run
-                <code>poststeward cloud recovery-review</code> after local
-                verification, then enter its digest here. The old machine must
-                be deactivated or its lease must expire.
-              </p>
-              <label
-                >Transition purpose
-                <select id="runtime-transition-purpose">
-                  <option value="handoff">Ordinary handoff</option>
-                  <option value="migrate">Verified migration</option>
-                  <option value="recover">
-                    Reviewed dead-machine recovery
-                  </option>
-                </select>
-              </label>
-              <label
-                >Source cloud installation ID
-                <input id="runtime-source-installation" autocomplete="off"
-              /></label>
-              <label
-                >Local restore review SHA-256
-                <input id="runtime-recovery-review" autocomplete="off"
-              /></label>
-            </details>
-            <div class="row">
-              <button id="runtime-use-local" type="button">
-                Use selected local runtime
-              </button>
-              <button id="runtime-use-hosted" type="button">
-                Use hosted executor
-              </button>
-            </div>
-            <div id="runtime-installations" class="record-list"></div>
-            <p class="muted">
-              Switching executor authority increments the workspace generation.
-              A stale machine cannot publish merely because it still has an old
-              runtime token.
-            </p>
-          </section>
 
-          <section class="product-page-header" aria-labelledby="plan">
-            <div>
-              <p class="eyebrow">OWNER CONTROL PLANE</p>
-              <h1 id="plan">Free publishing</h1>
-              <p class="page-description">
-                Configure trusted destinations, route exact approved copy,
-                inspect provider evidence and decide what authority an agent may
-                exercise.
-              </p>
-              <div class="page-state-row">
-                <p id="readiness" class="muted"></p>
-                <p id="webmcp-status" class="muted"></p>
-              </div>
-            </div>
-            <div class="product-page-actions">
-              <button id="pause" type="button">Pause publishing</button>
-            </div>
-          </section>
 
-          <section
-            class="product-status-strip"
-            aria-label="Browser transport status"
-          >
-            <div>
-              <p class="machine-label">BROWSER TRANSPORT</p>
-              <p>
-                Native WebMCP is additive. HTTP and remote MCP remain the stable
-                agent surfaces.
-              </p>
-              <pre tabindex="0" id="webmcp-observation" class="preview" hidden></pre>
-            </div>
-            <button id="webmcp-check" type="button" disabled>
-              Check native WebMCP
-            </button>
-          </section>
+
+
+
 
           <div class="sequence-rail" aria-label="Workspace operating sequence">
             <div class="sequence-step">
@@ -230,13 +165,11 @@
               <div>
                 <p class="eyebrow">SETUP → PUBLISH</p>
                 <h2 id="publishing-work-heading">
-                  Route approved intent to one explicit destination.
+                  Create and schedule a post.
                 </h2>
               </div>
               <p>
-                Destination identity is established first. Projects then bind
-                those accounts, and campaigns preserve the exact reviewed text
-                used at dispatch.
+                Connect an account, create a project and review your text. A campaign stores that exact text; scheduling sets when to publish it.
               </p>
             </div>
 
@@ -348,7 +281,7 @@
                 aria-labelledby="publishing-heading"
               >
                 <p class="eyebrow">EXACT INTENT</p>
-                <h2 id="publishing-heading">2. Bind a project</h2>
+                <h2 id="publishing-heading">2. Create a publishing project</h2>
                 <p class="muted">
                   Routes are explicit. Existing deliveries retain the account
                   binding captured when they were reserved.
@@ -370,7 +303,7 @@
                 </form>
                 <div id="projects" class="record-list"></div>
 
-                <h2>3. Submit exact copy</h2>
+                <h2>3. Review your copy</h2>
                 <p class="muted">
                   The campaign stores reviewed text as the claim boundary.
                   Dispatch does not generate, shorten or rewrite it. Long X or
@@ -426,7 +359,7 @@
               <div class="zone-header">
                 <div>
                   <p class="eyebrow">EXTERNAL EFFECT EVIDENCE</p>
-                  <h2 id="receipts-heading">Delivery receipts</h2>
+                  <h2 id="receipts-heading">Schedules &amp; results</h2>
                   <p>
                     A reservation is not publication proof. Verified,
                     unverified, ambiguous, blocked and failed outcomes remain
@@ -596,7 +529,7 @@
                 <div class="status-cluster">
                   <button id="subscribe">Get subscription quote</button>
                   <button id="portal">Manage billing</button>
-                  <a class="button" href="/advanced-inventory.html"
+                  <a class="button" href="/advanced-inventory"
                     >Open inventory</a
                   >
                 </div>
@@ -745,6 +678,83 @@
             </div>
           </section>
 
+          <details class="workspace-secondary" id="runtime-settings"><summary>Local runtime settings</summary>          <section
+            id="runtime-authority-panel"
+            class="work-pane secondary"
+            aria-labelledby="runtime-authority-heading"
+          >
+            <p class="eyebrow">EXECUTION AUTHORITY</p>
+            <h2 id="runtime-authority-heading">
+              Choose one publishing executor.
+            </h2>
+            <p id="runtime-executor-status" class="muted">
+              Loading executor authority…
+            </p>
+            <div class="field-row">
+              <label
+                >Paired local runtime
+                <select id="runtime-installation-select"></select>
+              </label>
+            </div>
+            <details>
+              <summary>Move a migrated or recovered runtime</summary>
+              <p class="muted">
+                Pair the target as a new installation. On that machine run
+                <code>poststeward cloud recovery-review</code> after local
+                verification, then enter its digest here. The old machine must
+                be deactivated or its lease must expire.
+              </p>
+              <label
+                >Transition purpose
+                <select id="runtime-transition-purpose">
+                  <option value="handoff">Ordinary handoff</option>
+                  <option value="migrate">Verified migration</option>
+                  <option value="recover">
+                    Reviewed dead-machine recovery
+                  </option>
+                </select>
+              </label>
+              <label
+                >Source cloud installation ID
+                <input id="runtime-source-installation" autocomplete="off"
+              /></label>
+              <label
+                >Local restore review SHA-256
+                <input id="runtime-recovery-review" autocomplete="off"
+              /></label>
+            </details>
+            <div class="row">
+              <button id="runtime-use-local" type="button">
+                Use selected local runtime
+              </button>
+              <button id="runtime-use-hosted" type="button">
+                Use hosted executor
+              </button>
+            </div>
+            <div id="runtime-installations" class="record-list"></div>
+            <p class="muted">
+              Switching executor authority increments the workspace generation.
+              A stale machine cannot publish merely because it still has an old
+              runtime token.
+            </p>
+          </section></details>
+          <details class="workspace-secondary"><summary>Browser agent transport details</summary>          <section
+            class="product-status-strip"
+            aria-label="Browser transport status"
+          >
+            <div>
+              <p class="machine-label">BROWSER TRANSPORT</p>
+              <p>
+                Native WebMCP is additive. HTTP and remote MCP remain the stable
+                agent surfaces.
+              </p>
+              <pre tabindex="0" id="webmcp-observation" class="preview" hidden></pre>
+            </div>
+            <button id="webmcp-check" type="button" disabled>
+              Check native WebMCP
+            </button>
+          </section></details>
+          </div>
           <pre tabindex="0" id="result" role="status" aria-live="polite" hidden></pre>
         </div>
 

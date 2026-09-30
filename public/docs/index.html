@@ -14,29 +14,31 @@
     <header class="docs-topbar">
       <div class="docs-topbar-inner">
         <a class="wordmark" href="/" aria-label="PostSteward home"><img class="brand-mark" src="/favicon.svg" alt="" /><span>PostSteward</span></a>
-        <nav aria-label="Documentation shortcuts"><a href="/docs/install.html">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operations</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav>
-        <details class="docs-mobile-menu"><summary>Docs</summary><nav><a href="/docs/install.html">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operations</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav></details>
+        <nav aria-label="Documentation shortcuts"><a href="/docs/install">Install</a><a href="/docs/agent-guide">Agent guide</a><a href="/docs/operations">Operations</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav>
+        <details class="docs-mobile-menu"><summary>Docs</summary><nav><a href="/docs/install">Install</a><a href="/docs/agent-guide">Agent guide</a><a href="/docs/operations">Operations</a><a href="/openapi.json">OpenAPI</a><a href="/app">Workspace</a></nav></details>
       </div>
     </header>
     <div class="docs-shell">
       <aside class="docs-sidebar" aria-label="Documentation navigation">
-        <div class="docs-sidebar-group"><p>Documentation</p><nav><a href="/docs/" aria-current="page">Start here</a><a href="/docs/install.html">Install</a><a href="/docs/agent-guide.html">Agent guide</a><a href="/docs/operations.html">Operation reference</a></nav></div>
+        <div class="docs-sidebar-group"><p>Documentation</p><nav><a href="/docs/" aria-current="page">Start here</a><a href="/docs/install">Install</a><a href="/docs/agent-guide">Agent guide</a><a href="/docs/operations">Operation reference</a></nav></div>
         <div class="docs-sidebar-group"><p>Machine surfaces</p><nav><a href="/help.json">help.json</a><a href="/openapi.json">OpenAPI</a><a href="/catalog.json">catalog.json</a><a href="/llms.txt">llms.txt</a><a href="/docs/agent-guide.md">Raw guide</a></nav></div>
         <div class="docs-sidebar-group"><p>Trust</p><nav><a href="/security.html">Security</a><a href="/status.html">Runtime status</a><a href="/support.html">Support</a></nav></div>
       </aside>
       <main class="docs-main" id="main-content">
         <article class="docs-content">
           <p class="eyebrow">POSTSTEWARD DOCUMENTATION</p>
-          <h1>One operation contract. Two audiences.</h1>
-          <p class="docs-lead">Owners decide authority and inspect consequences. Agents call a bounded publishing contract. The human docs explain the model; the machine surfaces remain the authoritative integration formats.</p>
-          <div class="docs-runtime" id="docs-runtime" aria-label="Deployed runtime summary"><div><span>Runtime</span><strong>Loading…</strong></div></div>
+          <h1>What would you like to do?</h1>
+          <p class="docs-lead">Use the workspace to control publishing. Find step-by-step setup, local installation and agent integration below. Each guide explains prerequisites and the next action.</p>
 
-          <section class="docs-section" id="choose-surface">
-            <h2>Choose the surface that matches the job.</h2>
+
+          <nav class="task-links" aria-label="Help topics"><a href="#accounts">Account setup</a><a href="#results">Schedules &amp; results</a><a href="#permissions">Agent permissions</a><a href="#advanced">Advanced &amp; billing</a><a href="#data">Data &amp; deletion</a><a href="#recovery">Recovery</a></nav><section class="docs-section" id="choose-surface">
+            <h2 id="start">Start with the task you need.</h2>
             <div class="docs-tools">
-              <a class="docs-tool" href="/docs/install.html"><strong>Install</strong><span>Install the PostSteward client, connect X, Threads and LinkedIn, then hand a scoped token to an agent.</span></a>
-              <a class="docs-tool" href="/docs/agent-guide.html"><strong>Agent guide</strong><span>Connect an owner, delegate a token, publish approved copy and inspect evidence safely.</span></a>
-              <a class="docs-tool" href="/docs/operations.html"><strong>Operation reference</strong><span>Search the generated operation catalogue by name, tier and required scope.</span></a>
+              <a class="docs-tool" href="/app"><strong>Open your workspace</strong><span>Connect accounts, review copy, schedule posts and check results. No installation needed.</span></a>
+              <a class="docs-tool" href="https://poststeward.com/onboarding/"><strong>First-time setup</strong><span>Follow account → project → reviewed post → result. Agent access is optional.</span></a>
+              <a class="docs-tool" href="/docs/install"><strong>Install</strong><span>Install the Linux runtime, pair it with your cloud workspace and review activation. LinkedIn Page access requires provider approval.</span></a>
+              <a class="docs-tool" href="/docs/agent-guide"><strong>Agent guide</strong><span>Connect an owner, delegate a token, publish approved copy and inspect evidence safely.</span></a>
+              <a class="docs-tool" href="/docs/operations"><strong>Operation reference</strong><span>Search the generated operation catalogue by name, tier and required scope.</span></a>
               <a class="docs-tool" href="/help.json"><strong>Runtime help</strong><span>Machine-readable availability and operation discovery for the deployment you are actually using.</span></a>
               <a class="docs-tool" href="/openapi.json"><strong>OpenAPI</strong><span>HTTP schema for clients that prefer a standard API description.</span></a>
             </div>
@@ -58,7 +60,14 @@
             <h2>Agents can skip this interface entirely.</h2>
             <p>The human documentation is additive. Agents may continue to use the raw guide, generated operation Markdown, OpenAPI, `catalog.json`, `help.json`, `llms.txt`, HTTP or remote MCP directly.</p>
           </section>
-        </article>
+
+<section class="docs-section" id="accounts"><h2>Connect accounts and approve a post</h2><p>Open <a href="/app#destinations">Social accounts</a> and connect X or Threads with OAuth. LinkedIn Page access requires provider approval. Connection status explains which actions your account supports.</p><p>Create a <a href="/app#project">publishing project</a> to group accounts. Under <a href="/app#publishing">Create &amp; schedule</a>, enter and validate the exact copy, choose an account and set a time. An agent-created delivery waits for owner approval; a payment does not approve publication.</p></section>
+<section class="docs-section" id="results"><h2>Find a schedule or resolve a failed delivery</h2><p>Open <a href="/app#evidence-panel">Schedules &amp; results</a>. Use the state filter or search to find a receipt; the workspace loads the latest 50. Scheduled means reserved, Verified means provider readback matched, and Needs readback means publication is still unverified.</p><p>For an ambiguous effect, inspect the existing receipt and provider before taking another action. Do not create a new post to clear uncertainty. <a href="/support">Get help</a> if the result cannot be resolved.</p></section>
+<section class="docs-section" id="advanced"><h2>Advanced and billing</h2><p><a href="/app#advanced">Advanced &amp; billing</a> holds reviewed automation profiles, exact subscription quotes and billing management. Advanced keeps reviewed source changes moving through approved templates and scheduled work. It requires workspace entitlement and approved profiles.</p><p>The monthly price is in GBP and remains to be confirmed. New checkout is unavailable until a matching live price is configured. Existing customers can use Manage billing where configured. Agent billing permission still requires payer consent and any bank authentication.</p><p><a href="/advanced-inventory">Automation inventory</a> shows source observations and reserved work; it does not prove a provider published anything.</p></section>
+<section class="docs-section" id="permissions"><h2>Control an agent’s permissions</h2><p>Under <a href="/app#agent-access">Agent permissions</a>, issue only the scopes it needs and set an expiry. Copy the token when shown, keep it private and revoke it when no longer needed. Revocation prevents future authorised operations; it cannot undo an external post already made.</p></section>
+<section class="docs-section" id="data"><h2>Export data or delete a workspace</h2><p>Use Export workspace in <a href="/app#evidence-panel">Schedules &amp; results</a> for your current records. <a href="/lifecycle">Data &amp; deletion</a> explains deletion, requires explicit acknowledgement and an exact typed confirmation, and reports pending cleanup separately from completion. Read the consequences before proceeding.</p></section>
+<section class="docs-section" id="recovery"><h2>Recovery and local runtime help</h2><p><a href="/recovery">Recovery</a> shows checkpoint evidence. Restoration and resuming publication require their own reviewed steps; restoring data is not authority to republish. Use the <a href="/app#recovery-safety">workspace recovery controls</a> only after reading the review and effect warnings.</p><p>For installation, pairing, activation, deactivation, updates or migration, use the <a href="/docs/install">local installation guide</a>. Local and hosted execution share cloud account custody and one reviewed publishing authority. They are two ways to run the same workspace.</p></section>
+<details class="workspace-secondary"><summary>Deployment diagnostics</summary>          <div class="docs-runtime" id="docs-runtime" aria-label="Deployed runtime summary"><div><span>Runtime</span><strong>Loading…</strong></div></div></details>        </article>
       </main>
     </div>
   </body>
