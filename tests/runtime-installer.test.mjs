@@ -84,12 +84,23 @@ test("fresh channel install runs the full CLI and records exact runtime provenan
   assert.equal(receipt.runtime_provenance.original_post_once_mutation_allowed, false);
   assert.equal(statSync(m.receipt).mode & 0o777, 0o600);
   const cli = join(m.bin, "poststeward");
+  const original = join(m.root, "original-post-once");
+  mkdirSync(original);
+  writeFileSync(join(original, "owner-state.json"), '{"untouched":true}\n');
+  m.env.OCPF_POST_CONFIG_DIR = original;
+  m.env.OCPF_POST_STATE_DIR = original;
+  m.env.POST_ONCE_CONFIG_DIR = original;
+  m.env.POST_ONCE_STATE_DIR = original;
   const help = spawnSync(cli, ["help", "--json"], { env: m.env, encoding: "utf8", timeout: 30000 });
   assert.equal(help.status, 0, help.stderr);
   assert.ok(JSON.parse(help.stdout).commands.length);
   const doctor = spawnSync(cli, ["doctor", "--json"], { env: m.env, encoding: "utf8", timeout: 30000 });
   assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
-  assert.equal(JSON.parse(doctor.stdout).status, "ATTENTION");
+  const diagnosis = JSON.parse(doctor.stdout);
+  assert.equal(diagnosis.status, "ATTENTION");
+  assert.equal(diagnosis.runtime.paths.config, join(m.root, "config/poststeward/runtime"));
+  assert.equal(diagnosis.runtime.paths.state, join(m.root, "state/poststeward/runtime"));
+  assert.equal(readFileSync(join(original, "owner-state.json"), "utf8"), '{"untouched":true}\n');
   assert.equal(existsSync(join(m.root, "state/poststeward/runtime/publish-receipts.jsonl")), false);
 });
 
@@ -141,3 +152,19 @@ test("channel reinstall detects alteration of a retained runtime", (t) => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /existing embedded runtime does not match/);
 });
+
+for (const marker of ['{"status":"active"}', '{"status":"unknown"}', 'broken json']) {
+  test(`release change refuses active or unverified local authority (${marker})`, (t) => {
+    const m = machine(t);
+    assert.equal(m.run("--version", revision).status, 0);
+    const state = join(m.root, "state/poststeward/runtime");
+    mkdirSync(state, { recursive: true });
+    writeFileSync(join(state, "automation-authority.json"), marker);
+    const before = readFileSync(m.receipt, "utf8");
+    const result = m.run("--version", "a".repeat(40));
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /local publishing authority is active or cannot be verified/);
+    assert.equal(readFileSync(m.receipt, "utf8"), before);
+    assert.equal(readFileSync(m.env.FIXTURE_REQUESTS, "utf8").trim().split("\n").length, 1);
+  });
+}

@@ -162,16 +162,22 @@ if [[ -L "$CURRENT" ]]; then
   CURRENT_REVISION="$(basename "$CURRENT_TARGET")"
   if [[ "$CURRENT_REVISION" != "$RESOLVED_SHA" ]]; then
     MARKER="${POSTSTEWARD_RUNTIME_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/poststeward/runtime}/automation-authority.json"
-    if [[ -f "$MARKER" ]] && python3 - "$MARKER" <<'PY'
+    if [[ -e "$MARKER" || -L "$MARKER" ]]; then
+      python3 - "$MARKER" <<'PY' || fail "local publishing authority is active or cannot be verified; deactivate/review the runtime before changing releases"
 import json,sys
+from pathlib import Path
+path=Path(sys.argv[1])
+if not path.is_file() or path.is_symlink():
+    raise SystemExit("automation authority marker must be a plain file")
 try:
-    value=json.load(open(sys.argv[1],encoding="utf-8"))
+    value=json.loads(path.read_text(encoding="utf-8"))
 except Exception:
-    raise SystemExit(2)
-raise SystemExit(0 if value.get("status") == "active" else 1)
+    raise SystemExit("automation authority marker is unreadable")
+if not isinstance(value,dict) or value.get("status") not in {"active","inactive"}:
+    raise SystemExit("automation authority marker is invalid")
+if value["status"] == "active":
+    raise SystemExit("local publishing authority is active")
 PY
-    then
-      fail "local publishing authority is active; deactivate/review the runtime before changing releases"
     fi
     if command -v systemctl >/dev/null 2>&1; then
       for unit in         poststeward-run-due.timer         poststeward-portfolio-refill.timer         poststeward-collection.timer         poststeward-replies.timer

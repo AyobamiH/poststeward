@@ -29,7 +29,7 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 - [x] First-class Install page and homepage command.
 - [x] Replace the temporary thin-client-only install payload with the full local runtime.
 - [x] Stable/beta channel manifest.
-- [ ] Exact runtime provenance in install receipt.
+- [x] Exact runtime provenance in install receipt.
 - [ ] Clean-machine install acceptance from the production domain.
 - [ ] PowerShell/native Windows path after macOS/Linux/WSL acceptance.
 
@@ -40,7 +40,7 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 - [x] Rebrand public paths/command/service namespace to `poststeward`.
 - [x] Keep historical internal `ocpf_post` compatibility behind the product boundary.
 - [x] Move A-K acceptance tests needed to protect Setup/Recovery invariants.
-- [ ] Add PostSteward CI job for the embedded runtime on Python 3.10/3.12.
+- [x] Add PostSteward CI job for the embedded runtime on Python 3.10/3.12.
 - [x] Make installer stage the full runtime and canonical `poststeward` wrapper.
 - [x] Make `poststeward setup/status/health/capabilities/... ` route to local runtime.
 
@@ -59,11 +59,11 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 - [x] Hosted PostSteward already implements X OAuth.
 - [x] Hosted PostSteward already implements Threads OAuth and long-lived refresh.
 - [x] Hosted PostSteward already implements LinkedIn member + organization/Page OAuth paths.
-- [ ] Pairing flow syncs verified non-secret provider/account bindings to local runtime.
-- [ ] Fresh local verification accepts hosted provider readiness evidence.
+- [x] Post-pairing `configure` syncs verified non-secret provider/account bindings to local runtime.
+- [x] Fresh local verification accepts hosted provider readiness evidence.
 - [ ] Owner UI presents X/Threads/LinkedIn consistently during first setup.
-- [ ] LinkedIn member vs Page selection remains explicit.
-- [ ] Local setup reaches `verification_ready` without copying provider credentials.
+- [x] Multiple destinations require explicit alias selection, including LinkedIn member/Page bindings.
+- [x] Local setup reaches `verification_ready` without copying provider credentials.
 
 ## Phase 5 — executor lease and one-writer fencing
 
@@ -72,7 +72,7 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 - [x] Hosted scheduling/publish paths fail closed for locally owned authority.
 - [x] Local activation requires matching cloud executor generation.
 - [x] Lease heartbeat/expiry closes future provider relay effects.
-- [ ] Deactivation closes cloud relay fence before local cleanup.
+- [x] Deactivation attempts cloud relay fencing before local cleanup; cloud failure still closes the local marker and is reported honestly.
 - [ ] Recovery/migration advance generation only after review.
 - [x] Concurrency and stale-generation adversarial tests.
 
@@ -122,25 +122,25 @@ For every port:
 
 ## Phase 9 — installation and lifecycle UX
 
-- [ ] Installer launches guided onboarding by default.
-- [ ] `poststeward configure` resumes/changes setup later.
-- [ ] `poststeward doctor` proves host/runtime/cloud/provider capability layers.
-- [ ] `poststeward update --channel stable|beta`.
+- [x] Installer launches machine-pairing onboarding by default when a terminal is available.
+- [x] `poststeward configure` imports reviewed Fresh project/campaign configuration.
+- [x] `poststeward doctor` reports runtime/cloud/provider findings; unpaired installations report attention.
+- [x] `poststeward update --channel stable|beta` command with active-authority refusal; live channel acceptance remains open.
 - [ ] `poststeward runtime status` shows exact local/cloud compatibility.
-- [ ] `poststeward deactivate` closes local + cloud fences.
-- [ ] migration/recovery surfaces retain preview/review/apply semantics.
+- [x] `poststeward deactivate` attempts cloud fencing and closes local authority even on cloud failure.
+- [x] Local migration/recovery surfaces retain preview/review/apply semantics; real hosted recovery acceptance remains open.
 
 ## Phase 10 — acceptance before public beta
 
 Automated:
 
 - [x] PostSteward TypeScript verify.
-- [ ] embedded-runtime Python test matrix.
-- [ ] installer dry-run/exact-version/idempotency/collision tests.
+- [x] embedded-runtime Python test matrix on 3.10 and 3.12.
+- [x] installer dry-run/exact-version/idempotency/collision and digest/authority refusal tests.
 - [x] pairing replay/expiry/cross-workspace tests.
 - [x] executor stale-generation/concurrency tests.
 - [x] provider-relay idempotency/ambiguous-effect tests.
-- [ ] original Post-Once non-mutation assertion.
+- [x] Installed CLI ignores inherited Post-Once/OCPF state roots and preserves original-state sentinel.
 
 Real controlled acceptance:
 
@@ -178,3 +178,8 @@ feat/installable-poststeward-runtime
 
 Do not merge merely because individual commits are green. Merge only an exact reviewed
 head after the integrated CI/architecture acceptance is clean.
+
+The resumed integration checkpoint and remaining release gates are recorded in
+[RUNTIME_INTEGRATION_ACCEPTANCE.md](RUNTIME_INTEGRATION_ACCEPTANCE.md). Completed
+implementation/automated checks above do not close the real controlled acceptance
+or launch checklists.
