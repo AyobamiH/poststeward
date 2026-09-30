@@ -435,7 +435,7 @@
 }
 
 @media (max-width: 640px) {
-  .docs-topbar nav {
+  .docs-topbar-inner > nav {
     display: none;
   }
 
