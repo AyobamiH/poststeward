@@ -1,8 +1,8 @@
-/** Raster exports from reviewed local SVGs. sharp is pinned by the root lock/override. */
+/** Browser exports from reviewed local brand sources. sharp is pinned by the lock/override. */
 import sharp from "sharp";
 import { readFile, writeFile } from "node:fs/promises";
 const icon = await readFile(new URL("../public/favicon.svg", import.meta.url));
-const social = await readFile(new URL("../public/og-image.svg", import.meta.url));
+const social = await readFile(new URL("../public/social/poststeward-v2.png", import.meta.url));
 const exportPng = (source, width, height) => sharp(source, { density: 192 }).resize(width, height).png({ compressionLevel: 9 }).toBuffer();
 for (const [name, size] of [["apple-touch-icon.png", 180], ["icon-192.png", 192], ["icon-512.png", 512]]) {
   await writeFile(new URL("../public/" + name, import.meta.url), await exportPng(icon, size, size));
@@ -17,4 +17,4 @@ images.forEach((image, i) => {
   header.writeUInt32LE(image.length, at + 8); header.writeUInt32LE(offset, at + 12); offset += image.length;
 });
 await writeFile(new URL("../public/favicon.ico", import.meta.url), Buffer.concat([header, ...images]));
-console.log("Exported five browser/social assets from the reviewed SVG sources.");
+console.log("Exported browser icons and the compatible legacy PNG URL from reviewed brand sources.");

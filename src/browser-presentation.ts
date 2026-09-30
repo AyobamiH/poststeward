@@ -1,5 +1,6 @@
 import { billingPrice } from "./billing-mode.ts";
 import type { Env } from "./types.ts";
+import { socialPages, socialPreviewTags, socialImagePath } from "./social-previews.ts";
 
 const ownerPaths = new Set(["/app", "/pilot", "/advanced-inventory", "/lifecycle", "/recovery"]);
 export const publicPages = ["/", "/docs/", "/docs/install", "/docs/agent-guide", "/docs/operations", "/privacy", "/terms", "/security", "/support", "/status"];
@@ -86,15 +87,19 @@ async function presentHtml(request: Request, response: Response, env: Env) {
   const headers = presentedHeaders(response);
   if (environment !== "production" || env.SIGNUP_MODE !== "public" || owner || response.status >= 400) headers.set("X-Robots-Tag", "noindex, nofollow");
   const origin = safeOrigin(env);
+  const preview = origin && response.status === 200 ? socialPreviewTags(path, origin) : "";
   const document = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   const rewriter = new HTMLRewriter()
     .on('link[rel="canonical"]', { element(e) { e.remove(); } })
+    .on('meta[property^="og:"]', { element(e) { e.remove(); } })
+    .on('meta[name^="twitter:"]', { element(e) { e.remove(); } })
+    .on('meta[name="description"]', { element(e) { if (preview) e.remove(); } })
+    .on('title', { element(e) { if (preview) e.setInnerContent(socialPages[path].title); } })
     .on("a.skip-link", { element(e) { e.remove(); } })
     .on("head", { element(e) {
       e.append('<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" /><link rel="icon" href="/favicon.ico" sizes="any" /><link rel="stylesheet" href="/accessibility.css" /><link rel="stylesheet" href="/production-ux.css" /><link rel="stylesheet" href="/journey.css" /><script src="/journey.js" defer></script>', { html: true });
       if (owner) e.append('<script type="module" src="/owner-ui.js"></script>', { html: true });
-      if (origin && publicPages.includes(path) && response.status === 200) e.append(`<link rel="canonical" href="${escapeHtml(origin + path)}" />`, { html: true });
-      if (home && origin && response.status === 200) e.append(`<meta property="og:type" content="website" /><meta property="og:site_name" content="PostSteward" /><meta property="og:title" content="PostSteward · Verifiable agentic publishing" /><meta property="og:description" content="Controlled social publishing for agents, with explicit authority and inspectable evidence." /><meta property="og:url" content="${escapeHtml(origin)}/" /><meta property="og:image" content="${escapeHtml(origin)}/og-image.png" /><meta property="og:image:type" content="image/png" /><meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:alt" content="PostSteward: verifiable social publishing for agents" /><meta name="twitter:card" content="summary_large_image" /><meta name="twitter:title" content="PostSteward · Verifiable agentic publishing" /><meta name="twitter:image" content="${escapeHtml(origin)}/og-image.png" />`, { html: true });
+      if (preview) e.append(preview, { html: true });
     } })
     .on("body", { element(e) {
       e.setAttribute("data-environment", environment);
@@ -122,6 +127,13 @@ async function presentHtml(request: Request, response: Response, env: Env) {
 }
 export async function presentBrowserResponse(request: Request, response: Response, env: Env) {
   const path = new URL(request.url).pathname;
+  if (path === "/og-image.svg" && ["GET", "HEAD"].includes(request.method) && response.status === 404) {
+    const headers = new Headers(response.headers);
+    for (const key of ["Content-Length", "Content-Type", "Content-Encoding"]) headers.delete(key);
+    headers.set("Location", socialImagePath);
+    headers.set("Cache-Control", "public, max-age=86400");
+    return new Response(null, {status:301,headers});
+  }
   if (path === "/sitemap.xml" && request.method === "GET" && response.ok) return new Response(sitemapDocument(env), { status: 200, headers: presentedHeaders(response, "application/xml; charset=utf-8") });
   if (machinePath(path)) return response;
   const error = await presentHumanError(request, response);

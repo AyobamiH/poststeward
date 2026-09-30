@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("reviewed SVGs generate correctly sized browser and social assets", () => {
+test("reviewed brand sources provide correctly sized browser and social assets", () => {
   for (const [file, width, height] of [
     ["apple-touch-icon.png", 180, 180],
     ["icon-192.png", 192, 192],
     ["icon-512.png", 512, 512],
     ["og-image.png", 1200, 630],
+    ["social/poststeward-v2.png", 1200, 630],
   ]) {
     const bytes = readFileSync("public/" + file);
     assert.equal(bytes.subarray(1, 4).toString(), "PNG", file);
@@ -25,5 +26,5 @@ test("build and deployment regenerate assets instead of relying on orphan binari
   assert.match(pkg.scripts.deploy, /^npm run assets && /);
   const script = readFileSync("scripts/export-brand-assets.mjs", "utf8");
   assert.match(script, /public\/favicon\.svg/);
-  assert.match(script, /public\/og-image\.svg/);
+  assert.match(script, /public\/social\/poststeward-v2\.png/);
 });
