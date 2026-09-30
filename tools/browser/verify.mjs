@@ -472,7 +472,8 @@ try {
     const context = await ownerContext(); const page = await context.newPage();
     await page.goto(origin+'/app'); await page.waitForLoadState('networkidle');
     await page.route('**/api/operations/workspace_status',route=>route.fulfill({status:401,json:{error:{message:'Synthetic expired session',code:'UNAUTHENTICATED'}}}));
-    await page.locator('#refresh').click(); await page.waitForLoadState('networkidle');
+    await Promise.all([page.waitForResponse(response=>new URL(response.url()).pathname==='/api/operations/workspace_status' && response.status()===401), page.locator('#refresh').click()]);
+    await page.waitForFunction(()=>document.getElementById('workspace-content').hidden);
     assert.equal(await page.locator('#workspace-content').isVisible(),false);
     assert.match(await page.locator('#session-notice').innerText(), /session expired.*Sign in/s);
     assert.equal(await page.locator('#pause').isVisible(),false);
