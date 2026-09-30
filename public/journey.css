@@ -1,7 +1,8 @@
-/* Shared journey fixes; mirrored between the hosted app and public website. */
+/* Shared navigation and task layout for the hosted browser surfaces. */
 :root { --text-tertiary: #60675d; }
 @media(prefers-color-scheme:dark) { :root { --text-tertiary:#abb3a7; } }
-html { scroll-padding-top:6rem; }
+html { scroll-padding-top:calc(var(--browser-header-offset, 72px) + 1rem); }
+h1, h2, h3, p, dt, dd, a, summary, code, li { overflow-wrap:anywhere; }
 * { box-sizing:border-box; }
 main, section, article, .step > div, .field, .field-grid, .workspace-grid > *, .grid > *, .ux-provider-card { min-width:0; }
 pre { max-width:100%; overflow:auto; }
@@ -14,9 +15,9 @@ summary { min-height:28px; padding-block:3px; }
 .agent-surface .lead { font-size:18px; line-height:1.6; }
 .agent-surface .lead, .agent-surface .muted, .agent-surface .eyebrow { color:var(--text-inverse,#f5f5ef); opacity:1; }
 .agent-surface .muted { font-size:14px; line-height:1.65; }
-.install-inline { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:16px; align-items:start; margin-block:20px; }
+.install-inline { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:clamp(20px,4vw,48px); align-items:start; margin-block:0 var(--section-gap); padding:clamp(20px,3vw,32px); border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--bg-surface); }
 .install-command { flex:1 1 420px; min-width:0; border:1px solid var(--border-default,#d5d7d0); border-radius:10px; padding:16px; }
-.install-command pre { margin:0 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.6; }
+.install-command pre { margin:0 0 12px; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.6; }
 .install-command .copy-feedback { min-height:1.5em; margin:8px 0 0; font-size:14px; }
 .install-prerequisites { font-size:14px; line-height:1.65; }
 .ux-provider-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
@@ -35,7 +36,7 @@ summary { min-height:28px; padding-block:3px; }
 .agent-surface .button.primary { background:var(--text-inverse); color:var(--bg-inverse); border-color:var(--text-inverse); }
 
 /* Task-first wayfinding, shared between public and owner pages. */
-.hero-organised { grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); align-items:center; min-height:auto; gap:clamp(24px,4vw,64px); padding-block:clamp(44px,6vw,80px); }
+.hero-organised { grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); align-items:start; min-height:auto; gap:clamp(24px,4vw,64px); padding-block:var(--section-gap); }
 .hero-organised .hero-copy h1 { font-size:clamp(40px,4.4vw,64px); line-height:1.06; max-width:19ch; }
 .hero-organised .lead { font-size:18px; line-height:1.6; }
 .journey-choices { margin-block:36px 56px; }
@@ -56,7 +57,15 @@ summary { min-height:28px; padding-block:3px; }
 .workspace-secondary { margin-block:24px; border:1px solid var(--border-default); border-radius:10px; padding:16px; background:var(--bg-surface); }
 .workspace-secondary > summary { min-height:44px; cursor:pointer; font-weight:650; }
 .workspace-plan { font-size:14px; line-height:1.6; color:var(--text-secondary); }
-.product-menu-panel { max-height:calc(100dvh - 80px); max-width:calc(100vw - 32px); overflow:auto; }
+.site-menu-panel, .product-menu-panel, .docs-mobile-menu nav { max-height:calc(100dvh - var(--browser-header-height, 72px) - 24px); max-width:calc(100vw - 32px); overflow:auto; }
+.site-menu summary, .product-menu summary, .docs-mobile-menu summary, .site-menu-panel a, .product-menu-panel a, .docs-mobile-menu nav a, .product-nav a { min-height:44px; }
+.install-intro h2 { font-size:clamp(24px,3vw,32px); line-height:1.2; margin-block:12px; }
+.install-intro p:not(.eyebrow) { color:var(--text-secondary); }
+.install-intro .button { margin-top:12px; }
+.project-library { margin-block:20px; }
+.project-library summary, .ux-connection-details summary { cursor:pointer; min-height:44px; font-size:14px; line-height:1.5; }
+.ux-connection-details { min-width:0; }
+@media(max-height:500px) { header, .product-topbar, .docs-topbar { position:static; } }
 .product-sidebar-label { letter-spacing:.04em; }
 .product-nav a,.public-page-header nav a { min-height:36px; display:flex; align-items:center; }
 .product-nav a[aria-current] { color:var(--text-primary); background:var(--bg-subtle); font-weight:650; }
@@ -67,9 +76,9 @@ summary { min-height:28px; padding-block:3px; }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
 
 .public-page-header-inner { position:relative; }
-.public-page-header-inner > .site-menu { display:none; border:0; margin:0; padding:0; }
+.public-page-header-inner > .site-menu { position:relative; display:none; border:0; margin:0; padding:0; }
 .public-page-header .site-menu summary { padding:10px 14px; min-height:44px; border:1px solid var(--border-default); border-radius:8px; cursor:pointer; list-style:none; }
-.public-page-header .site-menu-panel { position:absolute; top:58px; right:0; z-index:90; padding:12px; min-width:220px; max-width:calc(100vw - 40px); border:1px solid var(--border-default); border-radius:10px; background:var(--bg-surface); display:grid; gap:8px; }
+.public-page-header .site-menu-panel { position:absolute; top:calc(100% + 8px); right:0; z-index:90; padding:12px; min-width:220px; max-width:calc(100vw - 40px); border:1px solid var(--border-default); border-radius:10px; background:var(--bg-surface); display:grid; gap:8px; }
 @media(max-width:768px) { .public-page-header-inner > nav { display:none; } .public-page-header-inner > .site-menu { display:block; } }
 button[aria-disabled="true"] { opacity:.65; cursor:progress; }
 .product-topbar .product-topbar-actions > button#refresh { display:inline-flex; min-height:44px; }
@@ -77,3 +86,11 @@ button[aria-disabled="true"] { opacity:.65; cursor:progress; }
 
 .product-topbar-actions > #signout { display:inline-flex; min-height:44px; }
 .product-menu > summary { min-height:44px; }
+
+/* Intrinsic sizing keeps long words and enlarged text inside their task container. */
+.site-header-inner > *, .docs-topbar-inner > *, .public-page-header-inner > *, .product-topbar-inner > *, .product-page-header > *, .operation-card-head > *, .node-title > * { min-width:0; max-width:100%; }
+.site-menu, .docs-mobile-menu, .public-page-header-inner > .site-menu { margin-left:auto; }
+.scope-pill, .status-pill, .protocol, .machine-label, .operation-meta { overflow-wrap:anywhere; max-width:100%; }
+.node-title, .control-map-head, .control-map-foot { flex-wrap:wrap; }
+.operation-card-head { flex-wrap:wrap; }
+.docs-section code:not(pre code) { overflow-wrap:anywhere; }

@@ -28,6 +28,9 @@ body.product-app {
 }
 
 .product-topbar-inner {
+  width: 100%;
+  flex-wrap: wrap;
+  min-width: 0;
   min-height: var(--app-topbar-height);
   display: flex;
   align-items: center;
@@ -94,6 +97,7 @@ body.product-app {
 }
 
 .product-menu {
+  position: relative;
   display: none;
   margin: 0;
   border: 0;
@@ -120,8 +124,8 @@ body.product-app {
 
 .product-menu-panel {
   position: absolute;
-  right: 14px;
-  top: 52px;
+  right: 0;
+  top: calc(100% + 8px);
   z-index: 90;
   min-width: 240px;
   display: grid;
@@ -156,8 +160,10 @@ body.product-app {
 
 .product-sidebar {
   position: sticky;
-  top: var(--app-topbar-height);
-  height: calc(100vh - var(--app-topbar-height));
+  top: var(--browser-header-offset);
+  height: calc(100dvh - var(--browser-header-offset));
+  min-height: 0;
+  overflow: auto;
   align-self: start;
   display: flex;
   flex-direction: column;
@@ -341,11 +347,11 @@ body.product-app {
 
 .work-zone-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.68fr) minmax(0, 1.32fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  overflow: hidden;
 }
 
 .work-pane {
@@ -359,7 +365,7 @@ body.product-app {
 
 .work-pane h2,
 .work-pane h3 {
-  scroll-margin-top: 86px;
+  scroll-margin-top: 1rem;
 }
 
 .work-pane h2 {
@@ -387,7 +393,6 @@ body.product-app {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  overflow: hidden;
 }
 
 .zone-header {
@@ -449,7 +454,6 @@ body.product-app {
   margin-bottom: 34px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  overflow: hidden;
   background: var(--border-default);
 }
 
@@ -480,7 +484,6 @@ body.product-app {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
-  overflow: hidden;
 }
 
 .resource-aside,
@@ -518,7 +521,6 @@ body.product-app {
   margin-bottom: 38px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  overflow: hidden;
   background: var(--border-default);
 }
 
@@ -774,8 +776,11 @@ body.product-app {
     --app-nav-width: 204px;
   }
 
-  .work-zone-grid {
-    grid-template-columns: minmax(250px, 0.58fr) minmax(0, 1.42fr);
+  .work-zone-grid { grid-template-columns: minmax(0, 1fr); }
+
+  .work-pane + .work-pane {
+    border-left: 0;
+    border-top: 1px solid var(--border-default);
   }
 
   .recovery-layout {

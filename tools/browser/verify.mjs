@@ -539,6 +539,79 @@ try {
     await context.close();
   });
 
+  await check('Short mobile menus clear their toggle and every task link is keyboard reachable', async () => {
+    const context = await ownerContext();const page = await context.newPage();
+    for(const height of [600,225]) {
+      await page.setViewportSize({width:360,height});
+      for(const path of ['/','/app','/docs/','/privacy']) {
+        await page.goto(origin+path);await page.waitForLoadState('networkidle');
+        const menu=page.locator('.site-menu,.product-menu,.docs-mobile-menu').first();
+        await menu.locator('summary').focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('.site-menu[open],.product-menu[open],.docs-mobile-menu[open]'));
+        const bounds=await menu.evaluate(e=>{const a=e.querySelector('summary').getBoundingClientRect(),p=e.querySelector('nav,.site-menu-panel').getBoundingClientRect();return {below:p.top>=a.bottom,inside:p.left>=0&&p.right<=innerWidth+1&&p.bottom<=innerHeight+1};});
+        assert.equal(bounds.below,true,`${path}: menu obscures its summary`);assert.equal(bounds.inside,true,`${path}: menu escapes viewport`);
+        const links=menu.locator('a');for(let i=0;i<await links.count();i++) {await page.keyboard.press('Tab');const focused=await links.nth(i).evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('nav,.site-menu-panel').getBoundingClientRect();return e===document.activeElement&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});assert.equal(focused,true,`${path}: task ${i} unreachable`);}
+        await page.keyboard.press('Escape');assert.equal(await menu.locator('summary').evaluate(e=>document.activeElement===e),true);
+      }
+    }await context.close();
+  });
+  await check('Installation command, action and prerequisites stay connected and copy exact bytes', async () => {
+    const context=await browser.newContext({viewport:{width:1440,height:600}});await context.grantPermissions(['clipboard-read','clipboard-write']);const page=await context.newPage();await page.goto(origin+'/');await page.waitForLoadState('networkidle');
+    const expected="curl -fsSL --proto '=https' --tlsv1.2 https://poststeward.com/install.sh | bash";
+    assert.equal(await page.locator('#install-command').innerText(),expected);
+    assert.equal(await page.locator('#install-runtime [data-copy]').count(),1);assert.match(await page.locator('#install-runtime').innerText(),/Python 3.10/);assert.match(await page.locator('.control-map').innerText(),/EXAMPLE PUBLISHING FLOW/);
+    const alignment=await page.evaluate(()=>Math.abs(document.querySelector('.hero-copy').getBoundingClientRect().top-document.querySelector('.control-map').getBoundingClientRect().top));assert.ok(alignment<=1);
+    await page.locator('[data-copy="install-command"]').click();assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),expected);assert.match(await page.locator('#install-feedback').innerText(),/copied/i);
+    await context.close();
+  });
+  await check('Reflow and doubled text preserve all route widths with accessible local scrolling', async () => {
+    const context=await ownerContext();const page=await context.newPage();
+    for(const [width,height,double] of [[320,225,false],[640,450,false],[360,600,true]]) {
+      await page.setViewportSize({width,height});
+      for(const path of ['/','/docs/','/docs/install','/docs/agent-guide','/docs/operations','/privacy','/terms','/security','/support','/status','/app','/advanced-inventory','/lifecycle','/recovery','/pilot','/auth/callback','/missing-layout-audit-page']) {
+        await page.goto(origin+path);await page.waitForLoadState('networkidle');
+        if(double)await page.evaluate(()=>{const values=[...document.querySelectorAll('body *')].map(e=>{const s=getComputedStyle(e);return[e,parseFloat(s.fontSize),parseFloat(s.lineHeight)];});for(const [e,font,line]of values){e.style.fontSize=font*2+'px';if(Number.isFinite(line))e.style.lineHeight=line*2+'px';}});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`${path} ${width} doubled=${double}`);
+        assert.deepEqual(await audit(page),[],`${path} ${width} doubled=${double}`);
+      }
+    }await context.close();
+  });
+  await check('Long owner records wrap and disclosed information remains available beside usable forms', async () => {
+    const accounts=fixture['/api/operations/accounts_list'].map(a=>({...a,alias:'synthetic_'+('long_account_').repeat(14),identity:{...a.identity,username:'SYNTHETIC_東京_'+('username').repeat(25)}}));
+    const context=await ownerContext({'/api/operations/accounts_list':accounts});const page=await context.newPage();
+    for(const width of [360,1024,1440]) {
+      await page.setViewportSize({width,height:600});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+      assert.equal(await page.locator('#project-select').isVisible(),true);assert.equal(await page.locator('.project-library').getAttribute('open'),null);
+      await page.locator('#accounts details').evaluateAll(nodes=>nodes.forEach(e=>e.open=true));await page.locator('.project-library summary').click();
+      assert.equal(await page.locator('#projects .record').count(),fixture['/api/operations/projects_list'].length);assert.match(await page.locator('#accounts').innerText(),/Stable author ID/);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+      await page.locator('#publishing').evaluate(e=>e.scrollIntoView({block:'start'}));const firstInput=page.locator('#project input').first();await firstInput.focus();assert.equal(await firstInput.evaluate(e=>{const r=e.getBoundingClientRect(),h=document.querySelector('header').getBoundingClientRect();return r.top>=h.bottom&&r.right<=innerWidth&&r.height>=44;}),true);
+    }await context.close();
+  });
+
+  await check('Short desktop sidebar and hash targets preserve visible keyboard focus', async () => {
+    const context=await ownerContext();const page=await context.newPage();await page.setViewportSize({width:1024,height:600});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    const last=page.locator('.product-nav a').last();await last.focus();assert.equal(await last.evaluate(e=>{const r=e.getBoundingClientRect();return document.activeElement===e&&r.top>=0&&r.bottom<=innerHeight;}),true);
+    await page.locator('.product-nav a[href="/app#publishing"]').click();await page.waitForFunction(()=>document.activeElement.id==='publishing-heading');assert.equal(await page.locator('#publishing-heading').evaluate(e=>e.getBoundingClientRect().top>=document.querySelector('header').getBoundingClientRect().bottom),true);await context.close();
+  });
+  await check('Campaign review success and lengthy validation failure stay adjacent and preserve exact copy', async () => {
+    const text='Synthetic approved copy 東京 café. '+('https://example.invalid/path/').repeat(35),calls=[];
+    for(const failure of [false,true]) {
+      const context=await ownerContext({
+        '/api/operations/campaign_create':async r=>{calls.push('synthetic campaign create');return r.fulfill({json:{id:'SYNTHETIC-CAMPAIGN',text:{fixture_x:text}}});},
+        '/api/operations/campaign_validate':async r=>{calls.push('synthetic validation');return r.fulfill({status:failure?422:200,json:failure?{error:{message:'Synthetic validation failure. '+('Review the exact destination and approved text before trying again. ').repeat(25)}}:{valid:true}});},
+      });const page=await context.newPage();
+      for(const width of [360,1024,1440]) {
+        await page.setViewportSize({width,height:600});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+        await page.locator('#campaign textarea').fill(text);await page.locator('#campaign button').click();await page.waitForFunction(()=>!document.getElementById('campaign').querySelector('button').disabled);
+        await page.waitForFunction(expected=>document.getElementById('result').textContent.includes(expected),failure?'Synthetic validation failure':'Campaign stored and validated');
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.equal(await page.locator('#delivery').isVisible(),!failure);
+        if(!failure)assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+text);
+        assert.equal(await page.locator('#result').evaluate(e=>getComputedStyle(e).position),'static');assert.deepEqual(await audit(page),[]);
+        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:true});
+      }await context.close();
+    }assert.equal(calls.length,12); // Synthetic responses only; delivery is never submitted.
+  });
+
   await check("Status outage is not an empty or healthy ledger", async () => {
     const context = await browser.newContext();
     await context.route("**/readiness.json", (route) =>

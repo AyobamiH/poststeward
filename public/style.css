@@ -36,6 +36,10 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
+  --control-height: 44px;
+  --section-gap: clamp(28px, 4vw, 48px);
+  --browser-header-height: 72px;
+  --browser-header-offset: 72px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -178,7 +182,7 @@ a:hover {
 
 button,
 .button {
-  min-height: 40px;
+  min-height: var(--control-height);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -188,7 +192,9 @@ button,
   padding: 9px 14px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  font: 620 14px/1.2 var(--font-sans);
+  font: 620 0.9375rem/1.4 var(--font-sans);
+  max-width: 100%;
+  overflow-wrap: anywhere;
   cursor: pointer;
   text-decoration: none;
   box-shadow: 0 1px 0 rgb(20 24 19 / 4%);
@@ -796,13 +802,15 @@ input,
 select,
 textarea {
   width: 100%;
-  min-height: 42px;
+  min-height: var(--control-height);
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   padding: 9px 11px;
   background: var(--bg-elevated);
   color: var(--text-primary);
-  font: 450 15px/1.5 var(--font-sans);
+  font: 450 1rem/1.5 var(--font-sans);
   box-shadow: inset 0 1px 0 rgb(20 24 19 / 2%);
 }
 
@@ -949,6 +957,7 @@ code {
 }
 
 .preview {
+  overflow-wrap: anywhere;
   margin: 16px 0 0;
   border: 1px solid var(--border-default);
   border-left: 3px solid var(--brand);
@@ -964,10 +973,8 @@ code {
 }
 
 #result {
-  position: sticky;
-  z-index: 20;
-  bottom: 12px;
-  max-height: 280px;
+  position: static;
+  max-height: min(400px, 65dvh);
   overflow: auto;
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-float);

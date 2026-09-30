@@ -187,15 +187,20 @@ export function renderOwnerSnapshot(snapshot) {
     const refresh = oauthRefreshEvidence(connection);
     row.append(fields([
       ["Account", account.identity?.username],
+      ["Readback permission", accountReadbackLabel(account, connection)],
+    ]));
+    const details = node("details", "ux-connection-details");
+    details.append(node("summary", "", "Connection details and permissions"));
+    details.append(fields([
       ["Stable author ID", account.identity?.id],
       ["Connection verified", time(account.verifiedAt)],
-      ["Readback permission", accountReadbackLabel(account, connection)],
       ["OAuth health", refresh.health],
       ["Credential strategy", refresh.strategy],
       ["Last token refresh", refresh.lastRefreshAt ? time(refresh.lastRefreshAt) : "Not yet observed"],
       ["Next token refresh", refresh.nextRefreshAt ? time(refresh.nextRefreshAt) : "Not scheduled"],
       ...(refresh.lastError ? [["Last refresh error", refresh.lastError]] : []),
     ]));
+    row.append(details);
   });
   enrichRows("receipts", snapshot.receipts, (row, receipt) => {
     title(row, receipt.account, [[providers[receipt.provider] || "Unknown provider"], receiptState(receipt.status)]);
