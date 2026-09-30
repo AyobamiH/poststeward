@@ -47,6 +47,21 @@ Unreadable authority evidence now blocks a release change instead of being treat
 as inactive. Installed CLI checks deliberately inject old Post-Once/OCPF root
 variables and assert PostSteward-owned paths and unchanged original-state evidence.
 
+At checkpoint `332f6b1ce4e66b7ce44daa611c1a67a5241223da`, the full hosted verification
+completed 548 tests and both Python versions completed 1,247 tests. Installing that
+exact revision from its real public GitHub archive into isolated writable XDG roots
+also succeeded. The installed `doctor --json` reported `ATTENTION` with
+`RUNTIME_PAIRING_REQUIRED`, inactive automation and no publication receipt. This
+network-backed archive installation did not use fixture transport or skip candidate
+verification; it did not use the unavailable production-domain installer.
+
+GitHub CI at that checkpoint passed both Python jobs but exposed a high-severity
+development dependency advisory in Miniflare's pinned `undici@7.29.0`. The
+development toolchain now overrides Undici to patched `7.30.0` while retaining the
+Wrangler/Miniflare pins and the high-severity audit gate. The npm-provided archive
+integrity is retained in the lockfile. Remaining moderate advisories must be kept
+distinct from this high-severity gate and from demonstrated runtime behavior.
+
 Generated `public/releases/*.json` files are build outputs, ignored by Git. They must
 be generated from the exact release being bundled; a committed stale channel
 manifest is not release authority.
