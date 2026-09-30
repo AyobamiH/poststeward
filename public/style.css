@@ -328,6 +328,10 @@ h3 {
   margin-top: 18px;
 }
 
+.hero-copy {
+  min-width: 0;
+}
+
 .hero-copy .hero-accent {
   color: var(--brand-strong);
 }
@@ -1118,16 +1122,21 @@ body > main > .panel + .panel {
 /* Install-first product surface */
 .hero-install {
   margin-top: 1.25rem;
-  max-width: 46rem;
-  border: 1px solid var(--line, #2b3540);
+  width: min(100%, 46rem);
+  max-width: 100%;
+  border: 1px solid var(--border-default);
   border-radius: 14px;
   padding: 1rem 1.1rem;
-  background: color-mix(in srgb, var(--panel, #151a20) 88%, transparent);
+  background: var(--bg-elevated);
+}
+.hero-install .machine-label {
+  color: var(--text-secondary);
 }
 .hero-install pre {
   margin: 0.45rem 0 0.7rem;
   overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .hero-install code {
   user-select: all;

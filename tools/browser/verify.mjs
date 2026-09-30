@@ -308,6 +308,9 @@ try {
         assert.equal(violations.length, 0, JSON.stringify(violations));
 
         if (path === "/app") {
+          assert.match(await page.locator("#runtime-executor-status").innerText(), /Executor hosted · generation 1/);
+          assert.equal(await page.locator("#runtime-use-local").isDisabled(), true);
+          assert.equal(await page.locator("#runtime-use-hosted").isDisabled(), true);
           assert.equal(await page.locator("#receipts > .record").count(), 10);
           await page
             .locator("#ux-receipt-filter")

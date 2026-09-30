@@ -66,6 +66,14 @@ Generated `public/releases/*.json` files are build outputs, ignored by Git. They
 be generated from the exact release being bundled; a committed stale channel
 manifest is not release authority.
 
+The PR-triggered browser suite also found homepage install-panel contrast failures
+and horizontal overflow at 320/390px. The panel now uses the existing semantic
+surface/text tokens and wraps its command within a shrinkable hero column. Its
+synthetic owner fixtures include the new read-only runtime installation/executor
+endpoints, with explicit hosted-generation and disabled-handoff assertions for an
+unpaired workspace. Unexpected API requests and all external effects remain
+forbidden by the browser harness.
+
 ## Repeatable validation
 
 Use separate virtual environments for the embedded runtime and the historical

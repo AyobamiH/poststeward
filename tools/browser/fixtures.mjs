@@ -63,6 +63,15 @@ export const fixture = {
     csrf: "synthetic",
     scopes: ["admin"],
   },
+  "/api/runtime/installations": [],
+  "/api/runtime/executor": {
+    workspace: "SYNTHETIC-UX-FIXTURE",
+    executorMode: "hosted",
+    executorStatus: "active",
+    activeInstallationId: null,
+    authorityGeneration: 1,
+    leaseExpiresAt: null,
+  },
   "/api/grants": [
     { actor: "Expired fixture", scopes: '["read"]', expires_at: now - 1000 },
     {
