@@ -33,3 +33,47 @@ summary { min-height:28px; padding-block:3px; }
 
 .agent-surface a:not(.button):not(.protocol) { color:var(--text-inverse); text-decoration:underline; }
 .agent-surface .button.primary { background:var(--text-inverse); color:var(--bg-inverse); border-color:var(--text-inverse); }
+
+/* Task-first wayfinding, shared between public and owner pages. */
+.hero-organised { grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); align-items:center; min-height:auto; gap:clamp(24px,4vw,64px); padding-block:clamp(44px,6vw,80px); }
+.hero-organised .hero-copy h1 { font-size:clamp(40px,4.4vw,64px); line-height:1.06; max-width:19ch; }
+.hero-organised .lead { font-size:18px; line-height:1.6; }
+.journey-choices { margin-block:36px 56px; }
+.journey-choices h2 { font-size:clamp(25px,3vw,34px); line-height:1.2; }
+.journey-choice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.journey-choice-grid > a { display:flex; flex-direction:column; gap:10px; border:1px solid var(--border-default,#c8cbc3); border-radius:12px; padding:22px; background:var(--bg-surface,#fff); color:var(--text-primary,#161916); text-decoration:none; min-width:0; }
+.journey-choice-grid > a:hover,.journey-choice-grid > a:focus-visible { border-color:var(--brand,#bd432b); }
+.journey-choice-grid strong { font-size:18px; line-height:1.4; }
+.journey-choice-grid span { color:var(--text-secondary,#60675d); font-size:15px; line-height:1.6; }
+.page-trail { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px; font-size:14px; line-height:1.6; }
+.page-trail a { color:inherit; text-decoration:underline; }
+.task-links { display:flex; flex-wrap:wrap; gap:8px; margin-block:16px 24px; }
+.task-links a { border:1px solid var(--border-default); padding:10px 12px; border-radius:8px; color:var(--text-primary); background:var(--bg-surface); font-size:14px; text-decoration:none; min-height:44px; }
+.task-links a:hover,.task-links a[aria-current] { border-color:var(--brand); }
+.task-guidance { padding:20px; border:1px solid var(--border-default); border-left:3px solid var(--brand); border-radius:10px; background:var(--bg-surface); }
+.task-guidance h2 { font-size:22px; line-height:1.3; margin:0 0 8px; }
+.task-guidance p { color:var(--text-secondary); font-size:15px; line-height:1.6; }
+.workspace-secondary { margin-block:24px; border:1px solid var(--border-default); border-radius:10px; padding:16px; background:var(--bg-surface); }
+.workspace-secondary > summary { min-height:44px; cursor:pointer; font-weight:650; }
+.workspace-plan { font-size:14px; line-height:1.6; color:var(--text-secondary); }
+.product-menu-panel { max-height:calc(100dvh - 80px); max-width:calc(100vw - 32px); overflow:auto; }
+.product-sidebar-label { letter-spacing:.04em; }
+.product-nav a,.public-page-header nav a { min-height:36px; display:flex; align-items:center; }
+.product-nav a[aria-current] { color:var(--text-primary); background:var(--bg-subtle); font-weight:650; }
+[aria-busy="true"] { cursor:progress; }
+#workspace-content[hidden],#workspace-next-step[hidden],[hidden] { display:none !important; }
+@media(max-width:1100px) { .hero-organised { grid-template-columns:1fr; } }
+@media(max-width:768px) { .journey-choice-grid { grid-template-columns:1fr; } .task-links { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .task-links a { min-width:0; } }
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
+
+.public-page-header-inner { position:relative; }
+.public-page-header-inner > .site-menu { display:none; border:0; margin:0; padding:0; }
+.public-page-header .site-menu summary { padding:10px 14px; min-height:44px; border:1px solid var(--border-default); border-radius:8px; cursor:pointer; list-style:none; }
+.public-page-header .site-menu-panel { position:absolute; top:58px; right:0; z-index:90; padding:12px; min-width:220px; max-width:calc(100vw - 40px); border:1px solid var(--border-default); border-radius:10px; background:var(--bg-surface); display:grid; gap:8px; }
+@media(max-width:768px) { .public-page-header-inner > nav { display:none; } .public-page-header-inner > .site-menu { display:block; } }
+button[aria-disabled="true"] { opacity:.65; cursor:progress; }
+.product-topbar .product-topbar-actions > button#refresh { display:inline-flex; min-height:44px; }
+@media(max-width:768px) { .product-topbar-inner { flex-wrap:wrap; gap:8px; padding-block:8px; } .product-topbar-actions { gap:8px; } }
+
+.product-topbar-actions > #signout { display:inline-flex; min-height:44px; }
+.product-menu > summary { min-height:44px; }

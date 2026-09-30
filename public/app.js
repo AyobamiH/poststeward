@@ -1,4 +1,5 @@
 import { renderOwnerSnapshot, showFeedback } from "./owner-ui.js";
+import { renderWorkspaceTask } from "./workspace-guidance.js";
 import { registerWebMCP, checkNativeWebMCP } from "./webmcp.js";
 import {
   linkedinConnectionPlan,
@@ -8,6 +9,7 @@ import {
 } from "./app-client.js";
 const $ = (id) => document.getElementById(id);
 let session,
+  sessionExpired = false,
   selectedCampaign,
   paused = false,
   oauthInfo,
@@ -16,7 +18,8 @@ let session,
   runtimeExecutor;
 const key = () => crypto.randomUUID();
 async function api(path, input, method = input === undefined ? "GET" : "POST") {
-  const response = await fetch(path, {
+  let response;
+  try { response = await fetch(path, {
     method,
     credentials: "same-origin",
     mode: "same-origin",
@@ -28,7 +31,9 @@ async function api(path, input, method = input === undefined ? "GET" : "POST") {
       ...(session?.csrf ? { "X-CSRF-Token": session.csrf } : {}),
     },
     ...(input !== undefined ? { body: JSON.stringify(input) } : {}),
-  });
+  }); } catch {
+    throw new Error("No response was received. Inspect existing records before repeating an action; use Refresh to check current workspace state.");
+  }
   let data;
   try {
     data = await response.json();
@@ -41,6 +46,14 @@ async function api(path, input, method = input === undefined ? "GET" : "POST") {
     const error = new Error(data.error?.message || "Request failed.");
     error.code = data.error?.code;
     error.status = response.status;
+    if (response.status === 401) {
+      sessionExpired = Boolean(session) || sessionExpired;
+      session = undefined;
+      $("workspace-content").hidden = true;
+      $("workspace-next-step").hidden = true;
+      $("pause").hidden = true;
+      $("session-notice").textContent = "Your session expired. Sign in again to inspect current workspace state.";
+    }
     throw error;
   }
   return data;
@@ -58,12 +71,16 @@ async function action(fn) {
     document.activeElement?.closest("form, .work-pane, .work-zone") ||
     undefined;
   feedbackTarget?.setAttribute("aria-busy", "true");
+  const control = document.activeElement?.closest("button");
+  control?.setAttribute("aria-disabled", "true");
   try {
     await fn();
   } catch (e) {
     show(e.message, true);
+    if (e.status === 401) signInNotice("Your session expired. ");
   } finally {
     feedbackTarget?.removeAttribute("aria-busy");
+    control?.removeAttribute("aria-disabled");
     feedbackTarget = undefined;
     actionInProgress = false;
   }
@@ -346,7 +363,8 @@ async function refresh() {
   ]);
   paused = status.publishingPaused;
   $("plan").textContent =
-    status.plan === "advanced" ? "Advanced workspace" : "Free publishing";
+    "Your publishing workspace";
+  $("workspace-plan").textContent = status.plan === "advanced" ? "Advanced workspace · reviewed automation and direct publishing" : "Free workspace · direct publishing and scheduling";
   $("pause").textContent = paused ? "Resume publishing" : "Pause publishing";
   const activeAccounts = accounts.filter((account) => account.active === true);
   const connectedProviders = new Set(
@@ -369,6 +387,7 @@ async function refresh() {
   } catch {
     recovery = undefined;
   }
+  if (!session) { signInNotice("Your session expired. "); return; }
   renderOAuth();
   renderRecovery();
   await loadRuntimeAuthority();
@@ -581,6 +600,14 @@ async function refresh() {
     oauthInfo,
     recovery,
   });
+  if (!session) { signInNotice("Your session expired. "); return; }
+  renderWorkspaceTask({ accounts, projects, receipts, paused });
+  const firstLoad = $("workspace-content").hidden;
+  $("workspace-content").hidden = false;
+  $("workspace-next-step").hidden = false;
+  $("pause").hidden = false;
+  $("session-notice").textContent = "Workspace data updated. Schedule dates show their recorded timezone; other dates use your browser’s local time.";
+  if (firstLoad) document.dispatchEvent(new Event("workspace-ready"));
 }
 for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]"))
   b.onclick = () =>
@@ -803,7 +830,7 @@ $("recovery-cancel").onclick = () =>
     );
     await refresh();
   });
-$("refresh").onclick = () => action(refresh);
+$("refresh").onclick = () => action(() => session ? refresh() : openWorkspace());
 $("pause").onclick = () =>
   action(async () => {
     show(
@@ -868,8 +895,19 @@ $("webmcp-check").onclick = () =>
 $("webmcp-status").textContent = document.modelContext?.registerTool
   ? "This browser exposes WebMCP. Sign in to register and check workspace tools."
   : "Native WebMCP is not available in this browser.";
+function signInNotice(prefix = "") {
+  $("session-notice").replaceChildren(document.createTextNode(prefix));
+  const a = document.createElement("a");
+  const returnPath = runtimePairingParams() ? location.pathname + location.search : "/app";
+  a.href = "/auth/login?return=" + encodeURIComponent(returnPath);
+  a.textContent = "Sign in to open your workspace";
+  $("session-notice").append(a);
+}
+async function openWorkspace() {
 try {
+  $("session-notice").textContent = "Loading workspace…";
   session = await api("/api/session");
+  sessionExpired = false;
   $("session-notice").textContent = "Workspace " + session.workspace;
   await prepareRuntimePairing();
   const help = await api("/help.json");
@@ -898,16 +936,14 @@ try {
     history.replaceState(null, "", "/app");
 } catch (e) {
   $("session-notice").replaceChildren();
-  if (!session || e.status === 401) {
-    const a = document.createElement("a");
-    const returnPath = runtimePairingParams()
-      ? location.pathname + location.search
-      : "/app";
-    a.href = "/auth/login?return=" + encodeURIComponent(returnPath);
-    a.textContent = "Sign in to open your workspace";
-    $("session-notice").append(a);
+  if (e.status === 401 || sessionExpired) signInNotice(sessionExpired ? "Your session expired. " : "");
+  else if (!session) {
+    $("session-notice").textContent = "Workspace access could not be checked. Use Refresh to try again when your connection is available. ";
+    signInNotice($("session-notice").textContent);
   } else
     $("session-notice").textContent =
       "Signed in, but workspace data could not be loaded. Refresh to inspect current state.";
   show(e.message, true);
 }
+}
+await openWorkspace();

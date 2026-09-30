@@ -311,7 +311,7 @@ try {
         assert.equal(response.status(), 200);
         await page.waitForLoadState("networkidle");
         await page.locator("main").waitFor();
-        if (["/app", "/docs/", "/", "/status"].includes(path))
+        if (["/app", "/docs/", "/", "/status", "/advanced-inventory", "/lifecycle", "/recovery", "/docs/install", "/docs/agent-guide", "/docs/operations", "/support", "/privacy", "/terms", "/security", "/pilot"].includes(path))
           await page.screenshot({
             path: `ux-evidence/${path.replaceAll("/", "_") || "home"}-${width}-${scheme}.png`,
             fullPage: true,
@@ -333,7 +333,7 @@ try {
           const providerGeometry = await page.locator(".ux-provider-card").evaluateAll(cards => cards.map(card => ({width:card.getBoundingClientRect().width, scroll:card.scrollWidth, children:[...card.querySelectorAll("*")].map(child=>({right:child.getBoundingClientRect().right,parentRight:card.getBoundingClientRect().right}))})));
           assert.ok(providerGeometry.every(card=>card.scroll <= card.width + 1 && card.children.every(child=>child.right<=child.parentRight+1)), "Provider content must stay inside its card");
           assert.match(await page.locator("#advanced-heading").innerText(), /GBP price to be confirmed/);
-          assert.match(await page.locator("#runtime-executor-status").innerText(), /Executor hosted · generation 1/);
+          assert.match(await page.locator("#runtime-executor-status").textContent(), /Executor hosted · generation 1/);
           assert.equal(await page.locator("#runtime-use-local").isDisabled(), true);
           assert.equal(await page.locator("#runtime-use-hosted").isDisabled(), true);
           assert.equal(await page.locator("#receipts > .record").count(), 10);
@@ -383,6 +383,7 @@ try {
         true,
       );
       await page.keyboard.press("Enter");
+      await page.waitForFunction(() => document.activeElement.tagName === 'MAIN');
       assert.equal(
         await page
           .locator("main")
@@ -419,10 +420,109 @@ try {
     await page.waitForLoadState("networkidle");
     assert.equal(await page.locator("#receipts .record").count(), 0);
     assert.match(await page.locator("#session-notice").innerText(), /Sign in/);
+    assert.equal(await page.locator('#workspace-content').isVisible(), false);
+    assert.equal(await page.locator('#campaign').isVisible(), false);
     await page.screenshot({
       path: "ux-evidence/workspace-signed-out.png",
       fullPage: true,
     });
+    await context.close();
+  });
+
+  async function ownerContext(overrides = {}) {
+    const context = await browser.newContext({viewport:{width:375,height:900}});
+    await context.route('**/api/**', async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (Object.hasOwn(overrides,path)) return typeof overrides[path] === 'function' ? overrides[path](route) : route.fulfill({json:overrides[path]});
+      if (Object.hasOwn(fixture,path)) return route.fulfill({json:fixture[path]});
+      forbidden.push(route.request().method() + ' ' + path);
+      return route.fulfill({status:403,json:{error:{message:'No external effects in synthetic checks'}}});
+    });
+    return context;
+  }
+  await check('Empty workspace gives an actionable account-first path', async () => {
+    const context = await ownerContext({'/api/operations/accounts_list':[], '/api/operations/projects_list':[], '/api/operations/receipts_list':[]});
+    const page = await context.newPage(); await page.goto(origin+'/app'); await page.waitForLoadState('networkidle');
+    assert.match(await page.locator('#workspace-next-step').innerText(), /Connect your first social account/);
+    await page.locator('#workspace-next-step a').click();
+    await page.waitForFunction(()=>document.activeElement.id === 'accounts-heading');
+    assert.equal(new URL(page.url()).hash, '#destinations');
+    assert.equal(await page.locator('#accounts-heading').evaluate(el=>el===document.activeElement),true);
+    assert.equal(await page.locator('#runtime-settings').getAttribute('open'), null);
+    await page.screenshot({path:'ux-evidence/workspace-empty.png',fullPage:true}); await context.close();
+  });
+  await check('Direct local-settings links open disclosure, focus target and survive refresh', async () => {
+    const context = await ownerContext(); const page = await context.newPage();
+    await page.goto(origin+'/app#runtime-authority-panel'); await page.waitForLoadState('networkidle');
+    await page.waitForFunction(()=>document.activeElement.id === 'runtime-authority-heading');
+    assert.equal(await page.locator('#runtime-settings').getAttribute('open'),'');
+    assert.equal(await page.locator('#runtime-authority-heading').evaluate(el=>el===document.activeElement),true);
+    await page.reload(); await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#runtime-settings').getAttribute('open'),'');
+    await page.locator('.product-menu > summary').click();
+    await page.locator('.product-menu-panel a[href="/app#evidence-panel"]').click();
+    await page.waitForFunction(()=>!document.querySelector('.product-menu').open);
+    assert.equal(await page.locator('.product-menu').getAttribute('open'),null);
+    assert.equal(new URL(page.url()).hash,'#evidence-panel');
+    await page.goBack(); await page.waitForLoadState('networkidle');
+    assert.equal(new URL(page.url()).hash,'#runtime-authority-panel');
+    await context.close();
+  });
+  await check('Loaded workspace expires safely and offers sign-in without stale forms', async () => {
+    const context = await ownerContext(); const page = await context.newPage();
+    await page.goto(origin+'/app'); await page.waitForLoadState('networkidle');
+    await page.route('**/api/operations/workspace_status',route=>route.fulfill({status:401,json:{error:{message:'Synthetic expired session',code:'UNAUTHENTICATED'}}}));
+    await Promise.all([page.waitForResponse(response=>new URL(response.url()).pathname==='/api/operations/workspace_status' && response.status()===401), page.locator('#refresh').click()]);
+    await page.waitForFunction(()=>document.getElementById('workspace-content').hidden);
+    assert.equal(await page.locator('#workspace-content').isVisible(),false);
+    assert.match(await page.locator('#session-notice').innerText(), /session expired.*Sign in/s);
+    assert.equal(await page.locator('#pause').isVisible(),false);
+    await page.screenshot({path:'ux-evidence/workspace-expired.png',fullPage:true}); await context.close();
+  });
+  await check('A failed initial read remains recoverable and never becomes an empty success', async () => {
+    let failing=true;
+    const context = await ownerContext({'/api/operations/projects_list':route=>failing?route.fulfill({status:503,json:{error:{message:'Synthetic interrupted read'}}}):route.fulfill({json:fixture['/api/operations/projects_list']})});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#workspace-content').isVisible(),false);
+    assert.match(await page.locator('#session-notice').innerText(), /could not be loaded/);
+    failing=false;await page.locator('#refresh').click();await page.waitForLoadState('networkidle');
+    await page.waitForFunction(()=>!document.getElementById('workspace-content').hidden,{},{timeout:5000}).catch(async error => {throw new Error(String(error)+' '+await page.locator('#session-notice').innerText()+' '+await page.locator('#result').textContent());});
+    assert.equal(await page.locator('#workspace-content').isVisible(),true);
+    await context.close();
+  });
+  await check('Expiry during a secondary status read cannot reveal stale owner controls', async () => {
+    const context=await ownerContext({'/api/connections/oauth/status':route=>route.fulfill({status:401,json:{error:{message:'Synthetic late expiry',code:'UNAUTHENTICATED'}}})});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#workspace-content').isVisible(),false);
+    assert.match(await page.locator('#session-notice').innerText(), /session expired.*Sign in/s);
+    await context.close();
+  });
+  await check('Repeated refresh while a read is pending causes one request batch', async () => {
+    const context=await ownerContext();const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    let calls=0, release;
+    const pending=new Promise(resolve=>{release=resolve;});
+    await page.route('**/api/operations/workspace_status',async route=>{calls++;await pending;await route.fulfill({json:fixture['/api/operations/workspace_status']});});
+    await page.locator('#refresh').focus();
+    await page.evaluate(()=>{document.getElementById('refresh').click();document.getElementById('refresh').click();});
+    await page.waitForFunction(()=>document.getElementById('refresh').getAttribute('aria-disabled') === 'true');
+    assert.equal(await page.locator('#refresh').getAttribute('aria-disabled'),'true');
+    release();await page.waitForLoadState('networkidle');assert.equal(calls,1);
+    await context.close();
+  });
+  await check('Human task links target existing sections and mobile guide/trust navigation is available', async () => {
+    const context=await ownerContext(); const page=await context.newPage();
+    const targets=new Map();
+    for(const path of ['/app','/docs/','/docs/install','/docs/agent-guide','/docs/operations','/privacy','/terms','/security','/support','/status']) {
+      await page.goto(origin+path);await page.waitForLoadState('networkidle');
+      targets.set(path,await page.locator('[id]').evaluateAll(nodes=>nodes.map(el=>el.getAttribute('id'))));
+      if(path.startsWith('/docs/')) assert.equal(await page.locator('.docs-mobile-menu summary').isVisible(),true);
+      if(['/privacy','/terms','/security','/support','/status'].includes(path)) assert.equal(await page.locator('.site-menu summary').isVisible(),true);
+    }
+    for(const path of ['/app','/docs/']) {
+      await page.goto(origin+path);await page.waitForLoadState('networkidle');
+      const links=await page.locator('a[href]').evaluateAll(nodes=>nodes.map(el=>el.href));
+      for(const href of links) {const url=new URL(href);if(url.origin===origin && url.hash && targets.has(url.pathname)) assert.ok(targets.get(url.pathname).includes(decodeURIComponent(url.hash.slice(1))),href);}
+    }
     await context.close();
   });
 

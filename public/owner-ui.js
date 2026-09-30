@@ -1,5 +1,6 @@
 /** Read-only presentation. Existing application handlers retain every operation. */
 export const receiptStates = {
+  pending_approval: ["Needs owner approval", "warning"],
   scheduled: ["Scheduled", "pending"], executing: ["Executing", "pending"],
   waiting_container: ["Waiting for Threads", "pending"], cancelled: ["Cancelled", "cancelled"],
   published_verified: ["Verified", "verified"], published_unverified: ["Needs readback", "warning"],
@@ -41,6 +42,13 @@ function node(tag, cls = "", text) {
 }
 function badge(label, state = "neutral") { const el = node("span", "ux-pill", label); el.dataset.state = state; return el; }
 function time(value) { return Number.isFinite(value) ? new Date(value).toLocaleString() : "Not recorded"; }
+export function receiptTime(value, timezone) {
+  if (!Number.isFinite(value)) return 'Not recorded';
+  if (typeof timezone === 'string' && timezone.length <= 100) {
+    try { return new Intl.DateTimeFormat('en-GB', {dateStyle:'medium',timeStyle:'short',timeZone:timezone}).format(value) + ' · ' + timezone; } catch { /* Unknown zone must not label browser-local time as that zone. */ }
+  }
+  return new Intl.DateTimeFormat('en-GB', {dateStyle:'medium',timeStyle:'short'}).format(value) + ' · browser local time; schedule timezone not recorded';
+}
 function fields(values) {
   const dl = node("dl", "ux-fields");
   for (const [label, value] of values) { const cell = node("div"); cell.append(node("dt", "", label), node("dd", "", value ?? "Not recorded")); dl.append(cell); }
@@ -196,7 +204,7 @@ export function renderOwnerSnapshot(snapshot) {
     row.querySelector(":scope > span")?.remove();
     const copy = row.querySelector(":scope > p");
     if (copy) { const details = node("details", "ux-exact-copy"); details.append(node("summary", "", "Inspect exact approved copy")); details.append(copy); row.append(details); }
-    row.append(fields([["Scheduled for", `${time(receipt.dueAt)} · ${receipt.timezone || "zone not recorded"}`], ["Last record update", time(receipt.updatedAt)], ["Receipt ID", receipt.id], ["Provider creation ID", receipt.postId || "Not recorded"]]));
+    row.append(fields([["Scheduled for", receiptTime(receipt.dueAt, receipt.timezone)], ["Last record update", time(receipt.updatedAt)], ["Receipt ID", receipt.id], ["Provider creation ID", receipt.postId || "Not recorded"]]));
     if (receipt.reason) row.append(node("p", "", receipt.reason));
     if (receipt.status === "ambiguous_effect") row.append(node("p", "ux-state-warning", "The provider may have published. Do not republish to repair this uncertainty."));
     if (!Object.hasOwn(receiptStates, receipt.status)) row.append(node("p", "ux-state-warning", "Unfamiliar server state. Inspect evidence; do not assume success or retry."));
