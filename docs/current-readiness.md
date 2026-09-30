@@ -22,7 +22,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 | `linkedin_member_readback` | `external_setup_required` | `provider_optional` | no | Independent member-profile post readback remains unavailable until LinkedIn grants the restricted permission; it is separate from and does not block the organization/Page path. |
 | `advanced_rollout` | `disabled_policy` | `advanced` | no | Advanced execution remains deliberately disabled until canary product acceptance and SLO gates pass. |
 | `mpp` | `disabled_policy` | `advanced` | no | MPP is a separate optional settlement stream and remains disabled. |
-| `public_signup` | `disabled_policy` | `public_launch` | yes | Public signup remains restricted until production/support/abuse controls are accepted. |
+| `public_signup` | `production_ready` | `public_launch` | no | Owner-authorized public Google signup is approved with verified-email admission, a first-100 workspace cap and 10 new signups per hour. Existing production infrastructure and operator-drill evidence is accepted; distributed-runtime provider acceptance remains separate. |
 | `production_edge` | `live_verified` | `production` | no | The exact production custom domain, Worker binding, security headers, canonical WAF rule and auth rate-limit rule are independently read back and accepted. |
 | `github_main_ruleset` | `live_verified` | `production` | no | Server-side main protection is active and independently read back from GitHub with the reviewed solo-maintainer policy. |
 | `operational_alert_delivery` | `live_verified` | `production` | no | Production operator alert delivery is accepted through the out-of-band GitHub issue control plane, including all reviewed alert classes and a deliberately failed-path escalation drill. |
@@ -49,7 +49,7 @@ Generated from `src/release-gates.ts`. Do not edit by hand. Runtime configuratio
 - `linkedin_member_readback`: `docs/live-external-gates-2026-09-13.md`
 - `advanced_rollout`: `docs/production-readiness-acceptance.md`
 - `mpp`: `docs/production-readiness-acceptance.md`
-- `public_signup`: `docs/production-readiness-acceptance.md`
+- `public_signup`: `docs/public-launch-2026-09-30.md`, `actions/35440165248`, `issues/137`, `docs/production-edge-live-evidence-2026-09-19.md`, `docs/operational-alert-live-evidence-2026-09-19.md`, `docs/capacity-cost-live-evidence-2026-09-19.md`
 - `production_edge`: `docs/production-edge-live-evidence-2026-09-19.md`, `actions/35440149519`
 - `github_main_ruleset`: `docs/github-main-ruleset-live-evidence-2026-09-15.md`, `ruleset/23461973`
 - `operational_alert_delivery`: `docs/operational-alert-live-evidence-2026-09-19.md`, `actions/35440129849`

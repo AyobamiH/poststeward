@@ -28,6 +28,14 @@ const secretNames = [
   "OPERATIONAL_ALERT_WEBHOOK_TOKEN",
 ];
 
+test("owner-reviewed production request opens bounded public admission through the protected caller", () => {
+  assert.match(productionRequest, /SIGNUP_MODE: public/);
+  assert.match(productionRequest, /signup_mode_request: public/);
+  assert.match(productionRequest, /PUBLIC_WORKSPACE_LIMIT: "100"/);
+  assert.match(productionRequest, /PUBLIC_SIGNUPS_PER_HOUR: "10"/);
+  assert.match(productionRequest, /production_deploy_request: true/);
+});
+
 test("staging deployment requests are limited to their explicit main-only path", () => {
   assert.equal(
     request.split("\non:\n")[1].split("\npermissions:")[0],

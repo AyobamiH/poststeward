@@ -169,8 +169,8 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         secure(r) &&
         r.headers.get("cache-control")?.includes("no-store") &&
         b.release === release &&
-        b.access?.signupMode === "restricted" &&
-        b.access?.publicSignup === false &&
+        b.access?.signupMode === (c.vars.SIGNUP_MODE || "restricted") &&
+        b.access?.publicSignup === (c.vars.SIGNUP_MODE === "public") &&
         b.payments?.sandboxEnabled ===
           (c.vars.STRIPE_SANDBOX_ENABLED === "true" &&
             !expectedAdvanced.enabled) &&

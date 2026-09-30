@@ -134,6 +134,27 @@ test("bounded staging canary is a permitted evidence mode, not a global rollout"
   assert.equal(readiness.runtimeCapabilities.policies.advancedCanaryBps, 500);
 });
 
+test("owner-reviewed public signup keeps admission bounds and separate external capabilities", () => {
+  const publicEnv = env({
+    DEPLOY_ENV: "production",
+    SIGNUP_MODE: "public",
+    ENCRYPTION_ROOT_WRITE: "legacy",
+    STRIPE_SANDBOX_ENABLED: "false",
+  });
+  const readiness = releaseReadiness(publicEnv);
+  assert.deepEqual(releasePolicyViolations(publicEnv), []);
+  assert.equal(readiness.gates.public_signup.state, "production_ready");
+  assert.equal(readiness.gates.public_signup.blocking, false);
+  assert.equal(readiness.access.publicSignup, true);
+  assert.equal(
+    readiness.runtimeCapabilities.policies.publicWorkspaceLimit,
+    100,
+  );
+  assert.equal(readiness.runtimeCapabilities.policies.publicSignupsPerHour, 10);
+  assert.ok(externalEvidenceGateIds().includes("linkedin_oauth"));
+  assert.ok(externalEvidenceGateIds().includes("advanced_rollout"));
+});
+
 test("policy contradictions are visible instead of silently broadening claims", () => {
   const unsafe = env({
     SIGNUP_MODE: "public",
@@ -148,7 +169,7 @@ test("policy contradictions are visible instead of silently broadening claims", 
     "advanced_globally_enabled_before_canary_gate",
     "linkedin_readback_enabled_without_live_permission_evidence",
     "mpp_enabled_before_settlement_gate",
-    "public_signup_enabled_before_public_launch_gate",
+    "public_signup_environment_invalid",
   ]);
   const readiness = releaseReadiness(unsafe);
   assert.equal(readiness.policy.healthy, false);
@@ -161,14 +182,12 @@ test("public admission bounds fail closed when they drift from the reviewed firs
     releasePolicyViolations(
       env({
         SIGNUP_MODE: "public",
+        DEPLOY_ENV: "production",
         PUBLIC_WORKSPACE_LIMIT: "101",
         PUBLIC_SIGNUPS_PER_HOUR: "10",
       }),
     ).sort(),
-    [
-      "public_admission_bounds_drift",
-      "public_signup_enabled_before_public_launch_gate",
-    ],
+    ["public_admission_bounds_drift"],
   );
   const snapshot = runtimeCapabilitySnapshot(env());
   assert.equal(snapshot.policies.publicWorkspaceLimit, 100);

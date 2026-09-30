@@ -7,8 +7,16 @@ export async function verifyReleaseControl(
     mode: "disabled",
     bps: 0,
   },
+  expectedSignup = "restricted",
 ) {
   const checks = [];
+  const admissionGate = (gate) =>
+    gate?.scope === "public_launch" &&
+    ((gate.state === "disabled_policy" &&
+      gate.blocking === true &&
+      expectedSignup === "restricted") ||
+      (["production_ready", "live_verified"].includes(gate.state) &&
+        gate.blocking === false));
   const secure = (response) =>
     response.headers.get("strict-transport-security")?.includes("max-age=") &&
     response.headers.get("x-content-type-options") === "nosniff" &&
@@ -56,8 +64,7 @@ export async function verifyReleaseControl(
       value.gates?.github_main_ruleset?.blocking === false &&
       value.gates?.capacity_cost_calibration?.state === "live_verified" &&
       value.gates?.capacity_cost_calibration?.blocking === false &&
-      value.gates?.public_signup?.scope === "public_launch" &&
-      value.gates?.public_signup?.state === "disabled_policy" &&
+      admissionGate(value.gates?.public_signup) &&
       value.gates?.threads_oauth_callback?.state === "live_verified" &&
       value.gates?.advanced_rollout?.state === "disabled_policy" &&
       value.runtimeCapabilities?.policies?.advancedEnabled ===
@@ -66,7 +73,12 @@ export async function verifyReleaseControl(
         expectedAdvanced.mode &&
       value.runtimeCapabilities?.policies?.advancedCanaryBps ===
         expectedAdvanced.bps &&
-      value.runtimeCapabilities?.policies?.signupMode === "restricted" &&
+      value.runtimeCapabilities?.policies?.signupMode === expectedSignup &&
+      (expectedSignup !== "public" ||
+        (value.environment === "production" &&
+          value.access?.publicSignup === true &&
+          value.runtimeCapabilities?.policies?.publicWorkspaceLimit === 100 &&
+          value.runtimeCapabilities?.policies?.publicSignupsPerHour === 10)) &&
       Array.isArray(value.evidenceStillExternal) &&
       !value.evidenceStillExternal.includes("private_github_authority") &&
       !value.evidenceStillExternal.includes("exact_recovery_checkpoints") &&
@@ -93,9 +105,7 @@ export async function verifyReleaseControl(
         gates.github_main_ruleset?.blocking === false &&
         gates.capacity_cost_calibration?.state === "live_verified" &&
         gates.capacity_cost_calibration?.blocking === false &&
-        gates.public_signup?.scope === "public_launch" &&
-        gates.public_signup?.state === "disabled_policy" &&
-        gates.public_signup?.blocking === true
+        admissionGate(gates.public_signup)
       );
     },
   );

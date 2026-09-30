@@ -2,7 +2,7 @@ import type { Env } from "./types.ts";
 
 const ownerPaths = new Set(["/app", "/pilot", "/advanced-inventory", "/lifecycle", "/recovery"]);
 export const publicPages = ["/", "/docs/", "/docs/install", "/docs/agent-guide", "/docs/operations", "/privacy", "/terms", "/security", "/support", "/status"];
-const navigation = [["/app", "Workspace"], ["/pilot", "Acceptance"], ["/advanced-inventory", "Inventory"], ["/lifecycle", "Data"], ["/recovery", "Recovery"]];
+const navigation = [["/app", "Workspace"], ["/advanced-inventory", "Inventory"], ["/lifecycle", "Data"], ["/recovery", "Recovery"]];
 export function canonicalPath(path: string) {
   if (path === "/index.html") return "/";
   if (["/docs", "/docs/index.html"].includes(path)) return "/docs/";
@@ -34,6 +34,9 @@ function safeOrigin(env: Env) {
   } catch { return undefined; }
 }
 export function runtimeHeroNote(env: Env) {
+  if (env.DEPLOY_ENV === "production") return env.SIGNUP_MODE === "public"
+    ? "Start free with Google. Connect your accounts and approve what your agents publish."
+    : "Sign in with your approved Google account to open your workspace.";
   const environment = env.DEPLOY_ENV === "production" ? "PRODUCTION" : env.DEPLOY_ENV === "staging" ? "STAGING" : "ENVIRONMENT UNCONFIRMED";
   const access = env.SIGNUP_MODE === "public" ? "PUBLIC SIGNUP" : "OWNER ACCESS RESTRICTED";
   const advanced = env.ADVANCED_ENABLED === "true" ? "ADVANCED SUBJECT TO WORKSPACE ELIGIBILITY" : "ADVANCED AUTOMATION DISABLED";
@@ -98,13 +101,13 @@ async function presentHtml(request: Request, response: Response, env: Env) {
       e.prepend('<a class="skip-link" href="#main-content">Skip to main content</a>', { html: true });
     } })
     .on("main", { element(e) { e.setAttribute("id", "main-content"); e.setAttribute("tabindex", "-1"); } })
-    .on(".environment-badge", { element(e) { e.setInnerContent(environment); e.setAttribute("title", `Runtime environment: ${environment}`); } })
+    .on(".environment-badge", { element(e) { if (environment === "production") e.remove(); else { e.setInnerContent(environment); e.setAttribute("title", `Runtime environment: ${environment}`); } } })
     .on(".product-nav", { element(e) { e.setAttribute("aria-label", "Product navigation"); e.setInnerContent(productNavigation(path), { html: true }); } })
     .on(".product-menu-panel", { element(e) { e.setInnerContent(productNavigation(path, true), { html: true }); } })
     .on(".site-footer-links", { element(e) { e.setInnerContent('<a href="/docs/install">Install</a><a href="/docs/agent-guide">Agent guide</a><a href="/docs/operations">Operations</a><a href="/help.json">Machine help</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/security">Security</a><a href="/support">Support</a><a href="/status">Status</a>', { html: true }); } });
   if (home) {
     rewriter.on(".hero-note", { element(e) { e.setInnerContent(runtimeHeroNote(env)); } });
-    rewriter.on("#advanced-state", { element(e) { e.setInnerContent(env.ADVANCED_ENABLED === "true" ? "Advanced access is subject to workspace rollout eligibility, verified entitlement and explicitly enabled profiles." : "Advanced automation is disabled in this runtime. Payment alone does not start automation."); } });
+    rewriter.on("#advanced-state", { element(e) { e.setInnerContent(env.ADVANCED_ENABLED === "true" ? "Advanced access is subject to workspace eligibility and explicitly enabled profiles." : "Advanced is coming soon. Free publishing and scheduling are available today."); } });
   }
   if (!path.startsWith("/docs/")) {
     rewriter.on('a[href="/docs/agent-guide.md"]', { element(e) { e.setAttribute("href", "/docs/agent-guide"); } })

@@ -211,12 +211,19 @@ export const releaseGateDefinitions: readonly ReleaseGateDefinition[] = [
   },
   {
     id: "public_signup",
-    state: "disabled_policy",
+    state: "production_ready",
     scope: "public_launch",
-    blocking: true,
+    blocking: false,
     summary:
-      "Public signup remains restricted until production/support/abuse controls are accepted.",
-    evidence: ["docs/production-readiness-acceptance.md"],
+      "Owner-authorized public Google signup is approved with verified-email admission, a first-100 workspace cap and 10 new signups per hour. Existing production infrastructure and operator-drill evidence is accepted; distributed-runtime provider acceptance remains separate.",
+    evidence: [
+      "docs/public-launch-2026-09-30.md",
+      "actions/35440165248",
+      "issues/137",
+      "docs/production-edge-live-evidence-2026-09-19.md",
+      "docs/operational-alert-live-evidence-2026-09-19.md",
+      "docs/capacity-cost-live-evidence-2026-09-19.md",
+    ],
   },
   {
     id: "production_edge",
@@ -361,6 +368,11 @@ export function releasePolicyViolations(env: Env) {
     !reviewedGateAccepted("public_signup")
   )
     violations.push("public_signup_enabled_before_public_launch_gate");
+  if (
+    runtime.policies.signupMode === "public" &&
+    env.DEPLOY_ENV !== "production"
+  )
+    violations.push("public_signup_environment_invalid");
   if (
     runtime.policies.signupMode === "public" &&
     (runtime.policies.publicWorkspaceLimit !== 100 ||

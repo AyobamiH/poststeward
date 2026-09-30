@@ -39,9 +39,19 @@ test("reviewed technical production readiness does not require public admission"
   assert.ok(!report.required.some((entry) => entry.gate === "public_signup"));
 });
 test("public launch still requires the separately reviewed admission gate", () => {
-  const report = evaluatePromotion(fixture("public_launch", true));
+  const input = fixture("public_launch", true);
+  const gate = input.ledger.gates.find(gate => gate.id === "public_signup");
+  gate.state = "disabled_policy";
+  gate.blocking = true;
+  input.readiness.gates.public_signup = structuredClone(gate);
+  const report = evaluatePromotion(input);
   assert.equal(report.promotion.ready, false);
   assert.deepEqual(report.promotion.blockers, ["public_signup"]);
+});
+test("the owner-reviewed public admission gate is ready without fabricating automatic authorization", () => {
+  const report = evaluatePromotion(fixture("public_launch", true));
+  assert.equal(report.promotion.ready, true);
+  assert.equal(report.promotion.authorized, false);
 });
 test("successful observations only make evidence review-ready, never auto-promote", () => {
   const input = fixture("production", false);

@@ -66,7 +66,8 @@ test("browser negotiation requires explicit acceptable HTML and machine paths st
     "/missing.js",
     "/install.sh",
     "/poststeward.py",
-  ]) assert.equal(machinePath(path), true, path);
+  ])
+    assert.equal(machinePath(path), true, path);
   assert.equal(machinePath("/missing-public-page"), false);
 });
 
@@ -79,19 +80,35 @@ test("human browser presentation remains limited to owner browser journeys", () 
     "/connections/oauth/linkedin/callback",
     "/sources/github/setup",
     "/sources/github/callback",
-  ]) assert.equal(humanBrowserPath(path), true, path);
-  for (const path of ["/api/session", "/mcp", "/payments/quote", "/webhooks/stripe"])
+  ])
+    assert.equal(humanBrowserPath(path), true, path);
+  for (const path of [
+    "/api/session",
+    "/mcp",
+    "/payments/quote",
+    "/webhooks/stripe",
+  ])
     assert.equal(humanBrowserPath(path), false, path);
 });
 
-test("environment is not inferred from hostnames and Advanced labels follow runtime policy", () => {
+test("production uses product copy while staging retains its environment indication", () => {
   assert.match(runtimeHeroNote(env()), /STAGING.*RESTRICTED.*DISABLED/);
-  assert.match(runtimeHeroNote(env({ DEPLOY_ENV: "production" })), /^PRODUCTION.*RESTRICTED/);
+  assert.match(
+    runtimeHeroNote(env({ DEPLOY_ENV: "production" })),
+    /approved Google account/,
+  );
   assert.doesNotMatch(
     runtimeHeroNote(env({ DEPLOY_ENV: "production", SIGNUP_MODE: "public" })),
-    /STAGING/,
+    /STAGING|PRODUCTION|RESTRICTED|DISABLED|GATED/,
   );
-  assert.match(runtimeHeroNote(env({ ADVANCED_ENABLED: "true" })), /WORKSPACE ELIGIBILITY/);
+  assert.match(
+    runtimeHeroNote(env({ DEPLOY_ENV: "production", SIGNUP_MODE: "public" })),
+    /Start free with Google/,
+  );
+  assert.match(
+    runtimeHeroNote(env({ ADVANCED_ENABLED: "true" })),
+    /WORKSPACE ELIGIBILITY/,
+  );
 });
 
 test("restricted environments do not advertise a crawlable sitemap", () => {
@@ -125,7 +142,8 @@ test("browser error page exposes only bounded safe failure evidence", () => {
   const html = browserErrorDocument("/auth/callback", 503, {
     error: {
       code: "LOGIN_CLIENT_REJECTED",
-      message: "The identity provider rejected PostSteward's OAuth client configuration.",
+      message:
+        "The identity provider rejected PostSteward's OAuth client configuration.",
       details: {
         reference: "123e4567-e89b-12d3-a456-426614174000",
         private: "never-render-this",
