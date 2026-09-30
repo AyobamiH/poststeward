@@ -21,6 +21,11 @@ export interface ExecutorState {
   leaseExpiresAt?: number;
   updatedAt: number;
   reason?: string;
+  transition?: {
+    purpose: "migrate" | "recover";
+    sourceInstallationId: string;
+    reviewSha256: string;
+  };
 }
 
 const PAIRING_TTL_MS = 10 * 60_000;
@@ -37,7 +42,9 @@ function randomToken(bytes = 32) {
 }
 function randomCode(length = 8) {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return [...bytes].map((value) => codeAlphabet[value % codeAlphabet.length]).join("");
+  return [...bytes]
+    .map((value) => codeAlphabet[value % codeAlphabet.length])
+    .join("");
 }
 function cleanLabel(value: unknown, name: string, max = 120) {
   requireValue(
@@ -54,7 +61,9 @@ function cleanLabel(value: unknown, name: string, max = 120) {
 function installationId(value: unknown) {
   requireValue(
     typeof value === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value,
+      ),
     "RUNTIME_INSTALLATION_ID_INVALID",
     "Installation identity must be a UUIDv4.",
     400,
@@ -84,7 +93,11 @@ export async function startRuntimePairing(
   const installation = installationId(input.installationId);
   const label = cleanLabel(input.label, "Installation label");
   const platform = cleanLabel(input.platform, "Platform", 160);
-  const runtimeVersion = cleanLabel(input.runtimeVersion, "Runtime version", 80);
+  const runtimeVersion = cleanLabel(
+    input.runtimeVersion,
+    "Runtime version",
+    80,
+  );
   const sourceRevision = input.sourceRevision
     ? cleanLabel(input.sourceRevision, "Source revision", 120)
     : null;
@@ -140,7 +153,12 @@ export async function claimRuntimePairing(
     .prepare("SELECT * FROM runtime_pairings WHERE id=? AND poll_token_hash=?")
     .bind(pairingId, await digest(token))
     .first<any>();
-  requireValue(row, "RUNTIME_PAIRING_UNKNOWN", "Pairing request is unknown.", 404);
+  requireValue(
+    row,
+    "RUNTIME_PAIRING_UNKNOWN",
+    "Pairing request is unknown.",
+    404,
+  );
 
   if (row.expires_at <= now && row.status !== "claimed") {
     await db
@@ -149,10 +167,19 @@ export async function claimRuntimePairing(
       )
       .bind(pairingId)
       .run();
-    throw new Fault("RUNTIME_PAIRING_EXPIRED", "Pairing request expired. Start again.", 410);
+    throw new Fault(
+      "RUNTIME_PAIRING_EXPIRED",
+      "Pairing request expired. Start again.",
+      410,
+    );
   }
   if (row.status === "pending")
-    return { schemaVersion: 1, status: "pending", pollAfterMs: 3000, expiresAt: row.expires_at };
+    return {
+      schemaVersion: 1,
+      status: "pending",
+      pollAfterMs: 3000,
+      expiresAt: row.expires_at,
+    };
   requireValue(
     row.status === "approved",
     "RUNTIME_PAIRING_ALREADY_CONSUMED",
@@ -223,14 +250,44 @@ export async function inspectRuntimePairing(
   input: { pairingId?: unknown; userCode?: unknown },
   now = Date.now(),
 ) {
-  requireValue(typeof input.pairingId === "string", "RUNTIME_PAIRING_ID_REQUIRED", "Pairing ID is required.");
-  requireValue(typeof input.userCode === "string", "RUNTIME_PAIRING_CODE_REQUIRED", "Pairing code is required.");
+  requireValue(
+    typeof input.pairingId === "string",
+    "RUNTIME_PAIRING_ID_REQUIRED",
+    "Pairing ID is required.",
+  );
+  requireValue(
+    typeof input.userCode === "string",
+    "RUNTIME_PAIRING_CODE_REQUIRED",
+    "Pairing code is required.",
+  );
   const code = input.userCode.trim().toUpperCase();
-  requireValue(/^[A-Z2-9]{8}$/.test(code), "RUNTIME_PAIRING_CODE_INVALID", "Pairing code is invalid.");
-  const row = await db.prepare("SELECT * FROM runtime_pairings WHERE id=?").bind(input.pairingId).first<any>();
-  requireValue(row, "RUNTIME_PAIRING_UNKNOWN", "Pairing request is unknown.", 404);
-  requireValue(row.status === "pending", "RUNTIME_PAIRING_NOT_PENDING", "Pairing request is not pending.", 409);
-  requireValue(row.expires_at > now, "RUNTIME_PAIRING_EXPIRED", "Pairing request expired. Start again.", 410);
+  requireValue(
+    /^[A-Z2-9]{8}$/.test(code),
+    "RUNTIME_PAIRING_CODE_INVALID",
+    "Pairing code is invalid.",
+  );
+  const row = await db
+    .prepare("SELECT * FROM runtime_pairings WHERE id=?")
+    .bind(input.pairingId)
+    .first<any>();
+  requireValue(
+    row,
+    "RUNTIME_PAIRING_UNKNOWN",
+    "Pairing request is unknown.",
+    404,
+  );
+  requireValue(
+    row.status === "pending",
+    "RUNTIME_PAIRING_NOT_PENDING",
+    "Pairing request is not pending.",
+    409,
+  );
+  requireValue(
+    row.expires_at > now,
+    "RUNTIME_PAIRING_EXPIRED",
+    "Pairing request expired. Start again.",
+    410,
+  );
   requireValue(
     row.user_code_hash === (await digest(code)),
     "RUNTIME_PAIRING_CODE_MISMATCH",
@@ -257,18 +314,45 @@ export async function approveRuntimePairing(
   input: { pairingId?: unknown; userCode?: unknown },
   now = Date.now(),
 ) {
-  requireValue(typeof input.pairingId === "string", "RUNTIME_PAIRING_ID_REQUIRED", "Pairing ID is required.");
-  requireValue(typeof input.userCode === "string", "RUNTIME_PAIRING_CODE_REQUIRED", "Pairing code is required.");
+  requireValue(
+    typeof input.pairingId === "string",
+    "RUNTIME_PAIRING_ID_REQUIRED",
+    "Pairing ID is required.",
+  );
+  requireValue(
+    typeof input.userCode === "string",
+    "RUNTIME_PAIRING_CODE_REQUIRED",
+    "Pairing code is required.",
+  );
   const code = input.userCode.trim().toUpperCase();
-  requireValue(/^[A-Z2-9]{8}$/.test(code), "RUNTIME_PAIRING_CODE_INVALID", "Pairing code is invalid.");
+  requireValue(
+    /^[A-Z2-9]{8}$/.test(code),
+    "RUNTIME_PAIRING_CODE_INVALID",
+    "Pairing code is invalid.",
+  );
 
   const row = await db
     .prepare("SELECT * FROM runtime_pairings WHERE id=?")
     .bind(input.pairingId)
     .first<any>();
-  requireValue(row, "RUNTIME_PAIRING_UNKNOWN", "Pairing request is unknown.", 404);
-  requireValue(row.status === "pending", "RUNTIME_PAIRING_NOT_PENDING", "Pairing request is not pending.", 409);
-  requireValue(row.expires_at > now, "RUNTIME_PAIRING_EXPIRED", "Pairing request expired. Start again.", 410);
+  requireValue(
+    row,
+    "RUNTIME_PAIRING_UNKNOWN",
+    "Pairing request is unknown.",
+    404,
+  );
+  requireValue(
+    row.status === "pending",
+    "RUNTIME_PAIRING_NOT_PENDING",
+    "Pairing request is not pending.",
+    409,
+  );
+  requireValue(
+    row.expires_at > now,
+    "RUNTIME_PAIRING_EXPIRED",
+    "Pairing request expired. Start again.",
+    410,
+  );
   requireValue(
     row.user_code_hash === (await digest(code)),
     "RUNTIME_PAIRING_CODE_MISMATCH",
@@ -284,7 +368,12 @@ export async function approveRuntimePairing(
     )
     .bind(workspace, ownerActor, now, input.pairingId, now)
     .run();
-  requireValue(updated.meta.changes === 1, "RUNTIME_PAIRING_RACE", "Pairing request changed before approval.", 409);
+  requireValue(
+    updated.meta.changes === 1,
+    "RUNTIME_PAIRING_RACE",
+    "Pairing request changed before approval.",
+    409,
+  );
   return {
     schemaVersion: 1,
     status: "approved",
@@ -311,15 +400,15 @@ export async function authenticateRuntime(
     .bind(tokenHash)
     .first<any>();
   requireValue(
-    row &&
-      row.status === "active" &&
-      row.token_expires_at > now,
+    row && row.status === "active" && row.token_expires_at > now,
     "RUNTIME_UNAUTHENTICATED",
     "Runtime token is invalid, expired or revoked.",
     401,
   );
   await db
-    .prepare("UPDATE runtime_installations SET last_seen_at=? WHERE token_hash=?")
+    .prepare(
+      "UPDATE runtime_installations SET last_seen_at=? WHERE token_hash=?",
+    )
     .bind(now, tokenHash)
     .run();
   return {
@@ -329,7 +418,10 @@ export async function authenticateRuntime(
   };
 }
 
-export async function listRuntimeInstallations(db: D1Database, workspace: string) {
+export async function listRuntimeInstallations(
+  db: D1Database,
+  workspace: string,
+) {
   const rows = await db
     .prepare(
       `SELECT installation_id,label,platform,runtime_version,source_revision,status,
@@ -361,7 +453,12 @@ export async function revokeRuntimeInstallation(
     )
     .bind(now, workspace, id)
     .run();
-  requireValue(result.meta.changes === 1, "RUNTIME_INSTALLATION_NOT_ACTIVE", "Installation is not active.", 404);
+  requireValue(
+    result.meta.changes === 1,
+    "RUNTIME_INSTALLATION_NOT_ACTIVE",
+    "Installation is not active.",
+    404,
+  );
   return { revoked: true, installationId: id };
 }
 
@@ -383,14 +480,46 @@ export async function executorStatus(
     .prepare("SELECT * FROM workspace_executors WHERE workspace=?")
     .bind(workspace)
     .first<any>();
-  requireValue(row, "RUNTIME_EXECUTOR_STATE_MISSING", "Executor state is unavailable.", 500);
+  requireValue(
+    row,
+    "RUNTIME_EXECUTOR_STATE_MISSING",
+    "Executor state is unavailable.",
+    500,
+  );
+  const transition = await db
+    .prepare(
+      "SELECT purpose,source_installation_id,review_sha256 FROM runtime_transitions WHERE workspace=? AND generation=? AND installation_id=?",
+    )
+    .bind(
+      workspace,
+      Number(row.authority_generation),
+      row.active_installation_id || "",
+    )
+    .first<{
+      purpose: "migrate" | "recover";
+      source_installation_id: string;
+      review_sha256: string;
+    }>();
   return {
+    ...(transition
+      ? {
+          transition: {
+            purpose: transition.purpose,
+            sourceInstallationId: transition.source_installation_id,
+            reviewSha256: transition.review_sha256,
+          },
+        }
+      : {}),
     workspace,
     executorMode: row.executor_mode,
     executorStatus: row.executor_status || "active",
-    ...(row.active_installation_id ? { activeInstallationId: row.active_installation_id } : {}),
+    ...(row.active_installation_id
+      ? { activeInstallationId: row.active_installation_id }
+      : {}),
     authorityGeneration: Number(row.authority_generation),
-    ...(row.lease_expires_at ? { leaseExpiresAt: Number(row.lease_expires_at) } : {}),
+    ...(row.lease_expires_at
+      ? { leaseExpiresAt: Number(row.lease_expires_at) }
+      : {}),
     updatedAt: Number(row.updated_at),
     ...(row.reason ? { reason: String(row.reason) } : {}),
   };
@@ -435,7 +564,14 @@ export async function executorExternalBlockers(
 export async function setExecutor(
   db: D1Database,
   workspace: string,
-  input: { mode: "hosted" | "local"; installationId?: string; reason: string },
+  input: {
+    mode: "hosted" | "local";
+    installationId?: string;
+    reason: string;
+    purpose?: "handoff" | "migrate" | "recover";
+    sourceInstallationId?: string;
+    recoveryReviewSha256?: string;
+  },
   now = Date.now(),
 ) {
   const current = await executorStatus(db, workspace, now);
@@ -469,8 +605,34 @@ export async function setExecutor(
     );
   }
 
+  const recovery = input.purpose === "migrate" || input.purpose === "recover";
+  if (recovery) {
+    requireValue(
+      input.mode === "local" &&
+        input.sourceInstallationId &&
+        input.sourceInstallationId !== targetInstallation &&
+        /^[a-f0-9]{64}$/.test(input.recoveryReviewSha256 || ""),
+      "RUNTIME_RECOVERY_REVIEW_REQUIRED",
+      "Recovery/migration requires a newly paired target, source installation and exact local review digest.",
+      409,
+    );
+    const source = await db
+      .prepare(
+        "SELECT installation_id FROM runtime_installations WHERE workspace=? AND installation_id=?",
+      )
+      .bind(workspace, installationId(input.sourceInstallationId))
+      .first();
+    requireValue(
+      source &&
+        (!current.activeInstallationId ||
+          current.activeInstallationId === input.sourceInstallationId),
+      "RUNTIME_RECOVERY_SOURCE_MISMATCH",
+      "Recovery source does not match the workspace's prior executor.",
+      409,
+    );
+  }
   const nextGeneration = current.authorityGeneration + 1;
-  const updated = await db
+  const statement = db
     .prepare(
       `UPDATE workspace_executors
        SET executor_mode=?,active_installation_id=?,authority_generation=?,
@@ -486,10 +648,33 @@ export async function setExecutor(
       reason,
       workspace,
       current.authorityGeneration,
-    )
-    .run();
+    );
+  const statements = [statement];
+  if (recovery)
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO runtime_transitions
+    (workspace,generation,installation_id,source_installation_id,purpose,review_sha256,reviewed_at)
+    SELECT ?,?,?,?,?,?,? FROM workspace_executors WHERE workspace=? AND authority_generation=? AND active_installation_id=?
+    ON CONFLICT(workspace,generation) DO NOTHING`,
+        )
+        .bind(
+          workspace,
+          nextGeneration,
+          targetInstallation,
+          input.sourceInstallationId!,
+          input.purpose!,
+          input.recoveryReviewSha256!,
+          now,
+          workspace,
+          nextGeneration,
+          targetInstallation,
+        ),
+    );
+  const results = await db.batch(statements);
   requireValue(
-    updated.meta.changes === 1,
+    results[0].meta.changes === 1,
     "RUNTIME_EXECUTOR_TRANSITION_RACE",
     "Executor authority changed concurrently. Inspect current status and review again.",
     409,
@@ -515,7 +700,13 @@ export async function renewExecutorLease(
        WHERE workspace=? AND executor_mode='local' AND executor_status='active'
          AND active_installation_id=? AND authority_generation=?`,
     )
-    .bind(now + EXECUTOR_LEASE_MS, now, auth.workspace, auth.installationId, generation)
+    .bind(
+      now + EXECUTOR_LEASE_MS,
+      now,
+      auth.workspace,
+      auth.installationId,
+      generation,
+    )
     .run();
   requireValue(
     result.meta.changes === 1,

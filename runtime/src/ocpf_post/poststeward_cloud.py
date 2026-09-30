@@ -20,7 +20,7 @@ import uuid
 import webbrowser
 from typing import Any
 
-DEFAULT_ORIGIN = "https://poststeward.com"
+DEFAULT_ORIGIN = "https://app.poststeward.com"
 
 
 class CloudError(RuntimeError):
@@ -100,7 +100,9 @@ def _request(
     request = urllib.request.Request(origin() + path, data=body, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read()
+            raw = response.read(512 * 1024 + 1)
+            if len(raw) > 512 * 1024:
+                raise CloudError("RESPONSE_TOO_LARGE", "PostSteward response exceeds its bounded size.")
             value = json.loads(raw.decode("utf-8")) if raw else {}
             if not isinstance(value, dict):
                 raise CloudError("RESPONSE_INVALID", "PostSteward returned non-object JSON.")
@@ -302,6 +304,7 @@ def activation_executor_proof() -> dict[str, Any]:
         "executor_mode": "local",
         "authority_generation": generation,
         "lease_proven_live": True,
+        **({"transition": executor["transition"]} if executor.get("transition") else {}),
     }
 
 
@@ -418,6 +421,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status")
     sub.add_parser("providers")
     sub.add_parser("heartbeat")
+    sub.add_parser("recovery-review", help="Show the verified local restore digest for owner cloud review")
+    sub.add_parser("bridge", help="Poll and execute at most one bounded remote command")
     sub.add_parser("logout")
     sub.add_parser("mcp")
     args = parser.parse_args(argv)
@@ -428,6 +433,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(value, indent=2, ensure_ascii=False))
         elif args.command in {"status", "providers"}:
             print(json.dumps(bindings(), indent=2, ensure_ascii=False))
+        elif args.command == "recovery-review":
+            from ocpf_post.setup_activation import ActivationManager
+            from ocpf_post.setup_engine import SetupEngine
+            engine = SetupEngine()
+            print(json.dumps(ActivationManager(store=engine.store, workspace=engine.workspace).cloud_recovery_review(), indent=2, ensure_ascii=False))
+        elif args.command == "bridge":
+            from ocpf_post.poststeward_bridge import run_once
+            print(json.dumps(run_once(), indent=2, ensure_ascii=False))
         elif args.command == "heartbeat":
             print(json.dumps(heartbeat(), indent=2, ensure_ascii=False))
         elif args.command == "logout":

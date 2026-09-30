@@ -22,7 +22,7 @@ def main() -> None:
             "Product commands:\n"
             "  onboard     Pair this machine to the owner workspace\n"
             "  configure   Bind hosted X/Threads/LinkedIn identities to Fresh local state\n"
-            "  cloud       Inspect pairing, providers, executor heartbeat and remote MCP info\n"
+            "  cloud       Inspect bindings; bridge polls one scoped command; recovery-review prints the restore digest\n"
             "  status      Inspect local/cloud runtime authority and provider bindings\n"
             "  doctor      Diagnose host, pairing, provider and automation readiness\n"
             "  activate    Preview/apply reviewed local unattended activation\n"

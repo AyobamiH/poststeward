@@ -16,7 +16,9 @@ async function seed(db: D1Database) {
   const csrf = "relay-csrf";
   const sessionHash = await digest(session);
   await db
-    .prepare("INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)")
+    .prepare(
+      "INSERT INTO principals(subject,workspace,created_at) VALUES (?,?,?)",
+    )
     .bind(owner, workspace, Date.now())
     .run();
   await db
@@ -47,7 +49,13 @@ async function seed(db: D1Database) {
       await digest(agent),
       workspace,
       "relay-agent",
-      JSON.stringify(["read", "connections", "publish", "schedule", "campaign:write"]),
+      JSON.stringify([
+        "read",
+        "connections",
+        "publish",
+        "schedule",
+        "campaign:write",
+      ]),
       Date.now() + 3_600_000,
     )
     .run();
@@ -72,36 +80,45 @@ async function pairLocal(
   ownerHeaders: Record<string, string>,
   installationId = "33333333-3333-4333-8333-333333333333",
 ) {
-  const startResponse = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      installationId,
-      label: "Relay runtime",
-      platform: "Linux",
-      runtimeVersion: "0.28.29",
-    }),
-  });
+  const startResponse = await mf.dispatchFetch(
+    origin + "/api/runtime/pairing/start",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId,
+        label: "Relay runtime",
+        platform: "Linux",
+        runtimeVersion: "0.28.29",
+      }),
+    },
+  );
   const start: any = await startResponse.json();
   await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
     method: "POST",
     headers: ownerHeaders,
-    body: JSON.stringify({ pairingId: start.pairingId, userCode: start.userCode }),
+    body: JSON.stringify({
+      pairingId: start.pairingId,
+      userCode: start.userCode,
+    }),
   });
   const claim = await mf.dispatchFetch(
     origin + "/api/runtime/pairing/status?pairing_id=" + start.pairingId,
     { headers: { Authorization: "Bearer " + start.pollToken } },
   );
   const paired: any = await claim.json();
-  const preview = await mf.dispatchFetch(origin + "/api/runtime/executor/preview", {
-    method: "POST",
-    headers: ownerHeaders,
-    body: JSON.stringify({
-      mode: "local",
-      installationId,
-      reason: "relay acceptance",
-    }),
-  });
+  const preview = await mf.dispatchFetch(
+    origin + "/api/runtime/executor/preview",
+    {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        mode: "local",
+        installationId,
+        reason: "relay acceptance",
+      }),
+    },
+  );
   const review: any = await preview.json();
   assert.equal(review.status, "preview", JSON.stringify(review));
   const apply = await mf.dispatchFetch(origin + "/api/runtime/executor/apply", {
@@ -167,16 +184,19 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
   try {
     const auth = await seed(db);
 
-    const connected = await mf.dispatchFetch(origin + "/api/connections/import", {
-      method: "POST",
-      headers: auth.agentHeaders,
-      body: JSON.stringify({
-        alias: "relay_x",
-        provider: "x",
-        accessToken: "runtime-relay-test-token",
-        funding: "customer_app",
-      }),
-    });
+    const connected = await mf.dispatchFetch(
+      origin + "/api/connections/import",
+      {
+        method: "POST",
+        headers: auth.agentHeaders,
+        body: JSON.stringify({
+          alias: "relay_x",
+          provider: "x",
+          accessToken: "runtime-relay-test-token",
+          funding: "customer_app",
+        }),
+      },
+    );
     assert.equal(connected.status, 200, await connected.clone().text());
 
     const local = await pairLocal(mf, auth.ownerHeaders);
@@ -195,7 +215,7 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
       }),
     });
     assert.equal(account.status, 200, await account.clone().text());
-    assert.equal((await account.json() as any).account.identity.id, "12345");
+    assert.equal(((await account.json()) as any).account.identity.id, "12345");
 
     const relayInput = {
       action: "publish",
@@ -214,7 +234,7 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
       body: JSON.stringify(relayInput),
     });
     assert.equal(first.status, 200, await first.clone().text());
-    assert.equal((await first.json() as any).id, "post-relay-1");
+    assert.equal(((await first.json()) as any).id, "post-relay-1");
     assert.equal(writes, 1);
 
     const replay = await mf.dispatchFetch(origin + "/api/runtime/relay", {
@@ -223,7 +243,7 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
       body: JSON.stringify(relayInput),
     });
     assert.equal(replay.status, 200, await replay.clone().text());
-    assert.equal((await replay.json() as any).id, "post-relay-1");
+    assert.equal(((await replay.json()) as any).id, "post-relay-1");
     assert.equal(writes, 1);
 
     const changed = await mf.dispatchFetch(origin + "/api/runtime/relay", {
@@ -237,7 +257,7 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
     });
     assert.equal(changed.status, 409);
     assert.equal(
-      (await changed.json() as any).error.code,
+      ((await changed.json()) as any).error.code,
       "EXTERNAL_EFFECT_FENCE_MISMATCH",
     );
     assert.equal(writes, 1);
@@ -252,7 +272,7 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
       }),
     });
     assert.equal(verify.status, 200, await verify.clone().text());
-    assert.equal((await verify.json() as any).verified, true);
+    assert.equal(((await verify.json()) as any).verified, true);
     assert.equal(writes, 1);
     assert.ok(reads >= 2);
 
@@ -280,8 +300,8 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
     );
     assert.equal(hosted.status, 409);
     assert.equal(
-      (await hosted.json() as any).error.code,
-      "LOCAL_RUNTIME_EXECUTOR_ACTIVE",
+      ((await hosted.json()) as any).error.code,
+      "RUNTIME_LOCAL_OPERATION_REQUIRED",
     );
     assert.equal(writes, 1);
   } finally {
@@ -309,16 +329,19 @@ test("stale runtime generation is rejected before provider I/O", async () => {
   );
   try {
     const auth = await seed(db);
-    const connected = await mf.dispatchFetch(origin + "/api/connections/import", {
-      method: "POST",
-      headers: auth.agentHeaders,
-      body: JSON.stringify({
-        alias: "relay_x",
-        provider: "x",
-        accessToken: "runtime-relay-test-token",
-        funding: "customer_app",
-      }),
-    });
+    const connected = await mf.dispatchFetch(
+      origin + "/api/connections/import",
+      {
+        method: "POST",
+        headers: auth.agentHeaders,
+        body: JSON.stringify({
+          alias: "relay_x",
+          provider: "x",
+          accessToken: "runtime-relay-test-token",
+          funding: "customer_app",
+        }),
+      },
+    );
     assert.equal(connected.status, 200, await connected.clone().text());
     const local = await pairLocal(mf, auth.ownerHeaders);
 
@@ -340,7 +363,10 @@ test("stale runtime generation is rejected before provider I/O", async () => {
       }),
     });
     assert.equal(response.status, 409);
-    assert.equal((await response.json() as any).error.code, "RUNTIME_EXECUTOR_FENCED");
+    assert.equal(
+      ((await response.json()) as any).error.code,
+      "RUNTIME_EXECUTOR_FENCED",
+    );
     assert.equal(writes, 0);
   } finally {
     await mf.dispose();

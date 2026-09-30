@@ -1,9 +1,24 @@
+import { requireCommandEffect } from "./runtime-bridge.ts";
 import { requireValue } from "./common.ts";
 import { credentialRoots, unseal } from "./crypto.ts";
 import { EffectLedgerProviders } from "./effects.ts";
-import { providerActorForIdentity, SocialProviders, type Credential } from "./providers.ts";
-import { requireLocalExecutor, type RuntimeAuth } from "./runtime-coordination.ts";
-import type { Account, Actor, Delivery, Env, Provider, Store } from "./types.ts";
+import {
+  providerActorForIdentity,
+  SocialProviders,
+  type Credential,
+} from "./providers.ts";
+import {
+  requireLocalExecutor,
+  type RuntimeAuth,
+} from "./runtime-coordination.ts";
+import type {
+  Account,
+  Actor,
+  Delivery,
+  Env,
+  Provider,
+  Store,
+} from "./types.ts";
 
 export interface RuntimeRelayInput {
   action:
@@ -14,6 +29,7 @@ export interface RuntimeRelayInput {
     | "verify"
     | "metrics";
   authorityGeneration?: number;
+  bridgeCommandId?: string;
   provider: Provider;
   accountId: string;
   effectId?: string;
@@ -55,7 +71,12 @@ function activeAccount(store: Store, provider: Provider, accountId: string) {
   return matches[0];
 }
 
-async function credential(store: Store, env: Env, workspace: string, account: Account) {
+async function credential(
+  store: Store,
+  env: Env,
+  workspace: string,
+  account: Account,
+) {
   return unseal<Credential>(
     account.secret,
     credentialRoots(env),
@@ -164,7 +185,11 @@ export async function handleRuntimeRelay(
     return {
       schemaVersion: 1,
       provider: account.provider,
-      account: { alias: account.alias, identity: observed, binding: account.version },
+      account: {
+        alias: account.alias,
+        identity: observed,
+        binding: account.version,
+      },
       capabilities: account.capabilities || null,
     };
   }
@@ -175,6 +200,15 @@ export async function handleRuntimeRelay(
       "RUNTIME_GENERATION_REQUIRED",
       "Current executor generation is required for a provider write.",
     );
+    if (input.bridgeCommandId)
+      await requireCommandEffect(
+        env,
+        auth,
+        input.bridgeCommandId,
+        String(input.campaign),
+        input.provider,
+        Number(input.authorityGeneration),
+      );
     await requireLocalExecutor(
       env.IDENTITY,
       auth,

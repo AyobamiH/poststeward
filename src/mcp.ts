@@ -1,6 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { catalog, describe } from "./operations/catalog.ts";
+import { executorStatus } from "./runtime-coordination.ts";
+import {
+  hostedRuntimeOperations,
+  runtimeOperations,
+} from "./runtime-bridge.ts";
 import { help } from "./discovery.ts";
 import type { Actor, Env } from "./types.ts";
 export async function mcp(
@@ -9,10 +14,12 @@ export async function mcp(
   actor: Actor,
   invoke: (name: string, input: unknown) => Promise<unknown>,
 ) {
+  const executor = await executorStatus(env.IDENTITY, actor.workspace);
   const server = new McpServer(
     { name: "poststeward", version: "0.1.0" },
     {
       instructions:
+        `Executor mode: ${executor.executorMode}; generation: ${executor.authorityGeneration}. In local mode use runtime_* tools and inspect command receipts. ` +
         "Read help before taking consequential actions. Publishing and explicit scheduling are free. Returned reservations require receipt inspection. Do not retry ambiguous effects with new keys.",
     },
   );
@@ -29,13 +36,25 @@ export async function mcp(
         {
           uri: "publishing://help",
           mimeType: "application/json",
-          text: JSON.stringify(help(env)),
+          text: JSON.stringify({
+            ...help(env),
+            executor,
+            operations: help(env).operations.filter((o) =>
+              executor.executorMode === "local"
+                ? !hostedRuntimeOperations.has(o.name)
+                : !runtimeOperations.has(o.name),
+            ),
+          }),
         },
       ],
     }),
   );
   for (const operation of catalog.filter(
-    (o) => actor.scopes.includes("admin") || actor.scopes.includes(o.scope),
+    (o) =>
+      (actor.scopes.includes("admin") || actor.scopes.includes(o.scope)) &&
+      (executor.executorMode === "local"
+        ? !hostedRuntimeOperations.has(o.name)
+        : !runtimeOperations.has(o.name)),
   )) {
     server.registerTool(
       operation.name,

@@ -402,7 +402,7 @@ def parse_schedule_at(value: str, *, default_timezone: str = DEFAULT_TIMEZONE) -
 
 def create_schedule(*, campaign: str, provider: str, at: str, timezone_name: str = DEFAULT_TIMEZONE,
                     provider_factory: Callable[[str], Any] = get_provider,
-                    now: datetime | None = None) -> dict[str, Any]:
+                    now: datetime | None = None, bridge_command_id: str | None = None) -> dict[str, Any]:
     campaign = normalize_campaign_id(campaign)
     provider_name = provider.strip().lower()
     if provider_name not in SUPPORTED_PROVIDERS:
@@ -461,6 +461,7 @@ def create_schedule(*, campaign: str, provider: str, at: str, timezone_name: str
             raise ScheduleError(f"An active schedule already exists: {record.get('schedule_id')}")
 
     event = {
+        **({"bridge_command_id": bridge_command_id} if bridge_command_id else {}),
         "event": "scheduled",
         "status": "scheduled",
         "schedule_id": f"sch_{uuid.uuid4().hex}",
@@ -1006,6 +1007,7 @@ def execute_schedule(schedule_id: str, *, provider_factory: Callable[[str], Any]
             factory=provider_factory,
             registered_identity=True,
             effect_scope=f"{campaign}:{schedule_id}",
+            bridge_command_id=record.get("bridge_command_id"),
         )
         account = provider_impl.account()
     except ProviderUnavailable as exc:

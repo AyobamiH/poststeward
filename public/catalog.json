@@ -1263,5 +1263,191 @@
       "idempotentHint": true,
       "openWorldHint": false
     }
+  },
+  {
+    "name": "runtime_inspect",
+    "description": "Queue bounded inspection of the active local executor. Read runtime_command_get for the result; this is not hosted workspace state.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "view": "schedules",
+      "idempotencyKey": "local-inspect-001"
+    },
+    "inspection": "runtime_command_get",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "view": {
+          "type": "string",
+          "enum": [
+            "status",
+            "projects",
+            "campaigns",
+            "schedules"
+          ]
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "view",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "runtime_schedule_create",
+    "description": "Queue an exact local campaign/provider schedule on the reviewed local executor. Original agent authority is rechecked before provider effects.",
+    "scope": "schedule",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "FUTURE_CONSEQUENCE"
+    ],
+    "example": {
+      "campaign": "PRODUCT-001",
+      "provider": "threads",
+      "at": "2026-10-01T12:00:00Z",
+      "idempotencyKey": "local-schedule-001"
+    },
+    "inspection": "runtime_command_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "campaign": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]{2,63}$"
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "x",
+            "threads",
+            "linkedin"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "timezone": {
+          "default": "UTC",
+          "type": "string",
+          "maxLength": 80
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "campaign",
+        "provider",
+        "at",
+        "timezone",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "runtime_schedule_cancel",
+    "description": "Queue cancellation of one unclaimed local schedule; never changes executor or owner authority.",
+    "scope": "schedule",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "scheduleId": "sch_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "idempotencyKey": "local-cancel-001"
+    },
+    "inspection": "runtime_command_get",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string",
+          "pattern": "^sch_[a-f0-9]{32}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "scheduleId",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "runtime_command_get",
+    "description": "Read a durable command receipt for this actor. Claimed work is never automatically redispatched; provider receipts remain separate.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "commandId": "11111111-1111-4111-8111-111111111111"
+    },
+    "inspection": "runtime_command_get",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "commandId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "commandId"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
   }
 ]

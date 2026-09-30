@@ -4,7 +4,8 @@ set -euo pipefail
 VERSION="${POSTSTEWARD_INSTALL_VERSION:-stable}"
 PREFIX="${POSTSTEWARD_INSTALL_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/poststeward}"
 BIN_DIR="${POSTSTEWARD_BIN_DIR:-$HOME/.local/bin}"
-ORIGIN="${POSTSTEWARD_ORIGIN:-https://poststeward.com}"
+ORIGIN="${POSTSTEWARD_ORIGIN:-https://app.poststeward.com}"
+DISTRIBUTION_ORIGIN="${POSTSTEWARD_DISTRIBUTION_ORIGIN:-${POSTSTEWARD_ORIGIN:-https://poststeward.com}}"
 REPOSITORY="${POSTSTEWARD_INSTALL_REPOSITORY:-AyobamiH/poststeward}"
 NO_ONBOARD=0
 DRY_RUN=0
@@ -23,7 +24,7 @@ Options:
   --beta                    Install the beta ref
   --prefix <absolute-path>  Product data prefix (default: ~/.local/share/poststeward)
   --bin-dir <absolute-path> Command directory (default: ~/.local/bin)
-  --origin <https-origin>   Hosted PostSteward origin (default: https://poststeward.com)
+  --origin <https-origin>   Hosted PostSteward origin (default: https://app.poststeward.com)
   --no-onboard              Install and verify without starting machine pairing
   --no-verify               Skip candidate runtime smoke verification
   --dry-run                 Resolve and print the plan without changing files
@@ -42,7 +43,7 @@ while (($#)); do
     --beta) VERSION="beta"; shift ;;
     --prefix) (($# >= 2)) || fail "--prefix requires a value"; PREFIX="$2"; shift 2 ;;
     --bin-dir) (($# >= 2)) || fail "--bin-dir requires a value"; BIN_DIR="$2"; shift 2 ;;
-    --origin) (($# >= 2)) || fail "--origin requires a value"; ORIGIN="$2"; shift 2 ;;
+    --origin) (($# >= 2)) || fail "--origin requires a value"; ORIGIN="$2"; DISTRIBUTION_ORIGIN="$2"; shift 2 ;;
     --no-onboard) NO_ONBOARD=1; shift ;;
     --no-verify) VERIFY=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -80,7 +81,7 @@ trap cleanup EXIT
 EXPECTED_RUNTIME_TREE_SHA=""
 if [[ "$VERSION" = "stable" || "$VERSION" = "beta" ]]; then
   META="$TMP/release.json"
-  fetch_file "$ORIGIN/releases/$VERSION.json" "$META"
+  fetch_file "$DISTRIBUTION_ORIGIN/releases/$VERSION.json" "$META"
   MANIFEST_VALUES="$(python3 - "$META" "$VERSION" <<'PY'
 from datetime import datetime, timezone
 import json, re, sys

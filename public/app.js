@@ -171,38 +171,43 @@ function renderRuntimeAuthority() {
   const activeId = runtimeExecutor?.activeInstallationId;
   const generation = runtimeExecutor?.authorityGeneration;
   const lease =
-    Number.isFinite(runtimeExecutor?.leaseExpiresAt) && runtimeExecutor.leaseExpiresAt > Date.now()
+    Number.isFinite(runtimeExecutor?.leaseExpiresAt) &&
+    runtimeExecutor.leaseExpiresAt > Date.now()
       ? ` · lease until ${new Date(runtimeExecutor.leaseExpiresAt).toLocaleTimeString()}`
       : "";
   $("runtime-executor-status").textContent =
     `Executor ${mode} · generation ${generation ?? "unknown"}${activeId ? ` · installation ${activeId}` : ""}${lease}`;
   $("runtime-use-local").disabled = active.length === 0;
   $("runtime-use-hosted").disabled = mode === "hosted";
-  records("runtime-installations", runtimeInstallations, (row, installation) => {
-    const selected = installation.installation_id === activeId;
-    line(
-      row,
-      `${installation.label} · ${installation.status}${selected ? " · ACTIVE EXECUTOR" : ""}`,
-      true,
-    );
-    line(
-      row,
-      `${installation.platform} · runtime ${installation.runtime_version} · ${installation.installation_id}`,
-    );
-    if (installation.status === "active" && !selected)
-      button(row, "Revoke installation", async () => {
-        const ok = window.confirm(
-          `Revoke ${installation.label}? Its runtime token will stop working.`,
-        );
-        if (!ok) return;
-        show(
-          await api("/api/runtime/installations/revoke", {
-            installationId: installation.installation_id,
-          }),
-        );
-        await refresh();
-      });
-  });
+  records(
+    "runtime-installations",
+    runtimeInstallations,
+    (row, installation) => {
+      const selected = installation.installation_id === activeId;
+      line(
+        row,
+        `${installation.label} · ${installation.status}${selected ? " · ACTIVE EXECUTOR" : ""}`,
+        true,
+      );
+      line(
+        row,
+        `${installation.platform} · runtime ${installation.runtime_version} · ${installation.installation_id}`,
+      );
+      if (installation.status === "active" && !selected)
+        button(row, "Revoke installation", async () => {
+          const ok = window.confirm(
+            `Revoke ${installation.label}? Its runtime token will stop working.`,
+          );
+          if (!ok) return;
+          show(
+            await api("/api/runtime/installations/revoke", {
+              installationId: installation.installation_id,
+            }),
+          );
+          await refresh();
+        });
+    },
+  );
 }
 async function loadRuntimeAuthority() {
   try {
@@ -225,20 +230,31 @@ async function transitionExecutor(mode) {
     mode === "local"
       ? "Owner selected the paired PostSteward local runtime"
       : "Owner returned execution authority to hosted PostSteward";
+  const purpose =
+    mode === "local" ? $("runtime-transition-purpose").value : "handoff";
   const input = {
     mode,
     reason,
+    ...(purpose !== "handoff"
+      ? {
+          purpose,
+          sourceInstallationId: $("runtime-source-installation").value.trim(),
+          recoveryReviewSha256: $("runtime-recovery-review").value.trim(),
+        }
+      : {}),
     ...(installationId ? { installationId } : {}),
   };
   const review = await api("/api/runtime/executor/preview", input);
   if (review.status !== "preview") {
-    const blockers = Array.isArray(review.blockers) ? review.blockers.join(", ") : "unknown blocker";
+    const blockers = Array.isArray(review.blockers)
+      ? review.blockers.join(", ")
+      : "unknown blocker";
     throw new Error(`Executor transition is blocked: ${blockers}`);
   }
   const target =
     mode === "local" ? `local runtime ${installationId}` : "hosted PostSteward";
   const ok = window.confirm(
-    `Move publishing execution to ${target}? This advances the authority generation and fences stale executors.`,
+    `Move publishing execution to ${target} (${purpose})? This advances the authority generation and fences stale executors.`,
   );
   if (!ok) return;
   const applied = await api("/api/runtime/executor/apply", {

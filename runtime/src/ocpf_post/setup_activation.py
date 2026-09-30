@@ -704,6 +704,26 @@ class ActivationManager:
             raise ActivationError(exc.code, str(exc)) from exc
         return session, operation, installation, events
 
+    def cloud_recovery_review(self, session_id: str | None = None) -> dict[str, Any]:
+        session, operation, installation, events = self._session_context(session_id)
+        if session["mode"] not in {"migrate", "recover"}:
+            _fail("activation.recovery.mode_required", "This session is not a migration or recovery")
+        ready_stage = "recovery_review_ready" if session["mode"] == "recover" else "verification_ready"
+        ready = next((i for i in range(len(events) - 1, -1, -1) if events[i]["to_stage"] == ready_stage), None)
+        if ready is None:
+            _fail("activation.recovery.review_missing", "Complete local restore verification before cloud review")
+        reviewed_events = events[:ready + 1]
+        files = {}
+        for event in reviewed_events:
+            evidence = event.get("evidence") or {}
+            for key in ("review", "reconciliation"):
+                if evidence.get(key):
+                    files[key] = _json_sha(_load_json(Path(str(evidence[key]))))
+        body = {"schema_version": 1, "mode": session["mode"], "session_id": session["session_id"],
+                "operation_id": operation["operation_id"], "events": reviewed_events, "files": files}
+        return {"purpose": session["mode"], "recoveryReviewSha256": _json_sha(body),
+                "boundary": "Review this digest in the owner cloud executor transition after pairing a new target. This command never changes authority."}
+
     def preview(
         self, *, runtime_root: str | Path, state_root: str | Path, config_root: str | Path,
         session_id: str | None = None, recovery_resolution: dict[str, Any] | None = None,
@@ -742,6 +762,11 @@ class ActivationManager:
             try:
                 from ocpf_post.poststeward_cloud import CloudError, activation_executor_proof
                 cloud_executor = activation_executor_proof()
+                if session["mode"] in {"migrate", "recover"}:
+                    transition = cloud_executor.get("transition") or {}
+                    if (transition.get("purpose") != session["mode"] or
+                            transition.get("reviewSha256") != self.cloud_recovery_review(session_id)["recoveryReviewSha256"]):
+                        raise CloudError("RUNTIME_RECOVERY_REVIEW_REQUIRED", "Owner must review the migration/recovery cloud generation transition to a newly paired installation.")
             except CloudError as exc:
                 raise ActivationError(
                     "activation.cloud_executor.not_ready",

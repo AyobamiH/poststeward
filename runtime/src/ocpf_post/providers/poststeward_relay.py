@@ -47,6 +47,7 @@ class PostStewardRelayProvider(Provider):
         *,
         account_id: str | None = None,
         effect_scope: str | None = None,
+        bridge_command_id: str | None = None,
         **_kwargs: Any,
     ) -> None:
         normalized = str(provider or "").strip().lower()
@@ -55,6 +56,7 @@ class PostStewardRelayProvider(Provider):
         self.name = normalized
         self._account_id = str(account_id or "").strip() or None
         self._effect_scope = str(effect_scope or "manual").strip() or "manual"
+        self._bridge_command_id = bridge_command_id
         self._account: AccountIdentity | None = None
         self._post_effects: dict[str, str] = {}
         self._post_urls: dict[str, str] = {}
@@ -161,6 +163,7 @@ class PostStewardRelayProvider(Provider):
                     status = exc.status
                 raise ProviderRejected(status, str(exc)) from exc
             if exc.code in {
+                "RUNTIME_COMMAND_EFFECT_REFUSED",
                 "RUNTIME_EXECUTOR_FENCED",
                 "RUNTIME_UNAUTHENTICATED",
                 "RUNTIME_ACCOUNT_BINDING_MISMATCH",
@@ -226,6 +229,7 @@ class PostStewardRelayProvider(Provider):
             "accountId": account.account_id,
             "effectId": effect_id,
             "campaign": self._effect_scope,
+            **({"bridgeCommandId": self._bridge_command_id} if self._bridge_command_id else {}),
             "text": value,
             "textDigest": self._digest(value),
             **({"replyToId": reply_to_id} if reply_to_id else {}),

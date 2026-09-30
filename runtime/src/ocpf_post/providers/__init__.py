@@ -38,6 +38,7 @@ def get_provider(name: str, **kwargs):
             normalized,
             account_id=kwargs.pop("account_id", None),
             effect_scope=kwargs.pop("effect_scope", None),
+            bridge_command_id=kwargs.pop("bridge_command_id", None),
         )
     if normalized == "x":
         return XProvider(**kwargs)
@@ -77,6 +78,7 @@ def for_account(name, account_id, *, factory=None, require_enabled=True, registe
                 normalized,
                 account_id=identity,
                 effect_scope=kwargs.pop("effect_scope", None),
+            bridge_command_id=kwargs.pop("bridge_command_id", None),
             )
         )
     if row:

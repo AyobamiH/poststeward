@@ -325,6 +325,13 @@ def cmd_run_due(args: argparse.Namespace) -> None:
         return
 
     try:
+        if __import__("os").environ.get("POSTSTEWARD_REQUIRE_CLOUD_FENCE") == "1":
+            from ocpf_post.poststeward_bridge import run_once
+            from ocpf_post.poststeward_cloud import CloudError
+            try:
+                run_once()
+            except CloudError as exc:
+                _die(f"Cloud executor command/lease check blocked [{exc.code}]", 3)
         results = run_due(limit=args.limit)
     except RunnerBusy as exc:
         _die(str(exc), 3)

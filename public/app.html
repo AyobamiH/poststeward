@@ -73,40 +73,92 @@
         <div class="product-page">
           <div id="session-notice" role="status">Loading workspace…</div>
 
-          <section id="runtime-pairing-panel" class="work-pane secondary" aria-labelledby="runtime-pairing-heading" hidden>
+          <section
+            id="runtime-pairing-panel"
+            class="work-pane secondary"
+            aria-labelledby="runtime-pairing-heading"
+            hidden
+          >
             <p class="eyebrow">LOCAL RUNTIME</p>
-            <h2 id="runtime-pairing-heading">Approve this PostSteward installation?</h2>
+            <h2 id="runtime-pairing-heading">
+              Approve this PostSteward installation?
+            </h2>
             <p id="runtime-pairing-copy" class="muted">
               Inspecting the short-lived pairing request…
             </p>
             <pre id="runtime-pairing-details"></pre>
             <div class="row">
-              <button id="runtime-pairing-approve" type="button">Approve installation</button>
-              <button id="runtime-pairing-dismiss" type="button">Not now</button>
+              <button id="runtime-pairing-approve" type="button">
+                Approve installation
+              </button>
+              <button id="runtime-pairing-dismiss" type="button">
+                Not now
+              </button>
             </div>
             <p class="muted">
-              Pairing registers a machine and returns a scoped runtime token. It does not
-              switch publishing execution or connect a social provider.
+              Pairing registers a machine and returns a scoped runtime token. It
+              does not switch publishing execution or connect a social provider.
             </p>
           </section>
 
-          <section id="runtime-authority-panel" class="work-pane secondary" aria-labelledby="runtime-authority-heading">
+          <section
+            id="runtime-authority-panel"
+            class="work-pane secondary"
+            aria-labelledby="runtime-authority-heading"
+          >
             <p class="eyebrow">EXECUTION AUTHORITY</p>
-            <h2 id="runtime-authority-heading">Choose one publishing executor.</h2>
-            <p id="runtime-executor-status" class="muted">Loading executor authority…</p>
+            <h2 id="runtime-authority-heading">
+              Choose one publishing executor.
+            </h2>
+            <p id="runtime-executor-status" class="muted">
+              Loading executor authority…
+            </p>
             <div class="field-row">
-              <label>Paired local runtime
+              <label
+                >Paired local runtime
                 <select id="runtime-installation-select"></select>
               </label>
             </div>
+            <details>
+              <summary>Move a migrated or recovered runtime</summary>
+              <p class="muted">
+                Pair the target as a new installation. On that machine run
+                <code>poststeward cloud recovery-review</code> after local
+                verification, then enter its digest here. The old machine must
+                be deactivated or its lease must expire.
+              </p>
+              <label
+                >Transition purpose
+                <select id="runtime-transition-purpose">
+                  <option value="handoff">Ordinary handoff</option>
+                  <option value="migrate">Verified migration</option>
+                  <option value="recover">
+                    Reviewed dead-machine recovery
+                  </option>
+                </select>
+              </label>
+              <label
+                >Source cloud installation ID
+                <input id="runtime-source-installation" autocomplete="off"
+              /></label>
+              <label
+                >Local restore review SHA-256
+                <input id="runtime-recovery-review" autocomplete="off"
+              /></label>
+            </details>
             <div class="row">
-              <button id="runtime-use-local" type="button">Use selected local runtime</button>
-              <button id="runtime-use-hosted" type="button">Use hosted executor</button>
+              <button id="runtime-use-local" type="button">
+                Use selected local runtime
+              </button>
+              <button id="runtime-use-hosted" type="button">
+                Use hosted executor
+              </button>
             </div>
             <div id="runtime-installations" class="record-list"></div>
             <p class="muted">
-              Switching executor authority increments the workspace generation. A stale machine
-              cannot publish merely because it still has an old runtime token.
+              Switching executor authority increments the workspace generation.
+              A stale machine cannot publish merely because it still has an old
+              runtime token.
             </p>
           </section>
 

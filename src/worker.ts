@@ -82,6 +82,16 @@ import {
   startRuntimePairing,
 } from "./runtime-coordination.ts";
 
+import {
+  bridgeOperation,
+  claimCommand,
+  authorizeCommand,
+  completeCommand,
+  commandCompletionSchema,
+  runtimeOperations,
+  hostedRuntimeOperations,
+} from "./runtime-bridge.ts";
+
 const runtimePairingStartSchema = z.strictObject({
   installationId: z.uuid(),
   label: z.string().min(1).max(120),
@@ -104,6 +114,12 @@ const runtimeExecutorSchema = z.strictObject({
   mode: z.enum(["hosted", "local"]),
   installationId: z.uuid().optional(),
   reason: z.string().min(3).max(240),
+  purpose: z.enum(["handoff", "migrate", "recover"]).optional(),
+  sourceInstallationId: z.uuid().optional(),
+  recoveryReviewSha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
 });
 const runtimeExecutorApplySchema = runtimeExecutorSchema.extend({
   expectedSha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -121,12 +137,16 @@ const runtimeRelaySchema = z.strictObject({
     "metrics",
   ]),
   authorityGeneration: z.number().int().min(1).optional(),
+  bridgeCommandId: z.uuid().optional(),
   provider: z.enum(["x", "threads", "linkedin"]),
   accountId: z.string().min(1).max(256),
   effectId: z.string().min(8).max(180).optional(),
   campaign: z.string().min(1).max(160).optional(),
   text: z.string().min(1).max(12500).optional(),
-  textDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  textDigest: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   replyToId: z.string().min(1).max(256).optional(),
   containerId: z.string().min(1).max(256).optional(),
   postId: z.string().min(1).max(256).optional(),
@@ -255,7 +275,11 @@ export class Workspace extends DurableObject<Env> {
   }
   private async schedule(engine: Engine, oauth: ProviderOAuthConnections) {
     const workspace = this.store.get<string>("workspace");
-    if (!workspace || (await executorStatus(this.env.IDENTITY, workspace)).executorMode === "hosted")
+    if (
+      !workspace ||
+      (await executorStatus(this.env.IDENTITY, workspace)).executorMode ===
+        "hosted"
+    )
       await engine.scheduleNext();
     const nextOAuth = oauth.nextWake();
     if (nextOAuth !== undefined)
@@ -277,7 +301,11 @@ export class Workspace extends DurableObject<Env> {
         name: string;
         input: unknown;
         payment?: { url: string; headers: Record<string, string> };
-        runtime?: { workspace: string; installationId: string; tokenHash: string };
+        runtime?: {
+          workspace: string;
+          installationId: string;
+          tokenHash: string;
+        };
       };
       requireValue(
         typeof data.workspace === "string",
@@ -323,9 +351,12 @@ export class Workspace extends DurableObject<Env> {
         const actionable = this.store
           .list<Delivery>("delivery:")
           .filter((delivery) =>
-            ["pending_approval", "scheduled", "executing", "waiting_container"].includes(
-              delivery.status,
-            ),
+            [
+              "pending_approval",
+              "scheduled",
+              "executing",
+              "waiting_container",
+            ].includes(delivery.status),
           );
         const enabledProfiles = this.store
           .list<any>("profile:")
@@ -334,7 +365,9 @@ export class Workspace extends DurableObject<Env> {
           input.mode === "local"
             ? [
                 ...(actionable.length ? ["hosted_actionable_deliveries"] : []),
-                ...(enabledProfiles.length ? ["hosted_advanced_profiles_enabled"] : []),
+                ...(enabledProfiles.length
+                  ? ["hosted_advanced_profiles_enabled"]
+                  : []),
               ]
             : [];
         return json({
@@ -415,11 +448,13 @@ export class Workspace extends DurableObject<Env> {
                 alias: account.alias,
                 idempotencyKey:
                   "threads-meta-" +
-                  (await digest({
-                    action: input.action,
-                    identity: input.identityId,
-                    alias: account.alias,
-                  })).slice(0, 32),
+                  (
+                    await digest({
+                      action: input.action,
+                      identity: input.identityId,
+                      alias: account.alias,
+                    })
+                  ).slice(0, 32),
               },
               actor,
             );
@@ -428,10 +463,12 @@ export class Workspace extends DurableObject<Env> {
           if (input.action === "delete") {
             const tombstone =
               "deleted:" +
-              (await digest({
-                provider: "threads",
-                identity: input.identityId,
-              })).slice(0, 24);
+              (
+                await digest({
+                  provider: "threads",
+                  identity: input.identityId,
+                })
+              ).slice(0, 24);
             const current = this.store.get<Account>("account:" + account.alias);
             if (current) {
               current.identity = { id: tombstone, username: "deleted" };
@@ -795,6 +832,28 @@ async function invoke(
   path = "/operation",
   payment?: any,
 ) {
+  if (path === "/operation") {
+    if (runtimeOperations.has(name) || name === "runtime_command_get")
+      return json(await bridgeOperation(env, actor, name, input));
+    const executor = await executorStatus(env.IDENTITY, actor.workspace);
+    requireValue(
+      !(executor.executorMode === "local" && hostedRuntimeOperations.has(name)),
+      "RUNTIME_LOCAL_OPERATION_REQUIRED",
+      "This workspace executes locally. Use runtime_inspect/runtime_schedule_create/runtime_schedule_cancel and inspect runtime_command_get.",
+      409,
+    );
+    if (name === "workspace_status") {
+      const response = await invoke(
+        env,
+        actor,
+        name,
+        input,
+        "/hosted-inspection",
+      );
+      const value = await internalValue(response);
+      return json({ ...value, executor });
+    }
+  }
   return env.WORKSPACES.get(env.WORKSPACES.idFromName(actor.workspace)).fetch(
     "https://workspace.internal" + path,
     {
@@ -825,14 +884,26 @@ async function internalValue(response: Response) {
 async function executorTransitionReview(
   env: Env,
   actor: Actor,
-  input: { mode: "hosted" | "local"; installationId?: string; reason: string },
+  input: z.infer<typeof runtimeExecutorSchema>,
 ) {
   const current = await executorStatus(env.IDENTITY, actor.workspace);
-  const external = await executorExternalBlockers(env.IDENTITY, actor.workspace);
-  const preflight = await internalValue(
-    await invoke(env, actor, "", { mode: input.mode }, "/runtime/executor/preflight"),
+  const external = await executorExternalBlockers(
+    env.IDENTITY,
+    actor.workspace,
   );
-  const installations = await listRuntimeInstallations(env.IDENTITY, actor.workspace);
+  const preflight = await internalValue(
+    await invoke(
+      env,
+      actor,
+      "",
+      { mode: input.mode },
+      "/runtime/executor/preflight",
+    ),
+  );
+  const installations = await listRuntimeInstallations(
+    env.IDENTITY,
+    actor.workspace,
+  );
   const targetReady =
     input.mode === "hosted" ||
     installations.some(
@@ -849,7 +920,21 @@ async function executorTransitionReview(
     Number(current.leaseExpiresAt || 0) > Date.now() &&
     (input.mode !== "local" ||
       targetInstallation !== current.activeInstallationId);
+  const recovery = input.purpose === "migrate" || input.purpose === "recover";
+  const recoveryReady =
+    !recovery ||
+    (input.mode === "local" &&
+      input.sourceInstallationId !== targetInstallation &&
+      !!input.recoveryReviewSha256 &&
+      installations.some(
+        (row: any) => row.installation_id === input.sourceInstallationId,
+      ) &&
+      (!current.activeInstallationId ||
+        current.activeInstallationId === input.sourceInstallationId));
   const blockers = [
+    ...(!recoveryReady
+      ? ["recovery_requires_new_pairing_source_and_review"]
+      : []),
     ...external,
     ...((preflight.blockers as string[] | undefined) || []),
     ...(!targetReady ? ["target_runtime_installation_not_ready"] : []),
@@ -860,12 +945,20 @@ async function executorTransitionReview(
   const review = {
     schemaVersion: 1,
     workspace: actor.workspace,
-    current,
+    current: {
+      executorMode: current.executorMode,
+      executorStatus: current.executorStatus,
+      activeInstallationId: current.activeInstallationId || null,
+      authorityGeneration: current.authorityGeneration,
+    },
     target: {
       mode: input.mode,
       installationId: input.mode === "local" ? input.installationId : null,
     },
     reason: input.reason,
+    purpose: input.purpose || "handoff",
+    sourceInstallationId: input.sourceInstallationId || null,
+    recoveryReviewSha256: input.recoveryReviewSha256 || null,
     blockers,
     hostedPreflight: preflight,
   };
@@ -1032,7 +1125,10 @@ async function route(
   }
   if (path === "/api/runtime/pairing/start" && request.method === "POST") {
     const input = parse(runtimePairingStartSchema, await request.json());
-    return json(await startRuntimePairing(env.IDENTITY, env.PUBLIC_ORIGIN, input), 201);
+    return json(
+      await startRuntimePairing(env.IDENTITY, env.PUBLIC_ORIGIN, input),
+      201,
+    );
   }
   if (path === "/api/runtime/pairing/status" && request.method === "GET") {
     const pairingId = url.searchParams.get("pairing_id");
@@ -1044,6 +1140,39 @@ async function route(
     );
     const value = await claimRuntimePairing(env.IDENTITY, request, pairingId);
     return json(value, value.status === "pending" ? 202 : 200);
+  }
+  if (path === "/api/runtime/commands/claim" && request.method === "POST") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    const input = parse(runtimeHeartbeatSchema, await request.json());
+    return json(await claimCommand(env, runtime, input.authorityGeneration));
+  }
+  if (path === "/api/runtime/commands/authorize" && request.method === "POST") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    const input = parse(
+      z.strictObject({
+        commandId: z.uuid(),
+        authorityGeneration: z.number().int().min(1),
+      }),
+      await request.json(),
+    );
+    return json(
+      await authorizeCommand(
+        env,
+        runtime,
+        input.authorityGeneration,
+        input.commandId,
+      ),
+    );
+  }
+  if (path === "/api/runtime/commands/complete" && request.method === "POST") {
+    const runtime = await authenticateRuntime(request, env.IDENTITY);
+    return json(
+      await completeCommand(
+        env,
+        runtime,
+        parse(commandCompletionSchema, await request.json()),
+      ),
+    );
   }
   if (path === "/api/runtime/heartbeat" && request.method === "POST") {
     const runtime = await authenticateRuntime(request, env.IDENTITY);
@@ -1071,43 +1200,43 @@ async function route(
   if (path === "/api/runtime/relay" && request.method === "POST") {
     const runtime = await authenticateRuntime(request, env.IDENTITY);
     const input = parse(runtimeRelaySchema, await request.json());
-    const response = await env.WORKSPACES
-      .get(env.WORKSPACES.idFromName(runtime.workspace))
-      .fetch("https://workspace.internal/runtime/relay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    const response = await env.WORKSPACES.get(
+      env.WORKSPACES.idFromName(runtime.workspace),
+    ).fetch("https://workspace.internal/runtime/relay", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workspace: runtime.workspace,
+        runtime,
+        actor: {
           workspace: runtime.workspace,
-          runtime,
-          actor: {
-            workspace: runtime.workspace,
-            id: `runtime:${runtime.installationId}`,
-            scopes: ["publish"],
-          },
-          name: "",
-          input,
-        }),
-      });
+          id: `runtime:${runtime.installationId}`,
+          scopes: ["publish"],
+        },
+        name: "",
+        input,
+      }),
+    });
     return response;
   }
   if (path === "/api/runtime/bindings" && request.method === "GET") {
     const runtime = await authenticateRuntime(request, env.IDENTITY);
-    const response = await env.WORKSPACES
-      .get(env.WORKSPACES.idFromName(runtime.workspace))
-      .fetch("https://workspace.internal/runtime/bindings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    const response = await env.WORKSPACES.get(
+      env.WORKSPACES.idFromName(runtime.workspace),
+    ).fetch("https://workspace.internal/runtime/bindings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workspace: runtime.workspace,
+        actor: {
           workspace: runtime.workspace,
-          actor: {
-            workspace: runtime.workspace,
-            id: `runtime:${runtime.installationId}`,
-            scopes: ["read"],
-          },
-          name: "",
-          input: {},
-        }),
-      });
+          id: `runtime:${runtime.installationId}`,
+          scopes: ["read"],
+        },
+        name: "",
+        input: {},
+      }),
+    });
     const bindings = await internalValue(response);
     return json({
       schemaVersion: 1,
@@ -1130,7 +1259,9 @@ async function route(
 
     if (path === "/api/runtime/pairing/inspect" && request.method === "POST") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Inspect runtime pairing from the signed-in owner workspace.",
         403,
@@ -1140,7 +1271,9 @@ async function route(
     }
     if (path === "/api/runtime/pairing/approve" && request.method === "POST") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Approve runtime pairing from the signed-in owner workspace.",
         403,
@@ -1159,16 +1292,25 @@ async function route(
     }
     if (path === "/api/runtime/installations" && request.method === "GET") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Runtime installations are visible only to the signed-in owner.",
         403,
       );
-      return json(await listRuntimeInstallations(env.IDENTITY, auth.actor.workspace));
+      return json(
+        await listRuntimeInstallations(env.IDENTITY, auth.actor.workspace),
+      );
     }
-    if (path === "/api/runtime/installations/revoke" && request.method === "POST") {
+    if (
+      path === "/api/runtime/installations/revoke" &&
+      request.method === "POST"
+    ) {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Revoke runtime installations from the signed-in owner workspace.",
         403,
@@ -1186,7 +1328,9 @@ async function route(
     }
     if (path === "/api/runtime/executor" && request.method === "GET") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Executor authority is visible only to the signed-in owner.",
         403,
@@ -1195,7 +1339,9 @@ async function route(
     }
     if (path === "/api/runtime/executor/preview" && request.method === "POST") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Review executor transitions from the signed-in owner workspace.",
         403,
@@ -1205,7 +1351,9 @@ async function route(
     }
     if (path === "/api/runtime/executor/apply" && request.method === "POST") {
       requireValue(
-        auth.browser && !auth.actor.grant && auth.actor.scopes.includes("admin"),
+        auth.browser &&
+          !auth.actor.grant &&
+          auth.actor.scopes.includes("admin"),
         "OWNER_SESSION_REQUIRED",
         "Apply executor transitions from the signed-in owner workspace.",
         403,
@@ -1553,8 +1701,12 @@ async function route(
       );
     }
     if (path.startsWith("/api/pilot/")) {
-      requireValue(env.SIGNUP_MODE === "restricted", "PILOT_RESTRICTED_ONLY",
-        "Controlled acceptance is available only in restricted staging.", 403);
+      requireValue(
+        env.SIGNUP_MODE === "restricted",
+        "PILOT_RESTRICTED_ONLY",
+        "Controlled acceptance is available only in restricted staging.",
+        403,
+      );
       const action = path.slice("/api/pilot/".length);
       requireValue(
         ["status", "prepare", "confirm", "cancel", "recheck"].includes(action),
@@ -1606,12 +1758,7 @@ async function route(
         "/connect",
       );
       const value: any = await response.json();
-      if (
-        response.ok &&
-        value?.provider &&
-        value.identity?.id &&
-        value.alias
-      )
+      if (response.ok && value?.provider && value.identity?.id && value.alias)
         await registerProviderIdentity(env.IDENTITY, {
           provider: value.provider,
           identityId: value.identity.id,

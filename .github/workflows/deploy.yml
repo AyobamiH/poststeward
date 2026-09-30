@@ -120,6 +120,7 @@ jobs:
       url: ${{ steps.config.outputs.origin }}
     env:
       DEPLOY_ENV: ${{ inputs.environment }}
+      PRODUCTION_CREDENTIAL_MODE: ${{ vars.PRODUCTION_CREDENTIAL_MODE }}
       ENCRYPTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.D1_ID }}
@@ -157,6 +158,11 @@ jobs:
         env:
           POSTSTEWARD_ADVANCED_ROLLOUT_REQUEST: ${{ inputs.advanced_rollout_request }}
         run: node scripts/advanced-rollout-request.mjs
+      - name: Verify production resource identity and protected configuration
+        if: inputs.environment == 'production'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/production-deploy-preflight.mjs
       - name: Configure isolated environment
         id: config
         env:

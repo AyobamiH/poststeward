@@ -73,7 +73,7 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 - [x] Local activation requires matching cloud executor generation.
 - [x] Lease heartbeat/expiry closes future provider relay effects.
 - [x] Deactivation attempts cloud relay fencing before local cleanup; cloud failure still closes the local marker and is reported honestly.
-- [ ] Recovery/migration advance generation only after review.
+- [x] Recovery/migration advance generation only after review (new pairing, local review digest, atomic cloud transition receipt).
 - [x] Concurrency and stale-generation adversarial tests.
 
 ## Phase 6 — provider relay
@@ -93,9 +93,9 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 
 - [x] Local projects/campaigns/schedules remain local execution truth in local mode.
 - [x] Cloud stores coordination/receipt mirror, not a divergent campaign planner.
-- [ ] Remote agents can inspect/control the active local runtime through a bounded bridge.
+- [x] Remote agents can inspect/control the active local runtime through a bounded bridge (inspection and explicit scheduling/cancellation).
 - [x] Local agent surface remains deterministic JSON.
-- [ ] Remote MCP distinguishes local-executor operations from hosted mode.
+- [x] Remote MCP distinguishes local-executor operations from hosted mode.
 - [x] Agent grant scope cannot change executor/admin authority.
 
 ## Phase 8 — newer owner-runtime feature review
@@ -183,3 +183,5 @@ The resumed integration checkpoint and remaining release gates are recorded in
 [RUNTIME_INTEGRATION_ACCEPTANCE.md](RUNTIME_INTEGRATION_ACCEPTANCE.md). Completed
 implementation/automated checks above do not close the real controlled acceptance
 or launch checklists.
+
+Delivery milestones and remaining live acceptance: [distributed delivery milestones](DISTRIBUTED_DELIVERY_MILESTONES.md).

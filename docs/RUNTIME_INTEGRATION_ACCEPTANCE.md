@@ -121,8 +121,8 @@ completion claim. Remaining gates include:
 - one deliberately authorized campaign effect per selected provider, independent
   readback and matching local/cloud receipts; do not replay previously accepted
   historical effects just to refresh evidence;
-- scoped remote-agent/local-executor bridge and compatible MCP routing, which remain
-  unchecked in the implementation plan;
+- live remote-agent/local-executor bridge acceptance; implementation and adversarial
+  tests are tracked in the distributed delivery milestones;
 - real deactivation, upgrade/rollback, migration/recovery, and stale-machine drills;
 - macOS/WSL/native Windows platform acceptance and intentional signup/launch policy.
 
