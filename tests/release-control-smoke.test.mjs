@@ -79,6 +79,52 @@ test("hosted release control accepts matching healthy runtime and reviewed gate 
   assert.equal(report.checks.length, 2);
 });
 
+test("public production smoke requires reviewed admission and exact bounded runtime mode", async () => {
+  const state = readiness();
+  state.environment = "production";
+  state.access = { publicSignup: true };
+  state.gates.public_signup = {
+    state: "production_ready",
+    scope: "public_launch",
+    blocking: false,
+  };
+  Object.assign(state.runtimeCapabilities.policies, {
+    signupMode: "public",
+    publicWorkspaceLimit: 100,
+    publicSignupsPerHour: 10,
+  });
+  const ledger = gates();
+  ledger.gates = ledger.gates.map((gate) =>
+    gate.id === "public_signup"
+      ? { ...gate, state: "production_ready", blocking: false }
+      : gate,
+  );
+  const send = async (url) =>
+    Response.json(
+      new URL(url).pathname === "/readiness.json" ? state : ledger,
+      { headers: secureHeaders },
+    );
+  assert.equal(
+    (await verifyReleaseControl(origin, release, send, undefined, "public"))
+      .passed,
+    true,
+  );
+  state.runtimeCapabilities.policies.publicWorkspaceLimit = 101;
+  assert.equal(
+    (await verifyReleaseControl(origin, release, send, undefined, "public"))
+      .passed,
+    false,
+  );
+  state.runtimeCapabilities.policies.publicWorkspaceLimit = 100;
+  state.gates.public_signup.state = "disabled_policy";
+  state.gates.public_signup.blocking = true;
+  assert.equal(
+    (await verifyReleaseControl(origin, release, send, undefined, "public"))
+      .passed,
+    false,
+  );
+});
+
 test("hosted release control accepts the exact bounded canary requested by deployment", async () => {
   const canaryReadiness = readiness();
   canaryReadiness.runtimeCapabilities.policies = {

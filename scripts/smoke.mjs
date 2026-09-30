@@ -15,6 +15,7 @@ const control = await verifyReleaseControl(
     mode: c.vars.ADVANCED_ROLLOUT_MODE || "disabled",
     bps: Number(c.vars.ADVANCED_CANARY_BPS || "0"),
   },
+  c.vars.SIGNUP_MODE,
 );
 console.log("POSTSTEWARD_RELEASE_CONTROL_REPORT " + JSON.stringify(control));
 if (process.env.GITHUB_STEP_SUMMARY)
