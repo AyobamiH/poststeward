@@ -42,12 +42,7 @@ class CoordinationContractTests(unittest.TestCase):
         self.assertEqual(coordination_status("source-onboarding")["status"], "available")
 
     def test_controlled_refresh_classifies_source_contention_without_throwing_prose(self):
-        class Lock:
-            def __enter__(self): return None
-            def __exit__(self, *_args): return False
-
-        with patch("ocpf_post.admission_runtime.local_store.locked", return_value=Lock()), \
-             patch(
+        with patch(
                  "ocpf_post.admission_runtime._controlled_refresh",
                  side_effect=OnboardingError("Another source-onboarding operation is active; retry after it completes"),
              ), \
@@ -85,6 +80,7 @@ class MachineReadableCliTests(unittest.TestCase):
         ]
         with patch.dict(os.environ, {
             "OCPF_POST_GENERATIVE_SUPPLY_ENABLED": "1",
+            "OCPF_POST_GENERATIVE_SUPPLY_MODE": "api",
             "OCPF_POST_GENERATIVE_DAILY_LIMIT": "3",
         }), patch(
             "ocpf_post.replenisher.campaign_ids",
@@ -100,6 +96,26 @@ class MachineReadableCliTests(unittest.TestCase):
         self.assertEqual(value["api_candidates_remaining"], 0)
         self.assertEqual(value["projects_blocked_by_global_limit"], 20)
         self.assertEqual(value["status_counts"]["daily_limit_reached"], 20)
+        self.assertFalse(value["degraded"])
+
+    def test_default_work_mode_does_not_report_paid_api_budget(self):
+        with patch.dict(os.environ, {
+            "OCPF_POST_GENERATIVE_SUPPLY_ENABLED": "1",
+            "OCPF_POST_GENERATIVE_DAILY_LIMIT": "3",
+        }):
+            os.environ.pop("OCPF_POST_GENERATIVE_SUPPLY_MODE", None)
+            with patch("ocpf_post.replenisher._generative_daily_remaining",
+                       side_effect=AssertionError("Work mode must not consult paid API usage")):
+                value = replenisher.generative_summary(
+                    [{"project": "example", "generative_status": "work_refill_requested"}],
+                    [], now=NOW,
+                )
+        self.assertEqual(value["mode"], "work")
+        self.assertEqual(value["provider"], "chatgpt_work")
+        self.assertEqual(value["portfolio_daily_limit"], 0)
+        self.assertEqual(value["api_candidates_used"], 0)
+        self.assertEqual(value["api_candidates_remaining"], 0)
+        self.assertEqual(value["work_refill_requests"], 1)
         self.assertFalse(value["degraded"])
 
 
