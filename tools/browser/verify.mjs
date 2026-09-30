@@ -506,7 +506,7 @@ try {
     const targets=new Map();
     for(const path of ['/app','/docs/','/docs/install','/docs/agent-guide','/docs/operations','/privacy','/terms','/security','/support','/status']) {
       await page.goto(origin+path);await page.waitForLoadState('networkidle');
-      targets.set(path,await page.locator('[id]').evaluateAll(nodes=>nodes.map(el=>el.id)));
+      targets.set(path,await page.locator('[id]').evaluateAll(nodes=>nodes.map(el=>el.getAttribute('id'))));
       if(path.startsWith('/docs/')) assert.equal(await page.locator('.docs-mobile-menu summary').isVisible(),true);
       if(['/privacy','/terms','/security','/support','/status'].includes(path)) assert.equal(await page.locator('.site-menu summary').isVisible(),true);
     }
