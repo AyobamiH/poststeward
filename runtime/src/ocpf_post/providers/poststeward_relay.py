@@ -163,6 +163,7 @@ class PostStewardRelayProvider(Provider):
                     status = exc.status
                 raise ProviderRejected(status, str(exc)) from exc
             if exc.code in {
+                "PUBLISHING_PAUSED",
                 "RUNTIME_COMMAND_EFFECT_REFUSED",
                 "RUNTIME_EXECUTOR_FENCED",
                 "RUNTIME_UNAUTHENTICATED",
