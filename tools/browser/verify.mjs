@@ -211,10 +211,12 @@ try {
       ["icon-192.png", 192, 192],
       ["icon-512.png", 512, 512],
       ["og-image.png", 1200, 630],
+      ["social/poststeward-v2.png", 1200, 630],
     ]) {
       const response = await fetch(origin + "/" + path);
       assert.equal(response.status, 200);
       const bytes = Buffer.from(await response.arrayBuffer());
+      assert.match(response.headers.get("content-type"), /image\/png/);
       assert.equal(bytes.subarray(1, 4).toString(), "PNG");
       assert.equal(bytes.readUInt32BE(16), width);
       assert.equal(bytes.readUInt32BE(20), height);
@@ -238,6 +240,25 @@ try {
     "/support",
     "/status",
   ];
+  await check("Initial-HTML social previews are fixed, unique and private-data safe on every entry point", async () => {
+    const legacy = await fetch(origin + "/og-image.svg?private=PRIVATE_PREVIEW_SENTINEL", {redirect:"manual"});
+    assert.equal(legacy.status, 301);
+    assert.equal(legacy.headers.get("location"), "/social/poststeward-v2.png");
+    for (const path of paths) {
+      const response = await fetch(origin + path + "?workspace=PRIVATE_PREVIEW_SENTINEL&access_token=PRIVATE_PREVIEW_SENTINEL");
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      const head = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i)?.[1];
+      assert.ok(head);
+      assert.doesNotMatch(head, /PRIVATE_PREVIEW_SENTINEL|product_threads|owner@example\.com|og-image\.svg/);
+      for (const key of ["og:title", "og:description", "og:url", "og:image", "twitter:card", "twitter:title", "twitter:description", "twitter:image"]) {
+        assert.equal((head.match(new RegExp('(?:name|property)="' + key + '"', 'g')) || []).length, 1, path + " " + key);
+      }
+      assert.ok(head.includes('property="og:url" content="https://publish.example' + path + '"'));
+      assert.ok(head.includes('property="og:image" content="https://publish.example/social/poststeward-v2.png"'));
+      assert.match(response.headers.get("x-robots-tag"), /noindex/);
+    }
+  });
   for (const [width, scheme] of [
     [1440, "light"],
     [375, "light"],
