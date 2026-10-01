@@ -63,6 +63,7 @@ def prove_host_capabilities(
 
     python_ready = sys.version_info >= (3, 10)
     linux_ready = sys.platform.startswith("linux")
+    posix_ready = linux_ready or sys.platform == "darwin"
     checks.append(_check(
         "host.python",
         ready=python_ready,
@@ -70,8 +71,8 @@ def prove_host_capabilities(
         evidence={"version": ".".join(str(x) for x in sys.version_info[:3])},
     ))
     checks.append(_check(
-        "host.linux",
-        ready=linux_ready,
+        "host.macos" if sys.platform == "darwin" else "host.linux",
+        ready=posix_ready,
         required=True,
         evidence={"platform": sys.platform},
     ))
@@ -95,7 +96,7 @@ def prove_host_capabilities(
 
         lock_ready = False
         lock_detail = "unsupported_platform"
-        if linux_ready:
+        if posix_ready:
             import fcntl
 
             lock_path = probe / "lock"
@@ -208,8 +209,15 @@ def prove_host_capabilities(
         else:
             systemd_ready = result.returncode == 0
             systemd_detail = "user_manager_reachable" if systemd_ready else "user_manager_unreachable"
+    if sys.platform == "darwin":
+        try:
+            systemd_ready = runner(['launchctl', 'print', f'gui/{os.getuid()}'], timeout=10).returncode == 0
+            systemd_detail = 'desktop_user_session_reachable' if systemd_ready else 'desktop_user_session_unreachable'
+        except (OSError, subprocess.SubprocessError):
+            systemd_ready = False
+            systemd_detail = 'launchctl_unavailable'
     checks.append(_check(
-        "host.systemd_user",
+        "host.launchd_user" if sys.platform == "darwin" else "host.systemd_user",
         ready=systemd_ready,
         required=production,
         evidence={"systemctl": systemctl or "", "detail": systemd_detail},

@@ -1,0 +1,46 @@
+name: Native platform acceptance
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/platform-lifecycle-ai-preparation]
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel, macos-26, macos-26-intel]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Native immutable installation and service lifecycle
+        run: python3 scripts/native-platform-acceptance.py
+      - name: Platform interface regressions
+        run: PYTHONPATH=runtime/src python3 -m unittest discover -s runtime/tests -p test_host_platform.py
+  wsl:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Provision Ubuntu on native WSL 2
+        shell: pwsh
+        run: |
+          wsl.exe --version
+          wsl.exe --install --web-download -d Ubuntu-24.04 --no-launch
+          if ($LASTEXITCODE -ne 0) { throw "Native WSL provisioning unavailable on this runner; acceptance remains unverified." }
+          wsl.exe --set-version Ubuntu-24.04 2
+          if ($LASTEXITCODE -ne 0) { throw "WSL 2 virtualisation unavailable; Linux container acceptance is not a substitute." }
+          wsl.exe -d Ubuntu-24.04 -u root -- bash -lc "apt-get update && apt-get install -y python3 curl git ca-certificates && useradd -m -s /bin/bash poststeward"
+          if ($LASTEXITCODE -ne 0) { throw "WSL prerequisites failed." }
+      - name: Real WSL immutable installation
+        shell: pwsh
+        run: |
+          $sha = '${{ github.sha }}'
+          wsl.exe -d Ubuntu-24.04 -u poststeward -- bash -lc "git clone https://github.com/AyobamiH/poststeward /home/poststeward/control && cd /home/poststeward/control && git checkout $sha && python3 scripts/native-platform-acceptance.py"
+          if ($LASTEXITCODE -ne 0) { throw "Native WSL acceptance failed." }

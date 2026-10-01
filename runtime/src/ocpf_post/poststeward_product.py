@@ -59,7 +59,8 @@ def _provenance(root: Path) -> dict[str, Any] | None:
 
 
 def _services() -> dict[str, Any]:
-    if os.name != "posix" or shutil.which("systemctl") is None:
+    from ocpf_post.host_platform import service_controller
+    if os.name != "posix":
         return {
             "schema_version": 1,
             "status": "unavailable",
@@ -69,7 +70,7 @@ def _services() -> dict[str, Any]:
         return {
             "schema_version": 1,
             "status": "observed",
-            **SystemdServiceController().inspect(),
+            **service_controller().inspect(),
         }
     except Exception as exc:
         return {

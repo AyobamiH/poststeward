@@ -688,7 +688,8 @@ class ActivationManager:
     ) -> None:
         self.store = store
         self.workspace = workspace
-        self.services = service_controller or SystemdServiceController()
+        from ocpf_post.host_platform import service_controller as select_service_controller
+        self.services = service_controller or select_service_controller()
 
     def _session_context(self, session_id: str | None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
         try:
