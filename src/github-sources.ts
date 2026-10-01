@@ -152,7 +152,7 @@ export async function readPreparationEvidence(
     files = Array.isArray(comparison.files) ? comparison.files : [];
   } else
     gaps.push(
-      "No previous release selected: patches cover the tag commit, not the complete release diff.",
+      "No previous release selected: patches cover the tag commit, not the complete release diff. Release notes and pinned documents can still support a campaign about their explicit facts; comparison claims need a selected baseline.",
     );
   const sensitivePath =
     /(?:^|\/)(?:\.[^/]+|[^/]*(?:secret|credential|token|customer|private)[^/]*)/i;

@@ -81,12 +81,13 @@ async function fixture(overrides: any = {}) {
   const stages: string[] = [];
   const engine = new Engine(h.store, h.env, h.provider, {
     ...h.options,
-    preparationEvidence: async () => ({
-      sha: "a".repeat(40),
-      evidence: structuredClone(evidence),
-      gaps: [],
-      coverage: "Synthetic release fixture only.",
-    }),
+    preparationEvidence: async () =>
+      overrides.source || {
+        sha: "a".repeat(40),
+        evidence: structuredClone(evidence),
+        gaps: [],
+        coverage: "Synthetic release fixture only.",
+      },
     preparationModel: async (key, stage, data, schema) => {
       stages.push(stage);
       assert.equal(key, "test-workspace-model-key");
@@ -169,6 +170,82 @@ test("BYOK source→strategy→original draft→check creates no delivery, and o
   });
   assert.equal(repeated.campaign, result.campaign);
   assert.equal(h.store.list("campaign:").length, 1);
+});
+test("selected-release coverage reaches every editorial phase without requiring an optional comparison", async () => {
+  const gap =
+    "No previous release selected: patches cover the tag commit, not the complete release diff.";
+  const h = await fixture({
+    source: {
+      sha: "a".repeat(40),
+      evidence: structuredClone(evidence),
+      gaps: [gap],
+      coverage: "Selected release snapshot, with no complete comparison.",
+    },
+    model: async (stage: string, data: any) => {
+      assert.deepEqual(data.sourceScope, {
+        mode: "selected_release_snapshot",
+        repository: selection.repository,
+        releaseTag: selection.releaseTag,
+        pinnedCommit: "a".repeat(40),
+        previousTag: null,
+      });
+      assert.deepEqual(data.gaps, [gap]);
+      assert.ok(data.evidence.some((item: any) => item.id === "release"));
+      return {
+        value:
+          stage === "interpret"
+            ? structuredClone(strategy)
+            : stage === "draft"
+              ? { drafts: [structuredClone(draft)] }
+              : structuredClone(critique),
+        inputTokens: 1200,
+        outputTokens: 500,
+        latencyMs: 7,
+      };
+    },
+  });
+  const job = await h.complete();
+  assert.deepEqual(h.stages, ["interpret", "draft", "check"]);
+  assert.equal(job.status, "review");
+  assert.ok(job.drafts);
+  assert.equal(job.drafts[0].text, draft.text);
+  assert.equal(job.sha, "a".repeat(40));
+  assert.ok(job.critique);
+  assert.equal(job.critique.acceptableForOwnerReview, true);
+  assert.equal(h.calls.publish, 0);
+  assert.equal(h.store.list("delivery:").length, 0);
+});
+test("a requested comparison preserves its baseline in model material", async () => {
+  const h = await fixture({
+    model: async (_stage: string, data: any) => {
+      assert.equal(data.sourceScope.mode, "bounded_release_comparison");
+      assert.equal(data.sourceScope.previousTag, "v1.1");
+      return {
+        value: {
+          ...strategy,
+          missingContext: [
+            "Comparison evidence does not explain the requested change.",
+          ],
+        },
+        inputTokens: 100,
+        outputTokens: 100,
+        latencyMs: 1,
+      };
+    },
+  });
+  const job = await h.run("preparation_create", {
+    project: "project",
+    selection: { ...selection, previousTag: "v1.1" },
+    context,
+    idempotencyKey: "bounded-comparison-001",
+  });
+  for (let i = 0; i < 4; i++) await h.engine.preparation.tick();
+  const result = h.engine.preparation.get(job.id);
+  assert.ok(result.error);
+  assert.equal(result.error.code, "PREPARATION_CONTEXT_REQUIRED");
+  assert.equal(result.drafts, undefined);
+  assert.deepEqual(h.stages, ["interpret"]);
+  assert.equal(h.calls.publish, 0);
 });
 test("idempotent preparation never allocates another job or model allowance", async () => {
   const h = await fixture();

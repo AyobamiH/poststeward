@@ -905,6 +905,15 @@ export class Preparation {
             ? job.channels.filter((c) => c.alias === job.regenerateAlias)
             : job.channels;
         const material = {
+          sourceScope: {
+            mode: job.selection.previousTag
+              ? "bounded_release_comparison"
+              : "selected_release_snapshot",
+            repository: job.selection.repository,
+            releaseTag: job.selection.releaseTag,
+            pinnedCommit: job.sha,
+            previousTag: job.selection.previousTag || null,
+          },
           context: job.context,
           evidence: job.evidence,
           coverage: job.coverage,
