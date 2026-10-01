@@ -76,7 +76,8 @@
               <p class="eyebrow">YOUR WORKSPACE</p>
               <h1 id="plan">Your publishing workspace</h1>
               <p class="page-description">
-                Connect accounts, review exact copy and schedule posts. Check every delivery in Schedules &amp; results.
+                Connect accounts, review exact copy and schedule posts. Check
+                every delivery in Schedules &amp; results.
               </p>
               <div class="page-state-row">
                 <p id="readiness" class="muted"></p>
@@ -88,674 +89,960 @@
             </div>
           </section>
           <div id="session-notice" role="status">Loading workspace…</div>
-          <p class="workspace-plan" id="workspace-plan">Free publishing and scheduling · Advanced requires an entitled workspace.</p>
-          <section class="task-guidance" id="workspace-next-step" aria-labelledby="workspace-next-heading" hidden>
-            <h2 id="workspace-next-heading">Loading your next step…</h2><p>Waiting for current workspace data.</p><a class="button primary" href="#destinations">Connect an account</a>
-          </section>
-          <nav class="task-links" aria-label="Workspace tasks">
-            <a href="#destinations">Connect accounts</a><a href="#publishing">Create &amp; schedule</a><a href="#evidence-panel">Schedules &amp; results</a><a href="#agent-access">Agent permissions</a><a href="#advanced">Advanced &amp; billing</a><a href="#runtime-authority-panel">Local runtime</a>
-          </nav>
-          <noscript><p>Sign in and enable JavaScript to use workspace controls. <a href="/docs/">Help &amp; guides</a> remain available.</p></noscript>
-          <div id="workspace-content" hidden>
-
-
+          <p class="workspace-plan" id="workspace-plan">
+            Free publishing and scheduling · Advanced requires an entitled
+            workspace.
+          </p>
           <section
-            id="runtime-pairing-panel"
-            class="work-pane secondary"
-            aria-labelledby="runtime-pairing-heading"
+            class="task-guidance"
+            id="workspace-next-step"
+            aria-labelledby="workspace-next-heading"
             hidden
           >
-            <p class="eyebrow">LOCAL RUNTIME</p>
-            <h2 id="runtime-pairing-heading">
-              Approve this PostSteward installation?
-            </h2>
-            <p id="runtime-pairing-copy" class="muted">
-              Inspecting the short-lived pairing request…
-            </p>
-            <pre tabindex="0" id="runtime-pairing-details"></pre>
-            <div class="row">
-              <button id="runtime-pairing-approve" type="button">
-                Approve installation
-              </button>
-              <button id="runtime-pairing-dismiss" type="button">
-                Not now
-              </button>
-            </div>
-            <p class="muted">
-              Pairing registers a machine and returns a scoped runtime token. It
-              does not switch publishing execution or connect a social provider.
-            </p>
+            <h2 id="workspace-next-heading">Loading your next step…</h2>
+            <p>Waiting for current workspace data.</p>
+            <a class="button primary" href="#destinations"
+              >Connect an account</a
+            >
           </section>
-
-
-
-
-
-
-
-          <div class="sequence-rail" aria-label="Workspace operating sequence">
-            <div class="sequence-step">
-              <span>01 · DESTINATION</span
-              ><strong>Verify where work may go</strong>
-            </div>
-            <div class="sequence-step">
-              <span>02 · INTENT</span
-              ><strong>Capture exact approved copy</strong>
-            </div>
-            <div class="sequence-step">
-              <span>03 · EFFECT</span><strong>Publish or reserve once</strong>
-            </div>
-            <div class="sequence-step">
-              <span>04 · EVIDENCE</span
-              ><strong>Inspect what actually happened</strong>
-            </div>
-          </div>
-          <details class="preview">
-            <summary>Inspect live publishing capability matrix</summary>
-            <p class="muted">
-              This separates code support, deployed provider applications,
-              connected stable identities and rollout-gated features. A local
-              alias never determines the public author.
-            </p>
-            <pre tabindex="0" id="publishing-capabilities">Loading…</pre>
-          </details>
-
-          <section class="work-zone" aria-labelledby="publishing-work-heading">
-            <div class="work-zone-head">
-              <div>
-                <p class="eyebrow">SETUP → PUBLISH</p>
-                <h2 id="publishing-work-heading">
-                  Create and schedule a post.
-                </h2>
-              </div>
-              <p>
-                Connect an account, create a project and review your text. A campaign stores that exact text; scheduling sets when to publish it.
+          <nav class="task-links" aria-label="Workspace tasks">
+            <a href="#destinations">Connect accounts</a
+            ><a href="#publishing">Create &amp; schedule</a
+            ><a href="#evidence-panel">Schedules &amp; results</a
+            ><a href="#agent-access">Agent permissions</a
+            ><a href="#advanced">Advanced &amp; billing</a
+            ><a href="#runtime-authority-panel">Local runtime</a>
+          </nav>
+          <noscript
+            ><p>
+              Sign in and enable JavaScript to use workspace controls.
+              <a href="/docs/">Help &amp; guides</a> remain available.
+            </p></noscript
+          >
+          <div id="workspace-content" hidden>
+            <section
+              id="runtime-pairing-panel"
+              class="work-pane secondary"
+              aria-labelledby="runtime-pairing-heading"
+              hidden
+            >
+              <p class="eyebrow">LOCAL RUNTIME</p>
+              <h2 id="runtime-pairing-heading">
+                Approve this PostSteward installation?
+              </h2>
+              <p id="runtime-pairing-copy" class="muted">
+                Inspecting the short-lived pairing request…
               </p>
-            </div>
+              <pre tabindex="0" id="runtime-pairing-details"></pre>
+              <div class="row">
+                <button id="runtime-pairing-approve" type="button">
+                  Approve installation
+                </button>
+                <button id="runtime-pairing-dismiss" type="button">
+                  Not now
+                </button>
+              </div>
+              <p class="muted">
+                Pairing registers a machine and returns a scoped runtime token.
+                It does not switch publishing execution or connect a social
+                provider.
+              </p>
+            </section>
 
-            <div class="work-zone-grid">
-              <section
-                id="destinations"
-                class="work-pane secondary"
-                aria-labelledby="accounts-heading"
-              >
-                <p class="eyebrow">DESTINATIONS</p>
-                <h2 id="accounts-heading">1. Connect a social account</h2>
-                <p class="muted">
-                  Provider OAuth is the primary path. Account identity is
-                  verified before PostSteward stores the connection.
+            <div
+              class="sequence-rail"
+              aria-label="Workspace operating sequence"
+            >
+              <div class="sequence-step">
+                <span>01 · DESTINATION</span
+                ><strong>Verify where work may go</strong>
+              </div>
+              <div class="sequence-step">
+                <span>02 · INTENT</span
+                ><strong>Capture exact approved copy</strong>
+              </div>
+              <div class="sequence-step">
+                <span>03 · EFFECT</span><strong>Publish or reserve once</strong>
+              </div>
+              <div class="sequence-step">
+                <span>04 · EVIDENCE</span
+                ><strong>Inspect what actually happened</strong>
+              </div>
+            </div>
+            <details class="preview">
+              <summary>Inspect live publishing capability matrix</summary>
+              <p class="muted">
+                This separates code support, deployed provider applications,
+                connected stable identities and rollout-gated features. A local
+                alias never determines the public author.
+              </p>
+              <pre tabindex="0" id="publishing-capabilities">Loading…</pre>
+            </details>
+
+            <section
+              class="work-zone"
+              aria-labelledby="publishing-work-heading"
+            >
+              <div class="work-zone-head">
+                <div>
+                  <p class="eyebrow">SETUP → PUBLISH</p>
+                  <h2 id="publishing-work-heading">
+                    Create and schedule a post.
+                  </h2>
+                </div>
+                <p>
+                  Connect an account, create a project and review your text. A
+                  campaign stores that exact text; scheduling sets when to
+                  publish it.
                 </p>
-                <form id="oauth" autocomplete="off">
-                  <label
-                    >Account alias<input
-                      name="alias"
-                      required
-                      pattern="[A-Za-z0-9_-]{1,100}"
-                      placeholder="product_x"
-                  /></label>
-                  <label
-                    >LinkedIn publishing destination<select
-                      name="linkedinDestination"
-                    >
-                      <option value="organization" selected>
-                        Company Page
-                      </option>
-                      <option value="member">Personal profile</option>
-                    </select></label
-                  >
-                  <label id="linkedin-actor-field"
-                    >LinkedIn Page ID or URN<input
-                      name="actorUrn"
-                      required
-                      pattern="([1-9][0-9]{0,29}|urn:li:(organization|organizationBrand):[1-9][0-9]{0,29})"
-                      placeholder="123456 or urn:li:organization:123456"
-                      spellcheck="false"
-                  /></label>
-                  <p id="linkedin-connection-help" class="muted">
-                    Enter the numeric Page ID or exact Page URN. PostSteward
-                    supplies the application; the authorising member must hold
-                    an eligible role on that Page.
-                  </p>
-                  <div class="row" id="oauth-buttons">
-                    <button type="button" data-provider="x" disabled>
-                      Connect X
-                    </button>
-                    <button type="button" data-provider="threads" disabled>
-                      Connect Threads
-                    </button>
-                    <button type="button" data-provider="linkedin" disabled>
-                      Connect LinkedIn
-                    </button>
-                  </div>
-                  <p id="oauth-status" class="muted">
-                    Checking provider applications…
-                  </p>
-                </form>
-                <details>
-                  <summary>Manual token import fallback</summary>
+              </div>
+
+              <div class="work-zone-grid">
+                <section
+                  id="destinations"
+                  class="work-pane secondary"
+                  aria-labelledby="accounts-heading"
+                >
+                  <p class="eyebrow">DESTINATIONS</p>
+                  <h2 id="accounts-heading">1. Connect a social account</h2>
                   <p class="muted">
-                    Use only an already-authorised user token. Manual import
-                    does not claim refresh support. Tokens are cleared from the
-                    browser form after each attempt.
+                    Provider OAuth is the primary path. Account identity is
+                    verified before PostSteward stores the connection.
                   </p>
-                  <form id="connection" autocomplete="off">
+                  <form id="oauth" autocomplete="off">
                     <label
                       >Account alias<input
                         name="alias"
                         required
+                        pattern="[A-Za-z0-9_-]{1,100}"
+                        placeholder="product_x"
+                    /></label>
+                    <label
+                      >LinkedIn publishing destination<select
+                        name="linkedinDestination"
+                      >
+                        <option value="organization" selected>
+                          Company Page
+                        </option>
+                        <option value="member">Personal profile</option>
+                      </select></label
+                    >
+                    <label id="linkedin-actor-field"
+                      >LinkedIn Page ID or URN<input
+                        name="actorUrn"
+                        required
+                        pattern="([1-9][0-9]{0,29}|urn:li:(organization|organizationBrand):[1-9][0-9]{0,29})"
+                        placeholder="123456 or urn:li:organization:123456"
+                        spellcheck="false"
+                    /></label>
+                    <p id="linkedin-connection-help" class="muted">
+                      Enter the numeric Page ID or exact Page URN. PostSteward
+                      supplies the application; the authorising member must hold
+                      an eligible role on that Page.
+                    </p>
+                    <div class="row" id="oauth-buttons">
+                      <button type="button" data-provider="x" disabled>
+                        Connect X
+                      </button>
+                      <button type="button" data-provider="threads" disabled>
+                        Connect Threads
+                      </button>
+                      <button type="button" data-provider="linkedin" disabled>
+                        Connect LinkedIn
+                      </button>
+                    </div>
+                    <p id="oauth-status" class="muted">
+                      Checking provider applications…
+                    </p>
+                  </form>
+                  <details>
+                    <summary>Manual token import fallback</summary>
+                    <p class="muted">
+                      Use only an already-authorised user token. Manual import
+                      does not claim refresh support. Tokens are cleared from
+                      the browser form after each attempt.
+                    </p>
+                    <form id="connection" autocomplete="off">
+                      <label
+                        >Account alias<input
+                          name="alias"
+                          required
+                          pattern="[A-Za-z0-9_-]+"
+                      /></label>
+                      <label
+                        >Provider<select name="provider">
+                          <option value="x">X</option>
+                          <option value="threads">Threads</option>
+                          <option value="linkedin">LinkedIn</option>
+                        </select></label
+                      >
+                      <label
+                        >Provider access token<input
+                          name="accessToken"
+                          type="password"
+                          autocomplete="off"
+                          required
+                      /></label>
+                      <label
+                        >Token expires at<input
+                          name="expiry"
+                          type="datetime-local"
+                      /></label>
+                      <label class="check"
+                        ><input name="funding" type="checkbox" /> For X manual
+                        import, these credentials use my own funded developer
+                        app.</label
+                      >
+                      <button>Verify and connect</button>
+                    </form>
+                  </details>
+                  <div id="accounts" class="record-list"></div>
+                </section>
+
+                <section
+                  id="publishing"
+                  class="work-pane"
+                  aria-labelledby="publishing-heading"
+                >
+                  <p class="eyebrow">EXACT INTENT</p>
+                  <h2 id="publishing-heading">
+                    2. Create a publishing project
+                  </h2>
+                  <p class="muted">
+                    Routes are explicit. Existing deliveries retain the account
+                    binding captured when they were reserved.
+                  </p>
+                  <form id="project">
+                    <label
+                      >Project ID<input
+                        name="id"
+                        required
+                        pattern="[A-Za-z0-9_-]+"
+                    /></label>
+                    <label>Name<input name="name" required /></label>
+                    <label
+                      >Account aliases, comma separated<input
+                        name="accounts"
+                        required
+                    /></label>
+                    <button>Create project</button>
+                  </form>
+                  <details class="project-library">
+                    <summary>Existing projects</summary>
+                    <p class="muted">
+                      Inspect your project bindings here. Choose a project in
+                      the review form below.
+                    </p>
+                    <div id="projects" class="record-list"></div>
+                  </details>
+
+                  <section
+                    id="release-preparation"
+                    class="work-zone"
+                    aria-labelledby="release-preparation-heading"
+                  >
+                    <h2 id="release-preparation-heading">
+                      3. Prepare a campaign from a release
+                    </h2>
+                    <p class="muted">
+                      Turn release evidence into an audience-specific strategy
+                      and original drafts. Review the sources, edit each variant
+                      and approve the exact text. Preparation never publishes or
+                      schedules it.
+                    </p>
+                    <p class="muted">
+                      Bring your own OpenAI API account. Your provider bills you
+                      directly; a ChatGPT subscription is separate. Keys stay
+                      encrypted in your workspace and are never shared with
+                      agents or included in drafts.
+                    </p>
+                    <button type="button" id="preparation-refresh">
+                      Load preparation settings and drafts
+                    </button>
+                    <p id="preparation-model-status" role="status">
+                      No model call is made until you connect an account and
+                      request preparation.
+                    </p>
+                    <details>
+                      <summary>Connect or change your model account</summary>
+                      <form id="preparation-model" autocomplete="off">
+                        <label
+                          >OpenAI API key<input
+                            name="apiKey"
+                            type="password"
+                            required
+                            minlength="16"
+                            maxlength="512"
+                            autocomplete="new-password"
+                        /></label>
+                        <label
+                          >Maximum preparations or regeneration requests per UTC
+                          day<input
+                            name="maxJobsPerDay"
+                            type="number"
+                            min="1"
+                            max="8"
+                            value="2"
+                            required
+                        /></label>
+                        <label
+                          ><input name="allowAgents" type="checkbox" /> Allow
+                          agents with campaign-writing permission to use this
+                          bounded model allowance</label
+                        >
+                        <p class="muted">
+                          Each full preparation reserves up to three calls. No
+                          automatic retry follows an uncertain call. Limits
+                          persist across reconnects. Add current provider rates
+                          to obtain USD estimates and enforce an optional USD
+                          budget.
+                        </p>
+                        <label
+                          >Provider input price, USD per million tokens
+                          (optional)<input
+                            name="inputUsdPerMillion"
+                            type="number"
+                            min="0"
+                            max="1000"
+                            step="any"
+                        /></label>
+                        <label
+                          >Provider output price, USD per million tokens
+                          (optional)<input
+                            name="outputUsdPerMillion"
+                            type="number"
+                            min="0"
+                            max="1000"
+                            step="any"
+                        /></label>
+                        <label
+                          >Maximum reserved model cost per UTC day, USD
+                          (optional; needs both rates)<input
+                            name="maxDailyUsd"
+                            type="number"
+                            min="0.01"
+                            max="100"
+                            step="any"
+                        /></label>
+                        <button>Save encrypted model access and limits</button>
+                      </form>
+                      <button type="button" id="preparation-model-disconnect">
+                        Disconnect model access
+                      </button>
+                    </details>
+                    <form id="preparation-create">
+                      <label
+                        >Publishing project<select
+                          name="project"
+                          id="preparation-project"
+                          required
+                        ></select
+                      ></label>
+                      <label
+                        >GitHub repository<input
+                          name="repository"
+                          required
+                          maxlength="200"
+                          pattern="[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
+                          placeholder="owner/repository"
+                      /></label>
+                      <label
+                        >Release tag<input
+                          name="releaseTag"
+                          required
+                          maxlength="120"
+                          pattern="[A-Za-z0-9_.-]+"
+                          placeholder="v1.0.0"
+                      /></label>
+                      <label
+                        >Previous release tag for commits and changes
+                        (optional)<input
+                          name="previousTag"
+                          maxlength="120"
+                          pattern="[A-Za-z0-9_.-]+"
+                          placeholder="v0.9.0"
+                      /></label>
+                      <label
+                        >Documentation paths, comma separated (optional; up to
+                        three)<input
+                          name="documentationPaths"
+                          maxlength="600"
+                          placeholder="README.md, docs/changes.md"
+                      /></label>
+                      <label
+                        >Audience and their problem<textarea
+                          name="audience"
+                          required
+                          minlength="10"
+                          maxlength="1000"
+                          rows="2"
+                        ></textarea>
+                      </label>
+                      <label
+                        >Campaign objective<textarea
+                          name="objective"
+                          required
+                          minlength="10"
+                          maxlength="1000"
+                          rows="2"
+                        ></textarea>
+                      </label>
+                      <label
+                        >Approved product context<textarea
+                          name="productContext"
+                          required
+                          minlength="10"
+                          maxlength="6000"
+                          rows="3"
+                        ></textarea>
+                      </label>
+                      <label
+                        >Brand voice<textarea
+                          name="brandVoice"
+                          required
+                          minlength="5"
+                          maxlength="1000"
+                          rows="2"
+                          placeholder="Plain British English, specific and restrained"
+                        ></textarea>
+                      </label>
+                      <label
+                        >Exclusions<textarea
+                          name="exclusions"
+                          maxlength="2000"
+                          rows="2"
+                          placeholder="No pricing, availability or performance claims without approved evidence"
+                        ></textarea>
+                      </label>
+                      <label
+                        >Call to action<input
+                          name="callToAction"
+                          required
+                          maxlength="500"
+                      /></label>
+                      <label
+                        ><input name="allowPrivate" type="checkbox" /> I approve
+                        disclosure of this selected private release, bounded
+                        patches and documentation to my connected model
+                        provider. The repository must already be linked to this
+                        workspace.</label
+                      >
+                      <label
+                        ><input name="allowUnreleased" type="checkbox" /> I
+                        approve disclosure of selected unreleased details to my
+                        connected model provider.</label
+                      >
+                      <button>Prepare strategy and original drafts</button>
+                    </form>
+                    <p class="muted">
+                      Sources are bounded and pinned to a commit. Large or
+                      incomplete releases show coverage gaps. Model checks are
+                      assistance, not independent factual verification: inspect
+                      source support before approval.
+                    </p>
+                    <div
+                      id="preparation-jobs"
+                      class="record-list"
+                      aria-live="polite"
+                    ></div>
+                  </section>
+                  <h2>4. Review your exact copy</h2>
+                  <p class="muted">
+                    The campaign stores reviewed text as the claim boundary.
+                    Dispatch does not generate, shorten or rewrite it. Long X or
+                    Threads copy is split at stable boundaries, shown here part
+                    by part, and frozen as one reply chain before it can be
+                    scheduled.
+                  </p>
+                  <form id="campaign">
+                    <label
+                      >Project<select
+                        name="project"
+                        id="project-select"
+                        required
+                      ></select
+                    ></label>
+                    <label
+                      >Destination account<select
+                        name="alias"
+                        id="account-select"
+                        required
+                      ></select
+                    ></label>
+                    <label
+                      >Approved text<textarea
+                        name="text"
+                        rows="5"
+                        required
+                      ></textarea>
+                    </label>
+                    <button>Create and validate campaign</button>
+                  </form>
+                  <div id="campaign-preview" class="preview" hidden></div>
+                  <form id="delivery" hidden>
+                    <label
+                      >Schedule time with UTC offset (empty means publish
+                      now)<input
+                        name="at"
+                        type="text"
+                        placeholder="2026-10-01T12:00:00Z"
+                    /></label>
+                    <button class="primary">Submit delivery</button>
+                  </form>
+                </section>
+              </div>
+            </section>
+
+            <section
+              id="evidence-panel"
+              class="work-zone"
+              aria-labelledby="receipts-heading"
+            >
+              <div class="evidence-zone">
+                <div class="zone-header">
+                  <div>
+                    <p class="eyebrow">EXTERNAL EFFECT EVIDENCE</p>
+                    <h2 id="receipts-heading">Schedules &amp; results</h2>
+                    <p>
+                      A reservation is not publication proof. Verified,
+                      unverified, ambiguous, blocked and failed outcomes remain
+                      distinct so transport uncertainty cannot become a
+                      duplicate write.
+                    </p>
+                  </div>
+                  <button id="export">Export workspace</button>
+                </div>
+                <div class="zone-body">
+                  <p id="local-delivery-note" hidden>
+                    Publishing runs on your local executor. These hosted
+                    schedules and automation profiles are not local runtime
+                    truth. Inspect <code>poststeward schedule list</code> and
+                    <code>poststeward receipts list</code> on your machine, or
+                    use scoped runtime inspection. Approved AI copy can be
+                    exported and imported with
+                    <code>poststeward preparation import</code> before explicit
+                    local scheduling.
+                    <a href="/docs/install.md">Local handoff instructions</a>.
+                  </p>
+                  <div id="receipts" class="record-list"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="work-zone" aria-labelledby="authority-heading">
+              <div class="work-zone-head">
+                <div>
+                  <p class="eyebrow">AUTHORITY & SOURCES</p>
+                  <h2 id="authority-heading">
+                    Delegate narrowly, then attach reviewed evidence.
+                  </h2>
+                </div>
+                <p>
+                  Agent authority and source access are separate concerns. A
+                  source can be readable without granting an agent permission to
+                  publish it.
+                </p>
+              </div>
+
+              <div class="secondary-work-grid">
+                <section
+                  id="agent-access"
+                  aria-labelledby="agent-access-heading"
+                >
+                  <p class="eyebrow">DELEGATED AUTHORITY</p>
+                  <h2 id="agent-access-heading">Agent access</h2>
+                  <p class="muted">
+                    Issue the smallest useful grant. Tokens are scoped, expiring
+                    and revocable; owner-only controls are not delegated here.
+                    Every delivery created with an agent token waits for an
+                    owner to approve its frozen destination, identity, text and
+                    time before dispatch.
+                  </p>
+                  <form id="grant">
+                    <fieldset>
+                      <legend>Allowed operations</legend>
+                      <label class="check"
+                        ><input
+                          type="checkbox"
+                          name="scope"
+                          value="read"
+                          checked
+                        />
+                        Inspect</label
+                      >
+                      <label class="check"
+                        ><input
+                          type="checkbox"
+                          name="scope"
+                          value="campaign:write"
+                        />
+                        Create campaigns and routes</label
+                      >
+                      <label class="check"
+                        ><input type="checkbox" name="scope" value="publish" />
+                        Publish now</label
+                      >
+                      <label class="check"
+                        ><input type="checkbox" name="scope" value="schedule" />
+                        Schedule and cancel</label
+                      >
+                      <label class="check"
+                        ><input
+                          type="checkbox"
+                          name="scope"
+                          value="automation"
+                        />
+                        Manage automation</label
+                      >
+                      <label class="check"
+                        ><input type="checkbox" name="scope" value="billing" />
+                        Make purchases</label
+                      >
+                    </fieldset>
+                    <label
+                      >Expires in hours<input
+                        type="number"
+                        name="hours"
+                        min="1"
+                        max="720"
+                        value="168"
+                    /></label>
+                    <button>Create agent token</button>
+                  </form>
+                  <pre tabindex="0" id="token" hidden></pre>
+                  <div id="grants" class="record-list"></div>
+                </section>
+
+                <section id="sources" aria-labelledby="source-heading">
+                  <p class="eyebrow">REVIEWED SOURCES</p>
+                  <div class="row">
+                    <h2 id="source-heading">Private GitHub sources</h2>
+                    <button id="github-source-connect" type="button" disabled>
+                      Connect repositories
+                    </button>
+                  </div>
+                  <p class="muted">
+                    Optional for private repositories. PostSteward accepts
+                    selected repositories with read-only Contents access and
+                    keeps GitHub credentials out of the browser.
+                  </p>
+                  <p id="github-source-status" class="muted" role="status">
+                    Checking GitHub source access…
+                  </p>
+                  <div id="github-sources" class="record-list"></div>
+                  <h3>Check private source access</h3>
+                  <p class="muted">
+                    Read the latest commit for a linked repository. This creates
+                    no automation and is available without a subscription.
+                  </p>
+                  <form id="github-source-probe">
+                    <label
+                      >Private repository<select
+                        id="github-probe-repository"
+                        name="repository"
+                        required
+                      ></select
+                    ></label>
+                    <label
+                      >Branch<input
+                        name="branch"
+                        value="main"
+                        required
+                        maxlength="200"
+                    /></label>
+                    <label
+                      >Path<input
+                        name="path"
+                        value="README.md"
+                        required
+                        maxlength="300"
+                    /></label>
+                    <button id="github-probe-submit" disabled>
+                      Check source access
+                    </button>
+                  </form>
+                  <pre
+                    tabindex="0"
+                    id="github-probe-result"
+                    class="preview"
+                    role="status"
+                    hidden
+                  ></pre>
+                </section>
+              </div>
+            </section>
+
+            <section
+              id="advanced"
+              class="work-zone"
+              aria-labelledby="advanced-heading"
+            >
+              <div class="advanced-zone">
+                <div class="zone-header">
+                  <div>
+                    <p class="eyebrow">CONTINUING OPERATION</p>
+                    <h2 id="advanced-heading">
+                      Advanced · GBP price to be confirmed
+                    </h2>
+                    <p>
+                      Add reviewed source monitoring, inventory replenishment
+                      and spaced future delivery. Payment never grants posting
+                      authority by itself.
+                    </p>
+                  </div>
+                  <div class="status-cluster">
+                    <button id="subscribe">Get subscription quote</button>
+                    <button id="portal">Manage billing</button>
+                    <a class="button" href="/advanced-inventory"
+                      >Open inventory</a
+                    >
+                  </div>
+                </div>
+                <div class="zone-body">
+                  <div id="billing-status"></div>
+                  <div id="quote" class="preview" hidden></div>
+                  <h3>Automation profile</h3>
+                  <form id="profile">
+                    <label
+                      >Profile ID<input
+                        name="id"
+                        required
                         pattern="[A-Za-z0-9_-]+"
                     /></label>
                     <label
-                      >Provider<select name="provider">
-                        <option value="x">X</option>
-                        <option value="threads">Threads</option>
-                        <option value="linkedin">LinkedIn</option>
-                      </select></label
-                    >
+                      >Project<select
+                        name="project"
+                        id="profile-project"
+                        required
+                      ></select
+                    ></label>
                     <label
-                      >Provider access token<input
-                        name="accessToken"
-                        type="password"
-                        autocomplete="off"
+                      >Repository<input
+                        name="repository"
+                        required
+                        list="github-repositories"
+                        placeholder="owner/repository" /><datalist
+                        id="github-repositories"
+                      ></datalist
+                    ></label>
+                    <label
+                      >Branch<input name="branch" required value="main"
+                    /></label>
+                    <label
+                      >Path<input name="path" required value="README.md"
+                    /></label>
+                    <label
+                      >Family<input
+                        name="family"
+                        required
+                        value="development"
+                        pattern="[A-Za-z0-9_-]+"
+                    /></label>
+                    <label
+                      >Destination<select
+                        name="alias"
+                        id="profile-account"
+                        required
+                      ></select
+                    ></label>
+                    <label
+                      >Exact reviewed template<textarea
+                        name="template"
+                        rows="4"
+                        required
+                      ></textarea>
+                    </label>
+                    <label
+                      >Interval minutes<input
+                        name="interval"
+                        type="number"
+                        min="15"
+                        max="10080"
+                        value="60"
+                    /></label>
+                    <label
+                      >Minimum spacing minutes<input
+                        name="spacing"
+                        type="number"
+                        min="15"
+                        max="10080"
+                        value="60"
+                    /></label>
+                    <button id="profile-configure">
+                      Store reviewed profile
+                    </button>
+                  </form>
+                  <div id="profiles" class="record-list"></div>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="recovery-safety"
+              class="work-zone"
+              aria-labelledby="recovery-heading"
+            >
+              <div class="safety-zone danger-zone">
+                <div class="zone-header">
+                  <div>
+                    <p class="eyebrow">OWNER-ONLY SAFETY CONTROL</p>
+                    <h2 id="recovery-heading">
+                      Recovery and external-effect safety
+                    </h2>
+                    <p>
+                      Recovery is an authority transition, not a retry.
+                      Preparing quarantines the workspace; execution and undo
+                      require exact typed confirmation.
+                    </p>
+                  </div>
+                  <a class="button" href="/recovery">Recovery details</a>
+                </div>
+                <div class="zone-body">
+                  <div id="recovery-status" class="preview"></div>
+                  <form id="recovery-prepare">
+                    <label
+                      >Restore target, previous 30 days<input
+                        name="at"
+                        type="datetime-local"
                         required
                     /></label>
                     <label
-                      >Token expires at<input
-                        name="expiry"
-                        type="datetime-local"
+                      >Reason<input
+                        name="reason"
+                        required
+                        minlength="3"
+                        maxlength="240"
                     /></label>
-                    <label class="check"
-                      ><input name="funding" type="checkbox" /> For X manual
-                      import, these credentials use my own funded developer
-                      app.</label
-                    >
-                    <button>Verify and connect</button>
+                    <button>Prepare recovery plan</button>
                   </form>
-                </details>
-                <div id="accounts" class="record-list"></div>
-              </section>
-
-              <section
-                id="publishing"
-                class="work-pane"
-                aria-labelledby="publishing-heading"
-              >
-                <p class="eyebrow">EXACT INTENT</p>
-                <h2 id="publishing-heading">2. Create a publishing project</h2>
-                <p class="muted">
-                  Routes are explicit. Existing deliveries retain the account
-                  binding captured when they were reserved.
-                </p>
-                <form id="project">
-                  <label
-                    >Project ID<input
-                      name="id"
-                      required
-                      pattern="[A-Za-z0-9_-]+"
-                  /></label>
-                  <label>Name<input name="name" required /></label>
-                  <label
-                    >Account aliases, comma separated<input
-                      name="accounts"
-                      required
-                  /></label>
-                  <button>Create project</button>
-                </form>
-                <details class="project-library"><summary>Existing projects</summary><p class="muted">Inspect your project bindings here. Choose a project in the review form below.</p><div id="projects" class="record-list"></div></details>
-
-                <h2>3. Review your copy</h2>
-                <p class="muted">
-                  The campaign stores reviewed text as the claim boundary.
-                  Dispatch does not generate, shorten or rewrite it. Long X or
-                  Threads copy is split at stable boundaries, shown here part by
-                  part, and frozen as one reply chain before it can be
-                  scheduled.
-                </p>
-                <form id="campaign">
-                  <label
-                    >Project<select
-                      name="project"
-                      id="project-select"
-                      required
-                    ></select
-                  ></label>
-                  <label
-                    >Destination account<select
-                      name="alias"
-                      id="account-select"
-                      required
-                    ></select
-                  ></label>
-                  <label
-                    >Approved text<textarea
-                      name="text"
-                      rows="5"
-                      required
-                    ></textarea>
-                  </label>
-                  <button>Create and validate campaign</button>
-                </form>
-                <div id="campaign-preview" class="preview" hidden></div>
-                <form id="delivery" hidden>
-                  <label
-                    >Schedule time with UTC offset (empty means publish
-                    now)<input
-                      name="at"
-                      type="text"
-                      placeholder="2026-10-01T12:00:00Z"
-                  /></label>
-                  <button class="primary">Submit delivery</button>
-                </form>
-              </section>
-            </div>
-          </section>
-
-          <section
-            id="evidence-panel"
-            class="work-zone"
-            aria-labelledby="receipts-heading"
-          >
-            <div class="evidence-zone">
-              <div class="zone-header">
-                <div>
-                  <p class="eyebrow">EXTERNAL EFFECT EVIDENCE</p>
-                  <h2 id="receipts-heading">Schedules &amp; results</h2>
-                  <p>
-                    A reservation is not publication proof. Verified,
-                    unverified, ambiguous, blocked and failed outcomes remain
-                    distinct so transport uncertainty cannot become a duplicate
-                    write.
-                  </p>
-                </div>
-                <button id="export">Export workspace</button>
-              </div>
-              <div class="zone-body">
-                <div id="receipts" class="record-list"></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="work-zone" aria-labelledby="authority-heading">
-            <div class="work-zone-head">
-              <div>
-                <p class="eyebrow">AUTHORITY & SOURCES</p>
-                <h2 id="authority-heading">
-                  Delegate narrowly, then attach reviewed evidence.
-                </h2>
-              </div>
-              <p>
-                Agent authority and source access are separate concerns. A
-                source can be readable without granting an agent permission to
-                publish it.
-              </p>
-            </div>
-
-            <div class="secondary-work-grid">
-              <section id="agent-access" aria-labelledby="agent-access-heading">
-                <p class="eyebrow">DELEGATED AUTHORITY</p>
-                <h2 id="agent-access-heading">Agent access</h2>
-                <p class="muted">
-                  Issue the smallest useful grant. Tokens are scoped, expiring
-                  and revocable; owner-only controls are not delegated here.
-                  Every delivery created with an agent token waits for an owner
-                  to approve its frozen destination, identity, text and time
-                  before dispatch.
-                </p>
-                <form id="grant">
-                  <fieldset>
-                    <legend>Allowed operations</legend>
-                    <label class="check"
-                      ><input
-                        type="checkbox"
-                        name="scope"
-                        value="read"
-                        checked
-                      />
-                      Inspect</label
-                    >
-                    <label class="check"
-                      ><input
-                        type="checkbox"
-                        name="scope"
-                        value="campaign:write"
-                      />
-                      Create campaigns and routes</label
-                    >
-                    <label class="check"
-                      ><input type="checkbox" name="scope" value="publish" />
-                      Publish now</label
-                    >
-                    <label class="check"
-                      ><input type="checkbox" name="scope" value="schedule" />
-                      Schedule and cancel</label
-                    >
-                    <label class="check"
-                      ><input type="checkbox" name="scope" value="automation" />
-                      Manage automation</label
-                    >
-                    <label class="check"
-                      ><input type="checkbox" name="scope" value="billing" />
-                      Make purchases</label
-                    >
-                  </fieldset>
-                  <label
-                    >Expires in hours<input
-                      type="number"
-                      name="hours"
-                      min="1"
-                      max="720"
-                      value="168"
-                  /></label>
-                  <button>Create agent token</button>
-                </form>
-                <pre tabindex="0" id="token" hidden></pre>
-                <div id="grants" class="record-list"></div>
-              </section>
-
-              <section id="sources" aria-labelledby="source-heading">
-                <p class="eyebrow">REVIEWED SOURCES</p>
-                <div class="row">
-                  <h2 id="source-heading">Private GitHub sources</h2>
-                  <button id="github-source-connect" type="button" disabled>
-                    Connect repositories
-                  </button>
-                </div>
-                <p class="muted">
-                  Optional for private repositories. PostSteward accepts
-                  selected repositories with read-only Contents access and keeps
-                  GitHub credentials out of the browser.
-                </p>
-                <p id="github-source-status" class="muted" role="status">
-                  Checking GitHub source access…
-                </p>
-                <div id="github-sources" class="record-list"></div>
-                <h3>Check private source access</h3>
-                <p class="muted">
-                  Read the latest commit for a linked repository. This creates
-                  no automation and is available without a subscription.
-                </p>
-                <form id="github-source-probe">
-                  <label
-                    >Private repository<select
-                      id="github-probe-repository"
-                      name="repository"
-                      required
-                    ></select
-                  ></label>
-                  <label
-                    >Branch<input
-                      name="branch"
-                      value="main"
-                      required
-                      maxlength="200"
-                  /></label>
-                  <label
-                    >Path<input
-                      name="path"
-                      value="README.md"
-                      required
-                      maxlength="300"
-                  /></label>
-                  <button id="github-probe-submit" disabled>
-                    Check source access
-                  </button>
-                </form>
-                <pre tabindex="0"
-                  id="github-probe-result"
-                  class="preview"
-                  role="status"
-                  hidden
-                ></pre>
-              </section>
-            </div>
-          </section>
-
-          <section
-            id="advanced"
-            class="work-zone"
-            aria-labelledby="advanced-heading"
-          >
-            <div class="advanced-zone">
-              <div class="zone-header">
-                <div>
-                  <p class="eyebrow">CONTINUING OPERATION</p>
-                  <h2 id="advanced-heading">Advanced · GBP price to be confirmed</h2>
-                  <p>
-                    Add reviewed source monitoring, inventory replenishment and
-                    spaced future delivery. Payment never grants posting
-                    authority by itself.
-                  </p>
-                </div>
-                <div class="status-cluster">
-                  <button id="subscribe">Get subscription quote</button>
-                  <button id="portal">Manage billing</button>
-                  <a class="button" href="/advanced-inventory"
-                    >Open inventory</a
-                  >
-                </div>
-              </div>
-              <div class="zone-body">
-                <div id="billing-status"></div>
-                <div id="quote" class="preview" hidden></div>
-                <h3>Automation profile</h3>
-                <form id="profile">
-                  <label
-                    >Profile ID<input
-                      name="id"
-                      required
-                      pattern="[A-Za-z0-9_-]+"
-                  /></label>
-                  <label
-                    >Project<select
-                      name="project"
-                      id="profile-project"
-                      required
-                    ></select
-                  ></label>
-                  <label
-                    >Repository<input
-                      name="repository"
-                      required
-                      list="github-repositories"
-                      placeholder="owner/repository" /><datalist
-                      id="github-repositories"
-                    ></datalist
-                  ></label>
-                  <label
-                    >Branch<input name="branch" required value="main"
-                  /></label>
-                  <label
-                    >Path<input name="path" required value="README.md"
-                  /></label>
-                  <label
-                    >Family<input
-                      name="family"
-                      required
-                      value="development"
-                      pattern="[A-Za-z0-9_-]+"
-                  /></label>
-                  <label
-                    >Destination<select
-                      name="alias"
-                      id="profile-account"
-                      required
-                    ></select
-                  ></label>
-                  <label
-                    >Exact reviewed template<textarea
-                      name="template"
-                      rows="4"
-                      required
-                    ></textarea>
-                  </label>
-                  <label
-                    >Interval minutes<input
-                      name="interval"
-                      type="number"
-                      min="15"
-                      max="10080"
-                      value="60"
-                  /></label>
-                  <label
-                    >Minimum spacing minutes<input
-                      name="spacing"
-                      type="number"
-                      min="15"
-                      max="10080"
-                      value="60"
-                  /></label>
-                  <button id="profile-configure">Store reviewed profile</button>
-                </form>
-                <div id="profiles" class="record-list"></div>
-              </div>
-            </div>
-          </section>
-
-          <section
-            id="recovery-safety"
-            class="work-zone"
-            aria-labelledby="recovery-heading"
-          >
-            <div class="safety-zone danger-zone">
-              <div class="zone-header">
-                <div>
-                  <p class="eyebrow">OWNER-ONLY SAFETY CONTROL</p>
-                  <h2 id="recovery-heading">
-                    Recovery and external-effect safety
-                  </h2>
-                  <p>
-                    Recovery is an authority transition, not a retry. Preparing
-                    quarantines the workspace; execution and undo require exact
-                    typed confirmation.
-                  </p>
-                </div>
-                <a class="button" href="/recovery">Recovery details</a>
-              </div>
-              <div class="zone-body">
-                <div id="recovery-status" class="preview"></div>
-                <form id="recovery-prepare">
-                  <label
-                    >Restore target, previous 30 days<input
-                      name="at"
-                      type="datetime-local"
-                      required
-                  /></label>
-                  <label
-                    >Reason<input
-                      name="reason"
-                      required
-                      minlength="3"
-                      maxlength="240"
-                  /></label>
-                  <button>Prepare recovery plan</button>
-                </form>
-                <div id="recovery-actions" hidden>
-                  <p id="recovery-instruction" class="muted"></p>
-                  <label
-                    >Typed confirmation<input
-                      id="recovery-confirmation"
-                      autocomplete="off"
-                  /></label>
-                  <div class="row">
-                    <button id="recovery-execute" class="danger" type="button">
-                      Execute restore
-                    </button>
-                    <button id="recovery-reconcile" type="button">
-                      Reconcile restarted workspace
-                    </button>
-                    <button id="recovery-resume" type="button">
-                      Resume after reconciliation
-                    </button>
-                    <button id="recovery-undo" class="danger" type="button">
-                      Undo reconciled restore
-                    </button>
-                    <button id="recovery-cancel" type="button">
-                      Cancel prepared plan
-                    </button>
+                  <div id="recovery-actions" hidden>
+                    <p id="recovery-instruction" class="muted"></p>
+                    <label
+                      >Typed confirmation<input
+                        id="recovery-confirmation"
+                        autocomplete="off"
+                    /></label>
+                    <div class="row">
+                      <button
+                        id="recovery-execute"
+                        class="danger"
+                        type="button"
+                      >
+                        Execute restore
+                      </button>
+                      <button id="recovery-reconcile" type="button">
+                        Reconcile restarted workspace
+                      </button>
+                      <button id="recovery-resume" type="button">
+                        Resume after reconciliation
+                      </button>
+                      <button id="recovery-undo" class="danger" type="button">
+                        Undo reconciled restore
+                      </button>
+                      <button id="recovery-cancel" type="button">
+                        Cancel prepared plan
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <details class="workspace-secondary" id="runtime-settings"><summary>Local runtime settings</summary>          <section
-            id="runtime-authority-panel"
-            class="work-pane secondary"
-            aria-labelledby="runtime-authority-heading"
-          >
-            <p class="eyebrow">EXECUTION AUTHORITY</p>
-            <h2 id="runtime-authority-heading">
-              Choose one publishing executor.
-            </h2>
-            <p id="runtime-executor-status" class="muted">
-              Loading executor authority…
-            </p>
-            <div class="field-row">
-              <label
-                >Paired local runtime
-                <select id="runtime-installation-select"></select>
-              </label>
-            </div>
-            <details>
-              <summary>Move a migrated or recovered runtime</summary>
-              <p class="muted">
-                Pair the target as a new installation. On that machine run
-                <code>poststeward cloud recovery-review</code> after local
-                verification, then enter its digest here. The old machine must
-                be deactivated or its lease must expire.
-              </p>
-              <label
-                >Transition purpose
-                <select id="runtime-transition-purpose">
-                  <option value="handoff">Ordinary handoff</option>
-                  <option value="migrate">Verified migration</option>
-                  <option value="recover">
-                    Reviewed dead-machine recovery
-                  </option>
-                </select>
-              </label>
-              <label
-                >Source cloud installation ID
-                <input id="runtime-source-installation" autocomplete="off"
-              /></label>
-              <label
-                >Local restore review SHA-256
-                <input id="runtime-recovery-review" autocomplete="off"
-              /></label>
+            <details class="workspace-secondary" id="runtime-settings">
+              <summary>Local runtime settings</summary>
+              <section
+                id="runtime-authority-panel"
+                class="work-pane secondary"
+                aria-labelledby="runtime-authority-heading"
+              >
+                <p class="eyebrow">EXECUTION AUTHORITY</p>
+                <h2 id="runtime-authority-heading">
+                  Choose one publishing executor.
+                </h2>
+                <p id="runtime-executor-status" class="muted">
+                  Loading executor authority…
+                </p>
+                <div class="field-row">
+                  <label
+                    >Paired local runtime
+                    <select id="runtime-installation-select"></select>
+                  </label>
+                </div>
+                <details>
+                  <summary>Move a migrated or recovered runtime</summary>
+                  <p class="muted">
+                    Pair the target as a new installation. On that machine run
+                    <code>poststeward cloud recovery-review</code> after local
+                    verification, then enter its digest here. The old machine
+                    must be deactivated or its lease must expire.
+                  </p>
+                  <label
+                    >Transition purpose
+                    <select id="runtime-transition-purpose">
+                      <option value="handoff">Ordinary handoff</option>
+                      <option value="migrate">Verified migration</option>
+                      <option value="recover">
+                        Reviewed dead-machine recovery
+                      </option>
+                    </select>
+                  </label>
+                  <label
+                    >Source cloud installation ID
+                    <input id="runtime-source-installation" autocomplete="off"
+                  /></label>
+                  <label
+                    >Local restore review SHA-256
+                    <input id="runtime-recovery-review" autocomplete="off"
+                  /></label>
+                </details>
+                <div class="row">
+                  <button id="runtime-use-local" type="button">
+                    Use selected local runtime
+                  </button>
+                  <button id="runtime-use-hosted" type="button">
+                    Use hosted executor
+                  </button>
+                </div>
+                <div id="runtime-installations" class="record-list"></div>
+                <p class="muted">
+                  Switching executor authority increments the workspace
+                  generation. A stale machine cannot publish merely because it
+                  still has an old runtime token.
+                </p>
+              </section>
             </details>
-            <div class="row">
-              <button id="runtime-use-local" type="button">
-                Use selected local runtime
-              </button>
-              <button id="runtime-use-hosted" type="button">
-                Use hosted executor
-              </button>
-            </div>
-            <div id="runtime-installations" class="record-list"></div>
-            <p class="muted">
-              Switching executor authority increments the workspace generation.
-              A stale machine cannot publish merely because it still has an old
-              runtime token.
-            </p>
-          </section></details>
-          <details class="workspace-secondary"><summary>Browser agent transport details</summary>          <section
-            class="product-status-strip"
-            aria-label="Browser transport status"
-          >
-            <div>
-              <p class="machine-label">BROWSER TRANSPORT</p>
-              <p>
-                Native WebMCP is additive. HTTP and remote MCP remain the stable
-                agent surfaces.
-              </p>
-              <pre tabindex="0" id="webmcp-observation" class="preview" hidden></pre>
-            </div>
-            <button id="webmcp-check" type="button" disabled>
-              Check native WebMCP
-            </button>
-          </section></details>
+            <details class="workspace-secondary">
+              <summary>Browser agent transport details</summary>
+              <section
+                class="product-status-strip"
+                aria-label="Browser transport status"
+              >
+                <div>
+                  <p class="machine-label">BROWSER TRANSPORT</p>
+                  <p>
+                    Native WebMCP is additive. HTTP and remote MCP remain the
+                    stable agent surfaces.
+                  </p>
+                  <pre
+                    tabindex="0"
+                    id="webmcp-observation"
+                    class="preview"
+                    hidden
+                  ></pre>
+                </div>
+                <button id="webmcp-check" type="button" disabled>
+                  Check native WebMCP
+                </button>
+              </section>
+            </details>
           </div>
-          <pre tabindex="0" id="result" role="status" aria-live="polite" hidden></pre>
+          <pre
+            tabindex="0"
+            id="result"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></pre>
         </div>
 
         <footer class="product-footer">

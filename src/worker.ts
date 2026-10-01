@@ -24,7 +24,7 @@ import {
   workspaceQuarantined,
 } from "./effects.ts";
 import { Engine } from "./engine.ts";
-import { readGitHubSource } from "./github-sources.ts";
+import { readGitHubSource, readPreparationEvidence } from "./github-sources.ts";
 import { byName } from "./operations/catalog.ts";
 import { SocialProviders } from "./providers.ts";
 import {
@@ -195,6 +195,8 @@ const riskReducingOperations = new Set([
   "schedule_cancel",
   "publishing_pause",
   "automation_pause",
+  "model_disconnect",
+  "preparation_reject",
 ]);
 
 type PitrStorage = DurableObjectStorage & {
@@ -257,6 +259,7 @@ export class Workspace extends DurableObject<Env> {
       wake: (at) => this.wake(at),
       authorized,
       source: (profile) => readGitHubSource(profile, this.env, workspace),
+      preparationEvidence: (selection) => readPreparationEvidence(selection, this.env, workspace),
       billing,
     });
     const pilot = new Pilot(
@@ -282,6 +285,8 @@ export class Workspace extends DurableObject<Env> {
     )
       await engine.scheduleNext();
     const nextOAuth = oauth.nextWake();
+    // Preparation is cloud editorial work, independent of the publishing executor.
+    await engine.preparation.scheduleNext();
     if (nextOAuth !== undefined)
       await this.wake(Math.max(Date.now() + 1000, nextOAuth));
   }
@@ -813,6 +818,9 @@ export class Workspace extends DurableObject<Env> {
           }),
         );
       }
+      // Existing due publication receives priority. At most one bounded
+      // preparation phase runs; it cannot publish or alter executor authority.
+      await engine.preparation.tick();
     } finally {
       await this.ctx.storage.deleteAlarm();
       await this.schedule(engine, oauth);

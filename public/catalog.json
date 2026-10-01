@@ -1,5 +1,884 @@
 [
   {
+    "name": "model_status",
+    "description": "Inspect this workspace’s own model connection and bounded usage. No key is returned.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "model_status",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "model_connect",
+    "description": "Owner-only: encrypt a workspace-owned OpenAI API key and approve explicit spending/delegation limits. No call is made during connection.",
+    "scope": "admin",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE"
+    ],
+    "example": {
+      "apiKey": "OWNER_SUPPLIED_API_KEY",
+      "maxJobsPerDay": 2,
+      "allowAgents": false,
+      "inputUsdPerMillion": null,
+      "outputUsdPerMillion": null,
+      "maxDailyUsd": null,
+      "idempotencyKey": "model-connect-001"
+    },
+    "inspection": "model_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "apiKey": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        },
+        "maxJobsPerDay": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "allowAgents": {
+          "type": "boolean"
+        },
+        "inputUsdPerMillion": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputUsdPerMillion": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxDailyUsd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "apiKey",
+        "maxJobsPerDay",
+        "allowAgents",
+        "inputUsdPerMillion",
+        "outputUsdPerMillion",
+        "maxDailyUsd",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "model_disconnect",
+    "description": "Owner-only: disconnect workspace model access and fence queued/in-flight generation.",
+    "scope": "admin",
+    "tier": "free",
+    "effects": [
+      "AUTHORITY_CHANGE"
+    ],
+    "example": {
+      "idempotencyKey": "model-disconnect-001"
+    },
+    "inspection": "model_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparations_list",
+    "description": "Inspect private preparation strategy, evidence, drafts, review states and model usage; never provider/model credentials.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "preparations_list",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparation_export",
+    "description": "Export a private preparation and the exact digest required for reviewed removal. No credential or publication effect.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {
+      "id": "RETURNED_PREPARATION_ID"
+    },
+    "inspection": "preparations_list",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparation_archive",
+    "description": "Owner-only: remove an exported terminal preparation from the active library. Retains immutable campaigns, receipts, spending and existing operation history.",
+    "scope": "admin",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "RETURNED_PREPARATION_ID",
+      "revision": 1,
+      "reviewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "idempotencyKey": "preparation-archive-001"
+    },
+    "inspection": "preparations_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reviewDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "reviewDigest",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparation_project_put",
+    "description": "Create cloud editorial project-to-account context for AI preparation in either executor mode. This never creates local runtime projects or schedules.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "product",
+      "name": "Product preparation",
+      "accounts": [
+        "product_x"
+      ],
+      "idempotencyKey": "preparation-project-001"
+    },
+    "inspection": "workspace_status",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "accounts": {
+          "minItems": 1,
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          }
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "accounts",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparation_create",
+    "description": "Queue original AI release interpretation, campaign strategy, drafting and editorial checks using the workspace’s own bounded model account. Never publishes or schedules.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "FINANCIAL_EFFECT"
+    ],
+    "example": {
+      "project": "launch",
+      "selection": {
+        "repository": "owner/repository",
+        "releaseTag": "v1.0",
+        "documentationPaths": [
+          "README.md"
+        ],
+        "allowPrivate": false,
+        "allowUnreleased": false
+      },
+      "context": {
+        "audience": "Operators maintaining release communications",
+        "objective": "Explain the practical value of this release",
+        "brandVoice": "Clear British English",
+        "productContext": "A product for reviewed release communications",
+        "exclusions": "No unsupported availability claims",
+        "callToAction": "Read the release notes"
+      },
+      "idempotencyKey": "prepare-release-001"
+    },
+    "inspection": "preparations_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "selection": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+            },
+            "releaseTag": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "previousTag": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "documentationPaths": {
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^(?!.*(?:\\.\\.|\\/\\.))[A-Za-z0-9_./-]+\\.(?:md|mdx|txt)$"
+              }
+            },
+            "allowPrivate": {
+              "type": "boolean"
+            },
+            "allowUnreleased": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "repository",
+            "releaseTag",
+            "documentationPaths",
+            "allowPrivate",
+            "allowUnreleased"
+          ],
+          "additionalProperties": false
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "audience": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "objective": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "brandVoice": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 1000
+            },
+            "productContext": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 6000
+            },
+            "exclusions": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "callToAction": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "audience",
+            "objective",
+            "brandVoice",
+            "productContext",
+            "exclusions",
+            "callToAction"
+          ],
+          "additionalProperties": false
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "project",
+        "selection",
+        "context",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "preparation_edit",
+    "description": "Edit or remove selected draft variants and strategy. Edits invalidate checking/approval and never change an immutable handed-off campaign.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "RETURNED_PREPARATION_ID",
+      "revision": 1,
+      "text": {
+        "product_x": "Owner-edited text"
+      },
+      "idempotencyKey": "preparation-edit-001"
+    },
+    "inspection": "preparations_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "text": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12500
+          }
+        },
+        "strategy": {
+          "type": "object",
+          "properties": {
+            "changes": {
+              "maxItems": 12,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fact": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 1000
+                  },
+                  "sources": {
+                    "minItems": 1,
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "evidence": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 10,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "evidence",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "audienceProblem": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "implication": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "fact",
+                  "sources",
+                  "audienceProblem",
+                  "implication"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "positioning": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 2000
+            },
+            "objective": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 1000
+            },
+            "audience": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 1000
+            },
+            "channelApproach": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 2000
+            },
+            "missingContext": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "risks": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          },
+          "required": [
+            "changes",
+            "positioning",
+            "objective",
+            "audience",
+            "channelApproach",
+            "missingContext",
+            "risks"
+          ],
+          "additionalProperties": false
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "text",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparation_regenerate",
+    "description": "Explicitly spend bounded model allowance to regenerate strategy, all/one draft, or check edited drafts. Uncertain calls are never retried automatically.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE",
+      "FINANCIAL_EFFECT"
+    ],
+    "example": {
+      "id": "RETURNED_PREPARATION_ID",
+      "revision": 1,
+      "stage": "draft",
+      "alias": "product_x",
+      "idempotencyKey": "preparation-regenerate-001"
+    },
+    "inspection": "preparations_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "interpret",
+            "draft",
+            "check"
+          ]
+        },
+        "alias": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "audience": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "objective": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 1000
+            },
+            "brandVoice": {
+              "type": "string",
+              "minLength": 5,
+              "maxLength": 1000
+            },
+            "productContext": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 6000
+            },
+            "exclusions": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "callToAction": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "audience",
+            "objective",
+            "brandVoice",
+            "productContext",
+            "exclusions",
+            "callToAction"
+          ],
+          "additionalProperties": false
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "stage",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "preparation_reject",
+    "description": "Reject private preparation and fence any in-flight output; no publication or schedule is created.",
+    "scope": "campaign:write",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "RETURNED_PREPARATION_ID",
+      "revision": 1,
+      "idempotencyKey": "preparation-reject-001"
+    },
+    "inspection": "preparations_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "preparation_approve",
+    "description": "Signed-in owner reviews exact revision/digest, current account bindings and evidence, then freezes variants into an immutable campaign. Scheduling remains a separate explicit action.",
+    "scope": "admin",
+    "tier": "free",
+    "effects": [
+      "STATE_WRITE"
+    ],
+    "example": {
+      "id": "RETURNED_PREPARATION_ID",
+      "revision": 1,
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "idempotencyKey": "preparation-approve-001"
+    },
+    "inspection": "preparations_list",
+    "retry": "Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "digest",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "workspace_status",
     "description": "Inspect workspace, entitlement, limits and publication pause.",
     "scope": "read",

@@ -612,6 +612,91 @@ try {
     }assert.equal(calls.length,12); // Synthetic responses only; delivery is never submitted.
   });
 
+  const preparationStatus={configured:true,authentication:'unverified',limits:{maxJobsPerDay:2},usage:{jobs:1,inputTokens:100,outputTokens:50,estimatedUsd:null}};
+  const preparationFixture={id:'synthetic-preparation',project:'fixture-project',revision:1,status:'review',stage:'check',
+    selection:{repository:'fixture/release',releaseTag:'v1.0'},usage:[{inputTokens:100,outputTokens:50,latencyMs:2}],
+    strategy:{audience:'Release managers investigating delivery problems',objective:'Explain the documented diagnostic timeline',positioning:'Understand delivery failures using source evidence',channelApproach:'Specific text and a source link',
+      changes:[{fact:'Adds a diagnostic timeline',audienceProblem:'Investigate delivery failures',implication:'Suggested investigation starting point'}],missingContext:[],risks:['Code changes do not prove deployed availability']},
+    evidence:[{id:'release',kind:'release',url:'https://github.com/fixture/release/releases/tag/v1.0',text:'Adds a diagnostic timeline. <img src=x onerror="window.unsafe=true"> '+('long-source-path-').repeat(120)}],
+    drafts:[{alias:'fixture_x',text:'Investigating delivery failures? This release adds a diagnostic timeline. Read the release notes.',rationale:'Connect the change to the intended audience',claims:[{claim:'Adds a timeline',sources:[{evidence:'release',quote:'Adds a diagnostic timeline.'}]}]}],
+    critique:{acceptableForOwnerReview:true,issues:[],summary:'Source support still requires owner review.'},digest:'a'.repeat(64)};
+  await check('Preparation sources and drafts are readable, accessible and inert on mobile and desktop',async()=>{
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture]});const page=await context.newPage();
+    for(const width of [360,1024,1440]) {
+      await page.setViewportSize({width,height:900});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+      await page.locator('#preparation-refresh').click();await page.locator('#preparation-jobs article').waitFor();
+      await page.locator('#preparation-jobs details').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
+      assert.match(await page.locator('#preparation-jobs').innerText(),/img src=x onerror/);
+      assert.equal(await page.evaluate(()=>window.unsafe),undefined);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+      assert.deepEqual(await audit(page),[]);
+      await page.screenshot({path:`ux-evidence/preparation-review-${width}.png`,fullPage:true});
+    }await context.close();
+  });
+  await check('Status refresh preserves unsaved editorial text; unsaved text cannot be frozen',async()=>{
+    let approvals=0;
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture],
+      '/api/operations/preparation_approve':route=>{approvals++;return route.fulfill({json:preparationFixture});}});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
+    await article.getByLabel('Exact channel text').fill('My unsaved owner edit must survive a status refresh.');
+    await page.locator('#preparation-refresh').click();await page.waitForTimeout(100);
+    assert.equal(await article.getByLabel('Exact channel text').inputValue(),'My unsaved owner edit must survive a status refresh.');
+    await article.getByLabel(/I reviewed each included variant/).check();await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Save your edits'));assert.equal(approvals,0);
+    await article.getByRole('button',{name:'Discard unsaved edits and refresh',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('#preparation-jobs textarea[rows="6"]').value.startsWith('Investigating delivery'));
+    await context.close();
+  });
+  await check('Model connection masks and clears the owner key and has no shared-account request',async()=>{
+    let connections=0;
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[],
+      '/api/operations/model_connect':route=>{const input=route.request().postDataJSON();assert.equal(input.apiKey,'synthetic-owner-model-key');assert.equal(input.allowAgents,false);connections++;return route.fulfill({json:preparationStatus});}});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    await page.locator('#release-preparation > details').evaluate(node=>node.open=true);
+    const input=page.locator('#preparation-model input[name="apiKey"]');assert.equal(await input.getAttribute('type'),'password');await input.fill('synthetic-owner-model-key');
+    await page.locator('#preparation-model button').click();await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Workspace model key encrypted'));
+    assert.equal(await input.inputValue(),'');assert.equal(connections,1);assert.ok(!(await page.locator('body').innerText()).includes('synthetic-owner-model-key'));await context.close();
+  });
+  await check('Exact owner approval opens delivery review and never submits publication',async()=>{
+    let approvals=0;const approved={...preparationFixture,status:'handed_off',campaign:'synthetic-prepared-campaign'};
+    const campaign={id:approved.campaign,text:{fixture_x:preparationFixture.drafts[0].text}};
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,
+      '/api/operations/preparation_approve':route=>{const input=route.request().postDataJSON();assert.equal(input.digest,preparationFixture.digest);assert.equal(input.revision,1);approvals++;return route.fulfill({json:approved});},
+      '/api/operations/campaign_get':campaign,'/api/operations/campaign_validate':{valid:true}});
+    // The library changes only after the synthetic approval response.
+    await context.route('**/api/operations/preparations_list',route=>route.fulfill({json:[approvals?approved:preparationFixture]}));
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
+    const button=article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true});assert.equal(await button.isDisabled(),true);
+    await article.getByLabel(/I reviewed each included variant/).check();await button.click();
+    await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Exact owner-approved campaign stored'));
+    assert.equal(approvals,1);assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+preparationFixture.drafts[0].text);
+    assert.equal(await page.locator('#delivery').isVisible(),true);await context.close();
+  });
+
+  await check('Local-executor preparation stays available without calling hosted planners or scheduling',async()=>{
+    const localExecutor={...fixture['/api/runtime/executor'],executorMode:'local',activeInstallationId:'synthetic-local-machine'};
+    const approved={...preparationFixture,status:'handed_off',campaign:'synthetic-prepared-local'};
+    let approvals=0;
+    const context=await ownerContext({'/api/runtime/executor':localExecutor,
+      '/api/operations/workspace_status':{...fixture['/api/operations/workspace_status'],executor:localExecutor,preparationProjects:fixture['/api/operations/projects_list']},
+      '/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture],
+      '/api/operations/projects_list':()=>{throw new Error('Hosted projects must not be requested in local mode');},
+      '/api/operations/receipts_list':()=>{throw new Error('Hosted receipts must not be represented as local truth');},
+      '/api/operations/automation_inspect':()=>{throw new Error('Hosted automation must not run in local mode');},
+      '/api/operations/preparation_approve':route=>{approvals++;return route.fulfill({json:approved});}});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('#workspace-content').isVisible(),true);assert.equal(await page.locator('#local-delivery-note').isVisible(),true);
+    assert.equal(await page.locator('#campaign').isVisible(),false);assert.equal(await page.locator('#receipts').isVisible(),false);
+    assert.ok(await page.locator('#preparation-project option').count()>0);
+    await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
+    await article.getByLabel(/I reviewed each included variant/).check();await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('result').textContent.includes('poststeward preparation import'));
+    assert.equal(approvals,1);assert.equal(await page.locator('#delivery').isVisible(),false);
+    assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+preparationFixture.drafts[0].text);assert.deepEqual(await audit(page),[]);await context.close();
+  });
+
   await check("Status outage is not an empty or healthy ledger", async () => {
     const context = await browser.newContext();
     await context.route("**/readiness.json", (route) =>

@@ -44,6 +44,10 @@ export function credentialInventory(snapshot: RotationSnapshot): CredentialInven
           "ROTATION_RECORD_INVALID", "Invalid OAuth credential record.", 409);
         entries.push({ id: workspace.workspace + "/" + key,
           context: workspace.workspace + ":oauth:" + value.alias, envelope: value.secret });
+      } else if (key === 'model:openai') {
+        requireValue(typeof value.secret === 'string', 'ROTATION_RECORD_INVALID', 'Invalid model credential record.', 409);
+        if (value.secret) entries.push({id:workspace.workspace + '/' + key,
+          context:workspace.workspace + ':model:openai',envelope:value.secret});
       } else {
         // New credential-bearing record families must receive an explicit
         // authenticated context mapping before this tool can claim coverage.

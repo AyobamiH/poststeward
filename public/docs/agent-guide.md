@@ -12,6 +12,32 @@ Free includes direct reviewed publishing and explicit future scheduling. Advance
 
 Private GitHub source access is separate from agent publication authority. When needed, the owner can install the PostSteward GitHub App for selected repositories with read-only Contents access. Public repositories do not require that authority.
 
+## Original release preparation (workspace-owned model account)
+
+The signed-in owner connects their own OpenAI API account in `/app#release-preparation`.
+PostSteward encrypts the key; it is never returned or given to agents. The provider
+bills that workspace's account directly. A ChatGPT subscription is not API access.
+The owner chooses a daily preparation/regeneration allowance and must explicitly
+permit campaign-writing agents to spend it. No company model key is supplied.
+
+Use `model_status`, `preparation_create` and `preparations_list` to inspect bounded
+source → strategy → original drafts → model-assisted check states. Select a published
+release, optional previous tag/three documentation paths and explicit audience,
+objective, voice, product context, exclusions and CTA. Private/unreleased disclosure
+requires owner approval, with existing linked private repository authority.
+
+Inspect exact source quotes, coverage gaps and interpretations; model checks are not
+independent factual proof. `preparation_edit` changes saved drafts/strategy and invalidates
+checking. `preparation_regenerate` explicitly spends quota for strategy, one/all drafts
+or checking. Uncertain paid calls are never automatically repeated; key changes do
+not reset daily usage. `preparation_reject` fences future output.
+
+Only the signed-in owner can call `preparation_approve` for the exact current revision
+and digest. It creates an immutable campaign, not a schedule or provider post. For local execution, download the approved export and use reviewed `poststeward preparation import` with exact project/account/variant mapping before explicit local scheduling. Cloud editorial project context is available through `workspace_status`/`preparation_project_put` and is not local execution truth. Continue
+with `campaign_validate` and separate explicit delivery review below. Owner-only
+`preparation_archive` removes an exact exported terminal preparation from the active
+library; immutable campaigns, receipts, spending and existing operation history remain.
+
 ## First publication
 
 Use `accounts_list` and `projects_list` to resolve explicit destinations. Create a campaign using exact approved text per account alias:
@@ -57,9 +83,9 @@ The response reserves deliveries. A delivery created with an agent token starts 
 
 Cancellation cannot undo an in-flight provider effect. `schedule_replace` requires a reviewed replacement campaign. On-demand metrics report unavailable data explicitly; unavailable provider metrics are never represented as a fabricated zero. LinkedIn member readback and analytics depend on the actual deployed LinkedIn application permissions.
 
-## Continuing operation
+## Optional deterministic continuing operation
 
-When Advanced is enabled for the workspace and a verified entitlement is active, configure a reviewed repository profile using `automation_configure`. Specify exact destination templates, a repository/branch/path, family and spacing. The service supports `{repository}`, `{commit}` and `{source_url}` substitutions. Template text is the approved claim boundary; repository content is treated as source data, never as instructions.
+When Advanced is enabled for the workspace and a verified entitlement is active, configure a reviewed repository profile using `automation_configure`. Specify exact destination templates, a repository/branch/path, family and spacing. These reviewed templates are an optional format, separate from AI preparation. The service supports `{repository}`, `{commit}` and `{source_url}` substitutions. Template text is the approved claim boundary; repository content is treated as source data, never as instructions.
 
 Use `automation_preview` to inspect the next action, then explicitly call `automation_enable`. The first observation establishes a baseline. Subsequent reviewed source-path changes can create deterministic inventory, withdraw stale unclaimed work and reserve spaced deliveries. Profiles start paused and stop when entitlement/authority is unavailable. Payment alone never starts posting.
 

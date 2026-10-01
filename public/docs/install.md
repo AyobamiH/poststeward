@@ -34,6 +34,19 @@ curl -fsSL https://poststeward.com/install.sh | bash -s -- --beta
 curl -fsSL https://poststeward.com/install.sh | bash -s -- --version <40-char-sha>
 ```
 
+## Supported native environments
+
+Native installer and guarded lifecycle checks passed on macOS 15/26 (Apple Silicon
+and Intel) and WSL 2/Ubuntu 24.04 x86_64. Bash and Python 3.10+ are required; use
+python.org or an existing Homebrew installation on macOS. No root installation or
+shell-profile change is automatic. WSL needs a reachable systemd user manager and
+Linux filesystem locations for private data. Follow Microsoft's WSL systemd guidance
+if admission reports the manager unavailable; restarting a distro interrupts work.
+
+macOS uses user launchd agents while logged in and awake. WSL jobs stop with Windows
+or distro shutdown. Earlier macOS releases, other distributions, native Windows and
+real owner/provider publication acceptance on these platforms remain unverified.
+
 ## 1. Pair the machine
 
 ```bash
@@ -169,6 +182,59 @@ Change releases only while local publishing authority is inactive:
 poststeward update --channel stable --dry-run
 poststeward update --channel stable
 ```
+
+## Import approved AI copy into the local scheduler
+
+Preparation remains cloud editorial work when your local machine owns publishing.
+Create cloud editorial project context in the workspace, then prepare, edit/check
+and approve its exact copy. Hosted scheduling controls are unavailable in local mode.
+Download the private preparation export after approval. On the paired machine, map
+one included variant to an existing local project, registered campaign prefix and
+local account alias:
+
+```bash
+poststeward preparation import --file poststeward-preparation-<id>.json \
+  --project brand --campaign BRAND-002 --variant brand_x --account brand-x
+# Inspect exact text, stable destination identity and returned review SHA-256.
+poststeward preparation import --file poststeward-preparation-<id>.json \
+  --project brand --campaign BRAND-002 --variant brand_x --account brand-x \
+  --apply --expected-sha256 <review-sha256>
+```
+
+Each variant is imported separately with its own campaign ID. The workspace, active
+cloud binding/version and local stable identity must match. Changing text, target or
+identity invalidates review. Imported copy remains manual-only: no allocation, schedule,
+model call or provider effect occurs. Schedule the local campaign explicitly using
+the existing local CLI or scoped `runtime_schedule_create`, then inspect local/cloud
+receipts. The export is not signed provenance; local review is the import authority.
+Private exports should be stored carefully. Existing conservative local text limits
+can reject oversized X variants; edit and check an acceptable variant before approval
+rather than shortening approved text during import.
+
+## Reviewed rollback and uninstall
+
+While inactive, preview rollback to the retained exact previous archive:
+
+```bash
+poststeward rollback --json
+poststeward rollback --apply --expected-sha256 <review-sha256> --json
+```
+
+Durable schedules/receipts are retained; reactivation requires a fresh review.
+An interrupted release/receipt/shim update is repaired by rerunning the same exact
+verified installer while inactive, before reviewing activation.
+
+Uninstall has an explicit local-data choice:
+
+```bash
+poststeward uninstall --retain-data --json
+poststeward uninstall --retain-data --apply --expected-sha256 <review-sha256> --json
+# Or preview/apply --delete-data after reviewing the private data paths.
+```
+
+Software removal never revokes a cloud/provider account. Revoke the inactive machine
+in the owner workspace separately. The current/previous managed archives are removed;
+older retained archives and unrelated prefix files may remain for manual review.
 
 ## Original Post-Once boundary
 
