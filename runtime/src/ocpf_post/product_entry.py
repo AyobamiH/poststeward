@@ -58,6 +58,12 @@ def main() -> None:
                         "summary": "Bind hosted X, Threads and LinkedIn identities to Fresh local project/campaign state.",
                     },
                     {
+                        "path": "preparation import",
+                        "consequence": "LOCAL_STATE_WRITE",
+                        "safe_form": "omit --apply",
+                        "summary": "Review one owner-approved cloud variant and import exact manual-only local copy with identity checks.",
+                    },
+                    {
                         "path": "cloud status",
                         "consequence": "READ_ONLY",
                         "summary": "Inspect cloud bindings and executor generation.",
@@ -117,6 +123,9 @@ def main() -> None:
         from ocpf_post.poststeward_cloud import main as cloud_main
 
         raise SystemExit(cloud_main(argv[1:]))
+    if argv and argv[0] == "preparation":
+        from ocpf_post.preparation_import import main as preparation_main
+        raise SystemExit(preparation_main(argv[1:]))
     if argv and argv[0] == "configure":
         from ocpf_post.poststeward_onboarding import main as onboarding_main
 

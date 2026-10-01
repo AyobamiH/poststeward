@@ -178,7 +178,10 @@ def destination_binding(campaign: str, provider: str) -> dict[str, str] | None:
             project_id = campaign_project(campaign)
             if not project_id:
                 raise RegistryError(f"Campaign {campaign} uses an account alias but has no project")
-            return resolve_account(project_id, alias, expected_provider=provider)
+            resolved=resolve_account(project_id, alias, expected_provider=provider)
+            if raw.get('account_id') and raw['account_id']!=resolved.get('account_id'):
+                return None
+            return resolved
         account_id = str(raw.get("account_id") or "").strip()
         if not account_id:
             return None

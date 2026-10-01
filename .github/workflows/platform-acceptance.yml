@@ -19,8 +19,10 @@ jobs:
           persist-credentials: false
       - name: Native immutable installation and service lifecycle
         run: python3 scripts/native-platform-acceptance.py
-      - name: Platform interface regressions
-        run: PYTHONPATH=runtime/src python3 -m unittest discover -s runtime/tests -p test_host_platform.py
+      - name: Platform interface and synthetic local handoff regressions
+        run: |
+          PYTHONPATH=runtime/src python3 -m unittest discover -s runtime/tests -p test_host_platform.py
+          PYTHONPATH=runtime/src python3 -m unittest discover -s runtime/tests -p test_preparation_import.py
   wsl:
     runs-on: windows-2025
     timeout-minutes: 25
