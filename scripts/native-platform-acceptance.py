@@ -15,6 +15,8 @@ repo = Path(__file__).resolve().parent.parent
 revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
 if sys.platform != 'darwin' and not os.environ.get('WSL_DISTRO_NAME'):
     raise SystemExit('Native acceptance requires macOS or a real WSL distribution; Linux simulation refused.')
+if sys.platform != 'darwin' and 'microsoft-standard' not in platform.release().lower():
+    raise SystemExit('WSL 2 kernel required; WSL 1 is not supported for unattended operation.')
 with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ") as temporary:
     root = Path(temporary)
     env = dict(os.environ)

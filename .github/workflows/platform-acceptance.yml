@@ -34,8 +34,9 @@ jobs:
           wsl.exe --version
           wsl.exe --install --web-download -d Ubuntu-24.04 --no-launch
           if ($LASTEXITCODE -ne 0) { throw "Native WSL provisioning unavailable on this runner; acceptance remains unverified." }
-          wsl.exe --set-version Ubuntu-24.04 2
-          if ($LASTEXITCODE -ne 0) { throw "WSL 2 virtualisation unavailable; Linux container acceptance is not a substitute." }
+          wsl.exe --list --verbose
+          wsl.exe -d Ubuntu-24.04 -u root -- uname -r
+          if ($LASTEXITCODE -ne 0) { throw "Native WSL startup unavailable; Linux container acceptance is not a substitute." }
           wsl.exe -d Ubuntu-24.04 -u root -- bash -lc "apt-get update && apt-get install -y python3 curl git ca-certificates && useradd -m -s /bin/bash poststeward"
           if ($LASTEXITCODE -ne 0) { throw "WSL prerequisites failed." }
       - name: Real WSL immutable installation
