@@ -21,6 +21,16 @@ import {
   type ModelPort,
 } from "./preparation-model.ts";
 import type { Account, Actor, Campaign, Env, Project, Store } from "./types.ts";
+import {
+  modelCatalog,
+  modelPrice,
+  attemptCeiling,
+  pipelineCeiling,
+  verifyCloudflare,
+  cloudflareModel,
+  type Routing,
+  type FundingProof,
+} from "./model-routing.ts";
 
 type Connection = {
   secret: string;
@@ -32,6 +42,8 @@ type Connection = {
   outputUsdPerMillion: number | null;
   maxDailyUsd: number | null;
   verifiedAt?: number;
+  routing?: Routing;
+  fundingProofs?: FundingProof[];
 };
 type Stage = "source" | "interpret" | "draft" | "check";
 type Channel = {
@@ -48,6 +60,9 @@ type Usage = {
   inputTokens: number;
   outputTokens: number;
   estimatedUsd: number | null;
+  reservedMicros?: number;
+  settledMicros?: number;
+  uncertainMicros?: number;
 };
 export type PreparationJob = {
   id: string;
@@ -94,6 +109,29 @@ export type PreparationJob = {
   approvedBy?: string;
   approvedAt?: number;
   campaign?: string;
+  routing?: Routing;
+  budget?: {
+    day: string;
+    generation: string;
+    reservedMicros: number;
+    chargedMicros: number;
+    maxMicros: number;
+  };
+  attempts?: {
+    stage: string;
+    provider: string;
+    model: string;
+    funding: string;
+    configurationVersion: number;
+    fallback: boolean;
+    outcome: string;
+    reservedMicros: number;
+    estimatedMicros?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    latencyMs?: number;
+    fundingProof?: FundingProof;
+  }[];
 };
 export interface PreparationOptions {
   now: () => number;
@@ -106,6 +144,7 @@ export interface PreparationOptions {
     coverage: string;
   }>;
   model?: ModelPort;
+  send?: typeof fetch;
   handoff: (input: {
     id: string;
     project: string;
@@ -133,7 +172,7 @@ export class Preparation {
     requireValue(
       value?.secret,
       "MODEL_NOT_CONNECTED",
-      "Connect this workspace’s own OpenAI API account first. PostSteward does not use a shared company key or a ChatGPT subscription.",
+      "Connect this workspace’s own OpenAI or Cloudflare model account first. PostSteward does not use a shared company key or a ChatGPT subscription.",
       409,
     );
     return value;
@@ -165,13 +204,22 @@ export class Preparation {
   status() {
     const value = this.store.get<Connection>("model:openai");
     return {
-      provider: "openai",
-      model: PREPARATION_MODEL,
+      provider: value?.routing?.primary.provider || "openai",
+      model: value?.routing?.primary.model || PREPARATION_MODEL,
       configured: Boolean(value?.secret),
       authentication: value?.verifiedAt
         ? "verified_by_successful_call"
         : "unverified",
-      funding: "workspace_model_account",
+      funding: value?.routing?.primary.funding || "workspace_model_account",
+      configurationVersion: value?.revision || 0,
+      routing: value?.routing || null,
+      fundingProofs: value?.fundingProofs || [],
+      catalogue: modelCatalog,
+      inferenceStatus: value?.verifiedAt
+        ? "ready_by_successful_call"
+        : value?.routing
+          ? "metadata_validated_inference_unverified"
+          : "unverified",
       chatGPTSubscriptionIsAPIAccess: false,
       limits: value
         ? {
@@ -184,13 +232,14 @@ export class Preparation {
         : null,
       usage: this.usage(),
       costNotice:
-        "Your model provider bills your connected account directly. USD estimates use your supplied rates; your provider invoice is authoritative. PostSteward GBP pricing is separate.",
+        "Your selected workspace-owned account funds inference. Cloudflare balances are shared account funds, not this workspace's exclusive credits. Credit purchases carry Cloudflare's fee and may overshoot under concurrency. Usage costs are estimates, not invoices. PostSteward GBP pricing is separate; no top-ups or service-funded fallback occur.",
     };
   }
   async connect(input: any, actor: Actor) {
     this.owner(actor);
     requireValue(
-      input.maxDailyUsd === null ||
+      input.routing ||
+        input.maxDailyUsd === null ||
         (input.inputUsdPerMillion !== null &&
           input.outputUsdPerMillion !== null),
       "MODEL_RATES_REQUIRED",
@@ -198,8 +247,39 @@ export class Preparation {
     );
     const current = this.store.get<Connection>("model:openai");
     const expectedRevision = current?.revision || 0;
+    requireValue(
+      input.apiKey ||
+        (current?.secret &&
+          Boolean(input.routing) === Boolean(current.routing)),
+      "MODEL_CREDENTIAL_REQUIRED",
+      "Enter the credential when connecting or changing between direct OpenAI and Cloudflare. Existing encrypted credentials can be retained only within the same credential type.",
+      409,
+    );
+    const retained =
+      !input.apiKey && current
+        ? await unseal<{ apiKey: string; inspectionToken?: string }>(
+            current.secret,
+            credentialRoots(this.env),
+            actor.workspace + ":model:openai",
+          )
+        : undefined;
+    const apiKey = input.apiKey || retained!.apiKey;
+    const inspectionToken = input.inspectionToken || retained?.inspectionToken;
+    const fundingProofs: FundingProof[] = [];
+    if (input.routing)
+      for (const route of [input.routing.primary, ...input.routing.fallbacks]) {
+        fundingProofs.push(
+          await verifyCloudflare(
+            input.routing,
+            route,
+            inspectionToken || apiKey,
+            this.options.now(),
+            this.options.send,
+          ),
+        );
+      }
     const secret = await seal(
-      { apiKey: input.apiKey },
+      { apiKey, ...(inspectionToken ? { inspectionToken } : {}) },
       credentialRoots(this.env),
       actor.workspace + ":model:openai",
       this.env.ENCRYPTION_KEY_VERSION,
@@ -215,12 +295,13 @@ export class Preparation {
       this.store.put("model:openai", {
         secret,
         revision: expectedRevision + 1,
-        model: PREPARATION_MODEL,
+        model: input.routing?.primary.model || PREPARATION_MODEL,
+        ...(input.routing ? { routing: input.routing, fundingProofs } : {}),
         maxJobsPerDay: input.maxJobsPerDay,
         allowAgents: input.allowAgents,
         inputUsdPerMillion: input.inputUsdPerMillion,
         outputUsdPerMillion: input.outputUsdPerMillion,
-        maxDailyUsd: input.maxDailyUsd,
+        maxDailyUsd: input.routing?.maxDailyUsd ?? input.maxDailyUsd,
       });
     });
     return this.status();
@@ -341,6 +422,7 @@ export class Preparation {
     });
   }
   private reserve(connection: Connection, calls: number) {
+    let reservedMicros = 0;
     this.store.tx(() => {
       const usage = this.usage();
       requireValue(
@@ -361,8 +443,29 @@ export class Preparation {
                 connection.outputUsdPerMillion) /
             1e6
           : null;
+      if (connection.routing) {
+        reservedMicros = pipelineCeiling(connection.routing, calls);
+        requireValue(
+          reservedMicros <= Math.floor(connection.routing.maxJobUsd * 1e6),
+          "PREPARATION_JOB_COST_LIMIT",
+          "The full preparation including every allowed fallback exceeds the per-job budget. Reduce output/context/fallbacks or explicitly change owner limits.",
+          429,
+        );
+        requireValue(
+          (usage.reservedMicros || 0) +
+            (usage.settledMicros || 0) +
+            (usage.uncertainMicros || 0) +
+            reservedMicros <=
+            Math.floor(connection.routing.maxDailyUsd * 1e6),
+          "PREPARATION_COST_LIMIT",
+          "Reserved and charged usage would exceed today's workspace budget.",
+          429,
+        );
+        usage.reservedMicros = (usage.reservedMicros || 0) + reservedMicros;
+      }
       requireValue(
-        connection.maxDailyUsd === null ||
+        connection.routing ||
+          connection.maxDailyUsd === null ||
           (worstUsd !== null && worstUsd <= connection.maxDailyUsd),
         "PREPARATION_COST_LIMIT",
         "Worst-case reserved usage would exceed this workspace’s owner-set model budget.",
@@ -374,6 +477,7 @@ export class Preparation {
       usage.reservedOutputTokens += output;
       this.store.put("preparation-usage:" + this.day(), usage);
     });
+    return reservedMicros;
   }
   async create(
     input: { project: string; selection: Selection; context: Context },
@@ -396,7 +500,7 @@ export class Preparation {
       429,
     );
     const channels = this.channels(input.project);
-    this.reserve(connection, 3);
+    const reservedMicros = this.reserve(connection, 3);
     const job: PreparationJob = {
       id: uid(),
       project: input.project,
@@ -412,6 +516,19 @@ export class Preparation {
       context: input.context,
       usage: [],
       reservationDay: this.day(),
+      ...(connection.routing
+        ? {
+            routing: structuredClone(connection.routing),
+            budget: {
+              day: this.day(),
+              generation: uid(),
+              reservedMicros,
+              chargedMicros: 0,
+              maxMicros: Math.floor(connection.routing.maxJobUsd * 1e6),
+            },
+            attempts: [],
+          }
+        : {}),
     };
     this.store.put("preparation:" + job.id, job);
     await this.options.wake(this.options.now() + 1);
@@ -421,7 +538,173 @@ export class Preparation {
     job.updatedAt = this.options.now();
     this.store.put("preparation:" + job.id, job);
   }
+  private releaseBudget(job: PreparationJob) {
+    if (!job.budget) return;
+    this.store.tx(() => {
+      const current = this.store.get<PreparationJob>("preparation:" + job.id);
+      const budget = current?.budget || job.budget!;
+      const usage = this.store.get<Usage>("preparation-usage:" + budget.day);
+      if (usage) {
+        usage.reservedMicros = Math.max(
+          0,
+          (usage.reservedMicros || 0) - budget.reservedMicros,
+        );
+        this.store.put("preparation-usage:" + budget.day, usage);
+      }
+      job.budget = { ...budget, reservedMicros: 0 };
+      if (current)
+        this.store.put("preparation:" + job.id, {
+          ...current,
+          budget: job.budget,
+        });
+    });
+  }
+  private beginAttempt(
+    job: PreparationJob,
+    index: number,
+    proof: FundingProof,
+  ) {
+    const routing = job.routing!,
+      route = [routing.primary, ...routing.fallbacks][index];
+    const amount = attemptCeiling(routing, route),
+      id = uid();
+    this.store.tx(() => {
+      const current = this.get(job.id);
+      requireValue(
+        current.status === "running" &&
+          current.claim === job.claim &&
+          current.revision === job.revision &&
+          this.connection().revision === job.modelRevision,
+        "MODEL_AUTHORITY_CHANGED",
+        "Inference authority changed before the attempt.",
+        409,
+      );
+      const budget = current.budget!;
+      requireValue(
+        budget.reservedMicros >= amount &&
+          budget.chargedMicros + amount <= budget.maxMicros,
+        "PREPARATION_JOB_COST_LIMIT",
+        "The job's remaining reserved allowance cannot cover this attempt.",
+        429,
+      );
+      const usage = this.store.get<Usage>("preparation-usage:" + budget.day)!;
+      requireValue(
+        (usage.reservedMicros || 0) +
+          (usage.settledMicros || 0) +
+          (usage.uncertainMicros || 0) <=
+          Math.floor(this.connection().routing!.maxDailyUsd * 1e6),
+        "PREPARATION_COST_LIMIT",
+        "The current periodic spending policy blocks this attempt.",
+        429,
+      );
+      budget.reservedMicros -= amount;
+      budget.chargedMicros += amount;
+      usage.reservedMicros = (usage.reservedMicros || 0) - amount;
+      usage.uncertainMicros = (usage.uncertainMicros || 0) + amount;
+      const price = modelPrice(route);
+      const attempt = {
+        id,
+        day: budget.day,
+        generation: budget.generation,
+        job: job.id,
+        stage: job.stage,
+        provider: route.provider,
+        model: route.model,
+        funding: route.funding,
+        configurationVersion: job.modelRevision,
+        fallback: index > 0,
+        outcome: "in_flight",
+        reservedMicros: amount,
+        fundingProof: proof,
+        price: {
+          input: price.input,
+          output: price.output,
+          factor: route.funding === "gateway_credits" ? 1.05 : 1,
+          maxInput: Math.min(routing.maxInputBytes, price.contextBytes),
+          maxOutput: routing.maxOutputTokens,
+        },
+      };
+      current.attempts = [...(current.attempts || []), attempt];
+      requireValue(
+        current.attempts.length <= 512,
+        "PREPARATION_HISTORY_LIMIT",
+        "Export/archive this preparation and start a new one before more attempts.",
+        429,
+      );
+      this.store.put("model-attempt:" + id, attempt);
+      this.store.put("preparation-usage:" + budget.day, usage);
+      this.store.put("preparation:" + job.id, current);
+      job.budget = budget;
+      job.attempts = current.attempts;
+    });
+    return id;
+  }
+  private settleAttempt(
+    id: string,
+    result?: { inputTokens: number; outputTokens: number; latencyMs: number },
+    outcome = "reported_usage",
+  ) {
+    this.store.tx(() => {
+      const attempt = this.store.get<any>("model-attempt:" + id);
+      if (!attempt || attempt.outcome !== "in_flight") return;
+      const current = this.store.get<PreparationJob>(
+        "preparation:" + attempt.job,
+      );
+      let charged = attempt.reservedMicros;
+      if (result) {
+        const p = attempt.price;
+        requireValue(
+          Number.isSafeInteger(result.inputTokens) &&
+            result.inputTokens >= 0 &&
+            result.inputTokens <= p.maxInput &&
+            Number.isSafeInteger(result.outputTokens) &&
+            result.outputTokens >= 0 &&
+            result.outputTokens <= p.maxOutput,
+          "MODEL_USAGE_INVALID",
+          "Reported usage exceeded its reserved boundary.",
+          502,
+        );
+        charged = Math.ceil(
+          (result.inputTokens * p.input + result.outputTokens * p.output) *
+            p.factor,
+        );
+        requireValue(
+          charged <= attempt.reservedMicros,
+          "MODEL_USAGE_INVALID",
+          "Reported cost exceeded the reservation.",
+          502,
+        );
+      }
+      const usage = this.store.get<Usage>("preparation-usage:" + attempt.day)!;
+      if (result) {
+        usage.uncertainMicros = Math.max(
+          0,
+          (usage.uncertainMicros || 0) - attempt.reservedMicros,
+        );
+        usage.settledMicros = (usage.settledMicros || 0) + charged;
+      }
+      const updated = {
+        ...attempt,
+        outcome,
+        ...(result ? { ...result, estimatedMicros: charged } : {}),
+      };
+      this.store.put("model-attempt:" + id, updated);
+      this.store.put("preparation-usage:" + attempt.day, usage);
+      if (current) {
+        if (current.budget && current.budget.generation === attempt.generation)
+          current.budget.chargedMicros = Math.max(
+            0,
+            current.budget.chargedMicros - (attempt.reservedMicros - charged),
+          );
+        current.attempts = (current.attempts || []).map((a: any) =>
+          a.id === id ? updated : a,
+        );
+        this.store.put("preparation:" + current.id, current);
+      }
+    });
+  }
   private fail(job: PreparationJob, code: string, message: string) {
+    this.releaseBudget(job);
     job.status = code.includes("UNCERTAIN") ? "uncertain" : "failed";
     job.error = { code, message };
     job.claim = undefined;
@@ -524,7 +807,23 @@ export class Preparation {
       )
         return;
       if (job.reservationDay !== this.day()) {
-        this.reserve(
+        const phases =
+          job.stage === "source" || job.stage === "interpret"
+            ? 3
+            : job.stage === "draft"
+              ? 2
+              : 1;
+        if (job.budget && connection.routing)
+          requireValue(
+            job.budget.chargedMicros +
+              pipelineCeiling(connection.routing, phases) <=
+              job.budget.maxMicros,
+            "PREPARATION_JOB_COST_LIMIT",
+            "The full job's expenditure ceiling remains in force across midnight.",
+            429,
+          );
+        this.releaseBudget(job);
+        const reserved = this.reserve(
           connection,
           job.stage === "source" || job.stage === "interpret"
             ? 3
@@ -533,6 +832,16 @@ export class Preparation {
               : 1,
         );
         job.reservationDay = this.day();
+        if (job.budget) {
+          requireValue(
+            job.budget.chargedMicros + reserved <= job.budget.maxMicros,
+            "PREPARATION_JOB_COST_LIMIT",
+            "The full job's expenditure ceiling remains in force across midnight.",
+            429,
+          );
+          job.budget.day = this.day();
+          job.budget.reservedMicros = reserved;
+        }
       }
       // Claim persisted before any external I/O. The watchdog never resends an uncertain call.
       const claim = uid();
@@ -582,7 +891,7 @@ export class Preparation {
             : stage === "draft"
               ? draftsSchema
               : critiqueSchema;
-        const key = await unseal<{ apiKey: string }>(
+        const key = await unseal<{ apiKey: string; inspectionToken?: string }>(
           connection.secret,
           credentialRoots(this.env),
           job.actor.workspace + ":model:openai",
@@ -604,11 +913,75 @@ export class Preparation {
           ...(stage !== "interpret" ? { strategy: job.strategy } : {}),
           ...(stage === "check" ? { drafts: job.drafts } : {}),
         };
-        const result = await (this.options.model || openAIModel())(
-          key.apiKey,
-          stage,
-          material,
-          schema,
+        let selectedRoute = connection.routing?.primary;
+        let result;
+        if (connection.routing) {
+          const routes = [
+            connection.routing.primary,
+            ...connection.routing.fallbacks,
+          ];
+          for (let index = 0; index < routes.length; index++) {
+            selectedRoute = routes[index];
+            // Re-read model/account/gateway/key precedence immediately before EVERY
+            // attempted route. Metadata failure never triggers a paid fallback.
+            const proof = await verifyCloudflare(
+              connection.routing,
+              selectedRoute,
+              key.inspectionToken || key.apiKey,
+              this.options.now(),
+              this.options.send,
+            );
+            if (!(await remainsCurrent())) return;
+            this.assertActor(job.actor, this.connection());
+            const attempt = this.beginAttempt(job, index, proof);
+            try {
+              result = await (
+                this.options.model ||
+                cloudflareModel(
+                  connection.routing,
+                  selectedRoute,
+                  this.options.send,
+                )
+              )(key.apiKey, stage, material, schema);
+              this.settleAttempt(attempt, result);
+              break;
+            } catch (error) {
+              this.settleAttempt(
+                attempt,
+                undefined,
+                error instanceof Fault ? error.code : "MODEL_CALL_UNCERTAIN",
+              );
+              // A rejection can still cost money: retain its full reservation.
+              // No uncertain/credential/policy errors cause another attempt.
+              if (
+                !(error instanceof Fault) ||
+                ![
+                  "MODEL_UNAVAILABLE",
+                  "MODEL_RATE_LIMITED",
+                  "MODEL_OUTPUT_INVALID",
+                ].includes(error.code) ||
+                index === routes.length - 1
+              )
+                throw error;
+              if (!(await remainsCurrent())) return;
+            }
+          }
+          if (!(await remainsCurrent())) return;
+          const persisted = this.get(job.id);
+          job.budget = persisted.budget;
+          job.attempts = persisted.attempts;
+        } else
+          result = await (this.options.model || openAIModel())(
+            key.apiKey,
+            stage,
+            material,
+            schema,
+          );
+        requireValue(
+          result,
+          "MODEL_UNAVAILABLE",
+          "No permitted model route remains.",
+          409,
         );
         const parsed = schema.safeParse(result.value);
         requireValue(
@@ -618,12 +991,17 @@ export class Preparation {
           422,
         );
         const estimate =
-          connection.inputUsdPerMillion !== null &&
-          connection.outputUsdPerMillion !== null
-            ? (result.inputTokens * connection.inputUsdPerMillion +
-                result.outputTokens * connection.outputUsdPerMillion) /
+          connection.routing && selectedRoute
+            ? ((result.inputTokens * modelPrice(selectedRoute).input +
+                result.outputTokens * modelPrice(selectedRoute).output) *
+                (selectedRoute.funding === "gateway_credits" ? 1.05 : 1)) /
               1e6
-            : null;
+            : connection.inputUsdPerMillion !== null &&
+                connection.outputUsdPerMillion !== null
+              ? (result.inputTokens * connection.inputUsdPerMillion +
+                  result.outputTokens * connection.outputUsdPerMillion) /
+                1e6
+              : null;
         const usage = this.usage();
         usage.inputTokens += result.inputTokens;
         usage.outputTokens += result.outputTokens;
@@ -687,6 +1065,7 @@ export class Preparation {
       }
       job.claim = undefined;
       job.claimUntil = undefined;
+      if (job.status !== "queued") this.releaseBudget(job);
       this.save(job);
       if (job.status === "queued")
         await this.options.wake(this.options.now() + 1);
@@ -811,12 +1190,25 @@ export class Preparation {
       strategy: job.strategy,
       drafts: job.drafts,
     });
-    this.reserve(
+    this.releaseBudget(job);
+    const reservedMicros = this.reserve(
       connection,
       input.stage === "interpret" ? 3 : input.stage === "draft" ? 2 : 1,
     );
     job.actor = actor;
     job.modelRevision = connection.revision;
+    job.routing = connection.routing
+      ? structuredClone(connection.routing)
+      : undefined;
+    job.budget = connection.routing
+      ? {
+          day: this.day(),
+          generation: uid(),
+          reservedMicros,
+          chargedMicros: 0,
+          maxMicros: Math.floor(connection.routing.maxJobUsd * 1e6),
+        }
+      : undefined;
     job.revision++;
     job.stage =
       input.stage === "interpret" && !job.evidence?.length
@@ -855,6 +1247,7 @@ export class Preparation {
       "Refresh before rejecting this preparation.",
       409,
     );
+    this.releaseBudget(job);
     job.status = "rejected";
     job.revision++;
     job.claim = undefined;

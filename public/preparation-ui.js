@@ -39,15 +39,127 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       ].map((name) => [name, String(fd.get(name) || "")]),
     );
   };
-  const nullable = (value) => (value === "" ? null : Number(value));
+  const modelForm = $("preparation-model");
+  const supported = {
+    openai: ["gpt-4.1-mini-2025-04-14"],
+    cloudflare_workers: [
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "@cf/meta/llama-3.1-8b-instruct",
+    ],
+    cloudflare_gateway: ["gpt-4.1-mini", "gpt-4.1"],
+  };
+  let settingsLoaded = false,
+    settingsDirty = false;
+  const choices = (select, values) => {
+    const previous = select.value;
+    select.replaceChildren(
+      ...values.map((value) => {
+        const option = element("option", value);
+        option.value = value;
+        return option;
+      }),
+    );
+    if (values.includes(previous)) select.value = previous;
+  };
+  function providerFields() {
+    const f = modelForm.elements,
+      provider = f.modelProvider.value,
+      cf = provider !== "openai";
+    choices(f.modelName, supported[provider]);
+    choices(f.fallbackModel, supported[f.fallbackProvider.value] || []);
+    if (provider === "cloudflare_gateway") f.funding.value = "gateway_credits";
+    if (f.fallbackProvider.value === "cloudflare_gateway")
+      f.fallbackFunding.value = "gateway_credits";
+    f.funding.disabled = !cf || provider === "cloudflare_gateway";
+    for (const name of [
+      "accountId",
+      "gatewayId",
+      "inspectionToken",
+      "maxInputBytes",
+      "maxOutputTokens",
+      "temperature",
+      "maxJobUsd",
+      "logging",
+      "fallbackProvider",
+      "fallbackModel",
+      "fallbackFunding",
+    ])
+      f[name].disabled = !cf;
+    f.accountId.required = cf;
+    f.gatewayId.required =
+      cf &&
+      (f.funding.value === "gateway_credits" ||
+        (f.fallbackProvider.value &&
+          f.fallbackFunding.value === "gateway_credits"));
+    f.maxDailyUsd.required = cf;
+    for (const name of ["inputUsdPerMillion", "outputUsdPerMillion"])
+      f[name].disabled = cf;
+    $("preparation-cloudflare-settings").hidden = !cf;
+  }
+  for (const name of [
+    "modelProvider",
+    "fallbackProvider",
+    "funding",
+    "fallbackFunding",
+  ])
+    modelForm.elements[name].addEventListener("change", providerFields);
+  modelForm.addEventListener("input", () => {
+    settingsDirty = true;
+  });
+  providerFields();
+  const nullable = (value) =>
+    value === "" || value === null ? null : Number(value);
   async function refresh() {
     const [status, jobs] = await Promise.all([
       invoke("model_status"),
       invoke("preparations_list"),
     ]);
     $("preparation-model-status").textContent = status.configured
-      ? `OpenAI account connected · ${status.authentication === "verified_by_successful_call" ? "API access verified by a successful call" : "API access not yet verified"} · ${status.usage.jobs}/${status.limits.maxJobsPerDay} preparation requests reserved today · ${status.usage.inputTokens} input / ${status.usage.outputTokens} output tokens reported${status.usage.estimatedUsd === null ? " · USD cost unavailable; add provider rates" : ` · estimated USD ${status.usage.estimatedUsd.toFixed(4)}`}. Your model account is billed directly.`
-      : "Connect your workspace’s own OpenAI API account to request original generation. PostSteward does not supply a shared company key.";
+      ? `${status.provider} · ${status.model} · funding ${status.funding} · ${status.authentication === "verified_by_successful_call" ? "successful inference observed" : "inference unverified"} · ${status.usage.jobs}/${status.limits.maxJobsPerDay} requests reserved today · ${status.usage.inputTokens} input / ${status.usage.outputTokens} output tokens reported. ${status.costNotice}`
+      : "Connect your workspace's own OpenAI or Cloudflare account. PostSteward supplies no hidden company-funded model fallback.";
+    if (status.routing) {
+      $("preparation-model-status").textContent +=
+        ` Reserved USD ${((status.usage.reservedMicros || 0) / 1e6).toFixed(6)}; reported-usage estimated USD ${((status.usage.settledMicros || 0) / 1e6).toFixed(6)}; uncertain/rejected-attempt allowance USD ${((status.usage.uncertainMicros || 0) / 1e6).toFixed(6)}. Pricing reviewed ${status.fundingProofs[0]?.catalogueDate || "unverified"}; account balances are shared and provider-reported, not exclusive workspace credit.`;
+    }
+    $("preparation-spend-notice").textContent = status.routing
+      ? `Paid generation uses ${status.routing.primary.model}, funded by ${status.routing.primary.funding}, with a maximum USD ${status.routing.maxJobUsd} per request and USD ${status.routing.maxDailyUsd} per UTC day. Fallbacks: ${status.routing.fallbacks.length ? status.routing.fallbacks.map((r) => r.model + " / " + r.funding).join(", ") : "off"}. Provider charges and PostSteward subscription are separate.`
+      : "Generation uses the connected OpenAI account and saved call/token limits. Connection validation does not generate content.";
+    if (status.configured && !settingsLoaded && !settingsDirty) {
+      const f = modelForm.elements,
+        routing = status.routing;
+      f.modelProvider.value = routing?.primary.provider || "openai";
+      f.maxJobsPerDay.value = status.limits.maxJobsPerDay;
+      f.allowAgents.checked = status.limits.allowAgents;
+      for (const name of [
+        "inputUsdPerMillion",
+        "outputUsdPerMillion",
+        "maxDailyUsd",
+      ])
+        f[name].value = status.limits[name] ?? "";
+      if (routing) {
+        for (const name of [
+          "accountId",
+          "maxInputBytes",
+          "maxOutputTokens",
+          "temperature",
+          "maxJobUsd",
+          "logging",
+        ])
+          f[name].value = routing[name];
+        f.funding.value = routing.primary.funding;
+        f.gatewayId.value =
+          routing.primary.gatewayId || routing.fallbacks[0]?.gatewayId || "";
+        f.fallbackProvider.value = routing.fallbacks[0]?.provider || "";
+        f.fallbackFunding.value = routing.fallbacks[0]?.funding || "workers_ai";
+      }
+      providerFields();
+      if (routing) {
+        f.modelName.value = routing.primary.model;
+        if (routing.fallbacks[0])
+          f.fallbackModel.value = routing.fallbacks[0].model;
+      }
+      settingsLoaded = true;
+    }
     const root = $("preparation-jobs");
     const previous = new Map(
       [...root.querySelectorAll(":scope > article")].map((node) => [
@@ -137,6 +249,30 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         `State: ${job.status.replaceAll("_", " ")} · revision ${job.revision} · ${job.stage} · ${job.usage.length} model calls completed`,
       ),
     );
+    if (job.routing)
+      article.append(
+        element(
+          "p",
+          `Model selection: ${job.routing.primary.model} · funding ${job.routing.primary.funding} · configuration ${job.modelRevision}. ${job.attempts?.length || 0} attempted model calls, including permitted fallbacks.`,
+        ),
+      );
+    if (job.attempts?.length) {
+      const attempts = element("details");
+      attempts.append(
+        element(
+          "summary",
+          "Inspect model, funding and budget evidence (no prompts or credentials)",
+        ),
+      );
+      for (const attempt of job.attempts)
+        attempts.append(
+          element(
+            "p",
+            `${attempt.stage}: ${attempt.provider} / ${attempt.model} / ${attempt.funding}; ${attempt.fallback ? "explicit fallback" : "primary"}; ${attempt.outcome}; maximum reserved USD ${(attempt.reservedMicros / 1e6).toFixed(6)}${attempt.estimatedMicros === undefined ? " · charge uncertain/conservatively retained" : " · reported-usage estimate USD " + (attempt.estimatedMicros / 1e6).toFixed(6)}. Funding configuration readback ${attempt.fundingProof?.checkedAt ? new Date(attempt.fundingProof.checkedAt).toISOString() : "unverified"}; invoice/readback unverified.`,
+          ),
+        );
+      article.append(attempts);
+    }
     if (job.error) article.append(element("p", job.error.message));
     if (job.coverage) article.append(element("p", job.coverage));
     for (const gap of job.gaps || [])
@@ -426,22 +562,72 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     action(async () => {
       const form = event.currentTarget,
         fd = new FormData(form);
-      const apiKey = String(fd.get("apiKey"));
+      const apiKey = String(fd.get("apiKey") || "");
+      const inspectionToken = String(fd.get("inspectionToken") || "");
       form.elements.apiKey.value = "";
+      form.elements.inspectionToken.value = "";
+      const provider = form.elements.modelProvider.value;
+      const route = (provider, model, funding) => ({
+        provider,
+        model,
+        funding:
+          provider === "cloudflare_gateway" ? "gateway_credits" : funding,
+        ...(provider === "cloudflare_gateway" || funding === "gateway_credits"
+          ? { gatewayId: String(form.elements.gatewayId.value) }
+          : {}),
+      });
+      const cf = provider !== "openai";
       try {
         await mutate("model_connect", {
-          apiKey,
+          ...(apiKey ? { apiKey } : {}),
+          ...(cf && inspectionToken ? { inspectionToken } : {}),
+          ...(cf
+            ? {
+                routing: {
+                  version: 1,
+                  accountId: String(form.elements.accountId.value),
+                  primary: route(
+                    provider,
+                    form.elements.modelName.value,
+                    form.elements.funding.value,
+                  ),
+                  fallbacks: form.elements.fallbackProvider.value
+                    ? [
+                        route(
+                          form.elements.fallbackProvider.value,
+                          form.elements.fallbackModel.value,
+                          form.elements.fallbackFunding.value,
+                        ),
+                      ]
+                    : [],
+                  maxInputBytes: Number(fd.get("maxInputBytes")),
+                  maxOutputTokens: Number(fd.get("maxOutputTokens")),
+                  temperature: Number(fd.get("temperature")),
+                  maxJobUsd: Number(fd.get("maxJobUsd")),
+                  maxDailyUsd: Number(fd.get("maxDailyUsd")),
+                  logging: String(fd.get("logging")),
+                },
+              }
+            : {}),
           maxJobsPerDay: Number(fd.get("maxJobsPerDay")),
           allowAgents: fd.has("allowAgents"),
-          inputUsdPerMillion: nullable(fd.get("inputUsdPerMillion")),
-          outputUsdPerMillion: nullable(fd.get("outputUsdPerMillion")),
+          inputUsdPerMillion: cf
+            ? null
+            : nullable(fd.get("inputUsdPerMillion")),
+          outputUsdPerMillion: cf
+            ? null
+            : nullable(fd.get("outputUsdPerMillion")),
           maxDailyUsd: nullable(fd.get("maxDailyUsd")),
         });
+        settingsDirty = false;
         show(
-          "Workspace model key encrypted. API authentication is checked only when you request generation.",
+          cf
+            ? "Cloudflare metadata validated; encrypted settings saved. No inference or gateway/billing change occurred. Actual inference and funding invoice remain unverified until an authorized generation."
+            : "Encrypted OpenAI settings saved; no inference occurred.",
         );
       } finally {
         form.elements.apiKey.value = "";
+        form.elements.inspectionToken.value = "";
       }
     });
   };

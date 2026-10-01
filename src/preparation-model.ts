@@ -9,6 +9,7 @@ export type ModelResult = {
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+  fundingSource?: "Unified";
 };
 export type ModelPort = (
   key: string,

@@ -54,11 +54,18 @@ function restoredFixture() {
     automatic: false,
   };
   store.put("account:social", account);
-  store.put("oauth:social", { strategy: "refresh_token", secret: "restored-refresh" });
+  store.put("oauth:social", {
+    strategy: "refresh_token",
+    secret: "restored-refresh",
+  });
   store.put("profile:release", profile);
   store.put("delivery:delivery", delivery);
   store.put("quote:quote-1", { id: "quote-1", amount: 500 });
-  store.put("entitlement", { kind: "subscription", until: Date.now() + 86400000, reference: "restored" });
+  store.put("entitlement", {
+    kind: "subscription",
+    until: Date.now() + 86400000,
+    reference: "restored",
+  });
   store.put("billing:attempt", { quote: "quote-1", status: "pending" });
   store.put("billing:customer", "cus_restored");
   store.put("billing:renewing", true);
@@ -99,7 +106,13 @@ test("restored provider ciphertext, automation, schedules and billing authority 
   assert.equal(delivery.status, "drift_blocked");
   assert.match(delivery.reason || "", /recovery invalidated/i);
   assert.equal(store.get("quote:quote-1"), undefined);
-  for (const key of ["entitlement", "billing:attempt", "billing:customer", "billing:renewing", "billing:next"])
+  for (const key of [
+    "entitlement",
+    "billing:attempt",
+    "billing:customer",
+    "billing:renewing",
+    "billing:next",
+  ])
     assert.equal(store.get(key), undefined);
   assert.deepEqual(result.accounts, ["social"]);
   assert.deepEqual(result.profiles, ["release"]);
@@ -129,4 +142,35 @@ test("restored authority invalidation is exactly-once within one restored snapsh
   assert.deepEqual(second.profiles, []);
   assert.deepEqual(second.deliveries, []);
   assert.equal(second.billingReset, false);
+});
+
+test("recovery releases only unattempted model allowance and retains uncertain costs", async () => {
+  const store = restoredFixture();
+  store.put("model:openai", {
+    secret: "encrypted-model-envelope",
+    revision: 3,
+  });
+  store.put("preparation:job", {
+    id: "job",
+    status: "running",
+    budget: { day: "2026-10-01", reservedMicros: 1000, chargedMicros: 500 },
+  });
+  store.put("preparation-usage:2026-10-01", {
+    reservedMicros: 1000,
+    settledMicros: 20,
+    uncertainMicros: 500,
+  });
+  store.put("model-attempt:call", {
+    outcome: "in_flight",
+    reservedMicros: 500,
+  });
+  await invalidateRestoredAuthority(store, environment, owner.workspace, 12345);
+  assert.deepEqual(store.get("preparation-usage:2026-10-01"), {
+    reservedMicros: 0,
+    settledMicros: 20,
+    uncertainMicros: 500,
+  });
+  assert.equal(store.get<any>("preparation:job").budget.reservedMicros, 0);
+  assert.equal(store.get<any>("model-attempt:call").outcome, "in_flight");
+  assert.equal(store.get<any>("model:openai").secret, "");
 });

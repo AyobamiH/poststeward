@@ -25,7 +25,7 @@
   },
   {
     "name": "model_connect",
-    "description": "Owner-only: encrypt a workspace-owned OpenAI API key and approve explicit spending/delegation limits. No call is made during connection.",
+    "description": "Owner-only: connect workspace-owned OpenAI or Cloudflare credentials and explicit routing/spend policy. Cloudflare validation reads metadata only; no inference, top-up or shared gateway mutation occurs.",
     "scope": "admin",
     "tier": "free",
     "effects": [
@@ -50,6 +50,147 @@
           "type": "string",
           "minLength": 16,
           "maxLength": 512
+        },
+        "inspectionToken": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        },
+        "routing": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 1
+            },
+            "accountId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            },
+            "primary": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "cloudflare_workers",
+                    "cloudflare_gateway"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "funding": {
+                  "type": "string",
+                  "enum": [
+                    "workers_ai",
+                    "gateway_credits"
+                  ]
+                },
+                "gatewayId": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z0-9_-]{1,64}$"
+                }
+              },
+              "required": [
+                "provider",
+                "model",
+                "funding"
+              ],
+              "additionalProperties": false
+            },
+            "fallbacks": {
+              "maxItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "enum": [
+                      "cloudflare_workers",
+                      "cloudflare_gateway"
+                    ]
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "funding": {
+                    "type": "string",
+                    "enum": [
+                      "workers_ai",
+                      "gateway_credits"
+                    ]
+                  },
+                  "gatewayId": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_-]{1,64}$"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "model",
+                  "funding"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "maxOutputTokens": {
+              "type": "integer",
+              "minimum": 500,
+              "maximum": 4000
+            },
+            "maxInputBytes": {
+              "type": "integer",
+              "minimum": 2000,
+              "maximum": 48000
+            },
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "maxJobUsd": {
+              "type": "number",
+              "minimum": 0.001,
+              "maximum": 10
+            },
+            "maxDailyUsd": {
+              "type": "number",
+              "minimum": 0.001,
+              "maximum": 100
+            },
+            "logging": {
+              "type": "string",
+              "enum": [
+                "none",
+                "metadata"
+              ]
+            },
+            "retention": {
+              "default": "reviewed_removal",
+              "type": "string",
+              "const": "reviewed_removal"
+            }
+          },
+          "required": [
+            "version",
+            "accountId",
+            "primary",
+            "fallbacks",
+            "maxOutputTokens",
+            "maxInputBytes",
+            "temperature",
+            "maxJobUsd",
+            "maxDailyUsd",
+            "logging",
+            "retention"
+          ],
+          "additionalProperties": false
         },
         "maxJobsPerDay": {
           "type": "integer",
@@ -102,7 +243,6 @@
         }
       },
       "required": [
-        "apiKey",
         "maxJobsPerDay",
         "allowAgents",
         "inputUsdPerMillion",

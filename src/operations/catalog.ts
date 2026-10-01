@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { routingSchema } from "../model-routing.ts";
 import type { Scope } from "../types.ts";
 import {
   preparationContext,
@@ -69,11 +70,13 @@ export const catalog: Operation[] = [
   ),
   op(
     "model_connect",
-    "Owner-only: encrypt a workspace-owned OpenAI API key and approve explicit spending/delegation limits. No call is made during connection.",
+    "Owner-only: connect workspace-owned OpenAI or Cloudflare credentials and explicit routing/spend policy. Cloudflare validation reads metadata only; no inference, top-up or shared gateway mutation occurs.",
     "admin",
     ["AUTHORITY_CHANGE"],
     z.strictObject({
-      apiKey: z.string().min(16).max(512),
+      apiKey: z.string().min(16).max(512).optional(),
+      inspectionToken: z.string().min(16).max(512).optional(),
+      routing: routingSchema.optional(),
       maxJobsPerDay: z.number().int().min(1).max(8),
       allowAgents: z.boolean(),
       inputUsdPerMillion: z.number().min(0).max(1000).nullable(),

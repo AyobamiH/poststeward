@@ -20,7 +20,7 @@ Example:
 
 ## model_connect
 
-Owner-only: encrypt a workspace-owned OpenAI API key and approve explicit spending/delegation limits. No call is made during connection.
+Owner-only: connect workspace-owned OpenAI or Cloudflare credentials and explicit routing/spend policy. Cloudflare validation reads metadata only; no inference, top-up or shared gateway mutation occurs.
 
 - Tier: free
 - Required scope: admin

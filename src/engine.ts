@@ -49,6 +49,7 @@ export interface EngineOptions {
   billing: BillingPort;
   preparationEvidence?: PreparationOptions["evidence"];
   preparationModel?: PreparationOptions["model"];
+  preparationSend?: typeof fetch;
 }
 type Handler = (input: any, actor: Actor) => unknown | Promise<unknown>;
 export class Engine {
@@ -68,6 +69,7 @@ export class Engine {
       authorized: options.authorized,
       evidence: options.preparationEvidence,
       model: options.preparationModel,
+      send: options.preparationSend,
       handoff: (input) => this.createCampaign(input, input.id, input.source),
     });
     this.handlers = {
