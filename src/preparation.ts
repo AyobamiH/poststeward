@@ -572,6 +572,7 @@ export class Preparation {
       const current = this.get(job.id);
       requireValue(
         current.status === "running" &&
+          (current.claimUntil || 0) > this.options.now() &&
           current.claim === job.claim &&
           current.revision === job.revision &&
           this.connection().revision === job.modelRevision,
@@ -848,7 +849,8 @@ export class Preparation {
       job.status = "running";
       job.claim = claim;
       job.claimUntil =
-        this.options.now() + (job.stage === "source" ? 120000 : 60000);
+        this.options.now() +
+        (job.stage === "source" ? 120000 : connection.routing ? 360000 : 60000);
       this.save(job);
       const remainsCurrent = async () => {
         const current = this.store.get<PreparationJob>("preparation:" + job.id);
@@ -856,6 +858,7 @@ export class Preparation {
           !!current &&
           current.claim === claim &&
           current.status === "running" &&
+          (current.claimUntil || 0) > this.options.now() &&
           current.revision === job.revision &&
           this.store.get<Connection>("model:openai")?.revision ===
             connection.revision &&

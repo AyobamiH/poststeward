@@ -623,3 +623,25 @@ test("freshness, credential rotation, grant revocation and UTC rollover preserve
     /pricing catalogue expired/,
   );
 });
+
+test("metadata latency cannot start inference under an expired execution claim", async () => {
+  let expire = false;
+  let advance!: (ms: number) => void;
+  const h = await fixture(workers, {
+    read: () => {
+      if (expire) {
+        advance(400000);
+        expire = false;
+      }
+    },
+  });
+  advance = h.advance;
+  const job = await h.create();
+  await h.engine.preparation.tick();
+  expire = true;
+  await h.engine.preparation.tick();
+  assert.equal(h.calls.filter((c) => c.options.method === "POST").length, 0);
+  await h.engine.preparation.tick();
+  assert.equal(h.engine.preparation.get(job.id).status, "uncertain");
+  assert.equal((await h.run("model_status")).usage.reservedMicros, 0);
+});
