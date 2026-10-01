@@ -72,7 +72,16 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
         config_root.mkdir(parents=True,exist_ok=True)
         try:
             manager.stage(runtime_root=runtime,state_root=state_root,config_root=config_root)
-            assert manager.arm()['all_active']
+            try:
+                assert manager.arm()['all_active']
+            except Exception:
+                from ocpf_post.setup_activation import TIMERS
+                print(json.dumps({'native_systemd_diagnostics':manager.inspect()}))
+                for unit in TIMERS:
+                    observed=manager._run(['systemctl','--user','show',unit,
+                        '--property=ActiveState,SubState,UnitFileState,FragmentPath'],timeout=10)
+                    print(unit,observed.stdout,observed.stderr)
+                raise
             assert not any(x['active'] for x in manager.disarm()['timers'])
             assert manager.arm()['all_active']
             # Start one real guarded worker now rather than infer execution from timer enablement.
