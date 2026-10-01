@@ -310,6 +310,9 @@ def update(channel: str, *, dry_run: bool = False) -> int:
             channel,
             "--no-onboard",
         ]
+        from ocpf_post.installed_lifecycle import installation
+        _, prefix, binary = installation()
+        args.extend(['--prefix', str(prefix), '--bin-dir', str(binary)])
         if dry_run:
             args.append("--dry-run")
         result = subprocess.run(args, check=False)

@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
     def run(args, *, allowed=(0,)):
         result = subprocess.run(args, env=env, text=True, capture_output=True, timeout=180)
         if result.returncode not in allowed:
-            raise AssertionError({'command': args, 'exit': result.returncode, 'stderr': result.stderr[-3000:]})
+            raise AssertionError({'command': args, 'exit': result.returncode, 'stderr': result.stderr[-3000:], 'stdout':result.stdout[-3000:]})
         return result
     installer = ['bash', str(repo / 'public' / 'install.sh'), '--version', revision, '--no-onboard']
     for _ in range(2):

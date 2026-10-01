@@ -25,7 +25,7 @@ def receipt_path() -> Path:
 
 def tree_digest(root: Path) -> str:
     value = hashlib.sha256()
-    for path in sorted(root.rglob('*')):
+    for path in sorted(root.rglob('*'), key=lambda path:path.relative_to(root).as_posix()):
         relative = path.relative_to(root)
         if any(part in SKIP or part.endswith('.egg-info') for part in relative.parts):
             continue
@@ -135,7 +135,7 @@ def lifecycle(action: str, *, retain_data: bool = True, apply: bool = False,
         (prefix / 'current').unlink()
         # Delete only exact managed archive directories; unrelated prefix files stay.
         for release in (prefix / 'releases').iterdir():
-            if SHA.fullmatch(release.name) and release.is_dir() and not release.is_symlink():
+            if release.name in {value['resolved_revision'], value.get('previous_revision')} and release.is_dir() and not release.is_symlink():
                 shutil.rmtree(release)
         receipt_path().unlink()
         if not retain_data:

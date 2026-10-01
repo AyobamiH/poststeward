@@ -42,6 +42,10 @@ def main() -> None:
             {
                 "product": "poststeward",
                 "product_commands": [
+                    {"path":"rollback","consequence":"LOCAL_STATE_WRITE","safe_form":"omit --apply",
+                     "summary":"Review/restore the retained exact archive while inactive; durable state is never rolled back."},
+                    {"path":"uninstall","consequence":"LOCAL_STATE_WRITE","safe_form":"omit --apply",
+                     "summary":"Review/remove managed software with an explicit --retain-data or --delete-data choice."},
                     {
                         "path": "onboard",
                         "consequence": "LOCAL_STATE_WRITE",

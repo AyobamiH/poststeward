@@ -77,6 +77,11 @@ WantedBy=timers.target
                     handle.write(text);handle.flush();os.fsync(handle.fileno())
                 os.replace(temporary,target)
             finally: Path(temporary).unlink(missing_ok=True)
+    # A user manager retains its own XDG paths from login, rather than inheriting
+    # the calling CLI's environment. Explicit links make custom private roots work.
+    units=[str(directory/(stem+'.'+suffix)) for stem in JOBS for suffix in ('service','timer')]
+    linked=subprocess.run(['systemctl','--user','link',*units],capture_output=True,timeout=30,check=False)
+    if linked.returncode: raise ValueError('Could not link owned PostSteward units into the user manager')
     result=subprocess.run(['systemctl','--user','daemon-reload'],capture_output=True,timeout=30,check=False)
     if result.returncode: raise ValueError('Could not reload the PostSteward user service manager')
     return {'status':'staged','manager':'systemd','provider_consequence':False}
