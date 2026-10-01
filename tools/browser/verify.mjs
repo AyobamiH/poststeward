@@ -648,6 +648,35 @@ try {
     assert.equal(await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).count(),0);
     assert.deepEqual(await audit(page),[]);await context.close();
   });
+  await check('Repeated release cards show identities and reorder by activity while preserving unsaved editor focus',async()=>{
+    const start=Date.UTC(2026,9,1,12,0,0);
+    const old={...preparationFixture,id:'00000000-0000-4000-8000-000000000001',createdAt:start,updatedAt:start+1000};
+    const fresh={...preparationFixture,id:'00000000-0000-4000-8000-000000000002',createdAt:start+2000,updatedAt:start+2000};
+    let jobs=[old];let paid=0;
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,
+      '/api/operations/preparations_list':route=>route.fulfill({json:jobs}),
+      '/api/operations/preparation_regenerate':()=>{paid++;throw new Error('No paid call expected');}});
+    const page=await context.newPage();await page.setViewportSize({width:375,height:900});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const card=page.locator(`#preparation-jobs article[data-job-id="${old.id}"]`);await card.waitFor();await card.locator('details').first().evaluate(node=>node.open=true);
+    const input=card.getByLabel('Exact channel text');await input.fill('Keep this unsaved owner copy through sorting.');await input.focus();await input.evaluate(node=>node.setSelectionRange(5,12));
+    jobs=[old,fresh];await page.evaluate(()=>document.getElementById('preparation-refresh').click());
+    await page.waitForFunction(()=>document.querySelectorAll('#preparation-jobs article').length===2);
+    assert.deepEqual(await page.locator('#preparation-jobs article').evaluateAll(nodes=>nodes.map(node=>node.dataset.jobId)),[fresh.id,old.id]);
+    assert.equal(await input.inputValue(),'Keep this unsaved owner copy through sorting.');
+    assert.deepEqual(await input.evaluate(node=>({focused:document.activeElement===node,start:node.selectionStart,end:node.selectionEnd})),{focused:true,start:5,end:12});
+    const newest=page.locator('#preparation-jobs article').first();assert.match(await newest.locator('.preparation-identity').innerText(),/Latest activity/);
+    assert.match(await newest.locator('.preparation-identity').innerText(),new RegExp(fresh.id));
+    assert.deepEqual(await newest.locator('time').evaluateAll(nodes=>nodes.map(node=>node.dateTime)),[new Date(fresh.createdAt).toISOString(),new Date(fresh.updatedAt).toISOString()]);
+    jobs=[fresh,{...old,updatedAt:start+3000}];await page.evaluate(()=>document.getElementById('preparation-refresh').click());
+    await page.waitForFunction(id=>document.querySelector('#preparation-jobs article').dataset.jobId===id,old.id);
+    assert.equal(await input.inputValue(),'Keep this unsaved owner copy through sorting.');
+    assert.deepEqual(await input.evaluate(node=>({focused:document.activeElement===node,start:node.selectionStart,end:node.selectionEnd})),{focused:true,start:5,end:12});
+    assert.match(await card.locator('.preparation-identity').innerText(),/Latest activity/);
+    assert.equal(await card.locator('time').last().getAttribute('datetime'),new Date(start+3000).toISOString());
+    assert.equal(await page.evaluate(()=>!!(document.getElementById('preparation-jobs').compareDocumentPosition(document.getElementById('preparation-create'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+    assert.deepEqual(await audit(page),[]);assert.equal(paid,0);await page.screenshot({path:'ux-evidence/preparation-identical-cards-mobile.png',fullPage:true});await context.close();
+  });
   await check('Blocked interpretation shows missing context and recorded versus unknown editorial versions without offering approval',async()=>{
     const attempt={stage:'interpret',provider:'cloudflare_workers',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',funding:'workers_ai',fallback:false,outcome:'reported_usage',reservedMicros:16044,estimatedMicros:1321};
     const blocked={...preparationFixture,stage:'interpret',drafts:undefined,critique:undefined,digest:undefined,
