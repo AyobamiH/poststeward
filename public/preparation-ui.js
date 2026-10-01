@@ -246,7 +246,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       ),
       element(
         "p",
-        `State: ${job.status.replaceAll("_", " ")} · revision ${job.revision} · ${job.stage} · ${job.usage.length} model calls completed`,
+        `State: ${job.error?.code === "PREPARATION_CONTEXT_REQUIRED" ? "Needs more context" : job.status.replaceAll("_", " ")} · revision ${job.revision} · ${job.stage} · ${job.usage.length} model calls completed`,
       ),
     );
     if (job.routing)

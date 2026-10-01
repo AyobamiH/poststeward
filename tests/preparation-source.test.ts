@@ -107,6 +107,29 @@ test("unreleased notes and sensitive paths need explicit consent or are blocked"
     /cannot be selected/,
   );
 });
+test("a first release remains readable without inventing a previous comparison", async () => {
+  const h = reader();
+  const { previousTag: _previous, ...firstRelease } = selection;
+  const result = await readPreparationEvidence(
+    firstRelease,
+    env,
+    "workspace",
+    h.send,
+  );
+  assert.equal(result.sha, "a".repeat(40));
+  assert.ok(result.evidence.some((item) => item.kind === "release"));
+  assert.ok(result.evidence.some((item) => item.kind === "documentation"));
+  assert.equal(
+    h.urls.some((url) => url.includes("/compare/")),
+    false,
+  );
+  assert.ok(
+    result.gaps.some(
+      (gap) =>
+        gap.includes("explicit facts") && gap.includes("comparison claims"),
+    ),
+  );
+});
 test("large mixed releases record bounded coverage and diverged release comparisons fail", async () => {
   const h = reader({
     comparison: {
