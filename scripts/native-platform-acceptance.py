@@ -76,9 +76,9 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
             assert not any(x['active'] for x in manager.disarm()['timers'])
             assert manager.arm()['all_active']
             # Start one real guarded worker now rather than infer execution from timer enablement.
-            worker=subprocess.run(['systemctl','--user','start','poststeward-run-due.service'],capture_output=True,timeout=30)
-            exit_status=subprocess.check_output(['systemctl','--user','show','poststeward-run-due.service',
-                '--property=ExecMainStatus','--value'],text=True).strip()
+            worker=manager._run(['systemctl','--user','start','poststeward-run-due.service'],timeout=30)
+            exit_status=manager._run(['systemctl','--user','show','poststeward-run-due.service',
+                '--property=ExecMainStatus','--value'],timeout=30).stdout.strip()
             assert exit_status=='3', 'Expected inactive authority fence from real service execution, got '+exit_status
         finally:
             manager.disarm()

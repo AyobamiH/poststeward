@@ -465,6 +465,9 @@ class SystemdServiceController:
 
     @staticmethod
     def _run(args: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+        if Path(args[0]).name == 'systemctl' and env is None:
+            from ocpf_post.systemd_services import manager_environment
+            env=manager_environment()
         return subprocess.run(args, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout, check=False)
 
     def inspect(self) -> dict[str, Any]:

@@ -13,6 +13,16 @@ JOBS = {'poststeward-run-due': ('run-due',60), 'poststeward-portfolio-refill':('
         'poststeward-collection':('collect',900), 'poststeward-replies':('respond',600)}
 
 
+def manager_environment() -> dict[str, str]:
+    # Keep product XDG data paths in the worker, but operate the login user's
+    # service manager in its standard control namespace. A caller override must
+    # not create enablement links that the running manager cannot discover.
+    env=dict(os.environ)
+    for name in ('XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_CONFIG_DIRS','XDG_DATA_DIRS'):
+        env.pop(name,None)
+    return env
+
+
 def quote(value: str, *, command: bool = False) -> str:
     if '\n' in value or '\r' in value or '\0' in value:
         raise ValueError('Control characters are not allowed in service paths')
@@ -80,8 +90,8 @@ WantedBy=timers.target
     # A user manager retains its own XDG paths from login, rather than inheriting
     # the calling CLI's environment. Explicit links make custom private roots work.
     units=[str(directory/(stem+'.'+suffix)) for stem in JOBS for suffix in ('service','timer')]
-    linked=subprocess.run(['systemctl','--user','link',*units],capture_output=True,timeout=30,check=False)
+    linked=subprocess.run(['systemctl','--user','link',*units],env=manager_environment(),capture_output=True,timeout=30,check=False)
     if linked.returncode: raise ValueError('Could not link owned PostSteward units into the user manager')
-    result=subprocess.run(['systemctl','--user','daemon-reload'],capture_output=True,timeout=30,check=False)
+    result=subprocess.run(['systemctl','--user','daemon-reload'],env=manager_environment(),capture_output=True,timeout=30,check=False)
     if result.returncode: raise ValueError('Could not reload the PostSteward user service manager')
     return {'status':'staged','manager':'systemd','provider_consequence':False}
