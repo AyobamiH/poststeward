@@ -13,6 +13,8 @@ if (headerObserver) headerObserver.observe(browserHeader);
 addEventListener('resize', measureBrowserHeader);
 addEventListener('pagehide', () => headerObserver?.disconnect());
 function navigateToSection() {
+  // The focused workspace owns its view/step visibility and navigation state.
+  if (document.body.classList.contains('focused-workspace')) return;
   let id;
   try { id = decodeURIComponent(location.hash.slice(1)); } catch { return; }
   const target = id && document.getElementById(id);

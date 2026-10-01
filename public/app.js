@@ -1,6 +1,7 @@
 import { renderOwnerSnapshot, showFeedback } from "./owner-ui.js";
 import { renderWorkspaceTask } from "./workspace-guidance.js";
 import { mountPreparation } from "./preparation-ui.js";
+import { mountWorkspaceLayout } from "./workspace-layout.js";
 import { registerWebMCP, checkNativeWebMCP } from "./webmcp.js";
 import {
   linkedinConnectionPlan,
@@ -9,15 +10,24 @@ import {
   trustedExternal,
 } from "./app-client.js";
 const $ = (id) => document.getElementById(id);
+const workspaceLayout = mountWorkspaceLayout();
 let session,
   sessionExpired = false,
   selectedCampaign,
+  campaignDraftRevision = 0,
   paused = false,
   oauthInfo,
   recovery,
   runtimeInstallations = [],
   runtimeExecutor;
 const key = () => crypto.randomUUID();
+document.addEventListener("input", (event) => {
+  if (event.target.form?.id !== "campaign") return;
+  campaignDraftRevision++;
+  selectedCampaign = undefined;
+  $("delivery").hidden = true;
+  $("campaign-preview").hidden = true;
+});
 async function api(path, input, method = input === undefined ? "GET" : "POST") {
   let response;
   try {
@@ -93,7 +103,7 @@ const preparationUI = mountPreparation({
     show(
       "Exact owner-approved campaign stored. Review the existing delivery controls to schedule or publish explicitly.",
     );
-    $("delivery").scrollIntoView({ block: "nearest" });
+    workspaceLayout.openDelivery();
   },
 });
 let feedbackTarget,
@@ -465,14 +475,21 @@ async function refresh() {
     line(r, p.accounts.join(", "));
   });
   preparationUI.setProjects(projects);
-  for (const id of ["project-select", "profile-project"])
+  for (const id of ["project-select", "profile-project"]) {
+    const previous = $(id).value;
     $(id).replaceChildren(...projects.map((p) => new Option(p.name, p.id)));
-  for (const id of ["account-select", "profile-account"])
+    if (projects.some((p) => p.id === previous)) $(id).value = previous;
+  }
+  for (const id of ["account-select", "profile-account"]) {
+    const previous = $(id).value;
     $(id).replaceChildren(
       ...accounts
         .filter((a) => a.active)
         .map((a) => new Option(`${a.alias} · ${a.provider}`, a.alias)),
     );
+    if (accounts.some((a) => a.active && a.alias === previous))
+      $(id).value = previous;
+  }
   records("receipts", receipts, (r, d) => {
     line(r, `${d.provider} · ${d.account} · ${d.status}`, true);
     const partCount = d.publication?.parts?.length || 1;
@@ -681,8 +698,9 @@ async function refresh() {
   $("workspace-next-step").hidden = false;
   $("pause").hidden = false;
   $("session-notice").textContent =
-    "Workspace data updated. Schedule dates show their recorded timezone; other dates use your browser’s local time.";
+    "Workspace data updated.";
   if (firstLoad) document.dispatchEvent(new Event("workspace-ready"));
+  document.dispatchEvent(new Event("workspace-updated"));
 }
 for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]"))
   b.onclick = () =>
@@ -758,12 +776,23 @@ for (const id of [
         await refresh();
       }
       if (id === "campaign") {
-        selectedCampaign = await invoke("campaign_create", {
+        const draftRevision = campaignDraftRevision;
+        selectedCampaign = undefined;
+        $("delivery").hidden = true;
+        $("campaign-preview").hidden = true;
+        const campaign = await invoke("campaign_create", {
           project: fd.get("project"),
           text: { [fd.get("alias")]: fd.get("text") },
           idempotencyKey: key(),
         });
-        await invoke("campaign_validate", { campaign: selectedCampaign.id });
+        await invoke("campaign_validate", { campaign: campaign.id });
+        if (draftRevision !== campaignDraftRevision) {
+          show(
+            "Your draft changed during validation. Validate the current copy before opening delivery review.",
+          );
+          return;
+        }
+        selectedCampaign = campaign;
         $("campaign-preview").hidden = false;
         $("campaign-preview").textContent = selectedCampaign.publications
           ? Object.entries(selectedCampaign.publications)
@@ -785,6 +814,7 @@ for (const id of [
         show(
           "Campaign stored and validated. Review the exact copy before submitting.",
         );
+        workspaceLayout.openDelivery();
       }
       if (id === "delivery") {
         const at = fd.get("at");
