@@ -26,6 +26,39 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     parent.append(wrapper);
     return input;
   };
+  const activity = (job) => job.updatedAt || job.createdAt || 0;
+  const identity = (job, latest) => {
+    const node = element("div");
+    node.className = "preparation-identity";
+    if (latest && activity(job) > 0)
+      node.append(element("strong", "Latest activity"));
+    node.append(element("p", `Preparation ID: ${job.id}`));
+    for (const [label, value] of [
+      ["Created", job.createdAt],
+      ["Last activity", job.updatedAt],
+    ]) {
+      const line = element("p", `${label}: `);
+      const date = new Date(value);
+      if (typeof value === "number" && Number.isFinite(date.getTime())) {
+        const time = element(
+          "time",
+          date.toLocaleString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZoneName: "short",
+          }),
+        );
+        time.dateTime = date.toISOString();
+        line.append(time);
+      } else line.append("Unavailable");
+      node.append(line);
+    }
+    return node;
+  };
   const context = () => {
     const fd = new FormData($("preparation-create"));
     return Object.fromEntries(
@@ -114,6 +147,12 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       invoke("model_status"),
       invoke("preparations_list"),
     ]);
+    jobs.sort(
+      (a, b) =>
+        activity(b) - activity(a) ||
+        (b.createdAt || 0) - (a.createdAt || 0) ||
+        a.id.localeCompare(b.id),
+    );
     $("preparation-model-status").textContent = status.configured
       ? `${status.provider} · ${status.model} · funding ${status.funding} · ${status.authentication === "verified_by_successful_call" ? "successful inference observed" : "inference unverified"} · ${status.usage.jobs}/${status.limits.maxJobsPerDay} requests reserved today · ${status.usage.inputTokens} input / ${status.usage.outputTokens} output tokens reported. ${status.costNotice}`
       : "Connect your workspace's own OpenAI or Cloudflare account. PostSteward supplies no hidden company-funded model fallback.";
@@ -172,13 +211,18 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       root.append(
         element(
           "p",
-          "No preparations yet. Select a release and approved context above.",
+          "No preparations yet. Use Start a new preparation below.",
         ),
       );
-    for (const job of jobs) {
+    const rendered = new Map();
+    for (const [index, job] of jobs.entries()) {
       const existing = previous.get(job.id);
       previous.delete(job.id);
       if (existing?.dataset.dirty === "true") {
+        existing
+          .querySelector(".preparation-identity")
+          .replaceWith(identity(job, index === 0));
+        rendered.set(job.id, existing);
         const note = existing.querySelector(".edit-notice");
         note.textContent =
           Number(existing.dataset.revision) !== job.revision
@@ -186,7 +230,8 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
             : "Unsaved edits retained during status refresh. Save and check them before approval.";
         continue;
       }
-      const fresh = render(job);
+      const fresh = render(job, index === 0);
+      rendered.set(job.id, fresh);
       if (existing) {
         const expanded = [...existing.querySelectorAll("details")].map(
           (node) => node.open,
@@ -198,6 +243,25 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       } else root.append(fresh);
     }
     for (const node of previous.values()) node.remove();
+    // Refresh must reorder existing nodes as well as newly appended cards.
+    // Keep the owner's unsaved editor, focus and selection when moving it.
+    const focused = document.activeElement;
+    const selection = Number.isInteger(focused?.selectionStart)
+      ? [
+          focused.selectionStart,
+          focused.selectionEnd,
+          focused.selectionDirection,
+        ]
+      : null;
+    for (const [index, job] of jobs.entries()) {
+      const node = rendered.get(job.id);
+      const current = root.querySelectorAll(":scope > article")[index];
+      if (node !== current) root.insertBefore(node, current || null);
+    }
+    if (focused?.isConnected && document.activeElement !== focused) {
+      focused.focus({ preventScroll: true });
+      if (selection) focused.setSelectionRange(...selection);
+    }
     clearTimeout(timer);
     hasPending = jobs.some((job) => ["queued", "running"].includes(job.status));
     if (hasPending)
@@ -223,7 +287,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     await refresh();
     return result;
   }
-  function render(job) {
+  function render(job, latest) {
     const article = element("article");
     article.className = "record";
     article.dataset.jobId = job.id;
@@ -244,6 +308,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         "h3",
         `${job.selection.repository} · ${job.selection.releaseTag}`,
       ),
+      identity(job, latest),
       element(
         "p",
         `State: ${job.error?.code === "PREPARATION_CONTEXT_REQUIRED" ? "Needs more context" : job.status.replaceAll("_", " ")} · revision ${job.revision} · ${job.stage} · ${job.usage.length} model calls completed`,

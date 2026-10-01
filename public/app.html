@@ -364,6 +364,17 @@
                       No model call is made until you connect an account and
                       request preparation.
                     </p>
+                    <h3>Saved preparations</h3>
+                    <p class="muted">
+                      Most recent activity first. Use the preparation ID and
+                      timestamps to distinguish repeated runs of the same
+                      release. Loading saved work makes no model call.
+                    </p>
+                    <div
+                      id="preparation-jobs"
+                      class="record-list"
+                      aria-live="polite"
+                    ></div>
                     <details>
                       <summary>Connect or change your model account</summary>
                       <form id="preparation-model" autocomplete="off">
@@ -580,6 +591,7 @@
                         Disconnect model access
                       </button>
                     </details>
+                    <h3>Start a new preparation</h3>
                     <form id="preparation-create">
                       <label
                         >Publishing project<select
@@ -699,11 +711,6 @@
                       assistance, not independent factual verification: inspect
                       source support before approval.
                     </p>
-                    <div
-                      id="preparation-jobs"
-                      class="record-list"
-                      aria-live="polite"
-                    ></div>
                   </section>
                   <h2>4. Review your exact copy</h2>
                   <p class="muted">
