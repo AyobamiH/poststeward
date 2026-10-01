@@ -708,10 +708,63 @@ try {
     assert.equal(await article.getByLabel('Exact channel text').inputValue(),'My unsaved owner edit must survive a status refresh.');
     await article.getByLabel(/I reviewed each included variant/).check();await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Save your edits'));assert.equal(approvals,0);
+    await article.locator('.preparation-more > summary').click();
     await article.getByRole('button',{name:'Discard unsaved edits and refresh',exact:true}).click();
     await page.waitForFunction(()=>document.querySelector('#preparation-jobs textarea[rows="6"]').value.startsWith('Investigating delivery'));
     await context.close();
   });
+  await check('Preparation review uses the available width, exposes check outcomes and prevents checks of unsaved edits',async()=>{
+    let paid=0;const pending={...preparationFixture,createdAt:Date.UTC(2026,9,1,20,45),updatedAt:Date.UTC(2026,9,1,21,5),critique:undefined,digest:undefined};
+    let job=pending;
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,
+      '/api/operations/preparations_list':route=>route.fulfill({json:[job]}),
+      '/api/operations/preparation_regenerate':()=>{paid++;throw new Error('No model call authorised by this test');}});
+    const page=await context.newPage();
+    for(const [width,scheme] of [[1916,'light'],[1440,'light'],[1024,'dark'],[360,'light'],[320,'dark']]) {
+      await page.setViewportSize({width,height:994});await page.emulateMedia({colorScheme:scheme});
+      await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+      const card=page.locator('#preparation-jobs article');await card.waitFor();
+      const bounds=await page.evaluate(()=>{
+        const grid=document.querySelector('.work-zone-grid').getBoundingClientRect();
+        const panel=document.getElementById('release-preparation').getBoundingClientRect();
+        const copy=document.querySelector('.preparation-copy-panel').getBoundingClientRect();
+        const check=document.querySelector('.preparation-check').getBoundingClientRect();
+        const checkbox=document.querySelector('.preparation-variant input[type=checkbox]').getBoundingClientRect();
+        return {grid:grid.width,panel:panel.width,copy:copy.width,check:check.width,copyLeft:copy.left,checkLeft:check.left,checkbox:checkbox.width};
+      });
+      assert.ok(bounds.panel>=bounds.grid-3,'preparation must span its parent');
+      if(width>=1440){assert.ok(bounds.copy>400,'desktop copy needs readable editing width');assert.ok(bounds.checkLeft>bounds.copyLeft+bounds.copy,'check sits alongside copy');}
+      assert.ok(bounds.checkbox<=20,'checkbox must not inherit full-width field styling');
+      assert.equal(await card.locator('.preparation-review').getAttribute('open'),'');
+      assert.match(await card.locator('.preparation-check').innerText(),/No editorial check result yet/);
+      assert.equal(await card.locator('.preparation-strategy').getAttribute('open'),null);
+      assert.equal(await card.locator('.preparation-more').getAttribute('open'),null);
+      assert.equal(await card.locator('.preparation-archive').getAttribute('open'),null);
+      assert.equal(await card.getByRole('button',{name:'Save edits and selected variants',exact:true}).isVisible(),true);
+      assert.equal(await card.getByRole('button',{name:'Check current saved drafts',exact:true}).isVisible(),true);
+      assert.equal(await card.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).count(),0);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(await audit(page),[]);
+      await card.scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/preparation-layout-${width}-${scheme}.png`});
+    }
+    await page.setViewportSize({width:1440,height:994});
+    job={...preparationFixture,critique:{acceptableForOwnerReview:false,summary:'A source assertion needs correction.',issues:[{alias:'fixture_x',category:'unsupported_claim',detail:'The current copy claims a launch date not present in the sources.'}]},digest:undefined};
+    await page.locator('#preparation-refresh').click();
+    await page.waitForFunction(()=>document.querySelector('.preparation-check').textContent.includes('Changes need review'));
+    const card=page.locator('#preparation-jobs article');assert.match(await card.locator('.preparation-check').innerText(),/Changes need review/);
+    assert.match(await card.locator('.preparation-check').innerText(),/launch date/);
+    await card.getByLabel('Exact channel text',{exact:true}).fill('An unsaved correction.');
+    await card.getByRole('button',{name:'Check current saved drafts',exact:true}).click();
+    await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Save or discard your unsaved edits'));
+    assert.equal(paid,0);
+    await card.locator('.preparation-more > summary').click();await card.getByRole('button',{name:'Discard unsaved edits and refresh',exact:true}).click();
+    await page.waitForFunction(()=>!document.getElementById('release-preparation').hasAttribute('aria-busy'));
+    job=preparationFixture;await page.locator('#preparation-refresh').click();
+    await page.waitForFunction(()=>document.querySelector('.preparation-check').textContent.includes('Ready for owner review'));
+    assert.match(await card.locator('.preparation-check').innerText(),/Ready for owner review/);
+    assert.equal(await card.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).isDisabled(),true);
+    assert.deepEqual(await audit(page),[]);await context.close();
+  });
+
   await check('Model connection masks and clears the owner key and has no shared-account request',async()=>{
     let connections=0;
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[],

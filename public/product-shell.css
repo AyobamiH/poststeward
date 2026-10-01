@@ -566,7 +566,8 @@ body.product-app {
   border-radius: var(--radius-lg);
   padding: 26px;
   background:
-    linear-gradient(var(--danger-soft), var(--danger-soft)) top / 100% 3px no-repeat,
+    linear-gradient(var(--danger-soft), var(--danger-soft)) top / 100% 3px
+      no-repeat,
     var(--bg-surface);
 }
 
@@ -721,12 +722,14 @@ body.product-app {
   border-radius: var(--radius-lg);
   padding: 24px;
   background:
-    linear-gradient(var(--brand-soft), var(--brand-soft)) top / 100% 3px no-repeat,
+    linear-gradient(var(--brand-soft), var(--brand-soft)) top / 100% 3px
+      no-repeat,
     var(--bg-surface);
 }
 
 .journey-step.evidence-step {
-  border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border-default));
+  border: 1px solid
+    color-mix(in srgb, var(--success) 30%, var(--border-default));
   border-radius: var(--radius-lg);
   padding: 24px;
   background: color-mix(in srgb, var(--success-soft) 45%, var(--bg-surface));
@@ -776,7 +779,9 @@ body.product-app {
     --app-nav-width: 204px;
   }
 
-  .work-zone-grid { grid-template-columns: minmax(0, 1fr); }
+  .work-zone-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
   .work-pane + .work-pane {
     border-left: 0;
@@ -926,6 +931,202 @@ body.product-app {
 }
 
 /* Private editorial sources stay readable without widening the workspace. */
-#release-preparation .source-evidence { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto; }
-#release-preparation article { min-width: 0; }
-#release-preparation .edit-notice:empty { display: none; }
+#release-preparation .source-evidence {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 24rem;
+  overflow: auto;
+}
+#release-preparation article {
+  min-width: 0;
+}
+#release-preparation .edit-notice:empty {
+  display: none;
+}
+
+/* Preparation is a review task, with room for both copy and supporting evidence. */
+.work-zone-grid > .preparation-pane {
+  grid-column: 1 / -1;
+  border-left: 0;
+  border-top: 1px solid var(--border-default);
+}
+
+#release-preparation > h2 {
+  margin-top: 0;
+}
+#release-preparation > p {
+  max-width: 80ch;
+}
+#release-preparation h4 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+#release-preparation .preparation-card {
+  padding: clamp(16px, 2vw, 24px);
+  background: var(--bg-surface);
+}
+#release-preparation .preparation-card > h3 {
+  font-size: 19px;
+  overflow-wrap: anywhere;
+}
+#release-preparation .preparation-card button {
+  min-height: 44px;
+  padding: 9px 14px;
+  font-size: 14px;
+}
+#release-preparation summary {
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+  padding-block: 10px;
+}
+#release-preparation .preparation-identity {
+  display: flex;
+  gap: 8px 20px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+#release-preparation .preparation-identity p {
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#release-preparation .preparation-identity strong {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: 12px;
+}
+#release-preparation .preparation-review > summary {
+  padding: 4px 0;
+}
+#release-preparation .preparation-review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  gap: 28px;
+  margin-top: 20px;
+  align-items: start;
+}
+#release-preparation .preparation-copy-panel,
+#release-preparation .preparation-support-panel {
+  min-width: 0;
+}
+#release-preparation .preparation-copy-panel > p {
+  color: var(--text-secondary);
+}
+#release-preparation label {
+  margin: 14px 0;
+  gap: 8px;
+}
+#release-preparation label:has(> input[type="checkbox"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding-block: 10px;
+  font-weight: 450;
+}
+#release-preparation input[type="checkbox"] {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  flex: none;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--text-primary);
+}
+#release-preparation .preparation-variant + .preparation-variant {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-default);
+  padding-top: 24px;
+}
+#release-preparation .preparation-variant textarea {
+  min-height: 200px;
+  line-height: 1.6;
+}
+#release-preparation .preparation-primary-actions,
+#release-preparation .preparation-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+#release-preparation .preparation-primary-actions button {
+  margin: 0;
+}
+#release-preparation .preparation-primary-actions button:first-child {
+  background: var(--text-primary);
+  color: var(--bg-surface);
+  border-color: var(--text-primary);
+}
+#release-preparation .preparation-check {
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  background: var(--bg-elevated);
+}
+#release-preparation .preparation-check[data-state="ready"] {
+  border-left-color: var(--success);
+}
+#release-preparation .preparation-check strong {
+  font-size: 14px;
+}
+#release-preparation .preparation-check p {
+  font-size: 14px;
+}
+#release-preparation .preparation-new {
+  margin-top: 32px;
+  border-top: 1px solid var(--border-default);
+  padding-top: 28px;
+}
+#release-preparation #preparation-create {
+  max-width: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 24px;
+}
+#release-preparation #preparation-create > label {
+  margin: 0;
+}
+#release-preparation #preparation-create > label:has(> input[type="checkbox"]),
+#release-preparation #preparation-create > p,
+#release-preparation #preparation-create > button {
+  grid-column: 1 / -1;
+}
+#release-preparation #preparation-create > button {
+  justify-self: start;
+}
+#release-preparation .edit-notice:not(:empty) {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+@media (max-width: 1200px) {
+  #release-preparation .preparation-review-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #release-preparation .preparation-support-panel {
+    display: contents;
+  }
+  #release-preparation .preparation-check {
+    grid-row: 1;
+  }
+  #release-preparation .preparation-copy-panel {
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 600px) {
+  #release-preparation #preparation-create {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #release-preparation .preparation-primary-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
