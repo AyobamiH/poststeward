@@ -77,9 +77,12 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
             except Exception:
                 from ocpf_post.setup_activation import TIMERS
                 print(json.dumps({'native_systemd_diagnostics':manager.inspect()}))
+                started=manager._run(['systemctl','--user','start',*TIMERS],timeout=30)
+                print('native_start_result',started.returncode,started.stdout,started.stderr)
+                print(json.dumps({'native_systemd_after_explicit_start':manager.inspect()}))
                 for unit in TIMERS:
                     observed=manager._run(['systemctl','--user','show',unit,
-                        '--property=ActiveState,SubState,UnitFileState,FragmentPath'],timeout=10)
+                        '--property=ActiveState,SubState,UnitFileState,FragmentPath,LoadState,Result,ConditionResult,LastTriggerUSec,NextElapseUSecMonotonic'],timeout=10)
                     print(unit,observed.stdout,observed.stderr)
                 raise
             assert not any(x['active'] for x in manager.disarm()['timers'])
