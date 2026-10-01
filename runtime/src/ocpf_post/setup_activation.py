@@ -484,17 +484,11 @@ class SystemdServiceController:
         }
 
     def stage(self, *, runtime_root: Path, state_root: Path, config_root: Path) -> dict[str, Any]:
-        env = dict(os.environ)
-        env.update({
-            "POST_ONCE_STATE_DIR": str(state_root),
-            "POST_ONCE_CONFIG_DIR": str(config_root),
-            "OCPF_POST_STAGE_ONLY": "1",
-        })
-        script = runtime_root / "scripts" / "install-user-portfolio-timer"
-        result = self._run(["sh", str(script)], cwd=runtime_root, env=env, timeout=180)
-        if result.returncode:
-            _fail("activation.systemd.stage_failed", "Could not stage PostSteward user units")
-        return {"status": "staged", "provider_consequence": False}
+        from ocpf_post.systemd_services import stage
+        try:
+            return stage(runtime_root=runtime_root, state_root=state_root, config_root=config_root)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            raise ActivationError('activation.systemd.stage_failed', 'Could not stage PostSteward user units') from exc
 
     def preflight(self, *, runtime_root: Path, state_root: Path, config_root: Path) -> dict[str, Any]:
         env = dict(os.environ)

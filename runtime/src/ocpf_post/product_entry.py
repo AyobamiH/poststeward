@@ -28,6 +28,8 @@ def main() -> None:
             "  activate    Preview/apply reviewed local unattended activation\n"
             "  deactivate  Preview/apply cloud-first local deactivation\n"
             "  update      Install a reviewed stable/beta runtime release\n"
+            "  rollback    Review/restore the retained previous archive while inactive\n"
+            "  uninstall   Review/remove managed software with an explicit data choice\n"
             "\nRuntime commands:\n"
         )
         print(render_text([]), end="")
@@ -115,7 +117,7 @@ def main() -> None:
         from ocpf_post.poststeward_onboarding import main as onboarding_main
 
         raise SystemExit(onboarding_main(argv[1:]))
-    if argv and argv[0] in {"status", "doctor", "activate", "deactivate", "update"}:
+    if argv and argv[0] in {"status", "doctor", "activate", "deactivate", "update", "rollback", "uninstall"}:
         from ocpf_post.poststeward_product import main as product_main
 
         raise SystemExit(product_main(argv))
