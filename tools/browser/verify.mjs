@@ -655,8 +655,25 @@ try {
     const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
     await page.locator('#release-preparation > details').evaluate(node=>node.open=true);
     const input=page.locator('#preparation-model input[name="apiKey"]');assert.equal(await input.getAttribute('type'),'password');await input.fill('synthetic-owner-model-key');
-    await page.locator('#preparation-model button').click();await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Workspace model key encrypted'));
+    await page.locator('#preparation-model button').click();await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Encrypted OpenAI settings saved'));
     assert.equal(await input.inputValue(),'');assert.equal(connections,1);assert.ok(!(await page.locator('body').innerText()).includes('synthetic-owner-model-key'));await context.close();
+  });
+  await check('Cloudflare owner settings separate funding, default fallback off and clear both protected inputs',async()=>{
+    let connections=0;
+    const context=await ownerContext({'/api/operations/model_status':{configured:false,usage:{}},'/api/operations/preparations_list':[],
+      '/api/operations/model_connect':route=>{const input=route.request().postDataJSON();assert.equal(input.routing.primary.provider,'cloudflare_gateway');assert.equal(input.routing.primary.funding,'gateway_credits');assert.equal(input.routing.accountId,'a'.repeat(32));assert.equal(input.routing.primary.gatewayId,'acceptance');assert.deepEqual(input.routing.fallbacks,[]);assert.equal(input.routing.maxDailyUsd,1);assert.equal(input.allowAgents,false);assert.equal(input.apiKey,'synthetic-inference-credential');assert.equal(input.inspectionToken,'synthetic-readonly-credential');connections++;return route.fulfill({json:{configured:false,usage:{}}});}});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    await page.locator('#release-preparation > details').evaluate(node=>node.open=true);
+    const form=page.locator('#preparation-model');await form.locator('[name="modelProvider"]').selectOption('cloudflare_gateway');
+    assert.equal(await form.locator('[name="fallbackProvider"]').inputValue(),'');
+    assert.equal(await form.locator('[name="funding"]').inputValue(),'gateway_credits');
+    assert.equal(await form.locator('[name="funding"]').isDisabled(),true);
+    await form.locator('[name="accountId"]').fill('a'.repeat(32));await form.locator('[name="gatewayId"]').fill('acceptance');
+    await form.locator('[name="maxDailyUsd"]').fill('1');await form.locator('[name="apiKey"]').fill('synthetic-inference-credential');await form.locator('[name="inspectionToken"]').fill('synthetic-readonly-credential');
+    for(const width of [360,1440]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(await audit(page),[]);}
+    await form.locator('button').click();await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Cloudflare metadata validated'));
+    assert.equal(connections,1);assert.equal(await form.locator('[name="apiKey"]').inputValue(),'');assert.equal(await form.locator('[name="inspectionToken"]').inputValue(),'');
+    assert.equal(await page.locator('#preparation-create [name="spendConsent"]').isChecked(),false);assert.equal(await page.locator('#preparation-create [name="spendConsent"]').getAttribute('required'),'');await context.close();
   });
   await check('Exact owner approval opens delivery review and never submits publication',async()=>{
     let approvals=0;const approved={...preparationFixture,status:'handed_off',campaign:'synthetic-prepared-campaign'};

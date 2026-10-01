@@ -39,15 +39,18 @@ export async function invalidateRestoredAuthority(
   const restoredAccounts = store.list<Account>("account:");
   const tombstones = new Map(
     await Promise.all(
-      restoredAccounts.map(async (account) => [
-        account.alias,
-        await seal(
-          { accessToken: "recovery-invalidated", expiresAt: 0 },
-          credentialRoots(env),
-          workspace + ":" + account.alias,
-          env.ENCRYPTION_KEY_VERSION,
-        ),
-      ] as const),
+      restoredAccounts.map(
+        async (account) =>
+          [
+            account.alias,
+            await seal(
+              { accessToken: "recovery-invalidated", expiresAt: 0 },
+              credentialRoots(env),
+              workspace + ":" + account.alias,
+              env.ENCRYPTION_KEY_VERSION,
+            ),
+          ] as const,
+      ),
     ),
   );
   const accounts: string[] = [];
@@ -61,12 +64,42 @@ export async function invalidateRestoredAuthority(
     performed = true;
     // Recovery must not resurrect a disconnected workspace model key or an
     // earlier spend consent. Content remains reviewable; reconnect explicitly.
-    const model = store.get<any>('model:openai');
-    if (model) store.put('model:openai', {...model,secret:'',revision:(model.revision||0)+1,verifiedAt:undefined});
-    for (const job of store.list<any>('preparation:')) {
-      if (!['queued','running','approved'].includes(job.status)) continue;
-      store.put('preparation:'+job.id,{...job,status:'failed',claim:undefined,claimUntil:undefined,
-        error:{code:'RECOVERY_REAUTHORIZATION_REQUIRED',message:'Recovery invalidated preparation authority. Reconnect and review explicitly.'}});
+    const model = store.get<any>("model:openai");
+    if (model)
+      store.put("model:openai", {
+        ...model,
+        secret: "",
+        revision: (model.revision || 0) + 1,
+        verifiedAt: undefined,
+      });
+    for (const job of store.list<any>("preparation:")) {
+      if (!["queued", "running", "approved"].includes(job.status)) continue;
+      // Release only unattempted allowance. The independent model-attempt ledger
+      // retains in-flight/uncertain costs even if restored authority is fenced.
+      if (job.budget?.reservedMicros) {
+        const usageKey = "preparation-usage:" + job.budget.day;
+        const usage = store.get<any>(usageKey);
+        if (usage)
+          store.put(usageKey, {
+            ...usage,
+            reservedMicros: Math.max(
+              0,
+              (usage.reservedMicros || 0) - job.budget.reservedMicros,
+            ),
+          });
+        job.budget = { ...job.budget, reservedMicros: 0 };
+      }
+      store.put("preparation:" + job.id, {
+        ...job,
+        status: "failed",
+        claim: undefined,
+        claimUntil: undefined,
+        error: {
+          code: "RECOVERY_REAUTHORIZATION_REQUIRED",
+          message:
+            "Recovery invalidated preparation authority. Reconnect and review explicitly.",
+        },
+      });
     }
 
     for (const restored of restoredAccounts) {
@@ -91,7 +124,8 @@ export async function invalidateRestoredAuthority(
     }
 
     for (const delivery of store.list<Delivery>("delivery:")) {
-      if (!["scheduled", "waiting_container"].includes(delivery.status)) continue;
+      if (!["scheduled", "waiting_container"].includes(delivery.status))
+        continue;
       delivery.status = "drift_blocked";
       delivery.reason =
         "Workspace recovery invalidated captured provider authority. Reconnect and create a fresh reviewed schedule.";

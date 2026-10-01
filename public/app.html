@@ -351,10 +351,11 @@
                       schedules it.
                     </p>
                     <p class="muted">
-                      Bring your own OpenAI API account. Your provider bills you
-                      directly; a ChatGPT subscription is separate. Keys stay
-                      encrypted in your workspace and are never shared with
-                      agents or included in drafts.
+                      Bring your own OpenAI or Cloudflare AI account. The
+                      selected owner account funds inference; a ChatGPT
+                      subscription is separate. Keys stay encrypted in your
+                      workspace and are never shared with agents or included in
+                      drafts.
                     </p>
                     <button type="button" id="preparation-refresh">
                       Load preparation settings and drafts
@@ -366,11 +367,156 @@
                     <details>
                       <summary>Connect or change your model account</summary>
                       <form id="preparation-model" autocomplete="off">
+                        <p class="muted">
+                          Validation reads account/model/gateway metadata only.
+                          It never runs a model, creates a gateway, changes
+                          billing or tops up credits. Saving settings fences
+                          queued work; regenerate it explicitly.
+                        </p>
                         <label
-                          >OpenAI API key<input
+                          >Model provider<select name="modelProvider">
+                            <option value="openai">OpenAI directly</option>
+                            <option value="cloudflare_workers">
+                              Cloudflare Workers AI
+                            </option>
+                            <option value="cloudflare_gateway">
+                              OpenAI through Cloudflare AI Gateway
+                            </option>
+                          </select></label
+                        >
+                        <label
+                          >Selected model<select name="modelName"></select
+                        ></label>
+                        <div id="preparation-cloudflare-settings">
+                          <label
+                            >Cloudflare account ID<input
+                              name="accountId"
+                              maxlength="32"
+                              pattern="[a-f0-9]{32}"
+                              autocomplete="off"
+                          /></label>
+                          <label
+                            >Funding mode<select name="funding">
+                              <option value="workers_ai">
+                                Owner's Workers AI billing/allowance
+                              </option>
+                              <option value="gateway_credits">
+                                Owner's prepaid AI Gateway credits
+                              </option>
+                            </select></label
+                          >
+                          <label
+                            >Gateway ID for credit-funded routes<input
+                              name="gatewayId"
+                              maxlength="64"
+                              pattern="[a-zA-Z0-9_-]+"
+                              autocomplete="off"
+                          /></label>
+                          <p class="muted">
+                            Use a dedicated key-free gateway with automatic
+                            retries disabled for prepaid OpenAI. Gateway Run
+                            tokens can reach every gateway in their account.
+                            Shared balances are not exclusive workspace credits;
+                            credit purchases carry Cloudflare's 5% fee. No
+                            hidden service funding or automatic top-up.
+                          </p>
+                          <label
+                            >Optional separate Cloudflare metadata inspection
+                            token<input
+                              name="inspectionToken"
+                              type="password"
+                              minlength="16"
+                              maxlength="512"
+                              autocomplete="new-password"
+                          /></label>
+                          <label
+                            >Maximum UTF-8 input bytes per attempt<input
+                              name="maxInputBytes"
+                              type="number"
+                              min="2000"
+                              max="48000"
+                              value="24000"
+                          /></label>
+                          <label
+                            >Maximum output tokens per attempt<input
+                              name="maxOutputTokens"
+                              type="number"
+                              min="500"
+                              max="4000"
+                              value="4000"
+                          /></label>
+                          <label
+                            >Generation temperature<input
+                              name="temperature"
+                              type="number"
+                              min="0"
+                              max="1"
+                              step="0.1"
+                              value="0.2"
+                          /></label>
+                          <label
+                            >Maximum model cost per generation request,
+                            USD<input
+                              name="maxJobUsd"
+                              type="number"
+                              min="0.001"
+                              max="10"
+                              step="any"
+                              value="0.15"
+                          /></label>
+                          <label
+                            >Gateway logging<select name="logging">
+                              <option value="none">
+                                No gateway log collection
+                              </option>
+                              <option value="metadata">
+                                Usage metadata only; no prompt/response payloads
+                              </option>
+                            </select></label
+                          >
+                          <label
+                            >Optional explicitly permitted fallback<select
+                              name="fallbackProvider"
+                            >
+                              <option value="">No automatic fallback</option>
+                              <option value="cloudflare_workers">
+                                Cloudflare Workers AI
+                              </option>
+                              <option value="cloudflare_gateway">
+                                OpenAI through AI Gateway
+                              </option>
+                            </select></label
+                          >
+                          <label
+                            >Fallback model<select name="fallbackModel"></select
+                          ></label>
+                          <label
+                            >Fallback funding<select name="fallbackFunding">
+                              <option value="workers_ai">
+                                Owner's Workers AI billing/allowance
+                              </option>
+                              <option value="gateway_credits">
+                                Owner's prepaid AI Gateway credits
+                              </option>
+                            </select></label
+                          >
+                          <p class="muted">
+                            Fallback shares this Cloudflare account and the
+                            chosen gateway for credit funding. Only the
+                            explicitly selected route may follow a definite
+                            model rejection, rate limit or invalid output.
+                            Uncertain calls, credential rejection and policy
+                            failures never trigger another paid attempt. Private
+                            preparation is retained until reviewed
+                            export/removal; immutable campaign and
+                            operation/usage evidence remain.
+                          </p>
+                        </div>
+                        <label
+                          >Inference credential: OpenAI API key or Cloudflare
+                          token<input
                             name="apiKey"
                             type="password"
-                            required
                             minlength="16"
                             maxlength="512"
                             autocomplete="new-password"
@@ -417,14 +563,18 @@
                         /></label>
                         <label
                           >Maximum reserved model cost per UTC day, USD
-                          (optional; needs both rates)<input
+                          (required for Cloudflare; direct OpenAI needs both
+                          rates)<input
                             name="maxDailyUsd"
                             type="number"
                             min="0.01"
                             max="100"
                             step="any"
+                            value="1"
                         /></label>
-                        <button>Save encrypted model access and limits</button>
+                        <button>
+                          Validate and save encrypted model access and limits
+                        </button>
                       </form>
                       <button type="button" id="preparation-model-disconnect">
                         Disconnect model access
@@ -532,7 +682,16 @@
                         approve disclosure of selected unreleased details to my
                         connected model provider.</label
                       >
-                      <button>Prepare strategy and original drafts</button>
+                      <p id="preparation-spend-notice" class="muted">
+                        Generation is a paid API operation against the selected
+                        owner account, within saved limits. Connection
+                        validation does not generate content.
+                      </p>
+                      <label
+                        ><input name="spendConsent" type="checkbox" required />
+                        I authorize this bounded generation request against the
+                        selected model account.</label
+                      ><button>Prepare strategy and original drafts</button>
                     </form>
                     <p class="muted">
                       Sources are bounded and pinned to a commit. Large or

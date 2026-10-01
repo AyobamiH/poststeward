@@ -14,9 +14,9 @@ Private GitHub source access is separate from agent publication authority. When 
 
 ## Original release preparation (workspace-owned model account)
 
-The signed-in owner connects their own OpenAI API account in `/app#release-preparation`.
+The signed-in owner connects their own OpenAI or Cloudflare model account in `/app#release-preparation`. Cloudflare settings support Workers AI and OpenAI through customer prepaid AI Gateway Unified Billing, with explicit model/funding selection, job/day limits, log preference and optional fallback. Metadata validation is separate from paid generation. Live customer funding and human quality acceptance are still pending; inspect model status and per-attempt evidence.
 PostSteward encrypts the key; it is never returned or given to agents. The provider
-bills that workspace's account directly. A ChatGPT subscription is not API access.
+bills the selected customer account through the selected route. A ChatGPT subscription is not API access.
 The owner chooses a daily preparation/regeneration allowance and must explicitly
 permit campaign-writing agents to spend it. No company model key is supplied.
 
