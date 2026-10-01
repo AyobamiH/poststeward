@@ -4,7 +4,7 @@ import { Fault, requireValue } from "./common.ts";
 export const PREPARATION_MODEL = "gpt-4.1-mini-2025-04-14";
 export const MAX_OUTPUT_TOKENS = 4000;
 export const MAX_INPUT_BYTES = 48000;
-export const PREPARATION_EDITORIAL_VERSION = "2026-10-01-essential-context-v2";
+export const PREPARATION_EDITORIAL_VERSION = "2026-10-01-current-copy-v3";
 export type ModelResult = {
   value: unknown;
   inputTokens: number;
@@ -51,9 +51,13 @@ If the evidence/context labels a change synthetic or hypothetical, explicitly pr
   draft: `CURRENT TASK: Write original channel drafts from the supplied evidence, context and strategy.
 Use only supported facts; remove optional unsupported integrations, availability, performance and benefit claims rather than filling them in. Keep hypothetical audience implications distinguishable from facts.
 Preserve synthetic/test/unreleased qualifications in the actual draft text. Do not announce an authored test fixture as an available product feature. Use the approved CTA and selected provider constraints; aliases identify destinations, not product identity.`,
-  check: `CURRENT TASK: Critique every assertion in the actual supplied drafts, including assertions absent from claims.
+  check: `CURRENT TASK: Critique only the current saved publication text in drafts[].text, independently checking every assertion against the pinned evidence and approved context.
+Strategy facts/positioning, generated rationale and claim annotations are intentionally excluded: they can refer to earlier copy and are never publication text. reviewIntent retains the current strategy's audience/objective; assess those goals with the approved context. Evidence and context are reference material, not assertions to attribute to the draft. Assess all current text, never only a declared claim list.
 Check source quotes, product identity, synthetic/test/unreleased qualification, unsupported availability, integrations, efficiency and outcome promises. Evidence describing a synthetic feature never establishes real production availability.
-Check the owner's objective, exclusions, voice, CTA and provider constraints. Flag essential missing facts; do not require optional product research for a draft that makes no such claim. Do not edit or approve publication.`,
+Preserve accurate synthetic/test/unreleased disclaimers. Explicitly saying a fixture does not describe a deployed feature is compatible with plain, specific, restrained British English; do not ask for deployment evidence or removal of that qualification when the draft makes no deployment claim.
+Check the owner's objective, exclusions, voice, CTA and provider constraints. A single text block is valid for X/Threads when it fits; multipart formatting is not mandatory. Channel issues must name a concrete violated constraint, not speculative optimisation or a generic request to review length.
+For each issue, identify the exact offending text and explain its specific conflict with a source, approved context or provider constraint, with an actionable correction. Do not invent claims or essential gaps by expanding the brief. Return no issues when the current copy has no concrete defect; do not manufacture one issue per category.
+Flag essential missing facts; do not require optional product research for a draft that makes no such claim. Do not edit or approve publication.`,
 };
 
 export function preparationEditorialPolicy(stage: string) {

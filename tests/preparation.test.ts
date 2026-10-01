@@ -252,6 +252,112 @@ test("a requested comparison preserves its baseline in model material", async ()
   assert.equal(h.calls.publish, 0);
 });
 
+test("rechecking owner edits sends current copy and evidence without stale strategy, rationale or claims", async () => {
+  const checked: any[] = [];
+  const h = await fixture({
+    model: async (stage: string, data: any) => {
+      if (stage === "draft") assert.deepEqual(data.strategy, strategy);
+      if (stage === "check") {
+        checked.push(structuredClone(data));
+        assert.equal(data.reviewTarget, "current_saved_channel_text");
+        assert.equal(Object.hasOwn(data, "strategy"), false);
+        assert.deepEqual(Object.keys(data.drafts[0]).sort(), ["alias", "text"]);
+        assert.deepEqual(data.context, context);
+        assert.ok(data.evidence.some((item: any) => item.id === "release"));
+        assert.equal(data.sourceScope.pinnedCommit, "a".repeat(40));
+      }
+      const unsafe = data.drafts?.[0].text.includes("100% secure");
+      return {
+        value:
+          stage === "interpret"
+            ? structuredClone(strategy)
+            : stage === "draft"
+              ? { drafts: [structuredClone(draft)] }
+              : unsafe
+                ? {
+                    ...critique,
+                    acceptableForOwnerReview: false,
+                    issues: [
+                      {
+                        alias: "account",
+                        category: "unsupported_claim",
+                        detail:
+                          "'100% secure' is an unsupported guarantee; remove it.",
+                      },
+                    ],
+                  }
+                : structuredClone(critique),
+        inputTokens: 100,
+        outputTokens: 100,
+        latencyMs: 1,
+      };
+    },
+  });
+  const job = await h.complete();
+  assert.equal(checked[0].drafts[0].text, draft.text);
+  assert.deepEqual(checked[0].reviewIntent, {
+    audience: strategy.audience,
+    objective: strategy.objective,
+  });
+  const text =
+    "The fixture describes a diagnostic timeline recording failures and recovery steps. Read the release notes.";
+  const edited = await h.run("preparation_edit", {
+    id: job.id,
+    revision: job.revision,
+    text: { account: text },
+    strategy: { ...strategy, audience: "Incident handover coordinators" },
+    idempotencyKey: "current-copy-edit-001",
+  });
+  assert.deepEqual(edited.drafts[0].claims, draft.claims);
+  assert.equal(edited.drafts[0].rationale, draft.rationale);
+  assert.equal(edited.critique, undefined);
+  assert.equal(checked.length, 1); // Saving edits is free and performs no check.
+  await h.run("preparation_regenerate", {
+    id: job.id,
+    revision: edited.revision,
+    stage: "check",
+    idempotencyKey: "current-copy-check-001",
+  });
+  await h.engine.preparation.tick();
+  assert.equal(checked[1].drafts[0].text, text);
+  assert.equal(
+    checked[1].reviewIntent.audience,
+    "Incident handover coordinators",
+  );
+  assert.ok(!JSON.stringify(checked[1]).includes(draft.rationale));
+  const reviewed = h.engine.preparation.get(job.id);
+  assert.equal(
+    reviewed.usage.at(-1)?.editorialPolicyVersion,
+    PREPARATION_EDITORIAL_VERSION,
+  );
+  const unsafe = await h.run("preparation_edit", {
+    id: job.id,
+    revision: reviewed.revision,
+    text: { account: text + " It guarantees 100% secure delivery." },
+    idempotencyKey: "current-copy-unsafe-edit-001",
+  });
+  await h.run("preparation_regenerate", {
+    id: job.id,
+    revision: unsafe.revision,
+    stage: "check",
+    idempotencyKey: "current-copy-unsafe-check-001",
+  });
+  await h.engine.preparation.tick();
+  const blocked = h.engine.preparation.get(job.id);
+  assert.ok(checked[2].drafts[0].text.includes("100% secure"));
+  await assert.rejects(
+    h.run("preparation_approve", {
+      id: job.id,
+      revision: blocked.revision,
+      digest: blocked.digest,
+      idempotencyKey: "current-copy-blocked-approve-001",
+    }),
+    /Resolve editorial issues/,
+  );
+  assert.equal(h.calls.publish, 0);
+  assert.equal(h.store.list("campaign:").length, 0);
+});
+
 test("an unnecessary model-reported integration gap remains visible and cannot silently bypass the context gate", async () => {
   const h = await fixture({
     model: async () => ({

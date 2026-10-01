@@ -633,6 +633,21 @@ try {
       await page.screenshot({path:`ux-evidence/preparation-review-${width}.png`,fullPage:true});
     }await context.close();
   });
+  await check('Original generation annotations are distinguished from the current editable copy',async()=>{
+    const revised={...preparationFixture,revision:3,
+      drafts:[{...preparationFixture.drafts[0],text:'Synthetic acceptance test. The fixture describes a diagnostic timeline; this is not a deployed feature.',rationale:'Retained original benefit interpretation.',claims:[{claim:'Earlier hypothetical readability benefit',sources:[{evidence:'release',quote:'Adds a diagnostic timeline.'}]}]}],
+      critique:{acceptableForOwnerReview:false,issues:[{alias:'fixture_x',category:'unsupported_claim',detail:'Controlled blocked check.'}],summary:'Owner recheck required.'}};
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[revised]});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
+    assert.equal(await article.getByLabel('Exact channel text').inputValue(),revised.drafts[0].text);
+    const notes=article.locator('details').filter({has:page.getByText('Original generation notes and source annotations',{exact:true})}).last();
+    assert.equal(await notes.getAttribute('open'),null);await notes.locator('summary').click();
+    assert.match(await notes.innerText(),/may refer to earlier copy after edits/);
+    assert.match(await notes.innerText(),/Generated claim annotation: Earlier hypothetical readability benefit/);
+    assert.equal(await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).count(),0);
+    assert.deepEqual(await audit(page),[]);await context.close();
+  });
   await check('Blocked interpretation shows missing context and recorded versus unknown editorial versions without offering approval',async()=>{
     const attempt={stage:'interpret',provider:'cloudflare_workers',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',funding:'workers_ai',fallback:false,outcome:'reported_usage',reservedMicros:16044,estimatedMicros:1321};
     const blocked={...preparationFixture,stage:'interpret',drafts:undefined,critique:undefined,digest:undefined,
