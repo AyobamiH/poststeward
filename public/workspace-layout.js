@@ -170,10 +170,26 @@ export function mountWorkspaceLayout() {
   const destinationHeading = node("h2", "Choose where this post will go");
   destinationHeading.id = "destination-heading";
   destination.append(destinationHeading);
+  const destinationNotice = node(
+    "p",
+    "Choose a project and destination before validating your copy. Connect an account or create a project below if needed.",
+    "destination-notice",
+  );
+  destinationNotice.setAttribute("role", "alert");
+  destinationNotice.hidden = true;
+  destination.append(destinationNotice);
+  let invalidDestination;
   const selectors = node("div", undefined, "destination-fields");
   for (const id of ["project-select", "account-select"]) {
     const input = $(id);
     input.setAttribute("form", "campaign");
+    input.addEventListener("invalid", () => {
+      invalidDestination ||= input;
+      destinationNotice.hidden = false;
+      location.hash = "publishing";
+      render(true);
+      invalidDestination.focus();
+    });
     selectors.append(input.closest("label"));
   }
   destination.append(selectors);
@@ -363,6 +379,11 @@ export function mountWorkspaceLayout() {
       "publishing-heading",
     ).textContent.replace(/^2\. /, "");
     if (hash === "#preparation-model" && model) model.open = true;
+    if (
+      $("project-select").validity.valid &&
+      $("account-select").validity.valid
+    )
+      destinationNotice.hidden = true;
     renderPreview();
     if (focus && !root.hidden && hash !== "#main-content") {
       const target = $(hash.slice(1));
@@ -375,7 +396,13 @@ export function mountWorkspaceLayout() {
       window.scrollTo({ top: 0, behavior: "instant" });
     }
   }
-  addEventListener("hashchange", () => render(true));
+  addEventListener("hashchange", () => {
+    render(true);
+    if (invalidDestination) {
+      invalidDestination.focus();
+      invalidDestination = undefined;
+    }
+  });
   document.addEventListener("workspace-ready", () =>
     render(Boolean(location.hash), true),
   );

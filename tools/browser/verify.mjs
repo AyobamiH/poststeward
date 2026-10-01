@@ -669,6 +669,19 @@ try {
     assert.equal(await page.locator('#delivery').isVisible(),false);assert.equal(await page.locator('#campaign-preview').isVisible(),false);
     await context.close();
   });
+  await check('Missing destinations return validation to visible required fields without creating a campaign', async () => {
+    let campaigns=0;
+    const context=await ownerContext({'/api/operations/accounts_list':[],'/api/operations/projects_list':[],
+      '/api/operations/campaign_create':()=>{campaigns++;throw new Error('No campaign may be created without a destination');}});
+    const page=await context.newPage();await page.setViewportSize({width:390,height:844});
+    await page.goto(origin+'/app#campaign');await page.waitForLoadState('networkidle');
+    await page.locator('#campaign textarea').fill('Synthetic draft without a destination.');await page.locator('#campaign button').click();
+    assert.equal(new URL(page.url()).hash,'#publishing');
+    assert.equal(await page.locator('#project-select').isVisible(),true);assert.equal(await page.locator('#account-select').isVisible(),true);
+    assert.equal(await page.locator('#project-select').evaluate(el=>el===document.activeElement),true);
+    assert.match(await page.locator('.destination-notice').innerText(),/Choose a project and destination/);
+    assert.equal(campaigns,0);assert.deepEqual(await audit(page),[]);await context.close();
+  });
   await check('Editing during validation cannot expose an obsolete campaign for delivery', async () => {
     let completeValidation, signalValidation;
     const validationStarted=new Promise(resolve=>{signalValidation=resolve;});
