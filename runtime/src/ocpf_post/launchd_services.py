@@ -51,7 +51,7 @@ class LaunchdServiceController:
         if self._run(['launchctl', 'print', self.domain], timeout=10).returncode:
             raise ActivationError('activation.launchd.unavailable', 'Sign in to a macOS desktop user session before activation.')
         self.directory.mkdir(parents=True, exist_ok=True)
-        env = {name: value for name, value in os.environ.items() if name.startswith('XDG_')}
+        env = {name: os.environ[name] for name in ('XDG_CONFIG_HOME','XDG_STATE_HOME','XDG_DATA_HOME','XDG_CACHE_HOME','XDG_RUNTIME_DIR') if os.environ.get(name)}
         env.update({
             'PATH': str(Path(sys.executable).parent) + ':/usr/bin:/bin:/usr/sbin:/sbin',
             'PYTHONPATH': str(runtime_root / 'src'),

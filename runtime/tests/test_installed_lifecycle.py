@@ -35,6 +35,17 @@ class InstalledLifecycleTests(unittest.TestCase):
                 lifecycle('uninstall',retain_data=True,apply=True,expected_sha256=review['review_sha256'])
                 self.assertFalse((binary/'poststeward').exists());self.assertEqual((data/'receipt.json').read_text(),'durable evidence')
 
+    def test_delete_data_refuses_symbolic_ancestor_even_with_product_named_path(self):
+        from ocpf_post import installed_lifecycle
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'actual'/'poststeward'/'runtime').mkdir(parents=True)
+            (root/'redirect').symlink_to(root/'actual',target_is_directory=True)
+            path=root/'redirect'/'poststeward'/'runtime'
+            with patch.object(installed_lifecycle,'require_inactive'),patch.object(installed_lifecycle,'installation',return_value=({'resolved_revision':'a'*40},root/'prefix',root/'bin')),patch.object(installed_lifecycle,'resolved_paths',return_value={'config':path,'state':path,'setup':path}):
+                with self.assertRaisesRegex(ValueError,'Custom data root'):
+                    lifecycle('uninstall',retain_data=False)
+                self.assertTrue(path.exists())
+
     def test_canonical_keyring_namespace_does_not_share_original_post_once(self):
         from ocpf_post.credential_keyring import _service
         with patch.dict(os.environ,{'POSTSTEWARD_RUNTIME_LINEAGE':'poststeward-local-runtime-v1'}):

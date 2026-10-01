@@ -99,7 +99,7 @@ def lifecycle(action: str, *, retain_data: bool = True, apply: bool = False,
     if action == 'uninstall' and not retain_data:
         # Never interpret custom owner/reference paths as implicitly removable.
         for path in data_paths:
-            if 'poststeward' not in path.parts or path.is_symlink():
+            if 'poststeward' not in path.parts or path.is_symlink() or path.absolute() != path.resolve():
                 raise ValueError('Custom data root cannot be safely deleted; retain data and remove it manually after review')
     review = {'action': action, 'install_prefix': str(prefix), 'bin_dir': str(binary),
               'current_revision': value['resolved_revision'], 'previous_revision': previous,
