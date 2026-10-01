@@ -18,7 +18,10 @@ import urllib.request
 import http.cookiejar
 
 repo = Path(__file__).resolve().parent.parent
-revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+harness_revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+revision = os.environ.get('POSTSTEWARD_ACCEPTANCE_RELEASE') or harness_revision
+if not re.fullmatch(r'[a-f0-9]{40}', revision):
+    raise SystemExit('Acceptance requires an exact release SHA, never an unpinned branch.')
 if sys.platform != 'darwin' and not os.environ.get('WSL_DISTRO_NAME'):
     raise SystemExit('Native acceptance requires macOS or a real WSL distribution; Linux simulation refused.')
 if sys.platform != 'darwin' and 'microsoft-standard' not in platform.release().lower():
@@ -173,6 +176,8 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
     run([command,'uninstall','--delete-data','--apply','--expected-sha256',deletion['review_sha256'],'--json'])
     assert not Path(command).exists() and not sentinel.exists()
     print(json.dumps({'platform': sys.platform, 'architecture': platform.machine(), 'revision': revision,
+                      'harness_revision':harness_revision,'python_version':platform.python_version(),
+                      'kernel':platform.release(),'installation_method':'canonical HTTPS installer with exact GitHub archive/tree digest',
                       'macos_version': platform.mac_ver()[0], 'wsl': bool(os.environ.get('WSL_DISTRO_NAME')),
                       'fresh_install': 'passed', 'repeat_install': 'passed', 'spaces_and_apostrophes': 'passed',
                       'unpaired_fencing': 'passed', 'native_admission': json.loads(admission.stdout),
