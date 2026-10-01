@@ -72,6 +72,9 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
         config_root.mkdir(parents=True,exist_ok=True)
         try:
             manager.stage(runtime_root=runtime,state_root=state_root,config_root=config_root)
+            unit_directory=root/'config'/'systemd'/'user'
+            validated=manager._run(['systemd-analyze','--user','verify',*[str(path) for path in unit_directory.glob('poststeward-*')]],timeout=30)
+            print('native_unit_validation',validated.returncode,validated.stdout,validated.stderr)
             try:
                 assert manager.arm()['all_active']
             except Exception:

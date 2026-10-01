@@ -114,7 +114,8 @@ def lifecycle(action: str, *, retain_data: bool = True, apply: bool = False,
     if action == 'rollback':
         # Atomic release switch; shim only carries metadata and must be updated too.
         shim = binary / 'poststeward'
-        shim_text = shim.read_text().replace(value['resolved_revision'], previous)
+        shim_text = re.sub(r'^export POSTSTEWARD_RUNTIME_RELEASE_SHA=.*$',
+                           'export POSTSTEWARD_RUNTIME_RELEASE_SHA='+previous, shim.read_text(), flags=re.MULTILINE)
         fd, temporary = tempfile.mkstemp(prefix='.rollback-', dir=prefix)
         os.close(fd)
         Path(temporary).unlink()

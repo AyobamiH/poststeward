@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from typing import Any
 
 JOBS = {
@@ -109,7 +110,11 @@ class LaunchdServiceController:
         for label, _ in JOBS.values():
             self._run(['launchctl', 'bootout', f'{self.domain}/{label}'], timeout=30)
             self._run(['launchctl', 'disable', f'{self.domain}/{label}'], timeout=20)
+        deadline=time.monotonic()+10
         observed = self.inspect()
+        while any(row['active'] for row in observed['timers']) and time.monotonic()<deadline:
+            time.sleep(0.2)
+            observed=self.inspect()
         if any(row['active'] or row['enabled'] for row in observed['timers']):
             raise ActivationError('activation.launchd.disarm_failed', 'A PostSteward launch agent is still loaded.')
         return observed

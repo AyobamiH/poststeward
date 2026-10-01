@@ -41,6 +41,14 @@ def stage(*, runtime_root: Path, state_root: Path, config_root: Path) -> dict[st
                 'PYTHONDONTWRITEBYTECODE':'1','POSTSTEWARD_RUNTIME_ROOT':str(runtime_root),
                 'POSTSTEWARD_RUNTIME_STATE_DIR':str(state_root),'POSTSTEWARD_RUNTIME_CONFIG_DIR':str(config_root),
                 'POSTSTEWARD_SETUP_STATE_DIR':str(resolved_paths()['setup']),'POSTSTEWARD_REQUIRE_CLOUD_FENCE':'1'})
+    from ocpf_post.poststeward_cloud import client_path
+    client_root=client_path().parent
+    client_root.mkdir(parents=True,exist_ok=True)
+    client_root.chmod(0o700)
+    # WorkingDirectory is a single path, not a word list. systemd's parser does
+    # not strip quotes here; spaces/apostrophes must remain literal.
+    quote(str(runtime_root))  # Reject control characters before writing a unit.
+    working_directory=str(runtime_root).replace('%','%%')
     for name in ('POSTSTEWARD_ORIGIN','POSTSTEWARD_RUNTIME_RELEASE_SHA'):
         if os.environ.get(name): env[name]=os.environ[name]
     environment='\n'.join('Environment='+quote(name+'='+value) for name,value in env.items())
@@ -50,14 +58,14 @@ def stage(*, runtime_root: Path, state_root: Path, config_root: Path) -> dict[st
 Description=PostSteward guarded {action}
 [Service]
 Type=oneshot
-WorkingDirectory={quote(str(runtime_root))}
+WorkingDirectory={working_directory}
 {environment}
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths={quote(str(state_root))} {quote(str(config_root))}
+ReadWritePaths={quote(str(state_root))} {quote(str(config_root))} {quote(str(client_root))}
 RestrictSUIDSGID=true
 LockPersonality=true
 ProtectKernelTunables=true

@@ -14,6 +14,11 @@ PROVIDERS = ("x", "threads", "linkedin")
 INDEX_NAME = "keyring-providers.json"
 
 
+def _service() -> str:
+    from ocpf_post.product_runtime import standalone_product_active
+    return 'poststeward/local-runtime' if standalone_product_active() else SERVICE
+
+
 def index_path(config_root: Path) -> Path:
     return config_root / INDEX_NAME
 
@@ -94,7 +99,7 @@ def managed_provider_for_path(path: Path, config_root: Path) -> str | None:
     provider = relative.name.removesuffix("-token.json")
     index = _read_index(config_root)
     row = index["providers"].get(provider)
-    if not isinstance(row, dict) or row.get("service") != SERVICE or row.get("username") != username(provider):
+    if not isinstance(row, dict) or row.get("service") != _service() or row.get("username") != username(provider):
         return None
     return provider
 
@@ -104,12 +109,12 @@ def is_managed(provider: str, config_root: Path) -> bool:
         return False
     index = _read_index(config_root)
     row = index["providers"].get(provider)
-    return isinstance(row, dict) and row.get("service") == SERVICE and row.get("username") == username(provider)
+    return isinstance(row, dict) and row.get("service") == _service() and row.get("username") == username(provider)
 
 
 def _secret(provider: str) -> str | None:
     module = _module()
-    return module.get_password(SERVICE, username(provider))
+    return module.get_password(_service(), username(provider))
 
 
 def read_managed(path: Path, config_root: Path) -> dict[str, Any] | None:
@@ -131,8 +136,8 @@ def write_managed(path: Path, value: dict[str, Any], config_root: Path) -> bool:
         return False
     module = _module()
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    module.set_password(SERVICE, username(provider), raw)
-    observed = module.get_password(SERVICE, username(provider))
+    module.set_password(_service(), username(provider), raw)
+    observed = module.get_password(_service(), username(provider))
     if observed != raw:
         raise ValueError("OS keyring write could not be verified")
     return True
@@ -144,10 +149,10 @@ def delete_managed(path: Path, config_root: Path) -> bool:
         return False
     module = _module()
     try:
-        module.delete_password(SERVICE, username(provider))
+        module.delete_password(_service(), username(provider))
     except Exception as exc:
         try:
-            remaining = module.get_password(SERVICE, username(provider))
+            remaining = module.get_password(_service(), username(provider))
         except Exception:
             remaining = "unknown"
         if remaining is not None:
@@ -164,7 +169,7 @@ def _review(provider: str, value: dict[str, Any]) -> str:
         "credential_sha256": hashlib.sha256(
             json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
         ).hexdigest(),
-        "service": SERVICE,
+        "service": _service(),
         "username": username(provider),
     }
     return hashlib.sha256(
@@ -231,11 +236,11 @@ def migrate_provider(
         raise ValueError("Keyring migration review changed")
     module = _module()
     raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    module.set_password(SERVICE, username(provider), raw)
-    if module.get_password(SERVICE, username(provider)) != raw:
+    module.set_password(_service(), username(provider), raw)
+    if module.get_password(_service(), username(provider)) != raw:
         raise ValueError("OS keyring write could not be verified")
     index = _read_index(config_root)
-    index["providers"][provider] = {"service": SERVICE, "username": username(provider)}
+    index["providers"][provider] = {"service": _service(), "username": username(provider)}
     _write_index(config_root, index)
     token_path.unlink()
     directory = os.open(token_path.parent, os.O_RDONLY)
@@ -300,7 +305,7 @@ def restore_provider(
     index["providers"].pop(provider, None)
     _write_index(config_root, index)
     try:
-        _module().delete_password(SERVICE, username(provider))
+        _module().delete_password(_service(), username(provider))
     except Exception:
         # A duplicate keyring copy is safer than deleting the newly restored file.
         pass
