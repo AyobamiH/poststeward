@@ -28,6 +28,8 @@ def main() -> None:
             "  activate    Preview/apply reviewed local unattended activation\n"
             "  deactivate  Preview/apply cloud-first local deactivation\n"
             "  update      Install a reviewed stable/beta runtime release\n"
+            "  rollback    Review/restore the retained previous archive while inactive\n"
+            "  uninstall   Review/remove managed software with an explicit data choice\n"
             "\nRuntime commands:\n"
         )
         print(render_text([]), end="")
@@ -40,6 +42,10 @@ def main() -> None:
             {
                 "product": "poststeward",
                 "product_commands": [
+                    {"path":"rollback","consequence":"LOCAL_STATE_WRITE","safe_form":"omit --apply",
+                     "summary":"Review/restore the retained exact archive while inactive; durable state is never rolled back."},
+                    {"path":"uninstall","consequence":"LOCAL_STATE_WRITE","safe_form":"omit --apply",
+                     "summary":"Review/remove managed software with an explicit --retain-data or --delete-data choice."},
                     {
                         "path": "onboard",
                         "consequence": "LOCAL_STATE_WRITE",
@@ -50,6 +56,12 @@ def main() -> None:
                         "consequence": "LOCAL_STATE_WRITE",
                         "safe_form": "omit --apply",
                         "summary": "Bind hosted X, Threads and LinkedIn identities to Fresh local project/campaign state.",
+                    },
+                    {
+                        "path": "preparation import",
+                        "consequence": "LOCAL_STATE_WRITE",
+                        "safe_form": "omit --apply",
+                        "summary": "Review one owner-approved cloud variant and import exact manual-only local copy with identity checks.",
                     },
                     {
                         "path": "cloud status",
@@ -111,11 +123,14 @@ def main() -> None:
         from ocpf_post.poststeward_cloud import main as cloud_main
 
         raise SystemExit(cloud_main(argv[1:]))
+    if argv and argv[0] == "preparation":
+        from ocpf_post.preparation_import import main as preparation_main
+        raise SystemExit(preparation_main(argv[1:]))
     if argv and argv[0] == "configure":
         from ocpf_post.poststeward_onboarding import main as onboarding_main
 
         raise SystemExit(onboarding_main(argv[1:]))
-    if argv and argv[0] in {"status", "doctor", "activate", "deactivate", "update"}:
+    if argv and argv[0] in {"status", "doctor", "activate", "deactivate", "update", "rollback", "uninstall"}:
         from ocpf_post.poststeward_product import main as product_main
 
         raise SystemExit(product_main(argv))

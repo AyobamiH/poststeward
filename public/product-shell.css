@@ -924,3 +924,8 @@ body.product-app {
     scroll-behavior: auto;
   }
 }
+
+/* Private editorial sources stay readable without widening the workspace. */
+#release-preparation .source-evidence { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto; }
+#release-preparation article { min-width: 0; }
+#release-preparation .edit-notice:empty { display: none; }

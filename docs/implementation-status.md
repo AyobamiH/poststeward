@@ -57,7 +57,7 @@ Do not repeat any of these merely to create a newer receipt:
 
 ### CLI
 
-PostSteward supports shell/cURL over hosted HTTP operations and the full installed local runtime distributed by `https://poststeward.com/install.sh`. Its signed stable manifest pins the exact release and runtime tree. Linux installation is verified; WSL/macOS acceptance remains separate.
+PostSteward supports shell/cURL over hosted HTTP operations and the full installed local runtime distributed by `https://poststeward.com/install.sh`. Its signed stable manifest pins the exact release and runtime tree. Linux installation is verified. Native guarded installation/lifecycle checks passed on macOS 15/26 (Intel and Apple Silicon) and WSL 2/Ubuntu 24.04; real owner/provider acceptance remains separate. See [native and AI delivery](PLATFORM_AI_DELIVERY.md).
 
 ### Remote MCP authorization
 

@@ -2,6 +2,264 @@
 
 Generated from src/operations/catalog.ts. Do not edit by hand.
 
+## model_status
+
+Inspect this workspace’s own model connection and bounded usage. No key is returned.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: model_status
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{}
+```
+
+## model_connect
+
+Owner-only: encrypt a workspace-owned OpenAI API key and approve explicit spending/delegation limits. No call is made during connection.
+
+- Tier: free
+- Required scope: admin
+- Effects: AUTHORITY_CHANGE
+- Inspect with: model_status
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "apiKey": "OWNER_SUPPLIED_API_KEY",
+  "maxJobsPerDay": 2,
+  "allowAgents": false,
+  "inputUsdPerMillion": null,
+  "outputUsdPerMillion": null,
+  "maxDailyUsd": null,
+  "idempotencyKey": "model-connect-001"
+}
+```
+
+## model_disconnect
+
+Owner-only: disconnect workspace model access and fence queued/in-flight generation.
+
+- Tier: free
+- Required scope: admin
+- Effects: AUTHORITY_CHANGE
+- Inspect with: model_status
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "idempotencyKey": "model-disconnect-001"
+}
+```
+
+## preparations_list
+
+Inspect private preparation strategy, evidence, drafts, review states and model usage; never provider/model credentials.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: preparations_list
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{}
+```
+
+## preparation_export
+
+Export a private preparation and the exact digest required for reviewed removal. No credential or publication effect.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: preparations_list
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{
+  "id": "RETURNED_PREPARATION_ID"
+}
+```
+
+## preparation_archive
+
+Owner-only: remove an exported terminal preparation from the active library. Retains immutable campaigns, receipts, spending and existing operation history.
+
+- Tier: free
+- Required scope: admin
+- Effects: STATE_WRITE
+- Inspect with: preparations_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "id": "RETURNED_PREPARATION_ID",
+  "revision": 1,
+  "reviewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "idempotencyKey": "preparation-archive-001"
+}
+```
+
+## preparation_project_put
+
+Create cloud editorial project-to-account context for AI preparation in either executor mode. This never creates local runtime projects or schedules.
+
+- Tier: free
+- Required scope: campaign:write
+- Effects: STATE_WRITE
+- Inspect with: workspace_status
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "id": "product",
+  "name": "Product preparation",
+  "accounts": [
+    "product_x"
+  ],
+  "idempotencyKey": "preparation-project-001"
+}
+```
+
+## preparation_create
+
+Queue original AI release interpretation, campaign strategy, drafting and editorial checks using the workspace’s own bounded model account. Never publishes or schedules.
+
+- Tier: free
+- Required scope: campaign:write
+- Effects: STATE_WRITE, FINANCIAL_EFFECT
+- Inspect with: preparations_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "project": "launch",
+  "selection": {
+    "repository": "owner/repository",
+    "releaseTag": "v1.0",
+    "documentationPaths": [
+      "README.md"
+    ],
+    "allowPrivate": false,
+    "allowUnreleased": false
+  },
+  "context": {
+    "audience": "Operators maintaining release communications",
+    "objective": "Explain the practical value of this release",
+    "brandVoice": "Clear British English",
+    "productContext": "A product for reviewed release communications",
+    "exclusions": "No unsupported availability claims",
+    "callToAction": "Read the release notes"
+  },
+  "idempotencyKey": "prepare-release-001"
+}
+```
+
+## preparation_edit
+
+Edit or remove selected draft variants and strategy. Edits invalidate checking/approval and never change an immutable handed-off campaign.
+
+- Tier: free
+- Required scope: campaign:write
+- Effects: STATE_WRITE
+- Inspect with: preparations_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "id": "RETURNED_PREPARATION_ID",
+  "revision": 1,
+  "text": {
+    "product_x": "Owner-edited text"
+  },
+  "idempotencyKey": "preparation-edit-001"
+}
+```
+
+## preparation_regenerate
+
+Explicitly spend bounded model allowance to regenerate strategy, all/one draft, or check edited drafts. Uncertain calls are never retried automatically.
+
+- Tier: free
+- Required scope: campaign:write
+- Effects: STATE_WRITE, FINANCIAL_EFFECT
+- Inspect with: preparations_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "id": "RETURNED_PREPARATION_ID",
+  "revision": 1,
+  "stage": "draft",
+  "alias": "product_x",
+  "idempotencyKey": "preparation-regenerate-001"
+}
+```
+
+## preparation_reject
+
+Reject private preparation and fence any in-flight output; no publication or schedule is created.
+
+- Tier: free
+- Required scope: campaign:write
+- Effects: STATE_WRITE
+- Inspect with: preparations_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "id": "RETURNED_PREPARATION_ID",
+  "revision": 1,
+  "idempotencyKey": "preparation-reject-001"
+}
+```
+
+## preparation_approve
+
+Signed-in owner reviews exact revision/digest, current account bindings and evidence, then freezes variants into an immutable campaign. Scheduling remains a separate explicit action.
+
+- Tier: free
+- Required scope: admin
+- Effects: STATE_WRITE
+- Inspect with: preparations_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "id": "RETURNED_PREPARATION_ID",
+  "revision": 1,
+  "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "idempotencyKey": "preparation-approve-001"
+}
+```
+
 ## workspace_status
 
 Inspect workspace, entitlement, limits and publication pause.

@@ -59,7 +59,7 @@ case "$VERSION" in
   *[!A-Za-z0-9._-]*) fail "--version accepts a tag/ref name or exact 40-character SHA" ;;
 esac
 
-command -v python3 >/dev/null 2>&1 || fail "python3 is required"
+command -v python3 >/dev/null 2>&1 || fail "Python 3.10+ is required. macOS: install Python from python.org or an existing Homebrew (brew install python). Ubuntu/WSL: sudo apt install python3. Then rerun; no installation files changed."
 command -v tar >/dev/null 2>&1 || fail "tar is required"
 python3 - <<'PY' || fail "Python 3.10 or newer is required"
 import sys
@@ -159,7 +159,7 @@ if [[ -e "$SHIM" ]]; then
 fi
 
 if [[ -L "$CURRENT" ]]; then
-  CURRENT_TARGET="$(readlink -f "$CURRENT" || true)"
+  CURRENT_TARGET="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$CURRENT")"
   CURRENT_REVISION="$(basename "$CURRENT_TARGET")"
   if [[ "$CURRENT_REVISION" != "$RESOLVED_SHA" ]]; then
     MARKER="${POSTSTEWARD_RUNTIME_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/poststeward/runtime}/automation-authority.json"
@@ -179,6 +179,13 @@ if not isinstance(value,dict) or value.get("status") not in {"active","inactive"
 if value["status"] == "active":
     raise SystemExit("local publishing authority is active")
 PY
+    fi
+    if command -v launchctl >/dev/null 2>&1; then
+      for label in com.poststeward.run-due com.poststeward.portfolio-refill com.poststeward.collection com.poststeward.replies; do
+        if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+          fail "PostSteward launch agent $label is loaded; deactivate before changing releases"
+        fi
+      done
     fi
     if command -v systemctl >/dev/null 2>&1; then
       for unit in         poststeward-run-due.timer         poststeward-portfolio-refill.timer         poststeward-collection.timer         poststeward-replies.timer
@@ -305,18 +312,21 @@ os.replace(sys.argv[1], sys.argv[2])
 PY
 
 TMP_SHIM="$(mktemp "$BIN_DIR/.poststeward.XXXXXX")"
-cat >"$TMP_SHIM" <<EOF
-#!/bin/sh
-# managed-by: poststeward-installer
-set -eu
-export POSTSTEWARD_ORIGIN='$ORIGIN'
-export POSTSTEWARD_RUNTIME_ROOT='$CURRENT'
-export POSTSTEWARD_RUNTIME_RELEASE_SHA='$RESOLVED_SHA'
-exec /bin/sh '$CURRENT/poststeward' "\$@"
-EOF
+python3 - "$TMP_SHIM" "$ORIGIN" "$CURRENT" "$RESOLVED_SHA" <<'PYSHIM'
+from pathlib import Path
+import shlex,sys
+path,origin,current,revision=sys.argv[1:]
+Path(path).write_text("#!/bin/sh\n# managed-by: poststeward-installer\nset -eu\n"
+    + "export POSTSTEWARD_ORIGIN=" + shlex.quote(origin) + "\n"
+    + "export POSTSTEWARD_RUNTIME_ROOT=" + shlex.quote(current) + "\n"
+    + "export POSTSTEWARD_RUNTIME_RELEASE_SHA=" + shlex.quote(revision) + "\n"
+    + "exec /bin/sh " + shlex.quote(current + "/poststeward") + ' "$@"\n')
+PYSHIM
 chmod 0755 "$TMP_SHIM"
 mv -f "$TMP_SHIM" "$SHIM"
 
+POSTSTEWARD_INSTALL_PREFIX_VALUE="$PREFIX" \
+POSTSTEWARD_BIN_DIR_VALUE="$BIN_DIR" \
 POSTSTEWARD_RECEIPT="$RECEIPT" \
 POSTSTEWARD_REQUESTED="$VERSION" \
 POSTSTEWARD_REVISION="$RESOLVED_SHA" \
@@ -330,6 +340,8 @@ from datetime import datetime, timezone
 import json, os
 from pathlib import Path
 path=Path(os.environ["POSTSTEWARD_RECEIPT"])
+previous=json.loads(path.read_text()) if path.is_file() and not path.is_symlink() else {}
+changed=previous.get("resolved_revision") != os.environ["POSTSTEWARD_REVISION"]
 value={
  "schema_version":1,
  "product":"poststeward",
@@ -339,6 +351,10 @@ value={
  "runtime_tree_sha256":os.environ["POSTSTEWARD_RUNTIME_TREE_SHA"],
  "runtime_provenance":json.load(open(os.environ["POSTSTEWARD_RUNTIME_PROVENANCE"],encoding="utf-8")),
  "release_path":os.environ["POSTSTEWARD_RELEASE"],
+ "install_prefix":os.environ["POSTSTEWARD_INSTALL_PREFIX_VALUE"],
+ "bin_dir":os.environ["POSTSTEWARD_BIN_DIR_VALUE"],
+ "previous_revision":previous.get("resolved_revision") if changed else previous.get("previous_revision"),
+ "previous_runtime_tree_sha256":previous.get("runtime_tree_sha256") if changed else previous.get("previous_runtime_tree_sha256"),
  "origin":os.environ["POSTSTEWARD_ORIGIN_VALUE"],
  "installed_at":datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00","Z"),
 }

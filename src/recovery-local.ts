@@ -59,6 +59,15 @@ export async function invalidateRestoredAuthority(
   store.tx(() => {
     if (store.get(marker)) return;
     performed = true;
+    // Recovery must not resurrect a disconnected workspace model key or an
+    // earlier spend consent. Content remains reviewable; reconnect explicitly.
+    const model = store.get<any>('model:openai');
+    if (model) store.put('model:openai', {...model,secret:'',revision:(model.revision||0)+1,verifiedAt:undefined});
+    for (const job of store.list<any>('preparation:')) {
+      if (!['queued','running','approved'].includes(job.status)) continue;
+      store.put('preparation:'+job.id,{...job,status:'failed',claim:undefined,claimUntil:undefined,
+        error:{code:'RECOVERY_REAUTHORIZATION_REQUIRED',message:'Recovery invalidated preparation authority. Reconnect and review explicitly.'}});
+    }
 
     for (const restored of restoredAccounts) {
       const account = store.get<Account>("account:" + restored.alias);

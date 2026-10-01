@@ -3,6 +3,7 @@ import { digest, Fault, json, requireValue } from "./common.ts";
 import { credentialRoots, seal, unseal } from "./crypto.ts";
 import type { OwnerAuthority } from "./owner-proof.ts";
 import type { Env, Profile } from "./types.ts";
+import type { Evidence, Selection } from "./preparation-contracts.ts";
 
 const API_VERSION = "2026-03-10";
 const STATE_COOKIE = "__Host-github-source";
@@ -15,6 +16,222 @@ const REFRESH_LEASE_TTL = 30_000;
 const USER_INSTALLATION_PAGES = 10;
 
 type Send = typeof fetch;
+
+/** Explicit owner-selected release snapshot. No arbitrary hosts, draft discovery,
+ * secret files or unbounded repository traversal. Private data needs separate
+ * owner disclosure consent and the existing workspace-linked GitHub authority.
+ */
+export async function readPreparationEvidence(
+  selection: Selection,
+  env: Env,
+  workspace: string,
+  send: Send = fetch,
+  now = Date.now(),
+) {
+  const link = await linkedRepository(env, workspace, selection.repository);
+  requireValue(
+    !link?.private || selection.allowPrivate,
+    "PRIVATE_SOURCE_REVIEW_REQUIRED",
+    "Approve disclosure of this selected private release to the workspace model provider first.",
+    403,
+  );
+  let token: string | undefined;
+  if (link) {
+    const credential = await activeCredential(env, link, send, now);
+    await verifyLinkedRepositoryStillAccessible(
+      env,
+      link,
+      credential,
+      send,
+      now,
+    );
+    token = credential.accessToken;
+  }
+  const base = `https://api.github.com/repos/${selection.repository.split("/").map(encodeURIComponent).join("/")}`;
+  const get = async (suffix: string) => {
+    const response = await apiGet(new URL(base + suffix), token, send);
+    requireValue(
+      response.ok,
+      "PREPARATION_SOURCE_UNAVAILABLE",
+      `The selected release source returned HTTP ${response.status}.`,
+      502,
+    );
+    return boundedJson(response, 512000);
+  };
+  const release = await get(
+    `/releases/tags/${encodeURIComponent(selection.releaseTag)}`,
+  );
+  requireValue(
+    release.tag_name === selection.releaseTag &&
+      typeof release.body === "string",
+    "PREPARATION_RELEASE_INVALID",
+    "The selected release has no valid release notes.",
+    422,
+  );
+  requireValue(
+    selection.allowUnreleased ||
+      (!release.draft &&
+        release.published_at &&
+        Date.parse(release.published_at) <= now),
+    "UNRELEASED_SOURCE_REVIEW_REQUIRED",
+    "Unreleased source details need explicit owner disclosure approval.",
+    403,
+  );
+  const commit = await get(
+    `/commits/${encodeURIComponent(selection.releaseTag)}`,
+  );
+  requireValue(
+    /^[a-f0-9]{40}$/.test(commit.sha),
+    "PREPARATION_COMMIT_INVALID",
+    "The release could not be pinned to an exact commit.",
+    422,
+  );
+  const evidence: Evidence[] = [];
+  const gaps: string[] = [];
+  let remaining = 24000;
+  const unsafe =
+    /(?:-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,})\b|Bearer\s+[A-Za-z0-9._-]{16,}|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,})/;
+  const add = (
+    id: string,
+    kind: Evidence["kind"],
+    text: string,
+    url: string,
+  ) => {
+    if (unsafe.test(text)) {
+      gaps.push(
+        `${id}: credential/personal-data pattern excluded; review the original privately.`,
+      );
+      return;
+    }
+    const clipped = text.slice(0, Math.min(remaining, 12000));
+    if (clipped.length < text.length)
+      gaps.push(`${id}: truncated; omitted text is not evidence.`);
+    if (clipped.trim()) {
+      evidence.push({ id, kind, text: clipped, url });
+      remaining -= clipped.length;
+    }
+  };
+  const origin = `https://github.com/${selection.repository}`;
+  add(
+    "release",
+    "release",
+    release.body,
+    `${origin}/releases/tag/${encodeURIComponent(selection.releaseTag)}`,
+  );
+  add(
+    "commit",
+    "commit",
+    String(commit.commit?.message || ""),
+    `${origin}/commit/${commit.sha}`,
+  );
+  let files = Array.isArray(commit.files) ? commit.files : [];
+  if (selection.previousTag) {
+    const comparison = await get(
+      `/compare/${encodeURIComponent(selection.previousTag)}...${commit.sha}?per_page=30`,
+    );
+    requireValue(
+      ["ahead", "identical"].includes(comparison.status),
+      "PREPARATION_BASE_INVALID",
+      "Choose a previous release that is an ancestor of this release. Diverged comparisons need separate review.",
+      422,
+    );
+    const commits = Array.isArray(comparison.commits) ? comparison.commits : [];
+    for (const [index, entry] of commits.slice(0, 12).entries()) {
+      if (/^[a-f0-9]{40}$/.test(entry.sha))
+        add(
+          `commit-${index}`,
+          "commit",
+          String(entry.commit?.message || ""),
+          `${origin}/commit/${entry.sha}`,
+        );
+    }
+    if (comparison.total_commits > 12)
+      gaps.push(
+        "Only twelve commit messages are included from the release comparison; omitted commits need owner review.",
+      );
+    files = Array.isArray(comparison.files) ? comparison.files : [];
+  } else
+    gaps.push(
+      "No previous release selected: patches cover the tag commit, not the complete release diff.",
+    );
+  const sensitivePath =
+    /(?:^|\/)(?:\.[^/]+|[^/]*(?:secret|credential|token|customer|private)[^/]*)/i;
+  for (const [index, file] of files.slice(0, 8).entries()) {
+    if (
+      typeof file.filename !== "string" ||
+      sensitivePath.test(file.filename) ||
+      typeof file.patch !== "string"
+    ) {
+      gaps.push(
+        `diff-${index}: sensitive, binary or unavailable patch excluded.`,
+      );
+      continue;
+    }
+    add(
+      `diff-${index}`,
+      "diff",
+      `File: ${file.filename}\n${file.patch}`,
+      `${origin}/commit/${commit.sha}`,
+    );
+  }
+  if (files.length > 8 || commit.stats?.total > 1000)
+    gaps.push(
+      "Large release: only the release notes, selected commit and bounded patches are included. Narrow the campaign or review omitted commits/files.",
+    );
+  for (const [index, path] of selection.documentationPaths.entries()) {
+    requireValue(
+      !sensitivePath.test(path),
+      "SENSITIVE_DOCUMENT_PATH",
+      "Secret/customer/hidden/private file paths cannot be selected for preparation.",
+      403,
+    );
+    const doc = await get(
+      `/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${commit.sha}`,
+    );
+    requireValue(
+      doc.type === "file" &&
+        doc.encoding === "base64" &&
+        typeof doc.content === "string",
+      "PREPARATION_DOCUMENT_INVALID",
+      "Selected documentation is not a bounded plain text file.",
+      422,
+    );
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(
+        Uint8Array.from(atob(doc.content.replace(/\s/g, "")), (c) =>
+          c.charCodeAt(0),
+        ),
+      );
+    } catch {
+      throw new Fault(
+        "PREPARATION_DOCUMENT_INVALID",
+        "Selected documentation is not valid UTF-8 text.",
+        422,
+      );
+    }
+    add(
+      `doc-${index}`,
+      "documentation",
+      text,
+      `${origin}/blob/${commit.sha}/${path.split("/").map(encodeURIComponent).join("/")}`,
+    );
+  }
+  requireValue(
+    evidence.some((item) => item.id === "release"),
+    "PREPARATION_EVIDENCE_INSUFFICIENT",
+    "Release notes were empty or excluded. Select approved evidence with no sensitive data.",
+    422,
+  );
+  return {
+    sha: commit.sha as string,
+    evidence,
+    gaps,
+    fetchedAt: now,
+    coverage:
+      "Selected release notes, a pinned tag commit, up to twelve comparison commit messages, eight patches and three selected documentation files. Omitted data is not evidence.",
+  };
+}
 
 type GitHubCredential = {
   accessToken: string;
@@ -354,8 +571,14 @@ async function markInstallationStale(
   await env.IDENTITY.prepare(
     "UPDATE github_installations SET status='stale',last_error=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease IS NULL AND status='linked'",
   )
-    .bind(code.slice(0, 100), now, row.workspace, row.installation_id,
-      row.credential_revision, row.credential)
+    .bind(
+      code.slice(0, 100),
+      now,
+      row.workspace,
+      row.installation_id,
+      row.credential_revision,
+      row.credential,
+    )
     .run();
 }
 
@@ -379,13 +602,28 @@ async function refreshInProgress(env: Env, row: InstallationRow, now: number) {
     // Never reclaim an abandoned rotating token: GitHub may have consumed it.
     await env.IDENTITY.prepare(
       "UPDATE github_installations SET status='stale',last_error='GITHUB_REFRESH_UNCERTAIN',updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease=? AND refresh_lease_until<=? AND status='linked'",
-    ).bind(now, row.workspace, row.installation_id, row.credential_revision,
-      row.credential, row.refresh_lease, now).run();
-    throw new Fault("GITHUB_REAUTH_REQUIRED",
-      "GitHub credential refresh was interrupted. Reconnect GitHub.", 409);
+    )
+      .bind(
+        now,
+        row.workspace,
+        row.installation_id,
+        row.credential_revision,
+        row.credential,
+        row.refresh_lease,
+        now,
+      )
+      .run();
+    throw new Fault(
+      "GITHUB_REAUTH_REQUIRED",
+      "GitHub credential refresh was interrupted. Reconnect GitHub.",
+      409,
+    );
   }
-  throw new Fault("GITHUB_REFRESH_IN_PROGRESS",
-    "GitHub credentials are being refreshed. Retry this source check shortly.", 503);
+  throw new Fault(
+    "GITHUB_REFRESH_IN_PROGRESS",
+    "GitHub credentials are being refreshed. Retry this source check shortly.",
+    503,
+  );
 }
 
 async function activeCredential(
@@ -394,37 +632,69 @@ async function activeCredential(
   send: Send,
   now: number,
 ): Promise<GitHubCredential> {
-  requireValue(row.status === "linked", "GITHUB_REAUTH_REQUIRED",
-    "GitHub repository authorization is stale. Reconnect GitHub.", 409);
+  requireValue(
+    row.status === "linked",
+    "GITHUB_REAUTH_REQUIRED",
+    "GitHub repository authorization is stale. Reconnect GitHub.",
+    409,
+  );
   await refreshInProgress(env, row, now);
   const context = `${row.workspace}:github:${row.installation_id}`;
   const current = await unseal<GitHubCredential>(
-    row.credential, credentialRoots(env), context,
+    row.credential,
+    credentialRoots(env),
+    context,
   );
   if (current.expiresAt > now + REFRESH_SKEW) return current;
   if (current.refreshExpiresAt <= now + REFRESH_SKEW) {
     await markInstallationStale(env, row, "GITHUB_REAUTH_REQUIRED", now);
-    throw new Fault("GITHUB_REAUTH_REQUIRED",
-      "GitHub repository authorization must be renewed.", 409);
+    throw new Fault(
+      "GITHUB_REAUTH_REQUIRED",
+      "GitHub repository authorization must be renewed.",
+      409,
+    );
   }
 
   const lease = crypto.randomUUID();
   const started = Date.now();
   const claimed = await env.IDENTITY.prepare(
     "UPDATE github_installations SET refresh_lease=?,refresh_lease_until=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND status='linked' AND refresh_lease IS NULL",
-  ).bind(lease, now + REFRESH_LEASE_TTL, row.workspace, row.installation_id,
-    row.credential_revision, row.credential).run();
+  )
+    .bind(
+      lease,
+      now + REFRESH_LEASE_TTL,
+      row.workspace,
+      row.installation_id,
+      row.credential_revision,
+      row.credential,
+    )
+    .run();
   if (claimed.meta.changes !== 1) {
-    const latest = await readInstallation(env, row.workspace, row.installation_id);
-    requireValue(latest?.status === "linked", "GITHUB_REAUTH_REQUIRED",
-      "GitHub repository authorization changed. Reconnect GitHub.", 409);
+    const latest = await readInstallation(
+      env,
+      row.workspace,
+      row.installation_id,
+    );
+    requireValue(
+      latest?.status === "linked",
+      "GITHUB_REAUTH_REQUIRED",
+      "GitHub repository authorization changed. Reconnect GitHub.",
+      409,
+    );
     await refreshInProgress(env, latest, now);
-    requireValue(latest.credential !== row.credential &&
-      latest.token_expires_at > now + REFRESH_SKEW,
+    requireValue(
+      latest.credential !== row.credential &&
+        latest.token_expires_at > now + REFRESH_SKEW,
       "GITHUB_REFRESH_IN_PROGRESS",
-      "GitHub credentials changed. Retry this source check shortly.", 503);
+      "GitHub credentials changed. Retry this source check shortly.",
+      503,
+    );
     Object.assign(row, latest);
-    return unseal<GitHubCredential>(latest.credential, credentialRoots(env), context);
+    return unseal<GitHubCredential>(
+      latest.credential,
+      credentialRoots(env),
+      context,
+    );
   }
 
   // Only the lease holder may send this single-use refresh token.
@@ -432,32 +702,68 @@ async function activeCredential(
   let encrypted: string;
   try {
     refreshed = await refreshToken(env, current.refreshToken, send, now);
-    encrypted = await seal(refreshed, credentialRoots(env), context,
-      env.ENCRYPTION_KEY_VERSION);
+    encrypted = await seal(
+      refreshed,
+      credentialRoots(env),
+      context,
+      env.ENCRYPTION_KEY_VERSION,
+    );
   } catch (error) {
     // An HTTP error/timeout can occur after token consumption. Do not replay it.
-    const code = error instanceof Fault && error.code === "GITHUB_REAUTH_REQUIRED"
-      ? error.code : "GITHUB_REFRESH_UNCERTAIN";
+    const code =
+      error instanceof Fault && error.code === "GITHUB_REAUTH_REQUIRED"
+        ? error.code
+        : "GITHUB_REFRESH_UNCERTAIN";
     await env.IDENTITY.prepare(
       "UPDATE github_installations SET status='stale',last_error=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease=? AND status='linked'",
-    ).bind(code, now, row.workspace, row.installation_id, row.credential_revision,
-      row.credential, lease).run();
-    throw new Fault("GITHUB_REAUTH_REQUIRED",
-      "GitHub credential refresh could not be confirmed. Reconnect GitHub.", 409);
+    )
+      .bind(
+        code,
+        now,
+        row.workspace,
+        row.installation_id,
+        row.credential_revision,
+        row.credential,
+        lease,
+      )
+      .run();
+    throw new Fault(
+      "GITHUB_REAUTH_REQUIRED",
+      "GitHub credential refresh could not be confirmed. Reconnect GitHub.",
+      409,
+    );
   }
 
   const completedAt = now + Math.max(0, Date.now() - started);
   const updated = await env.IDENTITY.prepare(
     "UPDATE github_installations SET credential=?,credential_revision=credential_revision+1,token_expires_at=?,refresh_expires_at=?,refresh_lease=NULL,refresh_lease_until=NULL,last_error=NULL,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease=? AND refresh_lease_until>? AND status='linked'",
-  ).bind(encrypted, refreshed.expiresAt, refreshed.refreshExpiresAt, completedAt,
-    row.workspace, row.installation_id, row.credential_revision, row.credential,
-    lease, completedAt).run();
-  requireValue(updated.meta.changes === 1, "GITHUB_REAUTH_REQUIRED",
-    "GitHub repository authorization changed during refresh. Retry or reconnect GitHub.", 409);
+  )
+    .bind(
+      encrypted,
+      refreshed.expiresAt,
+      refreshed.refreshExpiresAt,
+      completedAt,
+      row.workspace,
+      row.installation_id,
+      row.credential_revision,
+      row.credential,
+      lease,
+      completedAt,
+    )
+    .run();
+  requireValue(
+    updated.meta.changes === 1,
+    "GITHUB_REAUTH_REQUIRED",
+    "GitHub repository authorization changed during refresh. Retry or reconnect GitHub.",
+    409,
+  );
   Object.assign(row, {
-    credential: encrypted, credential_revision: row.credential_revision + 1,
-    token_expires_at: refreshed.expiresAt, refresh_expires_at: refreshed.refreshExpiresAt,
-    refresh_lease: null, refresh_lease_until: null,
+    credential: encrypted,
+    credential_revision: row.credential_revision + 1,
+    token_expires_at: refreshed.expiresAt,
+    refresh_expires_at: refreshed.refreshExpiresAt,
+    refresh_lease: null,
+    refresh_lease_until: null,
   });
   return refreshed;
 }
@@ -567,7 +873,9 @@ async function accessibleRepositories(
     502,
   );
   const data = await boundedJson(response, 2 * 1024 * 1024);
-  const repositories = Array.isArray(data?.repositories) ? data.repositories : [];
+  const repositories = Array.isArray(data?.repositories)
+    ? data.repositories
+    : [];
   requireValue(
     Number.isInteger(data?.total_count) &&
       data.total_count > 0 &&
@@ -666,11 +974,9 @@ export async function startGitHubSourceLink(
     `https://github.com/apps/${config.slug}/installations/new`,
   );
   installationUrl.searchParams.set("state", state);
-  return json(
-    { installationUrl: installationUrl.href, expiresAt },
-    200,
-    { "Set-Cookie": stateCookie(state, STATE_TTL / 1000) },
-  );
+  return json({ installationUrl: installationUrl.href, expiresAt }, 200, {
+    "Set-Cookie": stateCookie(state, STATE_TTL / 1000),
+  });
 }
 
 export async function continueGitHubSourceSetup(
@@ -860,7 +1166,13 @@ export async function completeGitHubSourceLink(
     ),
     env.IDENTITY.prepare(
       "DELETE FROM github_repository_links WHERE workspace=? AND installation_id=? AND EXISTS (SELECT 1 FROM github_installations WHERE workspace=? AND installation_id=? AND credential=?)",
-    ).bind(owner.proof.workspace, pending.installation_id, owner.proof.workspace, pending.installation_id, encrypted),
+    ).bind(
+      owner.proof.workspace,
+      pending.installation_id,
+      owner.proof.workspace,
+      pending.installation_id,
+      encrypted,
+    ),
     ...repositories.map((repository: GitHubRepository) =>
       env.IDENTITY.prepare(
         "INSERT INTO github_repository_links(workspace,repository_id,installation_id,full_name,private,linked_at,verified_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM github_installations WHERE workspace=? AND installation_id=? AND credential=?)",
@@ -879,9 +1191,12 @@ export async function completeGitHubSourceLink(
     ),
   ];
   const committed = await env.IDENTITY.batch(statements);
-  requireValue(committed[0]?.meta.changes === 1,
+  requireValue(
+    committed[0]?.meta.changes === 1,
     "GITHUB_LINK_AUTHORITY_CHANGED",
-    "The owner session or workspace changed during GitHub connection. Sign in again.", 409);
+    "The owner session or workspace changed during GitHub connection. Sign in again.",
+    409,
+  );
   return new Response(null, {
     status: 302,
     headers: {
@@ -974,12 +1289,7 @@ async function verifyLinkedRepositoryStillAccessible(
         "GITHUB_APP_PERMISSION_TOO_BROAD",
       ].includes(error.code)
     )
-      await markInstallationStale(
-        env,
-        link,
-        error.code,
-        now,
-      );
+      await markInstallationStale(env, link, error.code, now);
     throw error;
   }
 
@@ -999,19 +1309,19 @@ async function verifyLinkedRepositoryStillAccessible(
         "GITHUB_REPOSITORY_SCOPE_TOO_BROAD",
       ].includes(error.code)
     )
-      await markInstallationStale(
-        env,
-        link,
-        error.code,
-        now,
-      );
+      await markInstallationStale(env, link, error.code, now);
     throw error;
   }
   const current = repositories.find(
     (repository: GitHubRepository) => repository.id === link.repository_id,
   );
   if (!current) {
-    await markInstallationStale(env, link, "GITHUB_REPOSITORY_ACCESS_REVOKED", now);
+    await markInstallationStale(
+      env,
+      link,
+      "GITHUB_REPOSITORY_ACCESS_REVOKED",
+      now,
+    );
     throw new Fault(
       "GITHUB_REPOSITORY_ACCESS_REVOKED",
       "This repository is no longer available through the linked GitHub installation.",
@@ -1032,7 +1342,14 @@ async function verifyLinkedRepositoryStillAccessible(
     ).bind(current.private ? 1 : 0, now, link.workspace, link.repository_id),
     env.IDENTITY.prepare(
       "UPDATE github_installations SET last_verified_at=?,updated_at=? WHERE workspace=? AND installation_id=? AND credential_revision=? AND credential=? AND refresh_lease IS NULL AND status='linked'",
-    ).bind(now, now, link.workspace, link.installation_id, link.credential_revision, link.credential),
+    ).bind(
+      now,
+      now,
+      link.workspace,
+      link.installation_id,
+      link.credential_revision,
+      link.credential,
+    ),
   ]);
   return current;
 }
@@ -1075,8 +1392,12 @@ export async function readGitHubSource(
 ) {
   const link = await linkedRepository(env, workspace, profile.repository);
   if (privateOnly)
-    requireValue(link && link.private === 1, "GITHUB_PRIVATE_LINK_REQUIRED",
-      "Choose a private repository already linked to this workspace.", 409);
+    requireValue(
+      link && link.private === 1,
+      "GITHUB_PRIVATE_LINK_REQUIRED",
+      "Choose a private repository already linked to this workspace.",
+      409,
+    );
   if (!link) {
     const response = await commitSnapshot(profile, undefined, send);
     requireValue(
@@ -1096,18 +1417,23 @@ export async function readGitHubSource(
   }
 
   const credential = await activeCredential(env, link, send, now);
-  const repository = await verifyLinkedRepositoryStillAccessible(env, link, credential, send, now);
+  const repository = await verifyLinkedRepositoryStillAccessible(
+    env,
+    link,
+    credential,
+    send,
+    now,
+  );
   if (privateOnly)
-    requireValue(repository.private, "GITHUB_PRIVATE_LINK_REQUIRED",
-      "This repository is no longer private; private source acceptance requires a private repository.", 409);
+    requireValue(
+      repository.private,
+      "GITHUB_PRIVATE_LINK_REQUIRED",
+      "This repository is no longer private; private source acceptance requires a private repository.",
+      409,
+    );
   const response = await commitSnapshot(profile, credential.accessToken, send);
   if (response.status === 401) {
-    await markInstallationStale(
-      env,
-      link,
-      "GITHUB_REAUTH_REQUIRED",
-      now,
-    );
+    await markInstallationStale(env, link, "GITHUB_REAUTH_REQUIRED", now);
     throw new Fault(
       "GITHUB_REAUTH_REQUIRED",
       "GitHub repository authorization was revoked. Reconnect GitHub.",
@@ -1115,12 +1441,7 @@ export async function readGitHubSource(
     );
   }
   if (response.status === 403) {
-    await markInstallationStale(
-      env,
-      link,
-      "GITHUB_ACCESS_REVOKED",
-      now,
-    );
+    await markInstallationStale(env, link, "GITHUB_ACCESS_REVOKED", now);
     throw new Fault(
       "GITHUB_ACCESS_REVOKED",
       "GitHub repository access is no longer authorised. Reconnect GitHub.",

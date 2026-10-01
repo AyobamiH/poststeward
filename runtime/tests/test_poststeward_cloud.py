@@ -28,6 +28,13 @@ class CloudExecutorProofTests(unittest.TestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
+    def test_expired_pairing_can_start_fresh_owner_review_without_reusing_token(self) -> None:
+        from ocpf_post.poststeward_cloud import onboard
+        started={"pairingId":"new-pair","pollToken":"test-poll-token","verificationUrl":"https://poststeward.example/app", "userCode":"TEST-CODE","expiresAt":9999999999999}
+        with patch("ocpf_post.poststeward_cloud.installation_identity",return_value={"runtime_token":"expired-token","installation_id":"installation","label":"test","platform":"test"}), patch("ocpf_post.poststeward_cloud.bindings",side_effect=CloudError("RUNTIME_PAIRING_EXPIRED","expired",3)), patch("ocpf_post.poststeward_cloud._request",return_value=(200,started)) as request:
+            self.assertEqual(onboard(no_open=True,wait=False),started)
+            self.assertNotIn("token",request.call_args.kwargs)
+
     def test_activation_proof_requires_exact_paired_installation_and_live_generation(self) -> None:
         with patch(
             "ocpf_post.poststeward_cloud.installation_identity",

@@ -1,5 +1,6 @@
 import { renderOwnerSnapshot, showFeedback } from "./owner-ui.js";
 import { renderWorkspaceTask } from "./workspace-guidance.js";
+import { mountPreparation } from "./preparation-ui.js";
 import { registerWebMCP, checkNativeWebMCP } from "./webmcp.js";
 import {
   linkedinConnectionPlan,
@@ -19,20 +20,24 @@ let session,
 const key = () => crypto.randomUUID();
 async function api(path, input, method = input === undefined ? "GET" : "POST") {
   let response;
-  try { response = await fetch(path, {
-    method,
-    credentials: "same-origin",
-    mode: "same-origin",
-    cache: "no-store",
-    redirect: "manual",
-    signal: AbortSignal.timeout(20000),
-    headers: {
-      "Content-Type": "application/json",
-      ...(session?.csrf ? { "X-CSRF-Token": session.csrf } : {}),
-    },
-    ...(input !== undefined ? { body: JSON.stringify(input) } : {}),
-  }); } catch {
-    throw new Error("No response was received. Inspect existing records before repeating an action; use Refresh to check current workspace state.");
+  try {
+    response = await fetch(path, {
+      method,
+      credentials: "same-origin",
+      mode: "same-origin",
+      cache: "no-store",
+      redirect: "manual",
+      signal: AbortSignal.timeout(20000),
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.csrf ? { "X-CSRF-Token": session.csrf } : {}),
+      },
+      ...(input !== undefined ? { body: JSON.stringify(input) } : {}),
+    });
+  } catch {
+    throw new Error(
+      "No response was received. Inspect existing records before repeating an action; use Refresh to check current workspace state.",
+    );
   }
   let data;
   try {
@@ -52,13 +57,45 @@ async function api(path, input, method = input === undefined ? "GET" : "POST") {
       $("workspace-content").hidden = true;
       $("workspace-next-step").hidden = true;
       $("pause").hidden = true;
-      $("session-notice").textContent = "Your session expired. Sign in again to inspect current workspace state.";
+      $("session-notice").textContent =
+        "Your session expired. Sign in again to inspect current workspace state.";
     }
     throw error;
   }
   return data;
 }
 const invoke = (name, input = {}) => api("/api/operations/" + name, input);
+const preparationUI = mountPreparation({
+  invoke,
+  action,
+  show,
+  onHandoff: async (job) => {
+    const executor = await api("/api/runtime/executor");
+    if (executor.executorMode === "local") {
+      selectedCampaign = undefined;
+      $("campaign-preview").hidden = false;
+      $("campaign-preview").textContent = job.drafts
+        .map((d) => `${d.alias}\n${d.text}`)
+        .join("\n\n");
+      $("delivery").hidden = true;
+      show(
+        "Exact copy approved. Download its private preparation export, then run poststeward preparation import on your paired machine with explicit local project, campaign, variant and account. Preview and apply its returned digest; local scheduling remains a separate action. See the installation guide for exact commands.",
+      );
+      return;
+    }
+    selectedCampaign = await invoke("campaign_get", { campaign: job.campaign });
+    await invoke("campaign_validate", { campaign: job.campaign });
+    $("campaign-preview").hidden = false;
+    $("campaign-preview").textContent = Object.entries(selectedCampaign.text)
+      .map(([alias, text]) => `${alias}\n${text}`)
+      .join("\n\n");
+    $("delivery").hidden = false;
+    show(
+      "Exact owner-approved campaign stored. Review the existing delivery controls to schedule or publish explicitly.",
+    );
+    $("delivery").scrollIntoView({ block: "nearest" });
+  },
+});
 let feedbackTarget,
   actionInProgress = false;
 function show(data, error = false) {
@@ -340,8 +377,9 @@ function renderRecovery() {
   $("recovery-instruction").textContent = instruction;
 }
 async function refresh() {
+  const status = await invoke("workspace_status");
+  const local = status.executor?.executorMode === "local";
   const [
-    status,
     accounts,
     projects,
     receipts,
@@ -351,20 +389,31 @@ async function refresh() {
     readiness,
     capabilities,
   ] = await Promise.all([
-    invoke("workspace_status"),
     invoke("accounts_list"),
-    invoke("projects_list"),
-    invoke("receipts_list", { limit: 50 }),
+    local
+      ? Promise.resolve(status.preparationProjects || [])
+      : invoke("projects_list"),
+    local ? Promise.resolve([]) : invoke("receipts_list", { limit: 50 }),
     invoke("billing_status"),
-    invoke("automation_inspect"),
+    local ? Promise.resolve({ profiles: [] }) : invoke("automation_inspect"),
     api("/api/grants"),
     api("/readiness.json"),
     invoke("publishing_capabilities"),
   ]);
   paused = status.publishingPaused;
-  $("plan").textContent =
-    "Your publishing workspace";
-  $("workspace-plan").textContent = status.plan === "advanced" ? "Advanced workspace · reviewed automation and direct publishing" : "Free workspace · direct publishing and scheduling";
+  $("local-delivery-note").hidden = !local;
+  $("receipts").hidden = local;
+  $("profiles").hidden = local;
+  $("campaign").hidden = local;
+  $("profile").hidden = local;
+  $("publishing-heading").textContent = local
+    ? "2. Create cloud editorial context"
+    : "2. Create a publishing project";
+  $("plan").textContent = "Your publishing workspace";
+  $("workspace-plan").textContent =
+    status.plan === "advanced"
+      ? "Advanced workspace · reviewed automation and direct publishing"
+      : "Free workspace · direct publishing and scheduling";
   $("pause").textContent = paused ? "Resume publishing" : "Pause publishing";
   const activeAccounts = accounts.filter((account) => account.active === true);
   const connectedProviders = new Set(
@@ -387,7 +436,10 @@ async function refresh() {
   } catch {
     recovery = undefined;
   }
-  if (!session) { signInNotice("Your session expired. "); return; }
+  if (!session) {
+    signInNotice("Your session expired. ");
+    return;
+  }
   renderOAuth();
   renderRecovery();
   await loadRuntimeAuthority();
@@ -412,6 +464,7 @@ async function refresh() {
     line(r, p.name, true);
     line(r, p.accounts.join(", "));
   });
+  preparationUI.setProjects(projects);
   for (const id of ["project-select", "profile-project"])
     $(id).replaceChildren(...projects.map((p) => new Option(p.name, p.id)));
   for (const id of ["account-select", "profile-account"])
@@ -500,7 +553,15 @@ async function refresh() {
       "Stripe sandbox only. Test payments do not enable Advanced automation.",
     );
   const priceHeading = $("advanced-heading");
-  if (priceHeading) priceHeading.textContent = "Advanced · " + (billing.price.amount === null ? "GBP price to be confirmed" : new Intl.NumberFormat("en-GB", { style: "currency", currency: billing.price.currency.toUpperCase() }).format(billing.price.amount / 100) + " per month");
+  if (priceHeading)
+    priceHeading.textContent =
+      "Advanced · " +
+      (billing.price.amount === null
+        ? "GBP price to be confirmed"
+        : new Intl.NumberFormat("en-GB", {
+            style: "currency",
+            currency: billing.price.currency.toUpperCase(),
+          }).format(billing.price.amount / 100) + " per month");
   const entitlement = billing.entitlement;
   const covered =
     !!entitlement && !entitlement.revoked && entitlement.until > Date.now();
@@ -600,13 +661,27 @@ async function refresh() {
     oauthInfo,
     recovery,
   });
-  if (!session) { signInNotice("Your session expired. "); return; }
+  if (!session) {
+    signInNotice("Your session expired. ");
+    return;
+  }
   renderWorkspaceTask({ accounts, projects, receipts, paused });
+  if (local) {
+    const guide = $("workspace-next-step");
+    guide.querySelector("h2").textContent =
+      "Your local machine owns publishing";
+    guide.querySelector("p").textContent =
+      "Prepare and review copy here, then import the approved variant on your paired machine. Inspect local schedules and receipts there; hosted controls do not represent local execution.";
+    const link = guide.querySelector("a");
+    link.href = "#release-preparation";
+    link.textContent = "Prepare and review release copy";
+  }
   const firstLoad = $("workspace-content").hidden;
   $("workspace-content").hidden = false;
   $("workspace-next-step").hidden = false;
   $("pause").hidden = false;
-  $("session-notice").textContent = "Workspace data updated. Schedule dates show their recorded timezone; other dates use your browser’s local time.";
+  $("session-notice").textContent =
+    "Workspace data updated. Schedule dates show their recorded timezone; other dates use your browser’s local time.";
   if (firstLoad) document.dispatchEvent(new Event("workspace-ready"));
 }
 for (const b of $("oauth-buttons").querySelectorAll("button[data-provider]"))
@@ -664,16 +739,21 @@ for (const id of [
       }
       if (id === "project") {
         show(
-          await invoke("project_put", {
-            id: fd.get("id"),
-            name: fd.get("name"),
-            accounts: fd
-              .get("accounts")
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
-            idempotencyKey: key(),
-          }),
+          await invoke(
+            runtimeExecutor?.executorMode === "local"
+              ? "preparation_project_put"
+              : "project_put",
+            {
+              id: fd.get("id"),
+              name: fd.get("name"),
+              accounts: fd
+                .get("accounts")
+                .split(",")
+                .map((x) => x.trim())
+                .filter(Boolean),
+              idempotencyKey: key(),
+            },
+          ),
         );
         await refresh();
       }
@@ -830,7 +910,8 @@ $("recovery-cancel").onclick = () =>
     );
     await refresh();
   });
-$("refresh").onclick = () => action(() => session ? refresh() : openWorkspace());
+$("refresh").onclick = () =>
+  action(() => (session ? refresh() : openWorkspace()));
 $("pause").onclick = () =>
   action(async () => {
     show(
@@ -866,7 +947,9 @@ $("subscribe").onclick = () =>
     });
     $("quote").hidden = false;
     $("quote").replaceChildren(
-      document.createTextNode(`${new Intl.NumberFormat("en-GB", { style: "currency", currency: q.currency.toUpperCase() }).format(q.amount / 100)} per workspace per month. Automatically renews. ${q.tax} Quote expires ${new Date(q.expires).toLocaleString("en-GB")}. `),
+      document.createTextNode(
+        `${new Intl.NumberFormat("en-GB", { style: "currency", currency: q.currency.toUpperCase() }).format(q.amount / 100)} per workspace per month. Automatically renews. ${q.tax} Quote expires ${new Date(q.expires).toLocaleString("en-GB")}. `,
+      ),
     );
     button($("quote"), "Continue to Stripe", async () => {
       const checkout = await invoke("billing_checkout", {
@@ -898,52 +981,56 @@ $("webmcp-status").textContent = document.modelContext?.registerTool
 function signInNotice(prefix = "") {
   $("session-notice").replaceChildren(document.createTextNode(prefix));
   const a = document.createElement("a");
-  const returnPath = runtimePairingParams() ? location.pathname + location.search : "/app";
+  const returnPath = runtimePairingParams()
+    ? location.pathname + location.search
+    : "/app";
   a.href = "/auth/login?return=" + encodeURIComponent(returnPath);
   a.textContent = "Sign in to open your workspace";
   $("session-notice").append(a);
 }
 async function openWorkspace() {
-try {
-  $("session-notice").textContent = "Loading workspace…";
-  session = await api("/api/session");
-  sessionExpired = false;
-  $("session-notice").textContent = "Workspace " + session.workspace;
-  await prepareRuntimePairing();
-  const help = await api("/help.json");
   try {
-    const registered = await registerWebMCP(help, invoke, session.scopes);
-    $("webmcp-status").textContent = registered.available
-      ? `${registered.count} browser agent tools registered. Live execution has not yet been checked.`
-      : "Remote MCP and HTTP are available. Native WebMCP is not available in this browser.";
-    $("webmcp-check").disabled = !registered.available;
-  } catch {
-    $("webmcp-status").textContent =
-      "Native WebMCP registration failed. Workspace controls remain available.";
+    $("session-notice").textContent = "Loading workspace…";
+    session = await api("/api/session");
+    sessionExpired = false;
+    $("session-notice").textContent = "Workspace " + session.workspace;
+    await prepareRuntimePairing();
+    const help = await api("/help.json");
+    try {
+      const registered = await registerWebMCP(help, invoke, session.scopes);
+      $("webmcp-status").textContent = registered.available
+        ? `${registered.count} browser agent tools registered. Live execution has not yet been checked.`
+        : "Remote MCP and HTTP are available. Native WebMCP is not available in this browser.";
+      $("webmcp-check").disabled = !registered.available;
+    } catch {
+      $("webmcp-status").textContent =
+        "Native WebMCP registration failed. Workspace controls remain available.";
+    }
+    await refresh();
+    const params = new URL(location.href).searchParams;
+    if (params.get("connected"))
+      show(
+        `${params.get("connected")} OAuth completed. Verify the stable account identity before publishing.`,
+      );
+    else if (params.get("connection") === "denied")
+      show(
+        "Provider authorisation was declined. No connection was created.",
+        true,
+      );
+    if (params.has("connected") || params.has("connection"))
+      history.replaceState(null, "", "/app");
+  } catch (e) {
+    $("session-notice").replaceChildren();
+    if (e.status === 401 || sessionExpired)
+      signInNotice(sessionExpired ? "Your session expired. " : "");
+    else if (!session) {
+      $("session-notice").textContent =
+        "Workspace access could not be checked. Use Refresh to try again when your connection is available. ";
+      signInNotice($("session-notice").textContent);
+    } else
+      $("session-notice").textContent =
+        "Signed in, but workspace data could not be loaded. Refresh to inspect current state.";
+    show(e.message, true);
   }
-  await refresh();
-  const params = new URL(location.href).searchParams;
-  if (params.get("connected"))
-    show(
-      `${params.get("connected")} OAuth completed. Verify the stable account identity before publishing.`,
-    );
-  else if (params.get("connection") === "denied")
-    show(
-      "Provider authorisation was declined. No connection was created.",
-      true,
-    );
-  if (params.has("connected") || params.has("connection"))
-    history.replaceState(null, "", "/app");
-} catch (e) {
-  $("session-notice").replaceChildren();
-  if (e.status === 401 || sessionExpired) signInNotice(sessionExpired ? "Your session expired. " : "");
-  else if (!session) {
-    $("session-notice").textContent = "Workspace access could not be checked. Use Refresh to try again when your connection is available. ";
-    signInNotice($("session-notice").textContent);
-  } else
-    $("session-notice").textContent =
-      "Signed in, but workspace data could not be loaded. Refresh to inspect current state.";
-  show(e.message, true);
-}
 }
 await openWorkspace();

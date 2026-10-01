@@ -161,7 +161,8 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
     );
     assert.equal(discovery.status, 200);
     const operations = ((await discovery.json()) as any).operations;
-    assert.equal(operations.length, 34);
+    assert.equal(operations.length, 46);
+    assert.ok(operations.some((operation:any)=>operation.name==='preparation_create'));
     assert.ok(
       operations.some((operation: any) => operation.name === "receipt_recheck"),
     );

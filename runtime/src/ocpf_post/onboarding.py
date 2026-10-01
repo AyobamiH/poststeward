@@ -369,8 +369,8 @@ def _timestamp(value, name):
 def validate_campaign(value, *, allocate=False, now=None):
     from ocpf_post.campaigns import normalize_campaign_id
     from ocpf_post.registry import project, resolve_account
-    fields = {"schema_version", "campaign", "project", "title", "status", "destinations", "texts", "source", "allocation"}
-    required = fields - {"allocation"}
+    fields = {"schema_version", "campaign", "project", "title", "status", "destinations", "texts", "source", "allocation", "expected_identities"}
+    required = fields - {"allocation", "expected_identities"}
     value = _object(value, fields, required, "campaign")
     if type(value["schema_version"]) is not int or value["schema_version"] != 1 or value["status"] != "COPY-READY":
         raise OnboardingError("Campaign must use schema_version 1 and status COPY-READY")
@@ -390,9 +390,14 @@ def validate_campaign(value, *, allocate=False, now=None):
         raise OnboardingError("Destinations must declare supported providers and project-scoped aliases")
     if not isinstance(texts, dict) or set(texts) != set(destinations):
         raise OnboardingError("Each destination requires exactly one approved text")
+    identities=value.get('expected_identities')
+    if identities is not None and (not isinstance(identities,dict) or set(identities)!=set(destinations)):
+        raise OnboardingError('Expected identities must match the selected destinations')
     for provider, alias in destinations.items():
         _slug(alias, "account alias")
-        resolve_account(project_id, alias, expected_provider=provider)
+        resolved=resolve_account(project_id, alias, expected_provider=provider)
+        if identities is not None and (not isinstance(identities[provider],str) or identities[provider]!=resolved['account_id']):
+            raise OnboardingError('Approved stable destination identity changed')
         text = texts[provider]
         if not isinstance(text, str) or not text or text != text.strip() or len(text) > TEXT_LIMITS[provider]:
             raise OnboardingError(f"{provider} text must be nonempty, trimmed and at most {TEXT_LIMITS[provider]} characters")
@@ -419,7 +424,7 @@ def validate_campaign(value, *, allocate=False, now=None):
     elif allocate:
         raise OnboardingError("--allocate requires explicit allocation metadata in the input")
     manifest = {"campaign": cid, "project": project_id, "title": value["title"], "status": "COPY-READY",
-                "providers": sorted(destinations), "destinations": destinations, "source": source,
+                "providers": sorted(destinations), "destinations": ({p:{"account_alias":alias,"account_id":identities[p]} for p,alias in destinations.items()} if identities is not None else destinations), "source": source,
                 "allocation": allocation, "runtime_imported": True,
                 "payload_sha256": {p: hashlib.sha256(text.encode()).hexdigest() for p, text in texts.items()}}
     return manifest, texts

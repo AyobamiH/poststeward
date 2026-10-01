@@ -168,6 +168,14 @@ def runtime_token() -> str:
             "This PostSteward runtime is not paired. Run 'poststeward onboard'.",
             3,
         )
+    if not os.environ.get('POSTSTEWARD_RUNTIME_TOKEN') and value.get('token_expires_at') is not None:
+        try:
+            expired = float(value['token_expires_at']) <= time.time() * 1000
+        except (TypeError, ValueError):
+            expired = True
+        if expired:
+            raise CloudError('RUNTIME_PAIRING_EXPIRED',
+                "This machine's pairing token expired. Run 'poststeward onboard' and obtain fresh owner approval; publishing remains fenced.", 3)
     return token
 
 
@@ -318,7 +326,7 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
             print(json.dumps(value, indent=2, ensure_ascii=False))
             return value
         except CloudError as exc:
-            if exc.code != "RUNTIME_UNAUTHENTICATED":
+            if exc.code not in {"RUNTIME_UNAUTHENTICATED", "RUNTIME_PAIRING_EXPIRED"}:
                 raise
 
     _, started = _request(

@@ -59,7 +59,8 @@ def _provenance(root: Path) -> dict[str, Any] | None:
 
 
 def _services() -> dict[str, Any]:
-    if os.name != "posix" or shutil.which("systemctl") is None:
+    from ocpf_post.host_platform import service_controller
+    if os.name != "posix":
         return {
             "schema_version": 1,
             "status": "unavailable",
@@ -69,7 +70,7 @@ def _services() -> dict[str, Any]:
         return {
             "schema_version": 1,
             "status": "observed",
-            **SystemdServiceController().inspect(),
+            **service_controller().inspect(),
         }
     except Exception as exc:
         return {
@@ -122,6 +123,7 @@ def runtime_status() -> dict[str, Any]:
             key: value for key, value in marker.items() if key != "path"
         },
         "services": _services(),
+        "host": __import__('ocpf_post.host_platform', fromlist=['host']).host(),
         "setup": setup,
         "cloud": cloud,
         "provider_credentials_local": False,
@@ -308,6 +310,9 @@ def update(channel: str, *, dry_run: bool = False) -> int:
             channel,
             "--no-onboard",
         ]
+        from ocpf_post.installed_lifecycle import installation
+        _, prefix, binary = installation()
+        args.extend(['--prefix', str(prefix), '--bin-dir', str(binary)])
         if dry_run:
             args.append("--dry-run")
         result = subprocess.run(args, check=False)
@@ -354,6 +359,16 @@ def build_parser() -> argparse.ArgumentParser:
     update_parser.add_argument("--channel", choices=["stable", "beta"], default="stable")
     update_parser.add_argument("--dry-run", action="store_true")
 
+    for name in ('rollback', 'uninstall'):
+        lifecycle_parser = sub.add_parser(name)
+        lifecycle_parser.add_argument('--apply', action='store_true')
+        lifecycle_parser.add_argument('--expected-sha256')
+        lifecycle_parser.add_argument('--json', action='store_true')
+        if name == 'uninstall':
+            data = lifecycle_parser.add_mutually_exclusive_group(required=True)
+            data.add_argument('--retain-data', action='store_true')
+            data.add_argument('--delete-data', action='store_true')
+
     return parser
 
 
@@ -393,12 +408,18 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "update":
             return update(args.channel, dry_run=args.dry_run)
+        if args.command in {'rollback', 'uninstall'}:
+            from ocpf_post.installed_lifecycle import lifecycle
+            _emit(lifecycle(args.command, retain_data=not getattr(args, 'delete_data', False),
+                            apply=args.apply, expected_sha256=args.expected_sha256), args.json)
+            return 0
     except (
         ProductLifecycleError,
         CloudError,
         SetupEngineError,
         SetupStoreError,
         OSError,
+        ValueError,
         subprocess.SubprocessError,
     ) as exc:
         code = getattr(exc, "code", "POSTSTEWARD_LIFECYCLE_BLOCKED")

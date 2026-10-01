@@ -465,6 +465,9 @@ class SystemdServiceController:
 
     @staticmethod
     def _run(args: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None, timeout: int = 120) -> subprocess.CompletedProcess[str]:
+        if Path(args[0]).name == 'systemctl' and env is None:
+            from ocpf_post.systemd_services import manager_environment
+            env=manager_environment()
         return subprocess.run(args, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout, check=False)
 
     def inspect(self) -> dict[str, Any]:
@@ -484,17 +487,11 @@ class SystemdServiceController:
         }
 
     def stage(self, *, runtime_root: Path, state_root: Path, config_root: Path) -> dict[str, Any]:
-        env = dict(os.environ)
-        env.update({
-            "POST_ONCE_STATE_DIR": str(state_root),
-            "POST_ONCE_CONFIG_DIR": str(config_root),
-            "OCPF_POST_STAGE_ONLY": "1",
-        })
-        script = runtime_root / "scripts" / "install-user-portfolio-timer"
-        result = self._run(["sh", str(script)], cwd=runtime_root, env=env, timeout=180)
-        if result.returncode:
-            _fail("activation.systemd.stage_failed", "Could not stage PostSteward user units")
-        return {"status": "staged", "provider_consequence": False}
+        from ocpf_post.systemd_services import stage
+        try:
+            return stage(runtime_root=runtime_root, state_root=state_root, config_root=config_root)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            raise ActivationError('activation.systemd.stage_failed', 'Could not stage PostSteward user units') from exc
 
     def preflight(self, *, runtime_root: Path, state_root: Path, config_root: Path) -> dict[str, Any]:
         env = dict(os.environ)
@@ -688,7 +685,8 @@ class ActivationManager:
     ) -> None:
         self.store = store
         self.workspace = workspace
-        self.services = service_controller or SystemdServiceController()
+        from ocpf_post.host_platform import service_controller as select_service_controller
+        self.services = service_controller or select_service_controller()
 
     def _session_context(self, session_id: str | None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
         try:

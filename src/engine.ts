@@ -1,4 +1,5 @@
 import { billingPrice } from "./billing-mode.ts";
+import { Preparation, type PreparationOptions } from "./preparation.ts";
 import { byName, plans } from "./operations/catalog.ts";
 import { guardControlledPublication } from "./controlled.ts";
 import {
@@ -46,9 +47,12 @@ export interface EngineOptions {
   authorized: (actor: Actor) => Promise<boolean>;
   source: (profile: Profile) => Promise<{ sha: string }>;
   billing: BillingPort;
+  preparationEvidence?: PreparationOptions["evidence"];
+  preparationModel?: PreparationOptions["model"];
 }
 type Handler = (input: any, actor: Actor) => unknown | Promise<unknown>;
 export class Engine {
+  readonly preparation: Preparation;
   readonly handlers: Record<string, Handler>;
   private now: () => number;
   constructor(
@@ -58,10 +62,31 @@ export class Engine {
     private options: EngineOptions,
   ) {
     this.now = options.now || Date.now;
+    this.preparation = new Preparation(store, env, {
+      now: this.now,
+      wake: options.wake,
+      authorized: options.authorized,
+      evidence: options.preparationEvidence,
+      model: options.preparationModel,
+      handoff: (input) => this.createCampaign(input, input.id, input.source),
+    });
     this.handlers = {
+      model_status: () => this.preparation.status(),
+      model_connect: (i, a) => this.preparation.connect(i, a),
+      model_disconnect: (_i, a) => this.preparation.disconnect(a),
+      preparations_list: () => this.preparation.list(),
+      preparation_export: (i) => this.preparation.export(i.id),
+      preparation_archive: (i, a) => this.preparation.archive(i, a),
+      preparation_project_put: (i, a) => this.handlers.project_put(i, a),
+      preparation_create: (i, a) => this.preparation.create(i, a),
+      preparation_edit: (i, a) => this.preparation.edit(i, a),
+      preparation_regenerate: (i, a) => this.preparation.regenerate(i, a),
+      preparation_reject: (i) => this.preparation.reject(i),
+      preparation_approve: (i, a) => this.preparation.approve(i, a),
       workspace_status: (_input, actor) => ({
         workspace: actor.workspace,
         release: env.RELEASE_SHA,
+        preparationProjects: this.store.list<Project>("project:"),
         plan: this.paid() ? "advanced" : "free",
         entitlement: this.store.get("entitlement") || null,
         publishingPaused: this.paused(),
@@ -70,7 +95,17 @@ export class Engine {
           dailyDeliveryAttempts: Number(env.DAILY_DELIVERY_LIMIT),
           activeSchedules: Number(env.ACTIVE_SCHEDULE_LIMIT),
         },
-        prices: { ...plans, currency: billingPrice(env).currency, advanced: { ...plans.advanced, amount: billingPrice(env).amount, priceStatus: billingPrice(env).configured ? "configured" : "not_configured" } },
+        prices: {
+          ...plans,
+          currency: billingPrice(env).currency,
+          advanced: {
+            ...plans.advanced,
+            amount: billingPrice(env).amount,
+            priceStatus: billingPrice(env).configured
+              ? "configured"
+              : "not_configured",
+          },
+        },
       }),
       publishing_capabilities: () => {
         const accounts = this.store
@@ -189,39 +224,7 @@ export class Engine {
         return p;
       },
       projects_list: () => this.store.list<Project>("project:"),
-      campaign_create: async (i) => {
-        const p = this.get<Project>("project:", i.project);
-        requireValue(
-          Object.keys(i.text).length > 0,
-          "EMPTY_CAMPAIGN",
-          "Provide at least one destination.",
-        );
-        const text: Record<string, string> = {};
-        const publications: Record<string, FrozenPublication> = {};
-        for (const [alias, value] of Object.entries<string>(i.text)) {
-          requireValue(
-            p.accounts.includes(alias),
-            "ACCOUNT_NOT_BOUND",
-            "Campaign account is not bound to this project.",
-          );
-          const publication = await freezePublication(
-            this.connected(alias).provider,
-            value,
-          );
-          text[alias] = publication.text;
-          publications[alias] = publication;
-        }
-        const c: Campaign = {
-          id: uid(),
-          project: p.id,
-          text,
-          publications,
-          digest: await digest(text),
-          createdAt: this.now(),
-        };
-        this.store.put("campaign:" + c.id, c);
-        return c;
-      },
+      campaign_create: (i) => this.createCampaign(i),
       campaign_get: (i) => this.get<Campaign>("campaign:", i.campaign),
       campaign_validate: async (i) =>
         this.validate(this.get<Campaign>("campaign:", i.campaign)),
@@ -407,6 +410,7 @@ export class Engine {
           .slice(0, i.limit)
           .map((d) => this.publicDelivery(d)),
       workspace_export: () => ({
+        preparations: this.preparation.list(),
         projects: this.store.list("project:"),
         campaigns: this.store.list("campaign:"),
         receipts: this.deliveries().map((d) => this.publicDelivery(d)),
@@ -494,6 +498,55 @@ export class Engine {
       billing_checkout: (i, a) => this.options.billing.checkout(i, a),
       billing_portal: (i, a) => this.options.billing.portal(i, a),
     };
+  }
+  private async createCampaign(
+    i: any,
+    id: string = uid(),
+    source?: Campaign["source"],
+  ): Promise<Campaign> {
+    const p = this.get<Project>("project:", i.project);
+    requireValue(
+      Object.keys(i.text).length > 0,
+      "EMPTY_CAMPAIGN",
+      "Provide at least one destination.",
+    );
+    const text: Record<string, string> = {};
+    const publications: Record<string, FrozenPublication> = {};
+    for (const [alias, value] of Object.entries<string>(i.text)) {
+      requireValue(
+        p.accounts.includes(alias),
+        "ACCOUNT_NOT_BOUND",
+        "Campaign account is not bound to this project.",
+      );
+      const publication = await freezePublication(
+        this.connected(alias).provider,
+        value,
+      );
+      text[alias] = publication.text;
+      publications[alias] = publication;
+    }
+    const c: Campaign = {
+      id,
+      project: p.id,
+      text,
+      publications,
+      digest: await digest(text),
+      createdAt: this.now(),
+      ...(source ? { source } : {}),
+    };
+    return this.store.tx(() => {
+      const previous = this.store.get<Campaign>("campaign:" + id);
+      requireValue(
+        !previous ||
+          (previous.digest === c.digest && previous.project === c.project),
+        "CAMPAIGN_HANDOFF_CHANGED",
+        "The immutable handoff identity already has different content.",
+        409,
+      );
+      if (previous) return previous;
+      this.store.put("campaign:" + id, c);
+      return c;
+    });
   }
   get<T>(prefix: string, id: string): T {
     const result = this.store.get<T>(prefix + id);
