@@ -143,12 +143,15 @@ const forbidden = [];
 const errors = [];
 const browser = await chromium.launch({ headless: true });
 async function check(name, run) {
+  if (process.env.POSTSTEWARD_BROWSER_CHECK && !new RegExp(process.env.POSTSTEWARD_BROWSER_CHECK).test(name)) return;
   try {
     await run();
     checks.push({ name, passed: true });
+    console.log("PASS " + name);
   } catch (error) {
     failures.push({ name, error: String(error) });
     checks.push({ name, passed: false });
+    console.error("FAIL " + name + ": " + String(error));
   }
 }
 async function audit(page) {
@@ -332,11 +335,13 @@ try {
         if (path === "/app") {
           const providerGeometry = await page.locator(".ux-provider-card").evaluateAll(cards => cards.map(card => ({width:card.getBoundingClientRect().width, scroll:card.scrollWidth, children:[...card.querySelectorAll("*")].map(child=>({right:child.getBoundingClientRect().right,parentRight:card.getBoundingClientRect().right}))})));
           assert.ok(providerGeometry.every(card=>card.scroll <= card.width + 1 && card.children.every(child=>child.right<=child.parentRight+1)), "Provider content must stay inside its card");
-          assert.match(await page.locator("#advanced-heading").innerText(), /GBP price to be confirmed/);
+          assert.match(await page.locator("#advanced-heading").textContent(), /GBP price to be confirmed/);
           assert.match(await page.locator("#runtime-executor-status").textContent(), /Executor hosted · generation 1/);
           assert.equal(await page.locator("#runtime-use-local").isDisabled(), true);
           assert.equal(await page.locator("#runtime-use-hosted").isDisabled(), true);
           assert.equal(await page.locator("#receipts > .record").count(), 10);
+          await page.goto(origin + "/app#evidence-panel");
+          await page.waitForLoadState("networkidle");
           await page
             .locator("#ux-receipt-filter")
             .selectOption("ambiguous_effect");
@@ -344,7 +349,7 @@ try {
             await page.locator("#receipts > .record:visible").count(),
             1,
           );
-          assert.match(await page.locator("#grants").innerText(), /Expired/);
+          assert.match(await page.locator("#grants").textContent(), /Expired/);
           assert.equal(await page.locator("#receipts img").count(), 0);
           await page.locator("#ux-receipt-search").fill("no-match-at-all");
           assert.equal(
@@ -449,7 +454,7 @@ try {
     await page.waitForFunction(()=>document.activeElement.id === 'accounts-heading');
     assert.equal(new URL(page.url()).hash, '#destinations');
     assert.equal(await page.locator('#accounts-heading').evaluate(el=>el===document.activeElement),true);
-    assert.equal(await page.locator('#runtime-settings').getAttribute('open'), null);
+    assert.equal(await page.locator('[data-workspace-view=runtime]').isVisible(), false);
     await page.screenshot({path:'ux-evidence/workspace-empty.png',fullPage:true}); await context.close();
   });
   await check('Direct local-settings links open disclosure, focus target and survive refresh', async () => {
@@ -580,18 +585,18 @@ try {
     const context=await ownerContext({'/api/operations/accounts_list':accounts});const page=await context.newPage();
     for(const width of [360,1024,1440]) {
       await page.setViewportSize({width,height:600});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
-      assert.equal(await page.locator('#project-select').isVisible(),true);assert.equal(await page.locator('.project-library').getAttribute('open'),null);
-      await page.locator('#accounts details').evaluateAll(nodes=>nodes.forEach(e=>e.open=true));await page.locator('.project-library summary').click();
+      assert.equal(await page.locator('#project-select').isVisible(),false);assert.equal(await page.locator('.project-library').getAttribute('open'),null);await page.goto(origin+'/app#destinations');await page.waitForLoadState('networkidle');
+      await page.locator('#accounts details').evaluateAll(nodes=>nodes.forEach(e=>e.open=true));
       assert.equal(await page.locator('#projects .record').count(),fixture['/api/operations/projects_list'].length);assert.match(await page.locator('#accounts').innerText(),/Stable author ID/);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
-      await page.locator('#publishing').evaluate(e=>e.scrollIntoView({block:'start'}));const firstInput=page.locator('#project input').first();await firstInput.focus();assert.equal(await firstInput.evaluate(e=>{const r=e.getBoundingClientRect(),h=document.querySelector('header').getBoundingClientRect();return r.top>=h.bottom&&r.right<=innerWidth&&r.height>=44;}),true);
+      await page.goto(origin+'/app#project');await page.waitForLoadState('networkidle');await page.locator('.project-library summary').click();await page.locator('#publishing').evaluate(e=>e.scrollIntoView({block:'start'}));const firstInput=page.locator('#project input').first();await firstInput.focus();assert.equal(await firstInput.evaluate(e=>{const r=e.getBoundingClientRect(),h=document.querySelector('header').getBoundingClientRect();return r.top>=h.bottom&&r.right<=innerWidth&&r.height>=44;}),true);
     }await context.close();
   });
 
   await check('Short desktop sidebar and hash targets preserve visible keyboard focus', async () => {
     const context=await ownerContext();const page=await context.newPage();await page.setViewportSize({width:1024,height:600});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
     const last=page.locator('.product-nav a').last();await last.focus();assert.equal(await last.evaluate(e=>{const r=e.getBoundingClientRect();return document.activeElement===e&&r.top>=0&&r.bottom<=innerHeight;}),true);
-    await page.locator('.product-nav a[href="/app#publishing"]').click();await page.waitForFunction(()=>document.activeElement.id==='publishing-heading');assert.equal(await page.locator('#publishing-heading').evaluate(e=>e.getBoundingClientRect().top>=document.querySelector('header').getBoundingClientRect().bottom),true);await context.close();
+    await page.locator('.product-nav a[href="/app#publishing"]').click();await page.waitForFunction(()=>document.activeElement.id==='destination-heading');assert.equal(await page.locator('#destination-heading').evaluate(e=>e.getBoundingClientRect().top>=document.querySelector('header').getBoundingClientRect().bottom),true);await context.close();
   });
   await check('Campaign review success and lengthy validation failure stay adjacent and preserve exact copy', async () => {
     const text='Synthetic approved copy 東京 café. '+('https://example.invalid/path/').repeat(35),calls=[];
@@ -602,7 +607,7 @@ try {
       });const page=await context.newPage();
       for(const width of [360,1024,1440]) {
         await page.setViewportSize({width,height:600});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
-        await page.locator('#campaign textarea').fill(text);await page.locator('#campaign button').click();await page.waitForFunction(()=>!document.getElementById('campaign').querySelector('button').disabled);
+        await page.goto(origin+'/app#campaign');await page.waitForLoadState('networkidle');await page.locator('#campaign textarea').fill(text);await page.locator('#campaign button').click();await page.waitForFunction(()=>!document.getElementById('campaign').querySelector('button').disabled);
         await page.waitForFunction(expected=>document.getElementById('result').textContent.includes(expected),failure?'Synthetic validation failure':'Campaign stored and validated');
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.equal(await page.locator('#delivery').isVisible(),!failure);
         if(!failure)assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+text);
@@ -610,6 +615,74 @@ try {
         await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:true});
       }await context.close();
     }assert.equal(calls.length,12); // Synthetic responses only; delivery is never submitted.
+  });
+
+  await check('Focused workspace routes expose one task with readable responsive controls', async () => {
+    const context = await ownerContext();
+    const page = await context.newPage();
+    const routes = [['destinations','accounts'],['publishing','publishing'],['release-preparation','publishing'],['campaign','publishing'],['delivery','publishing'],['evidence-panel','results'],['agent-access','agents'],['sources','sources'],['advanced','billing'],['profile','automation'],['runtime-authority-panel','runtime'],['recovery-safety','recovery']];
+    for (const width of [390,768,1280,1920]) {
+      await page.setViewportSize({width,height:1000});
+      for (const [hash,view] of routes) {
+        await page.goto(origin + '/app#' + hash);
+        await page.waitForLoadState('networkidle');
+        assert.deepEqual(await page.locator('.workspace-view:visible').evaluateAll(nodes=>nodes.map(node=>node.dataset.workspaceView)),[view]);
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,hash + ' must fit at ' + width);
+        assert.deepEqual(await audit(page),[],hash + ' accessibility');
+        if (view==='publishing') assert.equal(await page.locator('.publishing-step:visible').count(),1);
+      }
+      await page.goto(origin+'/app#campaign');await page.waitForLoadState('networkidle');
+      await page.locator('#campaign textarea').fill('Synthetic layout preview. Exact copy stays visible beside the editor.');
+      assert.match(await page.locator('.workspace-preview-text').innerText(),/Exact copy stays visible/);
+      await page.screenshot({path:`ux-evidence/focused-review-${width}.png`,fullPage:true});
+    }
+    await context.close();
+  });
+  await check('Publishing navigation and refresh preserve drafts, destinations and form ownership', async () => {
+    let submitted;
+    const context=await ownerContext({
+      '/api/operations/campaign_create':route=>{submitted=route.request().postDataJSON();return route.fulfill({json:{id:'synthetic-focused-campaign',text:submitted.text}});},
+      '/api/operations/campaign_validate':{valid:true},
+    });
+    const page=await context.newPage();await page.setViewportSize({width:1440,height:900});
+    await page.goto(origin+'/app#publishing');await page.waitForLoadState('networkidle');
+    const project=await page.locator('#project-select option').nth(1).getAttribute('value');
+    const alias=await page.locator('#account-select option').nth(1).getAttribute('value');
+    await page.locator('#project-select').selectOption(project);await page.locator('#account-select').selectOption(alias);
+    assert.equal(await page.locator('#project-select').evaluate(el=>el.form.id),'campaign');
+    assert.equal(await page.locator('#account-select').evaluate(el=>el.form.id),'campaign');
+    await page.locator('.project-setup > summary').click();await page.locator('#refresh').click();
+    await page.waitForFunction(()=>!document.getElementById('refresh').hasAttribute('aria-disabled'));
+    assert.equal(await page.locator('.project-setup').getAttribute('open'),'');
+    await page.locator('[data-publishing-step=review]').click();await page.locator('#campaign textarea').fill('Preserve this exact synthetic owner copy.');
+    await page.locator('[data-publishing-step=prepare]').click();await page.locator('[data-publishing-step=review]').click();
+    assert.equal(await page.locator('#campaign textarea').inputValue(),'Preserve this exact synthetic owner copy.');
+    await page.locator('.product-nav a[href="/app#sources"]').click();await page.goBack();
+    await page.locator('#refresh').click();await page.waitForFunction(()=>!document.getElementById('refresh').hasAttribute('aria-disabled'));
+    assert.equal(await page.locator('#project-select').inputValue(),project);assert.equal(await page.locator('#account-select').inputValue(),alias);
+    await page.locator('#campaign button').click();await page.waitForFunction(()=>location.hash==='#delivery');
+    assert.equal(submitted.project,project);assert.deepEqual(submitted.text,{[alias]:'Preserve this exact synthetic owner copy.'});
+    assert.equal(await page.locator('#delivery').isVisible(),true);
+    assert.match(await page.locator('#campaign-preview').innerText(),/Preserve this exact synthetic owner copy/);
+    await page.locator('[data-publishing-step=review]').click();await page.locator('#campaign textarea').fill('A changed draft requires another validation.');
+    await page.locator('[data-publishing-step=schedule]').click();
+    assert.equal(await page.locator('#delivery').isVisible(),false);assert.equal(await page.locator('#campaign-preview').isVisible(),false);
+    await context.close();
+  });
+  await check('Editing during validation cannot expose an obsolete campaign for delivery', async () => {
+    let completeValidation, signalValidation;
+    const validationStarted=new Promise(resolve=>{signalValidation=resolve;});
+    const context=await ownerContext({
+      '/api/operations/campaign_create':route=>route.fulfill({json:{id:'synthetic-pending-campaign',text:{fixture_x:'Original synthetic draft.'}}}),
+      '/api/operations/campaign_validate':route=>new Promise(resolve=>{completeValidation=()=>route.fulfill({json:{valid:true}}).then(resolve);signalValidation();}),
+    });
+    const page=await context.newPage();await page.goto(origin+'/app#campaign');await page.waitForLoadState('networkidle');
+    await page.locator('#campaign textarea').fill('Original synthetic draft.');
+    await page.locator('#campaign button').click();await validationStarted;
+    await page.locator('#campaign textarea').fill('Changed while validation was pending.');
+    await completeValidation();await page.waitForFunction(()=>document.getElementById('result').textContent.includes('draft changed during validation'));
+    assert.equal(new URL(page.url()).hash,'#campaign');assert.equal(await page.locator('#delivery').isVisible(),false);
+    await context.close();
   });
 
   const preparationStatus={configured:true,authentication:'unverified',limits:{maxJobsPerDay:2},usage:{jobs:1,inputTokens:100,outputTokens:50,estimatedUsd:null}};
@@ -624,7 +697,7 @@ try {
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture]});const page=await context.newPage();
     for(const width of [360,1024,1440]) {
       await page.setViewportSize({width,height:900});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
-      await page.locator('#preparation-refresh').click();await page.locator('#preparation-jobs article').waitFor();
+      await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();await page.locator('#preparation-jobs article').waitFor();
       await page.locator('#preparation-jobs details').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
       assert.match(await page.locator('#preparation-jobs').innerText(),/img src=x onerror/);
       assert.equal(await page.evaluate(()=>window.unsafe),undefined);
@@ -638,7 +711,7 @@ try {
       drafts:[{...preparationFixture.drafts[0],text:'Synthetic acceptance test. The fixture describes a diagnostic timeline; this is not a deployed feature.',rationale:'Retained original benefit interpretation.',claims:[{claim:'Earlier hypothetical readability benefit',sources:[{evidence:'release',quote:'Adds a diagnostic timeline.'}]}]}],
       critique:{acceptableForOwnerReview:false,issues:[{alias:'fixture_x',category:'unsupported_claim',detail:'Controlled blocked check.'}],summary:'Owner recheck required.'}};
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[revised]});
-    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
     const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
     assert.equal(await article.getByLabel('Exact channel text').inputValue(),revised.drafts[0].text);
     const notes=article.locator('details').filter({has:page.getByText('Original generation notes and source annotations',{exact:true})}).last();
@@ -656,7 +729,7 @@ try {
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,
       '/api/operations/preparations_list':route=>route.fulfill({json:jobs}),
       '/api/operations/preparation_regenerate':()=>{paid++;throw new Error('No paid call expected');}});
-    const page=await context.newPage();await page.setViewportSize({width:375,height:900});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const page=await context.newPage();await page.setViewportSize({width:375,height:900});await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
     const card=page.locator(`#preparation-jobs article[data-job-id="${old.id}"]`);await card.waitFor();await card.locator('details').first().evaluate(node=>node.open=true);
     const input=card.getByLabel('Exact channel text');await input.fill('Keep this unsaved owner copy through sorting.');await input.focus();await input.evaluate(node=>node.setSelectionRange(5,12));
     jobs=[old,fresh];await page.evaluate(()=>document.getElementById('preparation-refresh').click());
@@ -664,7 +737,7 @@ try {
     assert.deepEqual(await page.locator('#preparation-jobs article').evaluateAll(nodes=>nodes.map(node=>node.dataset.jobId)),[fresh.id,old.id]);
     assert.equal(await input.inputValue(),'Keep this unsaved owner copy through sorting.');
     assert.deepEqual(await input.evaluate(node=>({focused:document.activeElement===node,start:node.selectionStart,end:node.selectionEnd})),{focused:true,start:5,end:12});
-    const newest=page.locator('#preparation-jobs article').first();assert.match(await newest.locator('.preparation-identity').innerText(),/Latest activity/);
+    const newest=page.locator('#preparation-jobs article').first();await newest.locator('.preparation-entry').evaluate(node=>node.open=true);assert.match(await newest.locator('.preparation-identity').innerText(),/Latest activity/);
     assert.match(await newest.locator('.preparation-identity').innerText(),new RegExp(fresh.id));
     assert.deepEqual(await newest.locator('time').evaluateAll(nodes=>nodes.map(node=>node.dateTime)),[new Date(fresh.createdAt).toISOString(),new Date(fresh.updatedAt).toISOString()]);
     jobs=[fresh,{...old,updatedAt:start+3000}];await page.evaluate(()=>document.getElementById('preparation-refresh').click());
@@ -673,6 +746,8 @@ try {
     assert.deepEqual(await input.evaluate(node=>({focused:document.activeElement===node,start:node.selectionStart,end:node.selectionEnd})),{focused:true,start:5,end:12});
     assert.match(await card.locator('.preparation-identity').innerText(),/Latest activity/);
     assert.equal(await card.locator('time').last().getAttribute('datetime'),new Date(start+3000).toISOString());
+    assert.match(await card.locator('.preparation-entry > summary').innerText(),/Unsaved edits from revision 1/);
+    assert.match(await card.locator('.preparation-entry > summary').innerText(),/Last activity:/);
     assert.equal(await page.evaluate(()=>!!(document.getElementById('preparation-jobs').compareDocumentPosition(document.getElementById('preparation-create'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
     assert.deepEqual(await audit(page),[]);assert.equal(paid,0);await page.screenshot({path:'ux-evidence/preparation-identical-cards-mobile.png',fullPage:true});await context.close();
@@ -688,7 +763,7 @@ try {
       '/api/operations/preparation_regenerate':()=>{paid++;throw new Error('No regeneration expected');},
       '/api/operations/preparation_approve':()=>{approvals++;throw new Error('No approval expected');}});
     const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
-    await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();
+    await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();
     await article.locator('details').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
     assert.match(await article.innerText(),/State: Needs more context/);
     assert.match(await article.innerText(),/Editorial policy unrecorded; execution release unrecorded/);
@@ -701,7 +776,7 @@ try {
     let approvals=0;
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture],
       '/api/operations/preparation_approve':route=>{approvals++;return route.fulfill({json:preparationFixture});}});
-    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
     const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
     await article.getByLabel('Exact channel text').fill('My unsaved owner edit must survive a status refresh.');
     await page.locator('#preparation-refresh').click();await page.waitForTimeout(100);
@@ -722,10 +797,12 @@ try {
     const page=await context.newPage();
     for(const [width,scheme] of [[1916,'light'],[1440,'light'],[1024,'dark'],[360,'light'],[320,'dark']]) {
       await page.setViewportSize({width,height:994});await page.emulateMedia({colorScheme:scheme});
-      await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+      await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
       const card=page.locator('#preparation-jobs article');await card.waitFor();
+      assert.equal(await card.locator('.preparation-entry').getAttribute('open'),null);
+      await card.locator('.preparation-entry > summary').click();
       const bounds=await page.evaluate(()=>{
-        const grid=document.querySelector('.work-zone-grid').getBoundingClientRect();
+        const grid=document.querySelector('[data-publishing-panel=prepare]').getBoundingClientRect();
         const panel=document.getElementById('release-preparation').getBoundingClientRect();
         const copy=document.querySelector('.preparation-copy-panel').getBoundingClientRect();
         const check=document.querySelector('.preparation-check').getBoundingClientRect();
@@ -748,9 +825,9 @@ try {
     }
     await page.setViewportSize({width:1440,height:994});
     job={...preparationFixture,critique:{acceptableForOwnerReview:false,summary:'A source assertion needs correction.',issues:[{alias:'fixture_x',category:'unsupported_claim',detail:'The current copy claims a launch date not present in the sources.'}]},digest:undefined};
-    await page.locator('#preparation-refresh').click();
+    await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
     await page.waitForFunction(()=>document.querySelector('.preparation-check').textContent.includes('Changes need review'));
-    const card=page.locator('#preparation-jobs article');assert.match(await card.locator('.preparation-check').innerText(),/Changes need review/);
+    const card=page.locator('#preparation-jobs article');await card.locator('.preparation-entry').evaluate(node=>node.open=true);assert.match(await card.locator('.preparation-check').innerText(),/Changes need review/);
     assert.match(await card.locator('.preparation-check').innerText(),/launch date/);
     await card.getByLabel('Exact channel text',{exact:true}).fill('An unsaved correction.');
     await card.getByRole('button',{name:'Check current saved drafts',exact:true}).click();
@@ -770,7 +847,7 @@ try {
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[],
       '/api/operations/model_connect':route=>{const input=route.request().postDataJSON();assert.equal(input.apiKey,'synthetic-owner-model-key');assert.equal(input.allowAgents,false);connections++;return route.fulfill({json:preparationStatus});}});
     const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
-    await page.locator('#release-preparation > details').evaluate(node=>node.open=true);
+    await page.goto(origin+'/app#preparation-model');await page.waitForLoadState('networkidle');await page.locator('#preparation-model').evaluate(node=>node.closest('details').open=true);
     const input=page.locator('#preparation-model input[name="apiKey"]');assert.equal(await input.getAttribute('type'),'password');await input.fill('synthetic-owner-model-key');
     await page.locator('#preparation-model button').click();await page.waitForFunction(()=>document.getElementById('result').textContent.includes('Encrypted OpenAI settings saved'));
     assert.equal(await input.inputValue(),'');assert.equal(connections,1);assert.ok(!(await page.locator('body').innerText()).includes('synthetic-owner-model-key'));await context.close();
@@ -780,7 +857,7 @@ try {
     const context=await ownerContext({'/api/operations/model_status':{configured:false,usage:{}},'/api/operations/preparations_list':[],
       '/api/operations/model_connect':route=>{const input=route.request().postDataJSON();assert.equal(input.routing.primary.provider,'cloudflare_gateway');assert.equal(input.routing.primary.funding,'gateway_credits');assert.equal(input.routing.accountId,'a'.repeat(32));assert.equal(input.routing.primary.gatewayId,'acceptance');assert.deepEqual(input.routing.fallbacks,[]);assert.equal(input.routing.maxDailyUsd,1);assert.equal(input.allowAgents,false);assert.equal(input.apiKey,'synthetic-inference-credential');assert.equal(input.inspectionToken,'synthetic-readonly-credential');connections++;return route.fulfill({json:{configured:false,usage:{}}});}});
     const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
-    await page.locator('#release-preparation > details').evaluate(node=>node.open=true);
+    await page.goto(origin+'/app#preparation-model');await page.waitForLoadState('networkidle');await page.locator('#preparation-model').evaluate(node=>node.closest('details').open=true);
     const form=page.locator('#preparation-model');await form.locator('[name="modelProvider"]').selectOption('cloudflare_gateway');
     assert.equal(await form.locator('[name="fallbackProvider"]').inputValue(),'');
     assert.equal(await form.locator('[name="funding"]').inputValue(),'gateway_credits');
@@ -800,7 +877,7 @@ try {
       '/api/operations/campaign_get':campaign,'/api/operations/campaign_validate':{valid:true}});
     // The library changes only after the synthetic approval response.
     await context.route('**/api/operations/preparations_list',route=>route.fulfill({json:[approvals?approved:preparationFixture]}));
-    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();
     const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
     const button=article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true});assert.equal(await button.isDisabled(),true);
     await article.getByLabel(/I reviewed each included variant/).check();await button.click();
@@ -824,7 +901,7 @@ try {
     assert.equal(await page.locator('#workspace-content').isVisible(),true);assert.equal(await page.locator('#local-delivery-note').isVisible(),true);
     assert.equal(await page.locator('#campaign').isVisible(),false);assert.equal(await page.locator('#receipts').isVisible(),false);
     assert.ok(await page.locator('#preparation-project option').count()>0);
-    await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
+    await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
     await article.getByLabel(/I reviewed each included variant/).check();await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).click();
     await page.waitForFunction(()=>document.getElementById('result').textContent.includes('poststeward preparation import'));
     assert.equal(approvals,1);assert.equal(await page.locator('#delivery').isVisible(),false);

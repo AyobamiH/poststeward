@@ -219,6 +219,11 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         existing
           .querySelector(".preparation-identity")
           .replaceWith(identity(job, index === 0));
+        existing
+          .querySelector(".preparation-entry > summary")
+          .replaceWith(
+            preparationSummary(job, Number(existing.dataset.revision)),
+          );
         rendered.set(job.id, existing);
         const note = existing.querySelector(".edit-notice");
         note.textContent =
@@ -284,6 +289,43 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     await refresh();
     return result;
   }
+  function preparationSummary(job, unsavedRevision) {
+    const summary = element(
+      "summary",
+      `${job.selection.repository} · ${job.selection.releaseTag}`,
+    );
+    const status = element(
+      "span",
+      `${job.error?.code === "PREPARATION_CONTEXT_REQUIRED" ? "Needs more context" : job.status.replaceAll("_", " ")} · revision ${job.revision} · Open preparation`,
+    );
+    status.className = "muted";
+    summary.append(status);
+    const lastActivity = activity(job);
+    if (lastActivity) {
+      const updated = element(
+        "span",
+        `Last activity: ${new Date(lastActivity).toLocaleString("en-GB", { timeZoneName: "short" })}`,
+      );
+      updated.className = "muted";
+      summary.append(updated);
+    }
+    if (unsavedRevision !== undefined) {
+      const unsaved = element(
+        "span",
+        `Unsaved edits from revision ${unsavedRevision}`,
+      );
+      unsaved.className = "muted preparation-unsaved";
+      summary.append(unsaved);
+    }
+    return summary;
+  }
+  function compactPreparation(article, job) {
+    const entry = element("details");
+    entry.className = "preparation-entry";
+    entry.append(preparationSummary(job), ...article.childNodes);
+    article.append(entry);
+    return article;
+  }
   function render(job, latest) {
     const article = element("article");
     article.className = "record preparation-card";
@@ -296,6 +338,12 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     const markDirty = (input) => {
       input.addEventListener("input", () => {
         article.dataset.dirty = "true";
+        const summary = article.querySelector(".preparation-entry > summary");
+        if (summary && !summary.querySelector(".preparation-unsaved")) {
+          const unsaved = element("span", "Unsaved edits");
+          unsaved.className = "muted preparation-unsaved";
+          summary.append(unsaved);
+        }
         notice.textContent =
           "Unsaved edits. Save and check them before approval.";
       });
@@ -422,7 +470,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       control(article, "Reject preparation", () =>
         mutate("preparation_reject", base),
       );
-      return article;
+      return compactPreparation(article, job);
     }
     const mutable = !["approved", "handed_off"].includes(job.status);
     const strategy = job.strategy ? structuredClone(job.strategy) : undefined;
@@ -723,7 +771,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         onHandoff(job),
       );
     }
-    return article;
+    return compactPreparation(article, job);
   }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && hasPending && !polling) action(refresh);

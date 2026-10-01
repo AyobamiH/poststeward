@@ -1,0 +1,299 @@
+/* Focused owner workspace. Shared tokens come from style.css. */
+.focused-workspace .product-page {
+  max-width: 1280px;
+  margin-inline: 0;
+  padding: 32px;
+}
+.focused-workspace .product-page-header {
+  gap: 24px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+}
+.focused-workspace .product-page-header #plan {
+  font-size: 28px;
+  line-height: 36px;
+  margin-top: 4px;
+  letter-spacing: -0.025em;
+}
+.focused-workspace .product-page-header .eyebrow {
+  margin: 0;
+}
+.focused-workspace .page-state-row:empty {
+  display: none;
+}
+.focused-workspace #session-notice {
+  font-size: 13px;
+  padding: 8px 12px;
+  margin: 0 0 8px;
+}
+.focused-workspace .workspace-plan {
+  margin: 0 0 24px;
+  font-size: 13px;
+}
+.workspace-view {
+  min-width: 0;
+}
+.workspace-view > .work-zone {
+  border: 0;
+  padding: 0;
+}
+.workspace-view > .work-pane,
+.workspace-view > section:not(.work-zone):not(.publishing-step),
+.workspace-view > details {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.workspace-view[data-workspace-view="agents"],
+.workspace-view[data-workspace-view="runtime"],
+.workspace-view[data-workspace-view="sources"],
+.workspace-view[data-workspace-view="automation"] {
+  max-width: 760px;
+}
+.workspace-view form:not(#campaign):not(#preparation-create) {
+  max-width: 680px;
+}
+.workspace-view label {
+  font-size: 14px;
+  gap: 8px;
+}
+.focused-workspace input:not([type="checkbox"]):not([type="radio"]),
+.focused-workspace select {
+  min-height: 44px;
+  font-size: 16px;
+}
+.focused-workspace textarea {
+  font-size: 16px;
+}
+.focused-workspace label:has(> input[type="checkbox"]),
+.focused-workspace label:has(> input[type="radio"]) {
+  display: flex;
+  align-items: flex-start;
+  min-height: 44px;
+  gap: 10px;
+  padding-block: 10px;
+  font-weight: 450;
+}
+.focused-workspace input[type="checkbox"],
+.focused-workspace input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex: none;
+  padding: 0;
+  margin: 2px 0 0;
+}
+.publishing-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.publishing-steps a {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 12px 16px;
+  font-size: 14px;
+  text-decoration: none;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+}
+.publishing-steps a[aria-current] {
+  background: var(--bg-inverse);
+  color: var(--text-inverse);
+  border-color: var(--bg-inverse);
+  font-weight: 650;
+}
+.publishing-step {
+  min-width: 0;
+}
+.publishing-step[data-publishing-panel="destination"],
+.publishing-step[data-publishing-panel="schedule"] {
+  max-width: 760px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: 24px;
+}
+.publishing-step h2 {
+  margin-top: 0;
+  font-size: 20px;
+  line-height: 28px;
+}
+.destination-fields {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0 16px;
+}
+.project-setup {
+  margin: 24px 0;
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+.project-setup .work-pane {
+  padding: 16px 0 0;
+  background: transparent;
+}
+.project-setup .work-pane h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.publishing-step > .work-pane {
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  padding: 24px;
+}
+.publishing-step > .button {
+  margin-bottom: 16px;
+}
+.workspace-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+.workspace-editor-grid #campaign {
+  margin-top: 0;
+}
+.workspace-post-preview {
+  min-width: 0;
+  padding: 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+}
+.workspace-post-preview h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.workspace-post-preview .muted {
+  font-size: 13px;
+}
+.workspace-preview-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+}
+.focused-workspace #campaign-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.focused-workspace #release-preparation #preparation-create {
+  max-width: 680px;
+  grid-template-columns: 1fr;
+}
+.focused-workspace #release-preparation > p {
+  max-width: 76ch;
+}
+.focused-workspace #release-preparation .preparation-new {
+  margin-top: 24px;
+}
+.focused-workspace .preparation-card > .preparation-entry > summary {
+  padding: 8px 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.focused-workspace .preparation-entry > summary .muted {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+  font-size: 13px;
+}
+.focused-workspace .preparation-entry:not([open]) .edit-notice:not(:empty) {
+  display: block;
+}
+.focused-workspace #workspace-next-step {
+  margin: 0 0 24px;
+}
+.focused-workspace .task-links {
+  margin: 0 0 24px;
+}
+.focused-workspace .workspace-overview-panel h2 {
+  margin-top: 0;
+  font-size: 20px;
+}
+.focused-workspace #runtime-settings > summary {
+  display: none;
+}
+.focused-workspace #runtime-settings .work-pane {
+  padding: 0;
+}
+.focused-workspace .workspace-view .zone-header {
+  padding: 24px;
+}
+.focused-workspace .workspace-view .zone-body {
+  padding: 24px;
+}
+.focused-workspace .workspace-view #advanced-heading {
+  font-size: 20px;
+}
+@media (max-width: 1120px) {
+  .workspace-editor-grid {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+@media (max-width: 1000px) {
+  .workspace-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .focused-workspace .product-page {
+    padding: 24px 20px;
+  }
+}
+@media (max-width: 600px) {
+  .focused-workspace .product-page {
+    padding: 20px 16px;
+  }
+  .focused-workspace .product-page-header #plan {
+    font-size: 24px;
+    line-height: 32px;
+  }
+  .publishing-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .publishing-steps a {
+    padding: 10px 12px;
+  }
+  .workspace-view > .work-pane,
+  .workspace-view > section:not(.work-zone):not(.publishing-step),
+  .workspace-view > details,
+  .publishing-step > .work-pane,
+  .publishing-step[data-publishing-panel="destination"],
+  .publishing-step[data-publishing-panel="schedule"],
+  .focused-workspace .workspace-view .zone-header,
+  .focused-workspace .workspace-view .zone-body {
+    padding: 16px;
+  }
+}
+
+.preparation-field-group {
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
+.preparation-field-group legend {
+  font-size: 16px;
+  font-weight: 650;
+  padding-inline: 8px;
+}
+.preparation-field-group p {
+  margin: 0;
+}
+.preparation-source-options[open] {
+  display: grid;
+  gap: 20px;
+}
+.focused-workspace #preparation-create {
+  gap: 24px;
+}
