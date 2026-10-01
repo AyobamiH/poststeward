@@ -89,6 +89,9 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
                     print(unit,observed.stdout,observed.stderr)
                 raise
             assert not any(x['active'] for x in manager.disarm()['timers'])
+            # Reactivation follows the product's stage -> arm protocol again.
+            # systemd disable removes external links for custom XDG roots.
+            manager.stage(runtime_root=runtime,state_root=state_root,config_root=config_root)
             assert manager.arm()['all_active']
             # Start one real guarded worker now rather than infer execution from timer enablement.
             worker=manager._run(['systemctl','--user','start','poststeward-run-due.service'],timeout=30)
