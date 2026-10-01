@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Engine } from "../src/engine.ts";
 import { Fault } from "../src/common.ts";
-import { openAIModel, MAX_INPUT_BYTES } from "../src/preparation-model.ts";
+import {
+  openAIModel,
+  MAX_INPUT_BYTES,
+  PREPARATION_EDITORIAL_VERSION,
+} from "../src/preparation-model.ts";
 import { strategySchema } from "../src/preparation-contracts.ts";
 import { credentialInventory } from "../src/root-rotation-inventory.ts";
 import { invalidateRestoredAuthority } from "../src/recovery-local.ts";
@@ -246,6 +250,45 @@ test("a requested comparison preserves its baseline in model material", async ()
   assert.equal(result.drafts, undefined);
   assert.deepEqual(h.stages, ["interpret"]);
   assert.equal(h.calls.publish, 0);
+});
+
+test("an unnecessary model-reported integration gap remains visible and cannot silently bypass the context gate", async () => {
+  const h = await fixture({
+    model: async () => ({
+      value: {
+        ...structuredClone(strategy),
+        missingContext: [
+          "No information on how the CSV export integrates with existing incident management tools.",
+        ],
+      },
+      inputTokens: 1540,
+      outputTokens: 386,
+      latencyMs: 12500,
+    }),
+  });
+  const job = await h.complete();
+  assert.equal(job.error?.code, "PREPARATION_CONTEXT_REQUIRED");
+  assert.equal(job.strategy?.missingContext.length, 1);
+  assert.equal(job.drafts, undefined);
+  assert.deepEqual(h.stages, ["interpret"]);
+  assert.equal(
+    job.usage[0].editorialPolicyVersion,
+    PREPARATION_EDITORIAL_VERSION,
+  );
+  assert.equal(job.usage[0].executionRelease, h.env.RELEASE_SHA);
+  await assert.rejects(
+    h.engine.preparation.approve(
+      {
+        id: job.id,
+        revision: job.revision,
+        digest: job.digest,
+      },
+      owner,
+    ),
+    /Resolve editorial issues/,
+  );
+  assert.equal(h.store.list("campaign:").length, 0);
+  assert.equal(h.store.list("delivery:").length, 0);
 });
 test("idempotent preparation never allocates another job or model allowance", async () => {
   const h = await fixture();

@@ -3,7 +3,7 @@ import { Fault, requireValue } from "./common.ts";
 import {
   MAX_INPUT_BYTES,
   MAX_OUTPUT_TOKENS,
-  PREPARATION_EDITORIAL_POLICY,
+  preparationEditorialPolicy,
   type ModelPort,
 } from "./preparation-model.ts";
 
@@ -443,7 +443,7 @@ export function cloudflareModel(
       {
         role: "system",
         content:
-          PREPARATION_EDITORIAL_POLICY +
+          preparationEditorialPolicy(stage) +
           "\nSchema: " +
           JSON.stringify(z.toJSONSchema(schema, { target: "draft-7" })),
       },

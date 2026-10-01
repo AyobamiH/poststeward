@@ -9,6 +9,7 @@ import {
   pipelineCeiling,
 } from "../src/model-routing.ts";
 import { strategySchema } from "../src/preparation-contracts.ts";
+import { PREPARATION_EDITORIAL_VERSION } from "../src/preparation-model.ts";
 import { harness, owner } from "./helpers.ts";
 
 const account = "a".repeat(32),
@@ -248,7 +249,16 @@ for (const route of [workers, gateway])
         (a: any) =>
           a.model === route.model &&
           a.funding === route.funding &&
+          a.editorialPolicyVersion === PREPARATION_EDITORIAL_VERSION &&
+          a.executionRelease === h.env.RELEASE_SHA &&
           a.outcome === "reported_usage",
+      ),
+    );
+    assert.ok(
+      job.usage.every(
+        (u) =>
+          u.editorialPolicyVersion === PREPARATION_EDITORIAL_VERSION &&
+          u.executionRelease === h.env.RELEASE_SHA,
       ),
     );
     assert.equal(job.budget.reservedMicros, 0);

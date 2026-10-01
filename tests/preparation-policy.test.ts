@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   openAIModel,
-  PREPARATION_EDITORIAL_POLICY,
+  preparationEditorialPolicy,
 } from "../src/preparation-model.ts";
 import { cloudflareModel, routingSchema } from "../src/model-routing.ts";
 import { strategySchema } from "../src/preparation-contracts.ts";
@@ -105,7 +105,20 @@ test("all three model transports share the editorial contract and preserve sourc
     );
   }
   assert.equal(captured.length, 3);
-  assert.equal(captured[0][0].content, PREPARATION_EDITORIAL_POLICY);
+  assert.equal(captured[0][0].content, preparationEditorialPolicy("interpret"));
+  const sentSchema = JSON.parse(captured[1][0].content.split("\nSchema: ")[1]);
+  assert.match(
+    sentSchema.properties.missingContext.description,
+    /essential to the stated objective/,
+  );
+  assert.match(
+    sentSchema.properties.missingContext.description,
+    /Optional integrations/,
+  );
+  assert.match(
+    sentSchema.properties.changes.items.properties.fact.description,
+    /synthetic/,
+  );
   for (const messages of captured.slice(1)) {
     const schemaBoundary = messages[0].content.indexOf("\nSchema: ");
     assert.ok(schemaBoundary > 0);
@@ -114,4 +127,44 @@ test("all three model transports share the editorial contract and preserve sourc
       captured[0][0].content,
     );
   }
+});
+
+test("unsupported editorial phases cannot make a paid request", async () => {
+  let calls = 0;
+  const send: typeof fetch = async () => {
+    calls++;
+    throw new Error("Unexpected network request");
+  };
+  for (const stage of ["source", "publish", "__proto__"]) {
+    await assert.rejects(
+      openAIModel(send)("synthetic-key", stage, {}, strategySchema),
+      /phase is not supported/,
+    );
+    const routing = routingSchema.parse({
+      version: 1,
+      accountId: "a".repeat(32),
+      primary: {
+        provider: "cloudflare_workers",
+        model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        funding: "workers_ai",
+      },
+      fallbacks: [],
+      maxInputBytes: 24000,
+      maxOutputTokens: 4000,
+      temperature: 0.2,
+      maxJobUsd: 0.15,
+      maxDailyUsd: 1,
+      logging: "none",
+    });
+    await assert.rejects(
+      cloudflareModel(routing, routing.primary, send)(
+        "synthetic-key",
+        stage,
+        {},
+        strategySchema,
+      ),
+      /phase is not supported/,
+    );
+  }
+  assert.equal(calls, 0);
 });

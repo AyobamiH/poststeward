@@ -18,6 +18,7 @@ import {
   MAX_OUTPUT_TOKENS,
   openAIModel,
   PREPARATION_MODEL,
+  PREPARATION_EDITORIAL_VERSION,
   type ModelPort,
 } from "./preparation-model.ts";
 import type { Account, Actor, Campaign, Env, Project, Store } from "./types.ts";
@@ -99,6 +100,8 @@ export type PreparationJob = {
   regenerateAlias?: string;
   usage: {
     stage: string;
+    editorialPolicyVersion?: string;
+    executionRelease?: string;
     inputTokens: number;
     outputTokens: number;
     latencyMs: number;
@@ -119,6 +122,8 @@ export type PreparationJob = {
   };
   attempts?: {
     stage: string;
+    editorialPolicyVersion?: string;
+    executionRelease?: string;
     provider: string;
     model: string;
     funding: string;
@@ -609,6 +614,8 @@ export class Preparation {
         generation: budget.generation,
         job: job.id,
         stage: job.stage,
+        editorialPolicyVersion: PREPARATION_EDITORIAL_VERSION,
+        executionRelease: this.env.RELEASE_SHA,
         provider: route.provider,
         model: route.model,
         funding: route.funding,
@@ -1023,6 +1030,8 @@ export class Preparation {
         if (!(await remainsCurrent())) return;
         job.usage.push({
           stage,
+          editorialPolicyVersion: PREPARATION_EDITORIAL_VERSION,
+          executionRelease: this.env.RELEASE_SHA,
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
           latencyMs: result.latencyMs,

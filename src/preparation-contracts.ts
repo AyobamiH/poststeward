@@ -55,19 +55,57 @@ export const strategySchema = z.strictObject({
   changes: z
     .array(
       z.strictObject({
-        fact: z.string().min(5).max(1000),
+        fact: z
+          .string()
+          .min(5)
+          .max(1000)
+          .describe(
+            "What the quoted source explicitly documents. Preserve synthetic/test/unreleased qualifications. Do not claim production availability from source notes.",
+          ),
         sources: z.array(reference).min(1).max(4),
-        audienceProblem: z.string().max(1000),
-        implication: z.string().max(1000),
+        audienceProblem: z
+          .string()
+          .max(1000)
+          .describe(
+            "A restrained proposed audience problem, labelled as a hypothesis unless supplied evidence establishes it. No invented customer facts or delays.",
+          ),
+        implication: z
+          .string()
+          .max(1000)
+          .describe(
+            "A proposed connection to the stated objective, distinct from source facts. No unproved efficiency, adoption or outcome guarantees.",
+          ),
       }),
     )
     .max(12),
-  positioning: z.string().min(10).max(2000),
+  positioning: z
+    .string()
+    .min(10)
+    .max(2000)
+    .describe(
+      "Scope-qualified positioning for the owner's objective. Explicitly identify a synthetic fixture as synthetic; never market it as a real product launch.",
+    ),
   objective: z.string().min(5).max(1000),
   audience: z.string().min(5).max(1000),
-  channelApproach: z.string().min(5).max(2000),
-  missingContext: z.array(z.string().min(1).max(500)).max(8),
-  risks: z.array(z.string().min(1).max(500)).max(8),
+  channelApproach: z
+    .string()
+    .min(5)
+    .max(2000)
+    .describe(
+      "How to explain supported facts on the selected providers while preserving source qualifications. Account aliases do not establish product identity.",
+    ),
+  missingContext: z
+    .array(z.string().min(1).max(500))
+    .max(8)
+    .describe(
+      "Blocking facts essential to the stated objective. Each item must identify the objective requirement, absent fact and why omitting its claim would not fulfil the objective. Return [] when a safe explanation of supplied facts suffices. Optional integrations, adoption, availability or performance research does not block a campaign making no such claims.",
+    ),
+  risks: z
+    .array(z.string().min(1).max(500))
+    .max(8)
+    .describe(
+      "Concrete interpretation limits and unsupported claims to exclude. Optional research questions are non-blocking risks, not essential missing context.",
+    ),
 });
 export const draftsSchema = z.strictObject({
   drafts: z
