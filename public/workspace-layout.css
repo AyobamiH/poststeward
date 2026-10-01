@@ -297,3 +297,22 @@
 .focused-workspace #preparation-create {
   gap: 24px;
 }
+
+.focused-workspace .product-page-header .page-description {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 22px;
+}
+@media (max-width: 600px) {
+  .focused-workspace .product-page-header {
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+  }
+  .focused-workspace .workspace-plan {
+    margin-bottom: 16px;
+  }
+  .publishing-steps {
+    margin-bottom: 16px;
+  }
+}

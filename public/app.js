@@ -698,7 +698,7 @@ async function refresh() {
   $("workspace-next-step").hidden = false;
   $("pause").hidden = false;
   $("session-notice").textContent =
-    "Workspace data updated. Schedule dates show their recorded timezone; other dates use your browser’s local time.";
+    "Workspace data updated.";
   if (firstLoad) document.dispatchEvent(new Event("workspace-ready"));
   document.dispatchEvent(new Event("workspace-updated"));
 }

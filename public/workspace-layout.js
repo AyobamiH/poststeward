@@ -115,6 +115,13 @@ export function mountWorkspaceLayout() {
   move("destinations", views.get("accounts"));
   if (capabilities) views.get("accounts").append(capabilities);
   move("evidence-panel", views.get("results"));
+  $("receipts-heading").parentElement.append(
+    node(
+      "p",
+      "Schedule dates show their recorded timezone; other dates use your browser’s local time.",
+      "muted",
+    ),
+  );
   move("agent-access", views.get("agents"));
   move("sources", views.get("sources"));
   const model = $("preparation-model")?.closest("details");
@@ -245,6 +252,8 @@ export function mountWorkspaceLayout() {
   copy.id = "exact-copy-panel";
   steps.get("review").append(copy);
   $("exact-copy-heading").textContent = "Review your exact copy";
+  $("exact-copy-heading").nextElementSibling.textContent =
+    "Review the text for your selected account. Validation freezes the exact copy and shows any thread parts before you schedule or publish.";
   const editor = node("div", undefined, "workspace-editor-grid");
   copy.append(editor);
   editor.append($("campaign"));
