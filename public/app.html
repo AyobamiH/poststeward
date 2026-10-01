@@ -335,263 +335,265 @@
                     </p>
                     <div id="projects" class="record-list"></div>
                   </details>
+                </section>
 
-                  <section
-                    id="release-preparation"
-                    class="work-zone"
-                    aria-labelledby="release-preparation-heading"
-                  >
-                    <h2 id="release-preparation-heading">
-                      3. Prepare a campaign from a release
-                    </h2>
-                    <p class="muted">
-                      Turn release evidence into an audience-specific strategy
-                      and original drafts. Review the sources, edit each variant
-                      and approve the exact text. Preparation never publishes or
-                      schedules it.
-                    </p>
-                    <p class="muted">
-                      Bring your own OpenAI or Cloudflare AI account. The
-                      selected owner account funds inference; a ChatGPT
-                      subscription is separate. Keys stay encrypted in your
-                      workspace and are never shared with agents or included in
-                      drafts.
-                    </p>
-                    <button type="button" id="preparation-refresh">
-                      Load preparation settings and drafts
-                    </button>
-                    <p id="preparation-model-status" role="status">
-                      No model call is made until you connect an account and
-                      request preparation.
-                    </p>
-                    <h3>Saved preparations</h3>
-                    <p class="muted">
-                      Most recent activity first. Use the preparation ID and
-                      timestamps to distinguish repeated runs of the same
-                      release. Loading saved work makes no model call.
-                    </p>
-                    <div
-                      id="preparation-jobs"
-                      class="record-list"
-                      aria-live="polite"
-                    ></div>
-                    <details>
-                      <summary>Connect or change your model account</summary>
-                      <form id="preparation-model" autocomplete="off">
-                        <p class="muted">
-                          Validation reads account/model/gateway metadata only.
-                          It never runs a model, creates a gateway, changes
-                          billing or tops up credits. Saving settings fences
-                          queued work; regenerate it explicitly.
-                        </p>
+                <section
+                  id="release-preparation"
+                  class="work-pane preparation-pane"
+                  aria-labelledby="release-preparation-heading"
+                >
+                  <h2 id="release-preparation-heading">
+                    3. Prepare a campaign from a release
+                  </h2>
+                  <p class="muted">
+                    Turn release evidence into an audience-specific strategy and
+                    original drafts. Review the sources, edit each variant and
+                    approve the exact text. Preparation never publishes or
+                    schedules it.
+                  </p>
+                  <p class="muted">
+                    Bring your own OpenAI or Cloudflare AI account. The selected
+                    owner account funds inference; a ChatGPT subscription is
+                    separate. Keys stay encrypted in your workspace and are
+                    never shared with agents or included in drafts.
+                  </p>
+                  <button type="button" id="preparation-refresh">
+                    Load preparation settings and drafts
+                  </button>
+                  <p id="preparation-model-status" role="status">
+                    No model call is made until you connect an account and
+                    request preparation.
+                  </p>
+                  <h3>Saved preparations</h3>
+                  <p class="muted">
+                    Most recent activity first. Use the preparation ID and
+                    timestamps to distinguish repeated runs of the same release.
+                    Loading saved work makes no model call.
+                  </p>
+                  <div
+                    id="preparation-jobs"
+                    class="record-list"
+                    aria-live="polite"
+                  ></div>
+                  <details>
+                    <summary>Connect or change your model account</summary>
+                    <form id="preparation-model" autocomplete="off">
+                      <p class="muted">
+                        Validation reads account/model/gateway metadata only. It
+                        never runs a model, creates a gateway, changes billing
+                        or tops up credits. Saving settings fences queued work;
+                        regenerate it explicitly.
+                      </p>
+                      <label
+                        >Model provider<select name="modelProvider">
+                          <option value="openai">OpenAI directly</option>
+                          <option value="cloudflare_workers">
+                            Cloudflare Workers AI
+                          </option>
+                          <option value="cloudflare_gateway">
+                            OpenAI through Cloudflare AI Gateway
+                          </option>
+                        </select></label
+                      >
+                      <label
+                        >Selected model<select name="modelName"></select
+                      ></label>
+                      <div id="preparation-cloudflare-settings">
                         <label
-                          >Model provider<select name="modelProvider">
-                            <option value="openai">OpenAI directly</option>
-                            <option value="cloudflare_workers">
-                              Cloudflare Workers AI
+                          >Cloudflare account ID<input
+                            name="accountId"
+                            maxlength="32"
+                            pattern="[a-f0-9]{32}"
+                            autocomplete="off"
+                        /></label>
+                        <label
+                          >Funding mode<select name="funding">
+                            <option value="workers_ai">
+                              Owner's Workers AI billing/allowance
                             </option>
-                            <option value="cloudflare_gateway">
-                              OpenAI through Cloudflare AI Gateway
+                            <option value="gateway_credits">
+                              Owner's prepaid AI Gateway credits
                             </option>
                           </select></label
                         >
                         <label
-                          >Selected model<select name="modelName"></select
-                        ></label>
-                        <div id="preparation-cloudflare-settings">
-                          <label
-                            >Cloudflare account ID<input
-                              name="accountId"
-                              maxlength="32"
-                              pattern="[a-f0-9]{32}"
-                              autocomplete="off"
-                          /></label>
-                          <label
-                            >Funding mode<select name="funding">
-                              <option value="workers_ai">
-                                Owner's Workers AI billing/allowance
-                              </option>
-                              <option value="gateway_credits">
-                                Owner's prepaid AI Gateway credits
-                              </option>
-                            </select></label
-                          >
-                          <label
-                            >Gateway ID for credit-funded routes<input
-                              name="gatewayId"
-                              maxlength="64"
-                              pattern="[a-zA-Z0-9_-]+"
-                              autocomplete="off"
-                          /></label>
-                          <p class="muted">
-                            Use a dedicated key-free gateway with automatic
-                            retries disabled for prepaid OpenAI. Gateway Run
-                            tokens can reach every gateway in their account.
-                            Shared balances are not exclusive workspace credits;
-                            credit purchases carry Cloudflare's 5% fee. No
-                            hidden service funding or automatic top-up.
-                          </p>
-                          <label
-                            >Optional separate Cloudflare metadata inspection
-                            token<input
-                              name="inspectionToken"
-                              type="password"
-                              minlength="16"
-                              maxlength="512"
-                              autocomplete="new-password"
-                          /></label>
-                          <label
-                            >Maximum UTF-8 input bytes per attempt<input
-                              name="maxInputBytes"
-                              type="number"
-                              min="2000"
-                              max="48000"
-                              value="24000"
-                          /></label>
-                          <label
-                            >Maximum output tokens per attempt<input
-                              name="maxOutputTokens"
-                              type="number"
-                              min="500"
-                              max="4000"
-                              value="4000"
-                          /></label>
-                          <label
-                            >Generation temperature<input
-                              name="temperature"
-                              type="number"
-                              min="0"
-                              max="1"
-                              step="0.1"
-                              value="0.2"
-                          /></label>
-                          <label
-                            >Maximum model cost per generation request,
-                            USD<input
-                              name="maxJobUsd"
-                              type="number"
-                              min="0.001"
-                              max="10"
-                              step="any"
-                              value="0.15"
-                          /></label>
-                          <label
-                            >Gateway logging<select name="logging">
-                              <option value="none">
-                                No gateway log collection
-                              </option>
-                              <option value="metadata">
-                                Usage metadata only; no prompt/response payloads
-                              </option>
-                            </select></label
-                          >
-                          <label
-                            >Optional explicitly permitted fallback<select
-                              name="fallbackProvider"
-                            >
-                              <option value="">No automatic fallback</option>
-                              <option value="cloudflare_workers">
-                                Cloudflare Workers AI
-                              </option>
-                              <option value="cloudflare_gateway">
-                                OpenAI through AI Gateway
-                              </option>
-                            </select></label
-                          >
-                          <label
-                            >Fallback model<select name="fallbackModel"></select
-                          ></label>
-                          <label
-                            >Fallback funding<select name="fallbackFunding">
-                              <option value="workers_ai">
-                                Owner's Workers AI billing/allowance
-                              </option>
-                              <option value="gateway_credits">
-                                Owner's prepaid AI Gateway credits
-                              </option>
-                            </select></label
-                          >
-                          <p class="muted">
-                            Fallback shares this Cloudflare account and the
-                            chosen gateway for credit funding. Only the
-                            explicitly selected route may follow a definite
-                            model rejection, rate limit or invalid output.
-                            Uncertain calls, credential rejection and policy
-                            failures never trigger another paid attempt. Private
-                            preparation is retained until reviewed
-                            export/removal; immutable campaign and
-                            operation/usage evidence remain.
-                          </p>
-                        </div>
+                          >Gateway ID for credit-funded routes<input
+                            name="gatewayId"
+                            maxlength="64"
+                            pattern="[a-zA-Z0-9_-]+"
+                            autocomplete="off"
+                        /></label>
+                        <p class="muted">
+                          Use a dedicated key-free gateway with automatic
+                          retries disabled for prepaid OpenAI. Gateway Run
+                          tokens can reach every gateway in their account.
+                          Shared balances are not exclusive workspace credits;
+                          credit purchases carry Cloudflare's 5% fee. No hidden
+                          service funding or automatic top-up.
+                        </p>
                         <label
-                          >Inference credential: OpenAI API key or Cloudflare
+                          >Optional separate Cloudflare metadata inspection
                           token<input
-                            name="apiKey"
+                            name="inspectionToken"
                             type="password"
                             minlength="16"
                             maxlength="512"
                             autocomplete="new-password"
                         /></label>
                         <label
-                          >Maximum preparations or regeneration requests per UTC
-                          day<input
-                            name="maxJobsPerDay"
+                          >Maximum UTF-8 input bytes per attempt<input
+                            name="maxInputBytes"
                             type="number"
-                            min="1"
-                            max="8"
-                            value="2"
-                            required
+                            min="2000"
+                            max="48000"
+                            value="24000"
                         /></label>
                         <label
-                          ><input name="allowAgents" type="checkbox" /> Allow
-                          agents with campaign-writing permission to use this
-                          bounded model allowance</label
+                          >Maximum output tokens per attempt<input
+                            name="maxOutputTokens"
+                            type="number"
+                            min="500"
+                            max="4000"
+                            value="4000"
+                        /></label>
+                        <label
+                          >Generation temperature<input
+                            name="temperature"
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value="0.2"
+                        /></label>
+                        <label
+                          >Maximum model cost per generation request, USD<input
+                            name="maxJobUsd"
+                            type="number"
+                            min="0.001"
+                            max="10"
+                            step="any"
+                            value="0.15"
+                        /></label>
+                        <label
+                          >Gateway logging<select name="logging">
+                            <option value="none">
+                              No gateway log collection
+                            </option>
+                            <option value="metadata">
+                              Usage metadata only; no prompt/response payloads
+                            </option>
+                          </select></label
+                        >
+                        <label
+                          >Optional explicitly permitted fallback<select
+                            name="fallbackProvider"
+                          >
+                            <option value="">No automatic fallback</option>
+                            <option value="cloudflare_workers">
+                              Cloudflare Workers AI
+                            </option>
+                            <option value="cloudflare_gateway">
+                              OpenAI through AI Gateway
+                            </option>
+                          </select></label
+                        >
+                        <label
+                          >Fallback model<select name="fallbackModel"></select
+                        ></label>
+                        <label
+                          >Fallback funding<select name="fallbackFunding">
+                            <option value="workers_ai">
+                              Owner's Workers AI billing/allowance
+                            </option>
+                            <option value="gateway_credits">
+                              Owner's prepaid AI Gateway credits
+                            </option>
+                          </select></label
                         >
                         <p class="muted">
-                          Each full preparation reserves up to three calls. No
-                          automatic retry follows an uncertain call. Limits
-                          persist across reconnects. Add current provider rates
-                          to obtain USD estimates and enforce an optional USD
-                          budget.
+                          Fallback shares this Cloudflare account and the chosen
+                          gateway for credit funding. Only the explicitly
+                          selected route may follow a definite model rejection,
+                          rate limit or invalid output. Uncertain calls,
+                          credential rejection and policy failures never trigger
+                          another paid attempt. Private preparation is retained
+                          until reviewed export/removal; immutable campaign and
+                          operation/usage evidence remain.
                         </p>
-                        <label
-                          >Provider input price, USD per million tokens
-                          (optional)<input
-                            name="inputUsdPerMillion"
-                            type="number"
-                            min="0"
-                            max="1000"
-                            step="any"
-                        /></label>
-                        <label
-                          >Provider output price, USD per million tokens
-                          (optional)<input
-                            name="outputUsdPerMillion"
-                            type="number"
-                            min="0"
-                            max="1000"
-                            step="any"
-                        /></label>
-                        <label
-                          >Maximum reserved model cost per UTC day, USD
-                          (required for Cloudflare; direct OpenAI needs both
-                          rates)<input
-                            name="maxDailyUsd"
-                            type="number"
-                            min="0.01"
-                            max="100"
-                            step="any"
-                            value="1"
-                        /></label>
-                        <button>
-                          Validate and save encrypted model access and limits
-                        </button>
-                      </form>
-                      <button type="button" id="preparation-model-disconnect">
-                        Disconnect model access
+                      </div>
+                      <label
+                        >Inference credential: OpenAI API key or Cloudflare
+                        token<input
+                          name="apiKey"
+                          type="password"
+                          minlength="16"
+                          maxlength="512"
+                          autocomplete="new-password"
+                      /></label>
+                      <label
+                        >Maximum preparations or regeneration requests per UTC
+                        day<input
+                          name="maxJobsPerDay"
+                          type="number"
+                          min="1"
+                          max="8"
+                          value="2"
+                          required
+                      /></label>
+                      <label
+                        ><input name="allowAgents" type="checkbox" /> Allow
+                        agents with campaign-writing permission to use this
+                        bounded model allowance</label
+                      >
+                      <p class="muted">
+                        Each full preparation reserves up to three calls. No
+                        automatic retry follows an uncertain call. Limits
+                        persist across reconnects. Add current provider rates to
+                        obtain USD estimates and enforce an optional USD budget.
+                      </p>
+                      <label
+                        >Provider input price, USD per million tokens
+                        (optional)<input
+                          name="inputUsdPerMillion"
+                          type="number"
+                          min="0"
+                          max="1000"
+                          step="any"
+                      /></label>
+                      <label
+                        >Provider output price, USD per million tokens
+                        (optional)<input
+                          name="outputUsdPerMillion"
+                          type="number"
+                          min="0"
+                          max="1000"
+                          step="any"
+                      /></label>
+                      <label
+                        >Maximum reserved model cost per UTC day, USD (required
+                        for Cloudflare; direct OpenAI needs both rates)<input
+                          name="maxDailyUsd"
+                          type="number"
+                          min="0.01"
+                          max="100"
+                          step="any"
+                          value="1"
+                      /></label>
+                      <button>
+                        Validate and save encrypted model access and limits
                       </button>
-                    </details>
+                    </form>
+                    <button type="button" id="preparation-model-disconnect">
+                      Disconnect model access
+                    </button>
+                  </details>
+                  <div class="preparation-new">
                     <h3>Start a new preparation</h3>
+                    <p class="muted">
+                      For a new release, add its sources and campaign brief
+                      below. To continue saved work, use its review controls
+                      above.
+                    </p>
                     <form id="preparation-create">
                       <label
                         >Publishing project<select
@@ -711,8 +713,13 @@
                       assistance, not independent factual verification: inspect
                       source support before approval.
                     </p>
-                  </section>
-                  <h2>4. Review your exact copy</h2>
+                  </div>
+                </section>
+                <section
+                  class="work-pane preparation-pane"
+                  aria-labelledby="exact-copy-heading"
+                >
+                  <h2 id="exact-copy-heading">4. Review your exact copy</h2>
                   <p class="muted">
                     The campaign stores reviewed text as the claim boundary.
                     Dispatch does not generate, shorten or rewrite it. Long X or

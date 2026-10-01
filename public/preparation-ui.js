@@ -209,10 +209,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     for (const node of root.querySelectorAll(":scope > p")) node.remove();
     if (!jobs.length)
       root.append(
-        element(
-          "p",
-          "No preparations yet. Use Start a new preparation below.",
-        ),
+        element("p", "No preparations yet. Use Start a new preparation below."),
       );
     const rendered = new Map();
     for (const [index, job] of jobs.entries()) {
@@ -289,7 +286,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
   }
   function render(job, latest) {
     const article = element("article");
-    article.className = "record";
+    article.className = "record preparation-card";
     article.dataset.jobId = job.id;
     article.dataset.revision = job.revision;
     const notice = element("p");
@@ -314,21 +311,23 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         `State: ${job.error?.code === "PREPARATION_CONTEXT_REQUIRED" ? "Needs more context" : job.status.replaceAll("_", " ")} · revision ${job.revision} · ${job.stage} · ${job.usage.length} model calls completed`,
       ),
     );
+    const funding = element("details");
+    funding.className = "preparation-funding";
+    funding.append(
+      element(
+        "summary",
+        "Inspect model, funding and budget evidence (no prompts or credentials)",
+      ),
+    );
     if (job.routing)
-      article.append(
+      funding.append(
         element(
           "p",
           `Model selection: ${job.routing.primary.model} · funding ${job.routing.primary.funding} · configuration ${job.modelRevision}. ${job.attempts?.length || 0} attempted model calls, including permitted fallbacks.`,
         ),
       );
     if (job.attempts?.length) {
-      const attempts = element("details");
-      attempts.append(
-        element(
-          "summary",
-          "Inspect model, funding and budget evidence (no prompts or credentials)",
-        ),
-      );
+      const attempts = funding;
       for (const attempt of job.attempts)
         attempts.append(
           element(
@@ -336,13 +335,11 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
             `${attempt.stage}: ${attempt.provider} / ${attempt.model} / ${attempt.funding}; ${attempt.fallback ? "explicit fallback" : "primary"}; ${attempt.outcome}; maximum reserved USD ${(attempt.reservedMicros / 1e6).toFixed(6)}${attempt.estimatedMicros === undefined ? " · charge uncertain/conservatively retained" : " · reported-usage estimate USD " + (attempt.estimatedMicros / 1e6).toFixed(6)}. Editorial policy ${attempt.editorialPolicyVersion || "unrecorded"}; execution release ${attempt.executionRelease || "unrecorded"}. Funding configuration readback ${attempt.fundingProof?.checkedAt ? new Date(attempt.fundingProof.checkedAt).toISOString() : "unverified"}; invoice/readback unverified.`,
           ),
         );
-      article.append(attempts);
     }
     if (job.error) article.append(element("p", job.error.message));
-    if (job.coverage) article.append(element("p", job.coverage));
-    for (const gap of job.gaps || [])
-      article.append(element("p", `Source coverage: ${gap}`));
     const details = element("details");
+    details.className = "preparation-review";
+    details.open = latest;
     details.append(
       element(
         "summary",
@@ -350,6 +347,76 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       ),
     );
     article.append(details);
+    const layout = element("div");
+    layout.className = "preparation-review-grid";
+    const copyPanel = element("section");
+    copyPanel.className = "preparation-copy-panel";
+    copyPanel.append(
+      element("h4", "Review your channel copy"),
+      element(
+        "p",
+        "Edit the exact text below. Save changes, then check the saved copy before owner approval. Nothing here publishes a post.",
+      ),
+    );
+    const support = element("div");
+    support.className = "preparation-support-panel";
+    layout.append(copyPanel, support);
+    details.append(layout);
+    const checkPanel = element("section");
+    checkPanel.className = "preparation-check";
+    checkPanel.append(element("h4", "Model-assisted editorial check"));
+    const ready =
+      job.critique?.acceptableForOwnerReview && !job.critique.issues.length;
+    checkPanel.dataset.state = job.critique
+      ? ready
+        ? "ready"
+        : "blocked"
+      : "pending";
+    checkPanel.append(
+      element(
+        "strong",
+        job.critique
+          ? ready
+            ? "Ready for owner review"
+            : "Changes need review"
+          : "No editorial check result yet",
+      ),
+    );
+    checkPanel.append(
+      element(
+        "p",
+        job.critique?.summary ||
+          "A completed check is required before approval. Saving edits does not run a model check.",
+      ),
+    );
+    for (const issue of job.critique?.issues || [])
+      checkPanel.append(
+        element(
+          "p",
+          `${issue.alias || "Strategy"} · ${issue.category}: ${issue.detail}`,
+        ),
+      );
+    checkPanel.append(
+      element(
+        "p",
+        "Model checks assist your review; inspect the pinned sources yourself.",
+      ),
+    );
+    support.append(checkPanel);
+    const actions = element("div");
+    actions.className = "preparation-primary-actions";
+    const more = element("details");
+    more.className = "preparation-more";
+    more.append(
+      element("summary", "More preparation actions"),
+      element(
+        "p",
+        "Regeneration uses your connected model account and daily allowance. Strategy regeneration reads the Start a new preparation context form below.",
+      ),
+    );
+    const moreActions = element("div");
+    moreActions.className = "preparation-action-row";
+    more.append(moreActions);
     const base = { id: job.id, revision: job.revision };
     if (["queued", "running"].includes(job.status)) {
       control(article, "Reject preparation", () =>
@@ -360,27 +427,31 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     const mutable = !["approved", "handed_off"].includes(job.status);
     const strategy = job.strategy ? structuredClone(job.strategy) : undefined;
     if (strategy) {
-      details.append(
+      const strategyPanel = element("details");
+      strategyPanel.className = "preparation-strategy";
+      strategyPanel.append(element("summary", "Audience and strategy"));
+      support.append(strategyPanel);
+      strategyPanel.append(
         element(
           "h4",
           "Suggested audience and strategy — interpretations require review",
         ),
       );
-      const audience = field(details, "Audience", strategy.audience),
-        objective = field(details, "Objective", strategy.objective),
-        positioning = field(details, "Positioning", strategy.positioning);
-      details.append(element("p", strategy.channelApproach));
+      const audience = field(strategyPanel, "Audience", strategy.audience),
+        objective = field(strategyPanel, "Objective", strategy.objective),
+        positioning = field(strategyPanel, "Positioning", strategy.positioning);
+      strategyPanel.append(element("p", strategy.channelApproach));
       for (const change of strategy.changes)
-        details.append(
+        strategyPanel.append(
           element(
             "p",
             `Source-backed change: ${change.fact}\nAudience problem: ${change.audienceProblem}\nProposed implication: ${change.implication}`,
           ),
         );
       for (const missing of strategy.missingContext)
-        details.append(element("p", `Missing context: ${missing}`));
+        strategyPanel.append(element("p", `Missing context: ${missing}`));
       for (const risk of strategy.risks)
-        details.append(element("p", `Review risk: ${risk}`));
+        strategyPanel.append(element("p", `Review risk: ${risk}`));
       strategy.controls = { audience, objective, positioning };
       if (mutable)
         for (const input of [audience, objective, positioning])
@@ -389,13 +460,16 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         for (const input of [audience, objective, positioning])
           input.readOnly = true;
     }
-    if (job.evidence?.length) {
+    if (job.evidence?.length || job.coverage || job.gaps?.length) {
       const evidence = element("details");
       evidence.append(
         element("summary", "Pinned sources and approved context"),
       );
-      details.append(evidence);
-      for (const item of job.evidence) {
+      support.append(evidence);
+      if (job.coverage) evidence.append(element("p", job.coverage));
+      for (const gap of job.gaps || [])
+        evidence.append(element("p", `Source coverage: ${gap}`));
+      for (const item of job.evidence || []) {
         evidence.append(
           element("h4", `${item.id} · ${item.kind.replaceAll("_", " ")}`),
         );
@@ -419,15 +493,18 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     }
     const edits = [];
     for (const draft of job.drafts || []) {
-      details.append(element("h4", draft.alias));
+      const variant = element("section");
+      variant.className = "preparation-variant";
+      variant.append(element("h4", draft.alias));
+      copyPanel.append(variant);
       const keep = element("input");
       keep.type = "checkbox";
       keep.checked = true;
       keep.disabled = !mutable;
       const keepLabel = element("label", "Include this variant");
       keepLabel.prepend(keep);
-      details.append(keepLabel);
-      const input = field(details, "Exact channel text", draft.text, 6);
+      variant.append(keepLabel);
+      const input = field(variant, "Exact channel text", draft.text, 6);
       input.readOnly = !mutable;
       edits.push({ alias: draft.alias, input, keep });
       if (mutable) {
@@ -443,7 +520,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         ),
         element("p", draft.rationale),
       );
-      details.append(annotations);
+      variant.append(annotations);
       for (const claim of draft.claims)
         annotations.append(
           element(
@@ -452,7 +529,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
           ),
         );
       if (mutable)
-        control(details, `Regenerate ${draft.alias} draft`, () =>
+        control(moreActions, `Regenerate ${draft.alias} draft`, () =>
           mutate("preparation_regenerate", {
             ...base,
             stage: "draft",
@@ -460,19 +537,13 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
           }),
         );
     }
-    if (job.critique) {
-      details.append(
-        element("h4", "Model-assisted editorial check"),
-        element("p", job.critique.summary),
+    if (!edits.length)
+      copyPanel.append(
+        element(
+          "p",
+          "No channel drafts are available for this preparation. Inspect its state and source context before requesting more model work.",
+        ),
       );
-      for (const issue of job.critique.issues)
-        details.append(
-          element(
-            "p",
-            `${issue.alias || "Strategy"} · ${issue.category}: ${issue.detail}`,
-          ),
-        );
-    }
     const reported = job.usage.reduce(
       (total, call) => ({
         input: total.input + call.inputTokens,
@@ -481,19 +552,29 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       }),
       { input: 0, output: 0, ms: 0 },
     );
-    details.append(
+    funding.append(
       element(
         "p",
         `Reported usage: ${reported.input} input / ${reported.output} output tokens; ${(reported.ms / 1000).toFixed(1)} seconds of model latency. Uncertain calls may still be billed.`,
       ),
     );
     if (mutable) {
-      control(details, "Discard unsaved edits and refresh", async () => {
+      copyPanel.append(actions);
+      if (edits.length)
+        copyPanel.append(
+          element(
+            "p",
+            "Saving is free. Check current saved drafts uses one preparation request and may incur a model charge.",
+          ),
+        );
+    }
+    if (mutable) {
+      control(moreActions, "Discard unsaved edits and refresh", async () => {
         delete article.dataset.dirty;
         await refresh();
       });
       if (edits.length)
-        control(details, "Save edits and selected variants", async () => {
+        control(actions, "Save edits and selected variants", async () => {
           const { controls, ...changed } = strategy || {};
           if (controls)
             for (const name of ["audience", "objective", "positioning"])
@@ -508,18 +589,25 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
             ...(controls ? { strategy: changed } : {}),
           });
         });
-      control(details, "Regenerate strategy from current context form", () =>
-        mutate("preparation_regenerate", {
-          ...base,
-          stage: "interpret",
-          context: context(),
-        }),
+      control(
+        moreActions,
+        "Regenerate strategy from current context form",
+        () =>
+          mutate("preparation_regenerate", {
+            ...base,
+            stage: "interpret",
+            context: context(),
+          }),
       );
       if (edits.length)
-        control(details, "Check current saved drafts", () =>
-          mutate("preparation_regenerate", { ...base, stage: "check" }),
-        );
-      control(details, "Reject this preparation", () =>
+        control(actions, "Check current saved drafts", () => {
+          if (article.dataset.dirty === "true")
+            throw new Error(
+              "Save or discard your unsaved edits before checking the saved drafts.",
+            );
+          return mutate("preparation_regenerate", { ...base, stage: "check" });
+        });
+      control(moreActions, "Reject this preparation", () =>
         mutate("preparation_reject", base),
       );
       if (
@@ -536,9 +624,9 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
           "I reviewed each included variant, its source support, public availability claims and destination. Freeze this exact saved revision into a campaign.",
         );
         label.prepend(accepted);
-        details.append(label);
+        copyPanel.append(label);
         const approve = control(
-          details,
+          copyPanel,
           "Approve exact saved copy and open delivery review",
           async () => {
             if (!accepted.checked)
@@ -574,6 +662,10 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         };
       }
     }
+    if (mutable) {
+      copyPanel.append(more);
+    }
+    article.append(funding);
     if (!["queued", "running", "approved"].includes(job.status)) {
       let exported;
       const confirmed = element("input");
@@ -584,8 +676,14 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         "I saved the private export. Remove this preparation from my active library; immutable campaigns, receipts and operation history remain.",
       );
       label.prepend(confirmed);
-      details.append(label);
-      const remove = control(details, "Remove exported preparation", () =>
+      const archive = element("details");
+      archive.className = "preparation-archive";
+      archive.append(
+        element("summary", "Export or remove this preparation"),
+        label,
+      );
+      article.append(archive);
+      const remove = control(archive, "Remove exported preparation", () =>
         mutate("preparation_archive", {
           ...base,
           reviewDigest: exported.reviewDigest,
@@ -595,7 +693,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       confirmed.onchange = () => {
         remove.disabled = !confirmed.checked;
       };
-      control(details, "Download private preparation export", async () => {
+      control(archive, "Download private preparation export", async () => {
         if (article.dataset.dirty === "true")
           throw new Error(
             "Save or discard unsaved edits before exporting the saved preparation.",
