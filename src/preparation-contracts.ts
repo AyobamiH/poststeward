@@ -143,7 +143,13 @@ export const critiqueSchema = z.strictObject({
           "repetition",
           "missing_context",
         ]),
-        detail: z.string().min(5).max(1000),
+        detail: z
+          .string()
+          .min(5)
+          .max(1000)
+          .describe(
+            "Identify exact offending current channel text, its concrete conflict with pinned evidence, approved context or provider constraints, and an actionable correction. Do not attribute reference material or earlier generation annotations to current copy, or invent optional requirements.",
+          ),
       }),
     )
     .max(20),

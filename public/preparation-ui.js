@@ -369,12 +369,21 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         markDirty(input);
         markDirty(keep);
       }
-      details.append(element("p", draft.rationale));
+      const annotations = element("details");
+      annotations.append(
+        element("summary", "Original generation notes and source annotations"),
+        element(
+          "p",
+          "These notes were generated with the original draft and may refer to earlier copy after edits. The editorial check examines your current saved channel text against the pinned sources and approved context.",
+        ),
+        element("p", draft.rationale),
+      );
+      details.append(annotations);
       for (const claim of draft.claims)
-        details.append(
+        annotations.append(
           element(
             "p",
-            `Claim to verify: ${claim.claim}\n${claim.sources.map((source) => `${source.evidence}: “${source.quote}”`).join("\n")}`,
+            `Generated claim annotation: ${claim.claim}\n${claim.sources.map((source) => `${source.evidence}: “${source.quote}”`).join("\n")}`,
           ),
         );
       if (mutable)

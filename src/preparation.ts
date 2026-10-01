@@ -929,8 +929,19 @@ export class Preparation {
             alias,
             provider,
           })),
-          ...(stage !== "interpret" ? { strategy: job.strategy } : {}),
-          ...(stage === "check" ? { drafts: job.drafts } : {}),
+          ...(stage === "draft" ? { strategy: job.strategy } : {}),
+          ...(stage === "check"
+            ? {
+                reviewTarget: "current_saved_channel_text",
+                reviewIntent: {
+                  audience: job.strategy?.audience,
+                  objective: job.strategy?.objective,
+                },
+                // Generated rationale/claims can refer to copy the owner removed.
+                // Check every assertion in current text against pinned evidence.
+                drafts: job.drafts?.map(({ alias, text }) => ({ alias, text })),
+              }
+            : {}),
         };
         let selectedRoute = connection.routing?.primary;
         let result;
