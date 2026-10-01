@@ -409,6 +409,10 @@ export async function generate(plan, item, route, save, send = request, token) {
       },
       token,
     );
+    if (typeof job.id !== "string" || !job.id || job.id.length > 100)
+      throw new Error(
+        "No allocated preparation identifier; inspect the persisted key.",
+      );
     run.job = job.id;
     run.status = "queued";
     await save(plan);
@@ -519,6 +523,9 @@ async function main() {
         if (!ids.includes(caseId))
           throw new Error("Owner job is outside the four controlled cases.");
         if (!plan.runs.some((r) => r.job === job.id)) {
+          const maximum = Number(job.budget?.maxMicros || 0) / 1e6;
+          plan.spending.requests++;
+          plan.spending.reservedUsd += maximum;
           plan.runs.push({
             case: caseId,
             route: job.routing.primary.provider,
@@ -526,6 +533,7 @@ async function main() {
             status: "owner-created",
             release: plan.release,
             ownerFlow: true,
+            maxReservedUsd: maximum,
           });
           await save(plan);
         }
