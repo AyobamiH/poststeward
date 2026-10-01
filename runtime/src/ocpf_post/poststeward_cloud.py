@@ -326,7 +326,7 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
             print(json.dumps(value, indent=2, ensure_ascii=False))
             return value
         except CloudError as exc:
-            if exc.code != "RUNTIME_UNAUTHENTICATED":
+            if exc.code not in {"RUNTIME_UNAUTHENTICATED", "RUNTIME_PAIRING_EXPIRED"}:
                 raise
 
     _, started = _request(
