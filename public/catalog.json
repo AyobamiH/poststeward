@@ -685,7 +685,8 @@
                   "fact": {
                     "type": "string",
                     "minLength": 5,
-                    "maxLength": 1000
+                    "maxLength": 1000,
+                    "description": "What the quoted source explicitly documents. Preserve synthetic/test/unreleased qualifications. Do not claim production availability from source notes."
                   },
                   "sources": {
                     "minItems": 1,
@@ -714,11 +715,13 @@
                   },
                   "audienceProblem": {
                     "type": "string",
-                    "maxLength": 1000
+                    "maxLength": 1000,
+                    "description": "A restrained proposed audience problem, labelled as a hypothesis unless supplied evidence establishes it. No invented customer facts or delays."
                   },
                   "implication": {
                     "type": "string",
-                    "maxLength": 1000
+                    "maxLength": 1000,
+                    "description": "A proposed connection to the stated objective, distinct from source facts. No unproved efficiency, adoption or outcome guarantees."
                   }
                 },
                 "required": [
@@ -733,7 +736,8 @@
             "positioning": {
               "type": "string",
               "minLength": 10,
-              "maxLength": 2000
+              "maxLength": 2000,
+              "description": "Scope-qualified positioning for the owner's objective. Explicitly identify a synthetic fixture as synthetic; never market it as a real product launch."
             },
             "objective": {
               "type": "string",
@@ -748,7 +752,8 @@
             "channelApproach": {
               "type": "string",
               "minLength": 5,
-              "maxLength": 2000
+              "maxLength": 2000,
+              "description": "How to explain supported facts on the selected providers while preserving source qualifications. Account aliases do not establish product identity."
             },
             "missingContext": {
               "maxItems": 8,
@@ -757,7 +762,8 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500
-              }
+              },
+              "description": "Blocking facts essential to the stated objective. Each item must identify the objective requirement, absent fact and why omitting its claim would not fulfil the objective. Return [] when a safe explanation of supplied facts suffices. Optional integrations, adoption, availability or performance research does not block a campaign making no such claims."
             },
             "risks": {
               "maxItems": 8,
@@ -766,7 +772,8 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 500
-              }
+              },
+              "description": "Concrete interpretation limits and unsupported claims to exclude. Optional research questions are non-blocking risks, not essential missing context."
             }
           },
           "required": [

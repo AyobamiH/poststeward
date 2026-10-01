@@ -633,6 +633,26 @@ try {
       await page.screenshot({path:`ux-evidence/preparation-review-${width}.png`,fullPage:true});
     }await context.close();
   });
+  await check('Blocked interpretation shows missing context and recorded versus unknown editorial versions without offering approval',async()=>{
+    const attempt={stage:'interpret',provider:'cloudflare_workers',model:'@cf/meta/llama-3.3-70b-instruct-fp8-fast',funding:'workers_ai',fallback:false,outcome:'reported_usage',reservedMicros:16044,estimatedMicros:1321};
+    const blocked={...preparationFixture,stage:'interpret',drafts:undefined,critique:undefined,digest:undefined,
+      error:{code:'PREPARATION_CONTEXT_REQUIRED',message:'The model identified insufficient context. Drafts and approval are unavailable.'},
+      strategy:{...preparationFixture.strategy,missingContext:['Missing essential change details.']},
+      attempts:[attempt,{...attempt,editorialPolicyVersion:'2026-10-01-essential-context-v2',executionRelease:'synthetic-release'}]};
+    let paid=0,approvals=0;
+    const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[blocked],
+      '/api/operations/preparation_regenerate':()=>{paid++;throw new Error('No regeneration expected');},
+      '/api/operations/preparation_approve':()=>{approvals++;throw new Error('No approval expected');}});
+    const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
+    await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();
+    await article.locator('details').evaluateAll(nodes=>nodes.forEach(node=>node.open=true));
+    assert.match(await article.innerText(),/State: Needs more context/);
+    assert.match(await article.innerText(),/Editorial policy unrecorded; execution release unrecorded/);
+    assert.match(await article.innerText(),/Editorial policy 2026-10-01-essential-context-v2; execution release synthetic-release/);
+    assert.equal(await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).count(),0);
+    assert.equal(await article.getByLabel('Exact channel text').count(),0);
+    assert.equal(paid,0);assert.equal(approvals,0);await context.close();
+  });
   await check('Status refresh preserves unsaved editorial text; unsaved text cannot be frozen',async()=>{
     let approvals=0;
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture],

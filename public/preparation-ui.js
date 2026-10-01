@@ -268,7 +268,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
         attempts.append(
           element(
             "p",
-            `${attempt.stage}: ${attempt.provider} / ${attempt.model} / ${attempt.funding}; ${attempt.fallback ? "explicit fallback" : "primary"}; ${attempt.outcome}; maximum reserved USD ${(attempt.reservedMicros / 1e6).toFixed(6)}${attempt.estimatedMicros === undefined ? " · charge uncertain/conservatively retained" : " · reported-usage estimate USD " + (attempt.estimatedMicros / 1e6).toFixed(6)}. Funding configuration readback ${attempt.fundingProof?.checkedAt ? new Date(attempt.fundingProof.checkedAt).toISOString() : "unverified"}; invoice/readback unverified.`,
+            `${attempt.stage}: ${attempt.provider} / ${attempt.model} / ${attempt.funding}; ${attempt.fallback ? "explicit fallback" : "primary"}; ${attempt.outcome}; maximum reserved USD ${(attempt.reservedMicros / 1e6).toFixed(6)}${attempt.estimatedMicros === undefined ? " · charge uncertain/conservatively retained" : " · reported-usage estimate USD " + (attempt.estimatedMicros / 1e6).toFixed(6)}. Editorial policy ${attempt.editorialPolicyVersion || "unrecorded"}; execution release ${attempt.executionRelease || "unrecorded"}. Funding configuration readback ${attempt.fundingProof?.checkedAt ? new Date(attempt.fundingProof.checkedAt).toISOString() : "unverified"}; invoice/readback unverified.`,
           ),
         );
       article.append(attempts);
