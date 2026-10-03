@@ -475,6 +475,7 @@ async function refresh() {
     line(r, p.accounts.join(", "));
   });
   preparationUI.setProjects(projects);
+  preparationUI.setExecutor(local ? "local" : "hosted");
   for (const id of ["project-select", "profile-project"]) {
     const previous = $(id).value;
     $(id).replaceChildren(...projects.map((p) => new Option(p.name, p.id)));
@@ -697,8 +698,7 @@ async function refresh() {
   $("workspace-content").hidden = false;
   $("workspace-next-step").hidden = false;
   $("pause").hidden = false;
-  $("session-notice").textContent =
-    "Workspace data updated.";
+  $("session-notice").textContent = "Workspace data updated.";
   if (firstLoad) document.dispatchEvent(new Event("workspace-ready"));
   document.dispatchEvent(new Event("workspace-updated"));
 }

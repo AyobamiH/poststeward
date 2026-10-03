@@ -956,9 +956,12 @@ export class Preparation {
             : job.channels;
         const material = {
           sourceScope: {
-            mode: job.selection.previousTag
-              ? "bounded_release_comparison"
-              : "selected_release_snapshot",
+            mode:
+              job.selection.sourceKind === "repository"
+                ? "selected_repository_documentation"
+                : job.selection.previousTag
+                  ? "bounded_release_comparison"
+                  : "selected_release_snapshot",
             repository: job.selection.repository,
             releaseTag: job.selection.releaseTag,
             pinnedCommit: job.sha,
@@ -1375,7 +1378,7 @@ export class Preparation {
     const current = await this.options.evidence(job.selection);
     requireValue(
       current.sha === job.sha &&
-        !current.gaps.length &&
+        current.evidence.length > 0 &&
         (await digest(current.evidence)) ===
           (await digest(
             (job.evidence || []).filter((item) => item.id !== "context"),

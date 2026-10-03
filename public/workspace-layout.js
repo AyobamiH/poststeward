@@ -221,7 +221,8 @@ export function mountWorkspaceLayout() {
       fields.append(prepareForm.elements[name].closest("label"));
     return fields;
   };
-  const sourceFields = group("Release source", [
+  const sourceFields = group("Project or release source", [
+    "sourceKind",
     "project",
     "repository",
     "releaseTag",

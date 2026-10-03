@@ -706,6 +706,47 @@ try {
     evidence:[{id:'release',kind:'release',url:'https://github.com/fixture/release/releases/tag/v1.0',text:'Adds a diagnostic timeline. <img src=x onerror="window.unsafe=true"> '+('long-source-path-').repeat(120)}],
     drafts:[{alias:'fixture_x',text:'Investigating delivery failures? This release adds a diagnostic timeline. Read the release notes.',rationale:'Connect the change to the intended audience',claims:[{claim:'Adds a timeline',sources:[{evidence:'release',quote:'Adds a diagnostic timeline.'}]}]}],
     critique:{acceptableForOwnerReview:true,issues:[],summary:'Source support still requires owner review.'},digest:'a'.repeat(64)};
+  await check('Autonomous setup requires standing consent and exposes owner pause', async () => {
+    let submitted, policies = [], manual = 0, pauses = 0;
+    const context = await ownerContext({
+      '/api/operations/model_status': preparationStatus,
+      '/api/operations/preparations_list': [],
+      '/api/operations/autonomy_list': route => route.fulfill({json: policies}),
+      '/api/operations/preparation_create': () => { manual++; throw new Error('Autonomous setup must not submit a manual preparation'); },
+      '/api/operations/autonomy_configure': route => {
+        submitted = route.request().postDataJSON();
+        policies = [{...submitted, revision: 1}];
+        return route.fulfill({json: policies[0]});
+      },
+      '/api/operations/autonomy_pause': route => {
+        pauses++; policies = policies.map(policy => ({...policy, enabled: false}));
+        return route.fulfill({json: policies[0]});
+      },
+    });
+    const page = await context.newPage();
+    await page.goto(origin + '/app#release-preparation'); await page.waitForLoadState('networkidle');
+    const form = page.locator('#preparation-create');
+    await form.locator('[name="sourceKind"]').selectOption('repository');
+    assert.equal(await form.locator('[name="documentationPaths"]').getAttribute('required'), '');
+    for (const [name, value] of Object.entries({repository: 'fixture/product', releaseTag: 'main', documentationPaths: 'README.md', audience: 'Builders delegating routine publishing', objective: 'Explain useful documented capabilities', brandVoice: 'Specific British English', productContext: 'A tool recording delivery failures and recovery steps', exclusions: 'No unsupported guarantees', callToAction: 'Read the documentation'})) await form.locator(`[name="${name}"]`).fill(value);
+    await form.locator('[name="spendConsent"]').check();
+    await page.locator('#autonomy-setup summary').click();
+    const start = form.getByRole('button', {name: 'Start autonomous publishing', exact: true});
+    await start.click();
+    await page.waitForFunction(() => document.getElementById('result').textContent.includes('Confirm standing'));
+    assert.equal(submitted, undefined);
+    await form.locator('[name="standingConsent"]').check(); await start.click();
+    await page.waitForFunction(() => document.getElementById('result').textContent.includes('Autonomous publishing started'));
+    assert.equal(submitted.enabled, true); assert.equal(submitted.intervalMinutes, 240);
+    assert.equal(submitted.stockFloor, 2); assert.equal(submitted.maxDailyDeliveries, 3);
+    assert.equal(submitted.selection.repository, 'fixture/product'); assert.equal(submitted.selection.sourceKind, 'repository'); assert.equal(manual, 0);
+    await page.goto(origin + '/app#advanced'); await page.waitForLoadState('networkidle');
+    await page.locator('#autonomy-projects button').click();
+    await page.waitForFunction(() => document.getElementById('autonomy-projects').textContent.includes('paused'));
+    assert.equal(pauses, 1); assert.deepEqual(await audit(page), []);
+    await context.close();
+  });
+
   await check('Preparation sources and drafts are readable, accessible and inert on mobile and desktop',async()=>{
     const context=await ownerContext({'/api/operations/model_status':preparationStatus,'/api/operations/preparations_list':[preparationFixture]});const page=await context.newPage();
     for(const width of [360,1024,1440]) {
@@ -715,6 +756,8 @@ try {
       assert.match(await page.locator('#preparation-jobs').innerText(),/img src=x onerror/);
       assert.equal(await page.evaluate(()=>window.unsafe),undefined);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+      // Resizing and opening source details can leave a step link clipped by the sticky header.
+      await page.locator(".publishing-steps").evaluate(node => node.scrollIntoView({block:"center"}));
       assert.deepEqual(await audit(page),[]);
       await page.screenshot({path:`ux-evidence/preparation-review-${width}.png`,fullPage:true});
     }await context.close();
@@ -913,6 +956,7 @@ try {
     const page=await context.newPage();await page.goto(origin+'/app');await page.waitForLoadState('networkidle');
     assert.equal(await page.locator('#workspace-content').isVisible(),true);assert.equal(await page.locator('#local-delivery-note').isVisible(),true);
     assert.equal(await page.locator('#campaign').isVisible(),false);assert.equal(await page.locator('#receipts').isVisible(),false);
+    assert.equal(await page.locator('#autonomy-setup').isVisible(),false);
     assert.ok(await page.locator('#preparation-project option').count()>0);
     await page.goto(origin+'/app#release-preparation');await page.waitForLoadState('networkidle');await page.locator('#preparation-refresh').click();const article=page.locator('#preparation-jobs article');await article.waitFor();await article.locator('details').first().evaluate(node=>node.open=true);
     await article.getByLabel(/I reviewed each included variant/).check();await article.getByRole('button',{name:'Approve exact saved copy and open delivery review',exact:true}).click();

@@ -176,6 +176,7 @@ export const fixture = {
       rolloutEnabled: false,
     },
   },
+  "/api/operations/autonomy_list": [],
   "/api/operations/automation_inspect": {
     profiles,
     deliveries: receipts.slice(0, 3),

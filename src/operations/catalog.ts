@@ -101,8 +101,9 @@ export const catalog: Operation[] = [
     {
       project: "product",
       selection: {
+        sourceKind: "repository",
         repository: "owner/product",
-        releaseTag: "v1.0",
+        releaseTag: "main",
         documentationPaths: ["README.md"],
         allowPrivate: false,
         allowUnreleased: false,
@@ -237,7 +238,7 @@ export const catalog: Operation[] = [
   ),
   op(
     "preparation_create",
-    "Queue original AI release interpretation, campaign strategy, drafting and editorial checks using the workspace’s own bounded model account. Never publishes or schedules.",
+    "Queue source-grounded interpretation, campaign strategy, drafting and editorial checks from selected releases or project documentation using the workspace’s own bounded model account. Never publishes or schedules.",
     "campaign:write",
     ["STATE_WRITE", "FINANCIAL_EFFECT"],
     z.strictObject({

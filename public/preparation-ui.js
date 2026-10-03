@@ -870,6 +870,28 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
   };
   $("preparation-model-disconnect").onclick = () =>
     action(() => mutate("model_disconnect", {}));
+  const sourceForm = $("preparation-create");
+  const sourceKind = sourceForm.elements.sourceKind;
+  const sourceFields = () => {
+    const repository = sourceKind.value === "repository";
+    const docs = sourceForm.elements.documentationPaths;
+    docs.required = repository;
+    docs.closest("label").firstChild.textContent = repository
+      ? "Documentation paths, comma separated (one to three)"
+      : "Documentation paths, comma separated (optional; up to three)";
+    sourceForm.elements.previousTag.closest("label").hidden = repository;
+    if (repository) sourceForm.elements.previousTag.value = "";
+    sourceForm.elements.releaseTag.placeholder = repository ? "main" : "v1.0.0";
+    const options = sourceForm.querySelector(".preparation-source-options");
+    if (options) {
+      options.querySelector("summary").textContent = repository
+        ? "Project documentation (required)"
+        : "Additional release sources (optional)";
+      if (repository) options.open = true;
+    }
+  };
+  sourceKind.onchange = sourceFields;
+  sourceFields();
   $("preparation-create").onsubmit = (event) => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
@@ -882,6 +904,7 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
       await mutate(autonomous ? "autonomy_configure" : "preparation_create", {
         project: fd.get("project"),
         selection: {
+          sourceKind: fd.get("sourceKind") || "release",
           repository: fd.get("repository"),
           releaseTag: fd.get("releaseTag"),
           ...(fd.get("previousTag")
@@ -912,6 +935,9 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
     });
   };
   return {
+    setExecutor(mode) {
+      $("autonomy-setup").hidden = mode === "local";
+    },
     setProjects(projects) {
       const select = $("preparation-project"),
         previous = select.value;

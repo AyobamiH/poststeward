@@ -157,3 +157,63 @@ test("large mixed releases record bounded coverage and diverged release comparis
     /ancestor/,
   );
 });
+
+test("repository documentation works without a release and stays pinned to the selected ref", async () => {
+  const h = reader();
+  const result = await readPreparationEvidence(
+    {
+      repository: "example/project",
+      sourceKind: "repository",
+      releaseTag: "main",
+      documentationPaths: ["README.md"],
+      allowPrivate: false,
+      allowUnreleased: false,
+    },
+    env,
+    "workspace",
+    h.send,
+  );
+  assert.ok(h.urls.some((url) => url.endsWith("/commits/main")));
+  assert.ok(
+    h.urls.every(
+      (url) => !url.includes("/releases/") && !url.includes("/compare/"),
+    ),
+  );
+  assert.equal(result.evidence.length, 1);
+  assert.equal(result.evidence[0].kind, "documentation");
+  assert.equal(result.sha, "a".repeat(40));
+  assert.equal(result.gaps.length, 0);
+  assert.match(result.coverage, /not proof of release/);
+});
+test("repository snapshots require selected usable documentation and reject sensitive paths", async () => {
+  const source = {
+    repository: "example/project",
+    sourceKind: "repository" as const,
+    releaseTag: "main",
+    documentationPaths: [],
+    allowPrivate: false,
+    allowUnreleased: false,
+  };
+  await assert.rejects(
+    readPreparationEvidence(source, env, "workspace", reader().send),
+    /documentation paths/,
+  );
+  await assert.rejects(
+    readPreparationEvidence(
+      { ...source, documentationPaths: ["docs/private.md"] },
+      env,
+      "workspace",
+      reader().send,
+    ),
+    /cannot be selected/,
+  );
+  await assert.rejects(
+    readPreparationEvidence(
+      { ...source, documentationPaths: ["README.md"] },
+      env,
+      "workspace",
+      reader({ doc: "ghp_ABCDEF01234567890" }).send,
+    ),
+    /empty or excluded/,
+  );
+});

@@ -28,7 +28,7 @@ const texts = [
   "When preparing an operational checklist, consider where your team will look for recorded delivery failures. The diagnostic timeline documents those events.",
 ];
 async function fixture(
-  options: { issues?: boolean; duplicate?: boolean } = {},
+  options: { issues?: boolean; duplicate?: boolean; advisory?: boolean } = {},
 ) {
   const h = harness();
   await h.setup();
@@ -39,7 +39,8 @@ async function fixture(
     reference: "fixture",
   });
   let sourceSha = "a".repeat(40),
-    count = 0;
+    count = 0,
+    evidenceText = quote;
   const materials: any[] = [];
   const engine = new Engine(h.store, h.env, h.provider, {
     ...h.options,
@@ -50,10 +51,14 @@ async function fixture(
           id: "docs",
           kind: "documentation",
           url: "https://github.com/example/product/blob/v1.0/README.md",
-          text: quote,
+          text: evidenceText,
         },
       ],
-      gaps: [],
+      gaps: options.advisory
+        ? [
+            "No previous release selected; only explicit documented facts are supported.",
+          ]
+        : [],
       coverage: "Synthetic fixture",
     }),
     preparationModel: async (_key, stage, material) => {
@@ -139,6 +144,9 @@ async function fixture(
     configure,
     produce,
     materials,
+    changeEvidence: () => {
+      evidenceText = quote + " Updated qualifications for the same commit.";
+    },
     changeSource: () => {
       sourceSha = "b".repeat(40);
     },
@@ -348,4 +356,24 @@ test("unstarted daily budget exhaustion defers and resumes without owner interve
   h.advance(13 * 3600000);
   await h.engine.autonomy.tick();
   assert.equal(h.store.list("preparation:").length, 1);
+});
+
+test("advisory source coverage does not impose routine approval on checked facts", async () => {
+  const h = await fixture({ advisory: true });
+  await h.configure();
+  await h.produce();
+  assert.equal(h.calls.publish, 1);
+});
+
+test("edited source content at the same SHA blocks a captured delivery", async () => {
+  const h = await fixture();
+  await h.configure();
+  await h.produce();
+  h.advance(1001);
+  await h.produce();
+  h.changeEvidence();
+  h.advance(3600000);
+  await h.engine.tick();
+  assert.equal(h.calls.publish, 1);
+  assert.equal(h.store.list<any>("delivery:")[1].status, "drift_blocked");
 });

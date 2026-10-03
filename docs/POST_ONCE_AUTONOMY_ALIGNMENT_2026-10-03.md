@@ -12,7 +12,7 @@ second publisher and copies no personal account, project, vault or credential se
 
 1. Connect the destination accounts and bind them to a project.
 2. Connect this workspace's own model and save its call, token and spending limits.
-3. In AI preparation, select repository/release/documentation evidence, audience,
+3. In AI preparation, select project documentation (repository branch/ref and up to three paths) or a release snapshot, audience,
    product context, voice, exclusions and call to action.
 4. Choose **Run this project autonomously**, set spacing, stock and daily posting
    limits, accept standing authority and start. Hosted operation needs no local
@@ -39,6 +39,8 @@ Admission requires the exact checked digest, clean critique, complete strategy,
 source-referenced claims, unchanged project/account bindings, current selected source
 content and current model/owner authority. It captures policy revision and admission
 digest on each delivery. These are rechecked before reservation and provider writes.
+Advisory coverage warnings, such as a missing previous release comparison, do not require routine approval when admitted claims are supported. Empty or excluded evidence and essential missing context still hold work.
+
 Standing authority never releases arbitrary agent copy or legacy pending approvals.
 Existing owner review and template automation remain available.
 
@@ -59,7 +61,7 @@ cannot be removed through preparation archive.
 
 Model checking assists editorial admission; it cannot prove every claim true or
 promise that all generated content is good. This release's hosted producer uses the
-existing repository/release/documentation reader and workspace model routes. It does
+existing GitHub reader and workspace model routes, with a bounded documentation-only repository mode that requires no release. Each cycle pins the selected branch/ref to a commit; it does not turn documentation into deployment evidence. It does
 not imply a customer's ChatGPT subscription or private Google Docs authoring task is
 available to a hosted workspace. Those original Work/Docs workflows remain local
 capabilities; the hosted producer runs from the explicit connected model contract.

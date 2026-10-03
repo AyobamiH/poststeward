@@ -72,6 +72,14 @@ export class Autonomy {
   }
   configure(input: any, actor: Actor) {
     this.owner(actor);
+    requireValue(
+      input.selection.sourceKind !== "repository" ||
+        (!input.selection.previousTag &&
+          input.selection.documentationPaths.length > 0),
+      "PREPARATION_DOCUMENT_SELECTION_REQUIRED",
+      "Select one to three project documentation paths; release comparisons do not apply to a repository snapshot.",
+      422,
+    );
     const project = this.store.get<Project>("project:" + input.project);
     requireValue(
       project && project.accounts.length <= 3,

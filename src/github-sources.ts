@@ -58,25 +58,36 @@ export async function readPreparationEvidence(
     );
     return boundedJson(response, 512000);
   };
-  const release = await get(
-    `/releases/tags/${encodeURIComponent(selection.releaseTag)}`,
-  );
+  const repositoryOnly = selection.sourceKind === "repository";
   requireValue(
-    release.tag_name === selection.releaseTag &&
-      typeof release.body === "string",
-    "PREPARATION_RELEASE_INVALID",
-    "The selected release has no valid release notes.",
+    !repositoryOnly ||
+      (!selection.previousTag && selection.documentationPaths.length > 0),
+    "PREPARATION_DOCUMENT_SELECTION_REQUIRED",
+    "Select one to three documentation paths for a repository snapshot; release comparisons do not apply.",
     422,
   );
-  requireValue(
-    selection.allowUnreleased ||
-      (!release.draft &&
-        release.published_at &&
-        Date.parse(release.published_at) <= now),
-    "UNRELEASED_SOURCE_REVIEW_REQUIRED",
-    "Unreleased source details need explicit owner disclosure approval.",
-    403,
-  );
+  let release: any;
+  if (!repositoryOnly) {
+    release = await get(
+      `/releases/tags/${encodeURIComponent(selection.releaseTag)}`,
+    );
+    requireValue(
+      release.tag_name === selection.releaseTag &&
+        typeof release.body === "string",
+      "PREPARATION_RELEASE_INVALID",
+      "The selected release has no valid release notes.",
+      422,
+    );
+    requireValue(
+      selection.allowUnreleased ||
+        (!release.draft &&
+          release.published_at &&
+          Date.parse(release.published_at) <= now),
+      "UNRELEASED_SOURCE_REVIEW_REQUIRED",
+      "Unreleased source details need explicit owner disclosure approval.",
+      403,
+    );
+  }
   const commit = await get(
     `/commits/${encodeURIComponent(selection.releaseTag)}`,
   );
@@ -112,72 +123,76 @@ export async function readPreparationEvidence(
     }
   };
   const origin = `https://github.com/${selection.repository}`;
-  add(
-    "release",
-    "release",
-    release.body,
-    `${origin}/releases/tag/${encodeURIComponent(selection.releaseTag)}`,
-  );
-  add(
-    "commit",
-    "commit",
-    String(commit.commit?.message || ""),
-    `${origin}/commit/${commit.sha}`,
-  );
-  let files = Array.isArray(commit.files) ? commit.files : [];
-  if (selection.previousTag) {
-    const comparison = await get(
-      `/compare/${encodeURIComponent(selection.previousTag)}...${commit.sha}?per_page=30`,
-    );
-    requireValue(
-      ["ahead", "identical"].includes(comparison.status),
-      "PREPARATION_BASE_INVALID",
-      "Choose a previous release that is an ancestor of this release. Diverged comparisons need separate review.",
-      422,
-    );
-    const commits = Array.isArray(comparison.commits) ? comparison.commits : [];
-    for (const [index, entry] of commits.slice(0, 12).entries()) {
-      if (/^[a-f0-9]{40}$/.test(entry.sha))
-        add(
-          `commit-${index}`,
-          "commit",
-          String(entry.commit?.message || ""),
-          `${origin}/commit/${entry.sha}`,
-        );
-    }
-    if (comparison.total_commits > 12)
-      gaps.push(
-        "Only twelve commit messages are included from the release comparison; omitted commits need owner review.",
-      );
-    files = Array.isArray(comparison.files) ? comparison.files : [];
-  } else
-    gaps.push(
-      "No previous release selected: patches cover the tag commit, not the complete release diff. Release notes and pinned documents can still support a campaign about their explicit facts; comparison claims need a selected baseline.",
-    );
   const sensitivePath =
     /(?:^|\/)(?:\.[^/]+|[^/]*(?:secret|credential|token|customer|private)[^/]*)/i;
-  for (const [index, file] of files.slice(0, 8).entries()) {
-    if (
-      typeof file.filename !== "string" ||
-      sensitivePath.test(file.filename) ||
-      typeof file.patch !== "string"
-    ) {
-      gaps.push(
-        `diff-${index}: sensitive, binary or unavailable patch excluded.`,
-      );
-      continue;
-    }
+  if (!repositoryOnly) {
     add(
-      `diff-${index}`,
-      "diff",
-      `File: ${file.filename}\n${file.patch}`,
+      "release",
+      "release",
+      release.body,
+      `${origin}/releases/tag/${encodeURIComponent(selection.releaseTag)}`,
+    );
+    add(
+      "commit",
+      "commit",
+      String(commit.commit?.message || ""),
       `${origin}/commit/${commit.sha}`,
     );
+    let files = Array.isArray(commit.files) ? commit.files : [];
+    if (selection.previousTag) {
+      const comparison = await get(
+        `/compare/${encodeURIComponent(selection.previousTag)}...${commit.sha}?per_page=30`,
+      );
+      requireValue(
+        ["ahead", "identical"].includes(comparison.status),
+        "PREPARATION_BASE_INVALID",
+        "Choose a previous release that is an ancestor of this release. Diverged comparisons need separate review.",
+        422,
+      );
+      const commits = Array.isArray(comparison.commits)
+        ? comparison.commits
+        : [];
+      for (const [index, entry] of commits.slice(0, 12).entries()) {
+        if (/^[a-f0-9]{40}$/.test(entry.sha))
+          add(
+            `commit-${index}`,
+            "commit",
+            String(entry.commit?.message || ""),
+            `${origin}/commit/${entry.sha}`,
+          );
+      }
+      if (comparison.total_commits > 12)
+        gaps.push(
+          "Only twelve commit messages are included from the release comparison; omitted commits need owner review.",
+        );
+      files = Array.isArray(comparison.files) ? comparison.files : [];
+    } else
+      gaps.push(
+        "No previous release selected: patches cover the tag commit, not the complete release diff. Release notes and pinned documents can still support a campaign about their explicit facts; comparison claims need a selected baseline.",
+      );
+    for (const [index, file] of files.slice(0, 8).entries()) {
+      if (
+        typeof file.filename !== "string" ||
+        sensitivePath.test(file.filename) ||
+        typeof file.patch !== "string"
+      ) {
+        gaps.push(
+          `diff-${index}: sensitive, binary or unavailable patch excluded.`,
+        );
+        continue;
+      }
+      add(
+        `diff-${index}`,
+        "diff",
+        `File: ${file.filename}\n${file.patch}`,
+        `${origin}/commit/${commit.sha}`,
+      );
+    }
+    if (files.length > 8 || commit.stats?.total > 1000)
+      gaps.push(
+        "Large release: only the release notes, selected commit and bounded patches are included. Narrow the campaign or review omitted commits/files.",
+      );
   }
-  if (files.length > 8 || commit.stats?.total > 1000)
-    gaps.push(
-      "Large release: only the release notes, selected commit and bounded patches are included. Narrow the campaign or review omitted commits/files.",
-    );
   for (const [index, path] of selection.documentationPaths.entries()) {
     requireValue(
       !sensitivePath.test(path),
@@ -218,9 +233,11 @@ export async function readPreparationEvidence(
     );
   }
   requireValue(
-    evidence.some((item) => item.id === "release"),
+    repositoryOnly
+      ? evidence.some((item) => item.kind === "documentation")
+      : evidence.some((item) => item.id === "release"),
     "PREPARATION_EVIDENCE_INSUFFICIENT",
-    "Release notes were empty or excluded. Select approved evidence with no sensitive data.",
+    "Selected source evidence was empty or excluded. Choose usable documentation or release notes with no sensitive data.",
     422,
   );
   return {
@@ -228,8 +245,9 @@ export async function readPreparationEvidence(
     evidence,
     gaps,
     fetchedAt: now,
-    coverage:
-      "Selected release notes, a pinned tag commit, up to twelve comparison commit messages, eight patches and three selected documentation files. Omitted data is not evidence.",
+    coverage: repositoryOnly
+      ? "Selected project documentation pinned to one repository commit. This is documented capability evidence, not proof of release, deployment, adoption or outcomes."
+      : "Selected release notes, a pinned tag commit, up to twelve comparison commit messages, eight patches and three selected documentation files. Omitted data is not evidence.",
   };
 }
 

@@ -590,11 +590,19 @@
                   <div class="preparation-new">
                     <h3>Start a new preparation</h3>
                     <p class="muted">
-                      For a new release, add its sources and campaign brief
-                      below. To continue saved work, use its review controls
-                      above.
+                      Add project documentation or release sources and your
+                      campaign brief below. To continue saved work, use its
+                      review controls above.
                     </p>
                     <form id="preparation-create">
+                      <label
+                        >Source kind<select name="sourceKind">
+                          <option value="release">Selected release</option>
+                          <option value="repository">
+                            Project documentation
+                          </option>
+                        </select></label
+                      >
                       <label
                         >Publishing project<select
                           name="project"
@@ -611,7 +619,7 @@
                           placeholder="owner/repository"
                       /></label>
                       <label
-                        >Release tag<input
+                        >Release tag or repository branch/ref<input
                           name="releaseTag"
                           required
                           maxlength="120"
@@ -706,7 +714,7 @@
                         I authorize this bounded generation request against the
                         selected model account.</label
                       ><button>Prepare strategy and original drafts</button>
-                      <details>
+                      <details id="autonomy-setup">
                         <summary>Run this project autonomously</summary>
                         <p>
                           Hosted PostSteward keeps useful, distinct supply

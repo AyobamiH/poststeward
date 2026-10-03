@@ -82,8 +82,9 @@
     "example": {
       "project": "product",
       "selection": {
+        "sourceKind": "repository",
         "repository": "owner/product",
-        "releaseTag": "v1.0",
+        "releaseTag": "main",
         "documentationPaths": [
           "README.md"
         ],
@@ -119,6 +120,13 @@
         "selection": {
           "type": "object",
           "properties": {
+            "sourceKind": {
+              "type": "string",
+              "enum": [
+                "release",
+                "repository"
+              ]
+            },
             "repository": {
               "type": "string",
               "maxLength": 200,
@@ -769,7 +777,7 @@
   },
   {
     "name": "preparation_create",
-    "description": "Queue original AI release interpretation, campaign strategy, drafting and editorial checks using the workspace’s own bounded model account. Never publishes or schedules.",
+    "description": "Queue source-grounded interpretation, campaign strategy, drafting and editorial checks from selected releases or project documentation using the workspace’s own bounded model account. Never publishes or schedules.",
     "scope": "campaign:write",
     "tier": "free",
     "effects": [
@@ -812,6 +820,13 @@
         "selection": {
           "type": "object",
           "properties": {
+            "sourceKind": {
+              "type": "string",
+              "enum": [
+                "release",
+                "repository"
+              ]
+            },
             "repository": {
               "type": "string",
               "maxLength": 200,
