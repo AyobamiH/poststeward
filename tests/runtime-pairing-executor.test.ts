@@ -51,6 +51,7 @@ async function seedOwner(db: D1Database) {
 test("runtime pairing is short-lived, owner-approved and yields one installation token", async () => {
   const { mf, db } = await runtime(undefined, {
     OIDC_ISSUER: "https://accounts.google.com",
+    RELEASE_SHA: "c".repeat(40),
   }, 100);
   try {
     const owner = await seedOwner(db);
@@ -122,6 +123,8 @@ test("runtime pairing is short-lived, owner-approved and yields one installation
     assert.equal(bindings.status, 200, await bindings.clone().text());
     const bindingValue: any = await bindings.json();
     assert.equal(bindingValue.workspace, owner.workspace);
+    assert.equal(bindingValue.release, "c".repeat(40));
+    assert.equal(bindingValue.schemaVersion, 1);
     assert.deepEqual(bindingValue.accounts, []);
   } finally {
     await mf.dispose();

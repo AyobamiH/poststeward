@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -87,6 +88,59 @@ def _setup_status() -> dict[str, Any] | None:
         return None
 
 
+def _compatibility(marker: dict[str, Any], cloud: dict[str, Any], release: str | None) -> dict[str, Any]:
+    """Diagnose an observed fence; never renew a lease or change authority."""
+    executor = cloud.get("executor") if isinstance(cloud.get("executor"), dict) else {}
+    findings: list[dict[str, str]] = []
+    def block(code: str, message: str) -> None:
+        findings.append({"level": "blocker", "code": code, "message": message})
+    available = cloud.get("status") != "unavailable"
+    schema = cloud.get("schemaVersion")
+    if available and (type(schema) is not int or schema != 1):
+        block("runtime.bindings_schema_unsupported", "Cloud returned an unsupported runtime binding format. Update or repair the connection before activation.")
+    active = marker.get("status") == "active"
+    generation = executor.get("authorityGeneration")
+    local_generation = marker.get("authority_generation")
+    lease = executor.get("leaseExpiresAt")
+    observed_at = int(time.time() * 1000)
+    lease_live = type(lease) is int and lease > observed_at
+    if active:
+        if not release or marker.get("runtime_revision") != release:
+            block("runtime.activation_release_mismatch", "The running release does not match the locally reviewed activation. Inspect and deactivate before updating or reviewing activation again.")
+        if available:
+            installation = cloud.get("installationId")
+            if not (
+                isinstance(installation, str) and installation
+                and marker.get("installation_id") == installation
+                and executor.get("activeInstallationId") == installation
+                and executor.get("executorMode") == "local"
+                and executor.get("executorStatus", "active") == "active"
+            ):
+                block("authority.cloud_local_mismatch", "Local automation is active but cloud executor authority does not match this installation. Inspect the selected executor; no automatic handoff occurs.")
+            if type(generation) is not int or generation < 1 or generation != local_generation:
+                block("authority.generation_mismatch", "Local activation belongs to a different or unavailable cloud authority generation. A fresh owner-reviewed activation is required.")
+            if not lease_live:
+                block("authority.lease_not_live", "The local executor lease is expired or unavailable. Inspect runtime connectivity and authority; diagnosis does not renew the lease.")
+    return {
+        "status": "blocked" if findings else "unverified" if not available else "compatible",
+        "bindings_schema": {"local": 1, "cloud": schema},
+        "local_release_sha": release,
+        "cloud_release_sha": cloud.get("release"),
+        "release_equality_required": False,
+        "execution_authority": {
+            "local_active": active,
+            "local_generation": local_generation,
+            "cloud_generation": generation,
+            "lease_expires_at": lease,
+            "lease_live": lease_live if available else None,
+            "observed_at": observed_at,
+            "lease_clock": "local",
+        },
+        "findings": findings,
+        "boundary": "Binding format and observed execution authority only; not provider-publication acceptance.",
+    }
+
+
 def runtime_status() -> dict[str, Any]:
     root = _runtime_root()
     paths = resolved_paths()
@@ -126,6 +180,7 @@ def runtime_status() -> dict[str, Any]:
         "host": __import__('ocpf_post.host_platform', fromlist=['host']).host(),
         "setup": setup,
         "cloud": cloud,
+        "compatibility": _compatibility(marker, cloud, os.environ.get("POSTSTEWARD_RUNTIME_RELEASE_SHA")),
         "provider_credentials_local": False,
         "original_post_once_mutation_allowed": False,
     }
@@ -159,22 +214,12 @@ def doctor() -> dict[str, Any]:
     else:
         executor = cloud.get("executor") if isinstance(cloud.get("executor"), dict) else {}
         marker = status.get("automation_authority") or {}
-        if marker.get("status") == "active":
-            if not (
-                executor.get("executorMode") == "local"
-                and executor.get("executorStatus", "active") == "active"
-                and executor.get("activeInstallationId")
-                == cloud.get("installationId")
-            ):
-                finding(
-                    "blocker",
-                    "authority.cloud_local_mismatch",
-                    "Local automation is active but cloud executor authority does not match this installation.",
-                )
         if (
             marker.get("status") != "active"
             and executor.get("executorMode") == "local"
             and executor.get("executorStatus", "active") == "active"
+            and executor.get("activeInstallationId") == cloud.get("installationId")
+            and bool(cloud.get("installationId"))
         ):
             finding(
                 "attention",
@@ -190,8 +235,17 @@ def doctor() -> dict[str, Any]:
                 "No hosted X, Threads or LinkedIn destination is connected.",
             )
 
+    for row in status["compatibility"]["findings"]:
+        finding(row["level"], row["code"], row["message"])
+
     services = status.get("services") if isinstance(status.get("services"), dict) else {}
     marker = status.get("automation_authority") or {}
+    if marker.get("status") == "active" and services.get("status") != "observed":
+        finding(
+            "attention",
+            "automation.services_unverified",
+            "Local automation is active but its user service state could not be inspected. Check the user service manager before treating this machine as ready.",
+        )
     if marker.get("status") == "active" and services.get("status") == "observed":
         if not services.get("all_enabled") or not services.get("all_active"):
             finding(

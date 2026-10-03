@@ -89,6 +89,8 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
     assert help_value['product'] == 'poststeward'
     diagnosis = json.loads(run([command, 'doctor', '--json'], allowed=(0, 3)).stdout)
     assert diagnosis['status'] != 'READY', 'An unpaired machine must never become ready automatically.'
+    assert diagnosis['runtime']['compatibility']['status']=='unverified'
+    assert diagnosis['runtime']['compatibility']['local_release_sha']==revision
     runtime = root / 'data' / 'poststeward' / 'releases' / revision
     env.update({'PYTHONPATH': str(runtime / 'src'), 'POSTSTEWARD_RUNTIME_ROOT': str(runtime),
                 'POSTSTEWARD_RUNTIME_RELEASE_SHA': revision})
@@ -195,6 +197,7 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
                       'unpaired_fencing': 'passed', 'native_admission': json.loads(admission.stdout),
                       'native_service_load_stop_restart': 'passed', 'uninstall_retain_data':'passed','uninstall_delete_data':'passed',
                       'native_guarded_worker_exit':'3','upgrade_and_reviewed_rollback':'passed',
+                      'unpaired_compatibility_diagnosis':'passed',
                       'http_failure_preserves_current':'passed','truncated_download_fault_injection':'passed',
                       'interrupted_metadata_repair':'passed','expired_pairing_token_preflight':'passed',
                       'loopback_setup_and_occupied_port':'passed',

@@ -126,7 +126,7 @@ For every port:
 - [x] `poststeward configure` imports reviewed Fresh project/campaign configuration.
 - [x] `poststeward doctor` reports runtime/cloud/provider findings; unpaired installations report attention.
 - [x] `poststeward update --channel stable|beta` command with active-authority refusal; live channel acceptance remains open.
-- [ ] `poststeward runtime status` shows exact local/cloud compatibility.
+- [x] `poststeward runtime status` reports local/cloud release identities, binding format and observed generation/lease compatibility; different compatible releases do not require SHA equality.
 - [x] `poststeward deactivate` attempts cloud fencing and closes local authority even on cloud failure.
 - [x] Local migration/recovery surfaces retain preview/review/apply semantics; real hosted recovery acceptance remains open.
 

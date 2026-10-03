@@ -1251,6 +1251,7 @@ async function route(
       workspace: runtime.workspace,
       installationId: runtime.installationId,
       executor: await executorStatus(env.IDENTITY, runtime.workspace),
+      release: env.RELEASE_SHA,
       providerApplications: oauthConfiguration(env),
       accounts: bindings.accounts || [],
       boundary: bindings.boundary,
