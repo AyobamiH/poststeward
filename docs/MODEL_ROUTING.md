@@ -117,11 +117,13 @@ handoff. Their generated representative campaign is synthetic test data, never p
 of a live model account or human quality. Browser checks use synthetic private records
 on mobile/desktop, not an authenticated production owner.
 
-No customer model credential or explicit paid test allowance was supplied for this
-release. Live Workers/OpenAI generation, charge attribution and human campaign assessment
-remain unverified. The following acceptance-environment brief prepares these real checks
-separately. Public copy must describe available settings, not assert live billing/quality
-acceptance that has not happened.
+The initial delivery had no customer credential or paid test allowance. The owner has
+since used the Workers AI route and supplied private preparation exports. The latest
+current-copy recheck passes with three-stage generation evidence and an unchanged
+saved draft; see [the acceptance register](DEVELOPMENT_COMPLETION.md). This proves one
+observed Workers AI fixture, not OpenAI Gateway execution, distinct-customer-account
+attribution, invoice reconciliation or a scored human quality study. Those checks remain
+unverified. Public claims must preserve these boundaries.
 
 Migration: additive optional fields, no database schema change, existing OpenAI envelope
 remains readable. Rollback to the previous production revision keeps existing publication

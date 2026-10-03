@@ -1,5 +1,10 @@
 # Installable-runtime integration checkpoint
 
+Historical 30 September checkpoint. Convergence and branded distribution have since
+been deployed, and public signup deliberately enabled. For current status and remaining
+real owner/provider gates, use [DEVELOPMENT_COMPLETION.md](DEVELOPMENT_COMPLETION.md).
+The 404 and unmerged-branch observations below describe that earlier checkpoint only.
+
 This records the work resumed on 30 September 2026 from
 `feat/installable-poststeward-runtime` at
 `59d2d20d018b1189a2e2ec18735758cd0d08791c`. The normative product contract remains

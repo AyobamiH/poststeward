@@ -46,3 +46,25 @@ Live acceptance requires a separately authorised check of the owner's saved
 copy after the new release is deployed. Inspect its recorded policy/release and
 critique. Do not repeat paid calls or remove blockers to manufacture a pass. The
 private synthetic fixture is not a public release announcement.
+
+## Observed recheck — 3 October 2026
+
+The owner supplied before/after private exports. Revision 2 was edited with no current
+critique; revision 3 contains one additional primary Workers AI check using policy
+`2026-10-01-current-copy-v3` on release
+`a3c422b46c0126e5548d55d8b5c249f2b553ddb5`. Exact text, evidence, context and channel
+bindings did not change. Export and saved-revision digests were recomputed successfully.
+The result is `acceptableForOwnerReview: true` with no issues. The additional request
+reported 2,003 input and 73 output tokens, 3.442 seconds latency and estimated USD0.000752.
+No immutable campaign, owner approval or publication was present.
+
+This closes the specific current-copy recheck for one synthetic feature fixture.
+Uploaded JSON and matching internal digests are not independently signed provider or
+server attestations; provider invoice, other routes and the full quality matrix remain
+unverified. Private identifiers and exact source/copy remain outside the public repository.
+Do not repeat this paid check or save unchanged copy merely to refresh evidence.
+
+Production and the standalone evaluator now share `currentCopyReview`. Original
+annotations remain available for provenance and drafting; neither check path supplies
+them as current publication assertions. Regression coverage retains unsupported current
+assertions rather than suppressing critique issues.
