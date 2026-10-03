@@ -13,22 +13,28 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 3
 fi
 
-# Collector and reporter failures cannot prevent local allocation. Source/vault
-# observation has its own timer; refill consumes saved evidence only.
-observe_queue_exit() {
-  "$ROOT/scripts/run-operating-cycle" report || true
-  # One bounded post-refill side task maintains local request continuity first,
-  # then performs the existing opt-in private handoff. Neither result can change
-  # the allocator exit status or create publication authority.
-  timeout 140s sh -c '
-    python3 "$1/scripts/editorial-continuity.py" --apply || true
-    python3 "$1/scripts/editorial-handoff.py" --apply || true
-  ' sh "$ROOT" || true
-}
-trap observe_queue_exit EXIT
-
+# One desired-state controller owns the safe supply path:
+# sense exact account deficits -> refresh blocked vault/source evidence -> admit
+# already-authorised inventory -> reconcile -> reserve -> re-sense.
+# It never runs run-due or a provider publication command.
 ./poststeward portfolio experiment reconcile --apply || true
-./poststeward replenish refresh --apply || true
-./poststeward replenish reconcile
-./poststeward portfolio reconcile
-./poststeward portfolio refill --apply --horizon-minutes "${OCPF_POST_PORTFOLIO_HORIZON_MINUTES:-75}"
+
+controller_status=0
+python3 "$ROOT/scripts/reconcile-rolling-supply.py" \
+  --apply \
+  --horizon-minutes "${OCPF_POST_PORTFOLIO_HORIZON_MINUTES:-75}" \
+  --max-passes "${OCPF_POST_ROLLING_SUPPLY_MAX_PASSES:-1}" \
+  || controller_status=$?
+
+# Work/Docs remains the normal authoring plane for genuine generation deficits.
+# This handoff may report demand; it does not publish, raise quota or enable the
+# paid local API author.
+timeout 140s python3 "$ROOT/scripts/editorial-handoff.py" --apply || true
+
+# Refresh compact acceptance from the evidence the controller just changed.
+PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
+  python3 -m ocpf_post.acceptance_views --apply >/dev/null 2>&1 || true
+
+"$ROOT/scripts/run-operating-cycle" report || true
+
+exit "$controller_status"

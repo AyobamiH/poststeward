@@ -114,6 +114,13 @@ export async function invalidateRestoredAuthority(
       accounts.push(account.alias);
     }
 
+    for (const policy of store.list<any>("autonomy:")) {
+      policy.enabled = false;
+      policy.revision++;
+      policy.error = "RECOVERY_REAUTHORIZATION_REQUIRED";
+      store.put("autonomy:" + policy.project, policy);
+    }
+
     for (const profile of store.list<Profile>("profile:")) {
       if (!profile.enabled) continue;
       profile.enabled = false;

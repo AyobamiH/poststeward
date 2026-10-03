@@ -85,6 +85,7 @@ export type PreparationJob = {
   updatedAt: number;
   actor: Actor;
   modelRevision: number;
+  standingRevision?: number;
   channels: Channel[];
   selection: Selection;
   context: Context;
@@ -151,6 +152,7 @@ export interface PreparationOptions {
   }>;
   model?: ModelPort;
   send?: typeof fetch;
+  standingCurrent?: (project: string, revision: number) => void;
   handoff: (input: {
     id: string;
     project: string;
@@ -204,6 +206,15 @@ export class Preparation {
       !actor.grant || connection.allowAgents,
       "MODEL_AGENT_SPEND_DISABLED",
       "The owner has not allowed campaign-scoped agents to spend this workspace’s model allowance.",
+      403,
+    );
+  }
+  assertRequestAuthority(actor: Actor, selection: Selection) {
+    this.assertActor(actor, this.connection());
+    requireValue(
+      !actor.grant || (!selection.allowPrivate && !selection.allowUnreleased),
+      "OWNER_DISCLOSURE_REQUIRED",
+      "Private or unreleased source requests require the owner.",
       403,
     );
   }
@@ -384,6 +395,21 @@ export class Preparation {
         "Reject running work or complete the immutable handoff before removing the preparation.",
         409,
       );
+      requireValue(
+        !job.standingRevision ||
+          !this.store
+            .list<any>("delivery:")
+            .some(
+              (d) =>
+                d.campaign === job.campaign &&
+                ["scheduled", "executing", "waiting_container"].includes(
+                  d.status,
+                ),
+            ),
+        "PREPARATION_STILL_ACTIVE",
+        "Standing supply must retain its source and admission evidence until delivery is terminal.",
+        409,
+      );
       this.store.delete("preparation:" + job.id);
     });
     return {
@@ -486,8 +512,14 @@ export class Preparation {
     return reservedMicros;
   }
   async create(
-    input: { project: string; selection: Selection; context: Context },
+    input: {
+      project: string;
+      selection: Selection;
+      context: Context;
+      id?: string;
+    },
     actor: Actor,
+    standingRevision?: number,
   ) {
     const connection = this.connection();
     this.assertActor(actor, connection);
@@ -508,7 +540,7 @@ export class Preparation {
     const channels = this.channels(input.project);
     const reservedMicros = this.reserve(connection, 3);
     const job: PreparationJob = {
-      id: uid(),
+      id: input.id || uid(),
       project: input.project,
       revision: 1,
       status: "queued",
@@ -517,6 +549,7 @@ export class Preparation {
       updatedAt: this.options.now(),
       actor,
       modelRevision: connection.revision,
+      ...(standingRevision ? { standingRevision } : {}),
       channels,
       selection: input.selection,
       context: input.context,
@@ -794,6 +827,8 @@ export class Preparation {
       .find((j) => j.status === "queued");
     if (!job) return;
     try {
+      if (job.standingRevision)
+        this.options.standingCurrent?.(job.project, job.standingRevision);
       const connection = this.connection();
       requireValue(
         connection.revision === job.modelRevision,
@@ -861,6 +896,13 @@ export class Preparation {
         (job.stage === "source" ? 120000 : connection.routing ? 360000 : 60000);
       this.save(job);
       const remainsCurrent = async () => {
+        if (job.standingRevision) {
+          try {
+            this.options.standingCurrent?.(job.project, job.standingRevision);
+          } catch {
+            return false;
+          }
+        }
         const current = this.store.get<PreparationJob>("preparation:" + job.id);
         return (
           !!current &&
@@ -914,15 +956,25 @@ export class Preparation {
             : job.channels;
         const material = {
           sourceScope: {
-            mode: job.selection.previousTag
-              ? "bounded_release_comparison"
-              : "selected_release_snapshot",
+            mode:
+              job.selection.sourceKind === "repository"
+                ? "selected_repository_documentation"
+                : job.selection.previousTag
+                  ? "bounded_release_comparison"
+                  : "selected_release_snapshot",
             repository: job.selection.repository,
             releaseTag: job.selection.releaseTag,
             pinnedCommit: job.sha,
             previousTag: job.selection.previousTag || null,
           },
           context: job.context,
+          ...(job.standingRevision
+            ? {
+                priorPublications: this.priorCopy(job.project),
+                editorialIntent:
+                  "Explain distinct useful audience problems and documented capabilities, including evergreen use. Do not manufacture news from unchanged sources. Do not repeat prior angles or copy.",
+              }
+            : {}),
           evidence: job.evidence,
           coverage: job.coverage,
           gaps: job.gaps,
@@ -1279,7 +1331,130 @@ export class Preparation {
     this.save(job);
     return this.public(job);
   }
-  async approve(input: any, actor: Actor) {
+  trimConsumedStandingHistory() {
+    const jobs = this.store
+      .list<PreparationJob>("preparation:")
+      .sort((a, b) => a.createdAt - b.createdAt);
+    let excess = jobs.length - 70;
+    for (const job of jobs) {
+      if (excess <= 0) break;
+      if (!job.standingRevision || job.status !== "handed_off") continue;
+      const deliveries = this.store
+        .list<any>("delivery:")
+        .filter((d) => d.campaign === job.campaign);
+      if (
+        !deliveries.length ||
+        deliveries.some((d) =>
+          [
+            "scheduled",
+            "waiting_container",
+            "executing",
+            "pending_approval",
+          ].includes(d.status),
+        )
+      )
+        continue;
+      this.store.delete("preparation:" + job.id);
+      excess--;
+    }
+  }
+  private priorCopy(project: string, exclude?: string) {
+    return this.store
+      .list<Campaign>("campaign:")
+      .filter((c) => c.project === project && c.id !== exclude)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 30)
+      .flatMap((c) => Object.values(c.text))
+      .map((text) => text.slice(0, 700));
+  }
+  async assertSourceCurrent(id: string) {
+    const job = this.get(id);
+    requireValue(
+      this.options.evidence,
+      "PREPARATION_SOURCE_UNCONFIGURED",
+      "Evidence reader unavailable.",
+      503,
+    );
+    const current = await this.options.evidence(job.selection);
+    requireValue(
+      current.sha === job.sha &&
+        current.evidence.length > 0 &&
+        (await digest(current.evidence)) ===
+          (await digest(
+            (job.evidence || []).filter((item) => item.id !== "context"),
+          )),
+      "STANDING_SOURCE_DRIFT",
+      "Selected source changed or cannot be verified.",
+      409,
+    );
+  }
+  async admitStanding(id: string, revision: number, actor: Actor) {
+    const job = this.get(id);
+    requireValue(
+      job.standingRevision === revision &&
+        job.digest === (await this.finalDigest(job)),
+      "STANDING_ADMISSION_CHANGED",
+      "Editorial policy or exact checked copy changed.",
+      409,
+    );
+    this.options.standingCurrent?.(job.project, revision);
+    requireValue(
+      await this.options.authorized(actor),
+      "STANDING_AUTHORITY_EXPIRED",
+      "Standing authority expired.",
+      403,
+    );
+    await this.assertSourceCurrent(id);
+    this.options.standingCurrent?.(job.project, revision);
+    requireValue(
+      job.modelRevision === this.connection().revision,
+      "MODEL_AUTHORITY_CHANGED",
+      "Model authority changed since preparation.",
+      409,
+    );
+    requireValue(
+      job.drafts?.length === job.channels.length,
+      "PREPARATION_DESTINATION_MISSING",
+      "Standing supply requires all authorised destinations.",
+      409,
+    );
+    this.assertReferences({ drafts: job.drafts! }, job.evidence || []);
+    if (!job.campaign) {
+      const reservedCampaign = await digest({
+        preparation: job.id,
+        revision: job.revision,
+        digest: job.digest,
+      });
+      const words = (text: string) =>
+        new Set(text.toLowerCase().match(/[a-z0-9]+/g) || []);
+      for (const draft of job.drafts || []) {
+        requireValue(
+          draft.claims.length,
+          "AUTONOMY_EVIDENCE_REQUIRED",
+          "Autonomous copy must contain source-referenced claims.",
+          409,
+        );
+        const current = words(draft.text);
+        for (const previous of this.priorCopy(job.project, reservedCampaign)) {
+          const old = words(previous);
+          const intersection = [...current].filter((w) => old.has(w)).length;
+          requireValue(
+            intersection / Math.max(1, new Set([...current, ...old]).size) <
+              0.75,
+            "AUTONOMY_DUPLICATE_COPY",
+            "Supply repeats existing copy; no automatic duplicate publication.",
+            409,
+          );
+        }
+      }
+    }
+    return this.approve(
+      { id, revision: job.revision, digest: job.digest },
+      actor,
+      revision,
+    );
+  }
+  async approve(input: any, actor: Actor, standingRevision?: number) {
     this.owner(actor);
     const job = this.get(input.id);
     requireValue(
@@ -1309,8 +1484,12 @@ export class Preparation {
     );
     this.assertDrafts(job.drafts!, job.channels);
     if (job.campaign) return this.public(job);
+    if (standingRevision)
+      this.options.standingCurrent?.(job.project, standingRevision);
     job.status = "approved";
-    job.approvedBy = actor.id;
+    job.approvedBy = standingRevision
+      ? "standing-authority:" + standingRevision
+      : actor.id;
     job.approvedAt = this.options.now();
     this.save(job);
     const campaign = await this.options.handoff({
@@ -1324,7 +1503,9 @@ export class Preparation {
       source: {
         profile: "preparation-" + job.id,
         sha: job.sha!,
-        family: "owner-reviewed-release",
+        family: standingRevision
+          ? "standing-editorial-admission"
+          : "owner-reviewed-release",
       },
     });
     job.campaign = campaign.id;

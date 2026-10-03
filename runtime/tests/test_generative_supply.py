@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from ocpf_post import editorial_continuity as ec
 from ocpf_post import replenisher as r
 from ocpf_post.campaigns import builtin_manifest, builtin_text
 
@@ -123,6 +124,263 @@ class EvidenceGroundedGenerativeSupplyTests(unittest.TestCase):
             )
         self.assertEqual(rows, [])
         self.assertEqual(status, "work_refill_requested")
+
+    def _fallback_state(self, *, first_requested_at: str, status: str = "recovering"):
+        from ocpf_post.state import write_private_json
+        write_private_json(ec.path(), {
+            "schema_version": 1,
+            "observed_at": self.now.isoformat(),
+            "routes": {
+                "route": {
+                    "project": "example",
+                    "provider": "x",
+                    "account_id": "x-account",
+                    "status": "open",
+                    "request_id": "edr-example-1",
+                    "first_requested_at": first_requested_at,
+                    "last_observed_at": self.now.isoformat(),
+                }
+            },
+            "account_acceptance": {
+                "accounts": [{
+                    "provider": "x",
+                    "account_id": "x-account",
+                    "status": status,
+                    "blocker_stage": "generation" if status == "blocked" else "generation",
+                    "operational_buffer_deficit": 2,
+                }]
+            },
+            "recovery_work": [],
+        })
+
+    def test_workers_ai_fallback_waits_one_full_work_window_plus_grace(self):
+        self._fallback_state(first_requested_at="2026-09-19T08:30:00Z")
+        with patch("ocpf_post.source_routes.routes", return_value=[
+            {"provider": "x", "account_id": "x-account"}
+        ]):
+            value = r._workers_ai_fallback_decision(
+                self.profile, ["x"], now=self.now,
+            )
+        self.assertFalse(value["ready"])
+        self.assertEqual(value["reason"], "chatgpt_work_grace_active")
+        self.assertEqual(value["request_age_minutes"], 240)
+        self.assertEqual(value["grace_minutes"], 300)
+
+    def test_workers_ai_fallback_becomes_ready_after_work_liveness_timeout(self):
+        self._fallback_state(first_requested_at="2026-09-19T07:00:00Z")
+        with patch("ocpf_post.source_routes.routes", return_value=[
+            {"provider": "x", "account_id": "x-account"}
+        ]):
+            value = r._workers_ai_fallback_decision(
+                self.profile, ["x"], now=self.now,
+            )
+        self.assertTrue(value["ready"])
+        self.assertEqual(value["reason"], "workers_ai_fallback_ready")
+        self.assertEqual(value["request_age_minutes"], 330)
+        self.assertEqual(value["buffer_deficit"], 2)
+
+    def test_workers_ai_emergency_grace_is_shorter_for_blocked_account(self):
+        self._fallback_state(
+            first_requested_at="2026-09-19T11:20:00Z",
+            status="blocked",
+        )
+        with patch("ocpf_post.source_routes.routes", return_value=[
+            {"provider": "x", "account_id": "x-account"}
+        ]):
+            value = r._workers_ai_fallback_decision(
+                self.profile, ["x"], now=self.now,
+            )
+        self.assertTrue(value["ready"])
+        self.assertTrue(value["emergency"])
+        self.assertEqual(value["request_age_minutes"], 70)
+        self.assertEqual(value["grace_minutes"], 60)
+
+    def test_workers_ai_fallback_does_not_inherit_legacy_three_candidate_limit(self):
+        with patch.dict(os.environ, {
+            "OCPF_POST_GENERATIVE_DAILY_LIMIT": "3",
+            "OCPF_POST_GENERATIVE_SUPPLY_MODE": "work-workers-ai",
+        }, clear=False), patch(
+            "ocpf_post.workers_ai.editorial_policy",
+            return_value={
+                "enabled": True,
+                "mode": "work-workers-ai",
+                "daily_limit": 24,
+                "persistent_fallback_enabled": True,
+            },
+        ), patch.object(r, "_generative_groups_today", return_value=set()):
+            self.assertEqual(r._generative_daily_limit(), 3)
+            self.assertEqual(r._producer_daily_limit("work-workers-ai"), 24)
+            self.assertEqual(r._generative_daily_remaining(self.now, "work-workers-ai"), 24)
+            self.assertEqual(r._producer_daily_limit("api"), 3)
+
+    def test_workers_ai_remaining_counts_existing_generated_groups_without_changing_publish_pace(self):
+        existing = {"g1", "g2", "g3", "g4"}
+        with patch(
+            "ocpf_post.workers_ai.editorial_policy",
+            return_value={
+                "enabled": True,
+                "mode": "work-workers-ai",
+                "daily_limit": 24,
+                "persistent_fallback_enabled": True,
+            },
+        ), patch.object(r, "_generative_groups_today", return_value=existing):
+            self.assertEqual(r._generative_daily_remaining(self.now, "work-workers-ai"), 20)
+
+    def test_persistent_workers_ai_policy_activates_without_environment_mode(self):
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("ocpf_post.workers_ai.editorial_policy", return_value={
+                 "enabled": True,
+                 "mode": "work-workers-ai",
+                 "persistent_fallback_enabled": True,
+             }):
+            self.assertTrue(r._generative_enabled())
+            self.assertEqual(r._generative_mode(), "work-workers-ai")
+
+    def test_work_workers_ai_waits_for_durable_work_grace(self):
+        routes, accounts, floor = self.routes()
+        with patch.dict(os.environ, {"OCPF_POST_GENERATIVE_SUPPLY_MODE": "work-workers-ai"}), \
+             routes, accounts, floor, \
+             patch.object(r, "_workers_ai_fallback_decision", return_value={
+                 "ready": False,
+                 "reason": "chatgpt_work_grace_active",
+                 "buffer_deficit": 4,
+                 "request_age_minutes": 120,
+                 "grace_minutes": 300,
+             }), \
+             patch.object(r, "_model_generate_supply",
+                          side_effect=AssertionError("Workers AI ran before Work grace elapsed")):
+            rows, status = r._generative_campaigns_for_profile(
+                self.profile, source_sha="a" * 40, now=self.now, apply=True,
+            )
+        self.assertEqual(rows, [])
+        self.assertEqual(status, "work_refill_requested")
+
+    def test_work_workers_ai_preview_caps_fallback_to_operational_buffer_deficit(self):
+        routes, accounts, floor = self.routes()
+        fallback = {
+            "ready": True,
+            "reason": "workers_ai_fallback_ready",
+            "buffer_deficit": 2,
+            "request_age_minutes": 360,
+            "grace_minutes": 300,
+            "request_ids": ["edr-example-1"],
+            "emergency": False,
+        }
+        with patch.dict(os.environ, {"OCPF_POST_GENERATIVE_SUPPLY_MODE": "work-workers-ai"}), \
+             routes, accounts, floor, \
+             patch.object(r, "_workers_ai_fallback_decision", return_value=fallback), \
+             patch("ocpf_post.workers_ai.status", return_value={"status": "configured"}), \
+             patch.object(r, "_generative_project_usage_today", return_value=Counter()), \
+             patch.object(r, "_generative_project_daily_cap", return_value=5), \
+             patch.object(r, "_generative_portfolio_projects", return_value=["example"]), \
+             patch.object(r, "_generative_routes", return_value=(["x", "linkedin"], 5)), \
+             patch.object(r, "campaign_ids", return_value=[]), \
+             patch.object(r, "_model_generate_supply",
+                          side_effect=AssertionError("preview called Workers AI")):
+            rows, status = r._generative_campaigns_for_profile(
+                self.profile, source_sha="a" * 40, now=self.now, apply=False,
+            )
+        self.assertEqual(status, "planned")
+        self.assertEqual(len(rows), 2)
+
+    def test_workers_ai_transport_never_reads_openai_key(self):
+        generated = {
+            "candidates": [{
+                "title": "Boundary one",
+                "comparison_variant": "baseline",
+                "angle_family": "decision_test",
+                "evidence_indexes": [0],
+                "novelty_rationale": "Uses one current evidence row.",
+                "texts": {
+                    "x": "Keep source evidence separate from runtime evidence.",
+                    "threads": "Keep source evidence separate from runtime evidence.",
+                    "linkedin": linkedin_copy(
+                        "Keep source evidence separate from runtime evidence before claiming completion."
+                    ),
+                },
+            }]
+        }
+        with patch("ocpf_post.workers_ai.chat_json", return_value=(
+                 generated, "@cf/meta/llama-3.3-70b-instruct-fp8-fast")), \
+             patch("ocpf_post.reply_model.key",
+                   side_effect=AssertionError("Workers AI must not read the OpenAI key")), \
+             patch.object(r, "_generative_existing_texts", return_value={"x": []}):
+            rows = r._model_generate_supply(
+                self.profile,
+                providers=["x"],
+                count=1,
+                source_sha="a" * 40,
+                bucket="2026100200",
+                angle_family="decision_test",
+                transport="workers-ai",
+            )
+        self.assertEqual(rows[0]["angle_family"], "decision_test")
+
+    def test_workers_ai_fallback_campaign_records_work_failover_provenance(self):
+        generated = [{
+            "title": "Fallback boundary",
+            "comparison_variant": "baseline",
+            "angle_family": "decision_test",
+            "evidence_indexes": [0],
+            "novelty_rationale": "Uses a bounded failover decision test.",
+            "texts": {
+                "x": "If the primary editorial producer is unavailable, preserve the same evidence boundary.",
+                "threads": "",
+                "linkedin": "",
+            },
+        }]
+        fallback = {
+            "ready": True,
+            "reason": "workers_ai_fallback_ready",
+            "buffer_deficit": 2,
+            "request_age_minutes": 360,
+            "grace_minutes": 300,
+            "request_ids": ["edr-example-1"],
+            "emergency": False,
+        }
+        configured_routes = [{
+            "provider": "x",
+            "alias": "x-founder",
+            "account_id": "x-account",
+            "default": True,
+            "organisation": False,
+        }]
+        with patch.dict(os.environ, {"OCPF_POST_GENERATIVE_SUPPLY_MODE": "work-workers-ai"}), \
+             patch.object(r, "_generative_deficits", return_value=(["x"], 2)), \
+             patch.object(r, "_workers_ai_fallback_decision", return_value=fallback), \
+             patch("ocpf_post.workers_ai.status", return_value={"status": "configured"}), \
+             patch.object(r, "_generative_project_usage_today", return_value=Counter()), \
+             patch.object(r, "_generative_project_daily_cap", return_value=2), \
+             patch.object(r, "_generative_portfolio_projects", return_value=["example"]), \
+             patch.object(r, "_generative_routes", return_value=(["x"], 2)), \
+             patch.object(r, "_generative_angle_family", return_value="decision_test"), \
+             patch.object(r, "_model_generate_supply", return_value=generated), \
+             patch.object(r, "_generative_existing_texts", return_value={"x": []}), \
+             patch.object(r, "_generative_model_label", return_value="@cf/test/editorial"), \
+             patch("ocpf_post.source_routes.routes", return_value=configured_routes):
+            rows, status = r._generative_campaigns_for_profile(
+                self.profile,
+                source_sha="a" * 40,
+                now=self.now,
+                apply=True,
+                admission_budget=AllowAllBudget(),
+            )
+
+        self.assertIn(status, {"created", "created_partial"})
+        self.assertEqual(len(rows), 2)
+        manifest = builtin_manifest(rows[0]["campaign"])
+        assistance = manifest["assistance"]
+        self.assertEqual(assistance["mode"], "cloudflare_workers_ai_editorial_fallback")
+        self.assertEqual(assistance["model"], "@cf/test/editorial")
+        self.assertEqual(assistance["primary_producer"], "chatgpt_work")
+        self.assertEqual(assistance["request_ids"], ["edr-example-1"])
+        self.assertEqual(assistance["request_age_minutes"], 360)
+        self.assertEqual(assistance["grace_minutes"], 300)
+        self.assertEqual(assistance["operational_buffer_deficit"], 2)
+        self.assertEqual(
+            manifest["admission"]["providers"]["x"]["account_id"],
+            "x-account",
+        )
 
     def test_invalid_mode_fails_safe_to_work_not_paid_api(self):
         routes, accounts, floor = self.routes()

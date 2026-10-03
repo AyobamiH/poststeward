@@ -26,6 +26,8 @@ export const hostedRuntimeOperations = new Set([
   "schedule_replace",
   "receipt_get",
   "receipts_list",
+  "autonomy_configure",
+  "autonomy_request",
   "automation_configure",
   "automation_inspect",
   "automation_preview",

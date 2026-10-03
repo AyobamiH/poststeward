@@ -27,6 +27,23 @@ Free includes verified account routing, immutable campaigns, publish-now dispatc
 
 Advanced is priced at USD 5 per workspace/month and adds continuing source monitoring, replenishment, rolling allocation, spacing controls and scheduled metrics. `ADVANCED_ENABLED` remains false until the Advanced product path itself has live source-to-allocation-to-provider/readback-to-metrics evidence and the chosen production controls are accepted. Stripe sandbox acceptance is already preserved and must not be repeated merely to unblock this product test. MPP remains a separate optional gate.
 
+## Autonomous publishing
+
+Hosted PostSteward can run without installing the local runtime. Connect destinations
+and your own bounded model account, then choose **Run this project autonomously**
+under AI preparation. Set sources, audience, voice, exclusions and cadence once.
+The controller fills account-specific stock, checks evidence and editorial issues,
+admits immutable copy, schedules it through the existing publisher, records receipts
+and replenishes after consumption. Routine copy does not wait for owner approval.
+Advanced access is required; model spending remains a separate owner-set allowance.
+Agents use `autonomy_list` and `autonomy_request` through HTTP or MCP. Direct,
+unadmitted agent copy retains the manual review path.
+
+Both hosted delivery and the local runtime remain supported. The local runtime
+adopts Post-Once's bounded rolling supply recovery and post-consumption refill
+signal while retaining cloud lease and single-executor fences. See
+[the implementation contract](docs/POST_ONCE_AUTONOMY_ALIGNMENT_2026-10-03.md).
+
 ## Agent contract
 
 Remote agents authenticate with owner-issued, scoped, expiring, revocable Bearer tokens. HTTP and remote MCP use the same operation catalogue and workspace authority checks. OAuth-compatible MCP authorization discovery/bootstrap is **not** claimed for the current release; discovery must never mint or broaden authority.

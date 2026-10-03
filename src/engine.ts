@@ -1,3 +1,4 @@
+import { Autonomy, type StandingAdmission } from "./autonomy.ts";
 import { billingPrice } from "./billing-mode.ts";
 import { Preparation, type PreparationOptions } from "./preparation.ts";
 import { byName, plans } from "./operations/catalog.ts";
@@ -54,6 +55,7 @@ export interface EngineOptions {
 type Handler = (input: any, actor: Actor) => unknown | Promise<unknown>;
 export class Engine {
   readonly preparation: Preparation;
+  readonly autonomy: Autonomy;
   readonly handlers: Record<string, Handler>;
   private now: () => number;
   constructor(
@@ -70,9 +72,29 @@ export class Engine {
       evidence: options.preparationEvidence,
       model: options.preparationModel,
       send: options.preparationSend,
+      standingCurrent: (project, revision) => {
+        this.autonomy.assertCurrent(project, revision);
+      },
       handoff: (input) => this.createCampaign(input, input.id, input.source),
     });
+    this.autonomy = new Autonomy(store, this.preparation, {
+      now: this.now,
+      wake: options.wake,
+      authorized: options.authorized,
+      paid: () => this.paid(),
+      paused: () => this.paused(),
+      reserve: (campaign, at, actor, admission) =>
+        this.reserve(campaign, at, "UTC", actor, true, undefined, admission),
+    });
     this.handlers = {
+      autonomy_list: () => this.autonomy.list(),
+      autonomy_request: (i, a) => this.autonomy.request(i.project, a),
+      autonomy_configure: async (i, a) => {
+        const p = this.autonomy.configure(i, a);
+        await this.autonomy.scheduleNext();
+        return p;
+      },
+      autonomy_pause: (i, a) => this.autonomy.pause(i.project, a),
       model_status: () => this.preparation.status(),
       model_connect: (i, a) => this.preparation.connect(i, a),
       model_disconnect: (_i, a) => this.preparation.disconnect(a),
@@ -941,19 +963,22 @@ export class Engine {
     automatic = false,
     policy?: string,
     aliases = Object.keys(c.text),
+    standing?: StandingAdmission,
   ): Promise<Delivery[]> {
     await this.validate(c);
+    if (standing) await this.autonomy.assertAdmission(c, standing);
     return Promise.all(
       aliases.map(async (alias) => {
         const a = this.connected(alias);
         const publication = await this.publication(c, alias, a.provider);
-        const approval = actor.grant
-          ? {
-              required: true,
-              status: "pending" as const,
-              requestedAt: this.now(),
-            }
-          : undefined;
+        const approval =
+          actor.grant && !standing
+            ? {
+                required: true,
+                status: "pending" as const,
+                requestedAt: this.now(),
+              }
+            : undefined;
         return {
           id: uid(),
           fingerprint: await digest({
@@ -972,13 +997,15 @@ export class Engine {
           publication,
           dueAt: at,
           timezone,
-          status: actor.grant
-            ? ("pending_approval" as const)
-            : ("scheduled" as const),
+          status:
+            actor.grant && !standing
+              ? ("pending_approval" as const)
+              : ("scheduled" as const),
           createdAt: this.now(),
           updatedAt: this.now(),
           actor,
           automatic,
+          ...(standing ? { standing } : {}),
           ...(approval ? { approval } : {}),
           policy,
           policyVersion: policy
@@ -1103,6 +1130,7 @@ export class Engine {
     actor: Actor,
     automatic = false,
     policy?: string,
+    standing?: StandingAdmission,
   ) {
     const prepared = await this.prepare(
       this.get<Campaign>("campaign:", campaign),
@@ -1111,8 +1139,14 @@ export class Engine {
       actor,
       automatic,
       policy,
+      undefined,
+      standing,
     );
-    const result = this.store.tx(() => this.reservePrepared(prepared));
+    const result = this.store.tx(() => {
+      if (standing)
+        this.autonomy.assertCurrent(prepared[0].project, standing.revision);
+      return this.reservePrepared(prepared);
+    });
     if (
       result.deliveries.some((delivery) =>
         ["scheduled", "waiting_container"].includes(delivery.status),
@@ -1440,6 +1474,7 @@ export class Engine {
       return;
     if (
       d.automatic &&
+      !d.standing &&
       (!this.paid() ||
         !this.store.get<Profile>("profile:" + d.policy)?.enabled ||
         this.store.get<Profile>("profile:" + d.policy)?.revision !==
@@ -1451,6 +1486,20 @@ export class Engine {
       });
       return;
     }
+    if (d.standing) {
+      try {
+        await this.autonomy.freshSource(
+          this.get<Campaign>("campaign:", d.campaign),
+          d.standing,
+        );
+      } catch (e) {
+        this.update(d, {
+          status: "drift_blocked",
+          reason: e instanceof Fault ? e.code : "STANDING_SOURCE_UNAVAILABLE",
+        });
+        return;
+      }
+    }
     const initiallyAuthorized = await this.options.authorized(d.actor);
     d = this.get<Delivery>("delivery:", id);
     if (!["scheduled", "waiting_container"].includes(d.status)) return;
@@ -1461,7 +1510,7 @@ export class Engine {
       });
       return;
     }
-    if (d.automatic) {
+    if (d.automatic && !d.standing) {
       const p = this.get<Profile>("profile:", d.policy!);
       try {
         const source = await this.options.source(p);
@@ -1623,7 +1672,7 @@ export class Engine {
         "Publication authority changed before provider write.",
         409,
       );
-      if (d.automatic)
+      if (d.automatic && !d.standing)
         requireValue(
           this.paid() &&
             this.store.get<Profile>("profile:" + d.policy)?.enabled &&
@@ -1633,6 +1682,21 @@ export class Engine {
           "Continuing authority is inactive.",
           409,
         );
+      if (d.standing)
+        await this.autonomy.assertAdmission(
+          this.get<Campaign>("campaign:", d.campaign),
+          d.standing,
+        );
+      demandClaim();
+      if (d.standing) {
+        this.autonomy.assertCurrent(d.project, d.standing.revision);
+        requireValue(
+          this.connected(d.account).version === d.binding,
+          "ACCOUNT_DRIFT",
+          "Destination changed before publication.",
+          409,
+        );
+      }
       this.update(d, { phase: "publish", claimUntil: this.now() + 60000 });
       const published = await this.providers.publish(d, credential, {
         text: part.text,
@@ -1732,6 +1796,7 @@ export class Engine {
     }
   }
   async tick() {
+    await this.autonomy.tick();
     await this.automationTick();
     const due = this.deliveries()
       .filter((d) =>
@@ -1747,6 +1812,7 @@ export class Engine {
     await this.scheduleNext();
   }
   async scheduleNext() {
+    await this.autonomy.scheduleNext();
     const times = this.deliveries()
       .filter((d) =>
         ["scheduled", "waiting_container", "executing"].includes(d.status),

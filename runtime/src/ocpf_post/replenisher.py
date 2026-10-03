@@ -39,6 +39,8 @@ GENERATIVE_DEFAULT_DAILY_LIMIT = 3
 GENERATIVE_MAX_DAILY_LIMIT = 60
 GENERATIVE_PROJECT_MAX_DAILY = 5
 GENERATIVE_SIMILARITY_LIMIT = 0.72
+WORKERS_AI_NORMAL_GRACE_MINUTES = 300
+WORKERS_AI_EMERGENCY_GRACE_MINUTES = 60
 GENERATIVE_ANGLE_FAMILIES = (
     "failure_mode",
     "checklist",
@@ -298,19 +300,149 @@ def _manifest(
 
 
 def _generative_enabled() -> bool:
-    return os.environ.get("OCPF_POST_GENERATIVE_SUPPLY_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+    if "OCPF_POST_GENERATIVE_SUPPLY_ENABLED" in os.environ:
+        return os.environ.get("OCPF_POST_GENERATIVE_SUPPLY_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+    try:
+        from ocpf_post.workers_ai import editorial_policy
+        return editorial_policy().get("enabled") is True
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
 
 
 def _generative_mode() -> str:
-    """Choose the emergency editorial producer without silently spending API credit.
+    """Choose the editorial producer without silently spending API credit.
 
-    Work/Docs is the normal emergency producer. The legacy local OpenAI author is
-    retained only as an explicit owner-selected last resort.
+    work:
+        ChatGPT Work/Docs only.
+    work-workers-ai:
+        Work/Docs remains primary; Workers AI may fill operational headroom after
+        one bounded liveness grace window.
+    workers-ai:
+        Explicit owner-forced Workers AI route for acceptance/recovery.
+    api:
+        Legacy OpenAI API author retained only as an explicit owner-selected last resort.
     """
     if not _generative_enabled():
         return "disabled"
-    value = os.environ.get("OCPF_POST_GENERATIVE_SUPPLY_MODE", "work").strip().lower()
-    return value if value in {"work", "api"} else "work"
+    raw = os.environ.get("OCPF_POST_GENERATIVE_SUPPLY_MODE")
+    if raw is None:
+        try:
+            from ocpf_post.workers_ai import editorial_policy
+            value = str(editorial_policy().get("mode") or "work").strip().lower()
+        except (OSError, ValueError, KeyError, TypeError):
+            value = "work"
+    else:
+        value = raw.strip().lower()
+    return value if value in {"work", "work-workers-ai", "workers-ai", "api"} else "work"
+
+
+def _workers_ai_grace_minutes(*, emergency: bool) -> int:
+    name = (
+        "OCPF_POST_WORKERS_AI_EMERGENCY_GRACE_MINUTES"
+        if emergency else "OCPF_POST_WORKERS_AI_GRACE_MINUTES"
+    )
+    default = WORKERS_AI_EMERGENCY_GRACE_MINUTES if emergency else WORKERS_AI_NORMAL_GRACE_MINUTES
+    raw = os.environ.get(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(15, min(1440, value))
+
+
+def _workers_ai_fallback_decision(
+    profile: dict[str, Any], providers: list[str], *, now: datetime,
+) -> dict[str, Any]:
+    """Decide whether Work has had a fair chance before Workers AI may author.
+
+    The durable editorial request age is the liveness clock. Workers AI protects
+    only the operational cadence buffer; deep multi-day reserve remains Work/Docs
+    responsibility.
+    """
+    from ocpf_post import local_store
+    from ocpf_post.editorial_continuity import path as continuity_path
+    from ocpf_post.source_routes import routes as source_routes
+
+    state = local_store.read(continuity_path()) or {}
+    route_rows = state.get("routes") if isinstance(state.get("routes"), dict) else {}
+    open_rows = [
+        row for row in route_rows.values()
+        if isinstance(row, dict)
+        and row.get("status") == "open"
+        and row.get("project") == profile.get("project")
+        and row.get("provider") in providers
+    ]
+    if not open_rows:
+        return {
+            "ready": False,
+            "reason": "durable_work_request_not_observed",
+            "emergency": False,
+            "buffer_deficit": 0,
+            "request_age_minutes": 0,
+        }
+
+    configured = source_routes(str(profile.get("project") or ""), profile)
+    accounts = {
+        (str(row.get("provider") or ""), str(row.get("account_id") or ""))
+        for row in configured
+        if row.get("provider") in providers and row.get("account_id")
+    }
+    acceptance = state.get("account_acceptance") if isinstance(state.get("account_acceptance"), dict) else {}
+    account_rows = [
+        row for row in acceptance.get("accounts", [])
+        if isinstance(row, dict)
+        and (str(row.get("provider") or ""), str(row.get("account_id") or "")) in accounts
+    ]
+    buffer_deficit = max(
+        (int(row.get("operational_buffer_deficit", 0) or 0) for row in account_rows),
+        default=0,
+    )
+    emergency = any(
+        row.get("status") == "blocked" and row.get("blocker_stage") == "generation"
+        for row in account_rows
+    )
+    if buffer_deficit <= 0 and not emergency:
+        return {
+            "ready": False,
+            "reason": "operational_buffer_healthy",
+            "emergency": False,
+            "buffer_deficit": 0,
+            "request_age_minutes": 0,
+        }
+
+    first_values = []
+    for row in open_rows:
+        value = row.get("first_requested_at")
+        if not value:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is not None and parsed <= now:
+            first_values.append(parsed.astimezone(UTC))
+    if not first_values:
+        return {
+            "ready": False,
+            "reason": "durable_work_request_timestamp_unavailable",
+            "emergency": emergency,
+            "buffer_deficit": buffer_deficit,
+            "request_age_minutes": 0,
+        }
+
+    age = max(0, int((now - min(first_values)).total_seconds() // 60))
+    grace = _workers_ai_grace_minutes(emergency=emergency)
+    return {
+        "ready": age >= grace,
+        "reason": "workers_ai_fallback_ready" if age >= grace else "chatgpt_work_grace_active",
+        "emergency": emergency,
+        "buffer_deficit": buffer_deficit,
+        "request_age_minutes": age,
+        "grace_minutes": grace,
+        "request_ids": sorted({
+            str(row.get("request_id") or "") for row in open_rows if row.get("request_id")
+        }),
+    }
 
 
 def _tokens(value: str) -> set[str]:
@@ -323,12 +455,32 @@ def _similarity(left: str, right: str) -> float:
 
 
 def _generative_daily_limit() -> int:
+    """Legacy paid-OpenAI authoring budget only."""
     raw = os.environ.get("OCPF_POST_GENERATIVE_DAILY_LIMIT", str(GENERATIVE_DEFAULT_DAILY_LIMIT))
     try:
         value = int(raw)
     except ValueError:
         return GENERATIVE_DEFAULT_DAILY_LIMIT
     return max(0, min(GENERATIVE_MAX_DAILY_LIMIT, value))
+
+
+def _producer_daily_limit(mode: str | None = None) -> int:
+    """Bound authoring independently from publication pace.
+
+    Workers AI is a producer-availability fallback, not the old paid-OpenAI
+    emergency author. Give it an independent bounded budget so a prolonged
+    ChatGPT Work outage cannot inherit the legacy three-candidate ceiling.
+    """
+    selected = mode or _generative_mode()
+    if selected in {"work-workers-ai", "workers-ai"}:
+        try:
+            from ocpf_post.workers_ai import editorial_policy
+            return int(editorial_policy().get("daily_limit", 0) or 0)
+        except (OSError, ValueError, KeyError, TypeError):
+            return 0
+    if selected == "api":
+        return _generative_daily_limit()
+    return 0
 
 
 def _generative_groups_today(now: datetime) -> set[str]:
@@ -351,8 +503,8 @@ def _generative_groups_today(now: datetime) -> set[str]:
 
 
 
-def _generative_daily_remaining(now: datetime) -> int:
-    return max(0, _generative_daily_limit() - len(_generative_groups_today(now)))
+def _generative_daily_remaining(now: datetime, mode: str | None = None) -> int:
+    return max(0, _producer_daily_limit(mode) - len(_generative_groups_today(now)))
 
 def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[dict[str, Any]],
                        *, now: datetime) -> dict[str, Any]:
@@ -362,8 +514,9 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
     producer; the paid local API author remains an explicit last-resort mode.
     """
     mode = _generative_mode()
-    limit = _generative_daily_limit() if mode == "api" else 0
-    remaining = _generative_daily_remaining(now) if mode == "api" else 0
+    metered_mode = mode in {"api", "work-workers-ai", "workers-ai"}
+    limit = _producer_daily_limit(mode) if metered_mode else 0
+    remaining = _generative_daily_remaining(now, mode) if metered_mode else 0
     used = max(0, limit - remaining)
     statuses = Counter(
         str(row.get("generative_status") or "not_evaluated")
@@ -392,19 +545,33 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
     return {
         "enabled": _generative_enabled(),
         "mode": mode,
-        "provider": ("chatgpt_work" if mode == "work" else "openai_api" if mode == "api" else None),
-        "role": ("work_refill_request_after_vault_and_saved_source_supply"
-                 if mode == "work"
-                 else "explicit_paid_api_last_resort"
-                 if mode == "api"
-                 else "disabled"),
+        "provider": (
+            "chatgpt_work" if mode == "work"
+            else "chatgpt_work+cloudflare_workers_ai" if mode == "work-workers-ai"
+            else "cloudflare_workers_ai" if mode == "workers-ai"
+            else "openai_api" if mode == "api"
+            else None
+        ),
+        "role": (
+            "work_refill_request_after_vault_and_saved_source_supply"
+            if mode == "work"
+            else "work_primary_workers_ai_operational_headroom_fallback"
+            if mode == "work-workers-ai"
+            else "explicit_workers_ai_recovery"
+            if mode == "workers-ai"
+            else "explicit_paid_api_last_resort"
+            if mode == "api"
+            else "disabled"
+        ),
         "reserve_target_days": RESERVE_TARGET_DAYS,
         "fallback_trigger_days": RESERVE_FALLBACK_TRIGGER_DAYS,
         "emergency_days": RESERVE_EMERGENCY_DAYS,
         "catchup_horizon_days": RESERVE_FALLBACK_TRIGGER_DAYS,
         "portfolio_daily_limit": limit,
-        "api_candidates_used": used,
-        "api_candidates_remaining": remaining,
+        "metered_candidates_used": used,
+        "metered_candidates_remaining": remaining,
+        "api_candidates_used": used if mode == "api" else 0,
+        "api_candidates_remaining": remaining if mode == "api" else 0,
         "projects_evaluated": sum(statuses.values()),
         "projects_blocked_by_global_limit": statuses.get("daily_limit_reached", 0),
         "projects_deferred_by_fairness": statuses.get("portfolio_fairness_deferred", 0),
@@ -421,10 +588,12 @@ def generative_summary(project_rows: list[dict[str, Any]], generated_rows: list[
         "degraded": bool(failure_categories),
         "boundary": (
             "Replenishment detects evidence-sized route depletion after Google Drive/vault and accepted "
-            "inventory are considered. In work mode it emits a durable editorial refill request for the "
-            "ChatGPT Work/Google Docs producer and makes no OpenAI API authoring call. Paid API authoring "
-            "is retained only when OCPF_POST_GENERATIVE_SUPPLY_MODE=api is explicitly selected. "
-            "Observed consumption sizes reserve protection but never becomes a posting target."
+            "inventory are considered. ChatGPT Work/Google Docs remains the primary producer. "
+            "In work-workers-ai mode, Cloudflare Workers AI may author only after a durable Work request "
+            "outlives its bounded grace window and only to protect operational cadence headroom; it does "
+            "not fill the deep reserve or change publication pace. The legacy paid OpenAI author remains "
+            "available only when mode=api is explicitly selected. Observed consumption sizes reserve "
+            "protection but never becomes a posting target."
         ),
     }
 
@@ -659,15 +828,60 @@ def _generative_existing_texts(profile: dict[str, Any], providers: list[str]) ->
     return {provider: rows[-60:] for provider, rows in result.items()}
 
 
+def _generative_model_label(transport: str) -> str:
+    if transport == "workers-ai":
+        from ocpf_post.workers_ai import configuration
+        cfg = configuration()
+        return str(cfg.get("model") or "cloudflare-workers-ai")
+    return GENERATIVE_MODEL
+
+
+def _generative_assistance(
+    transport: str, fallback: dict[str, Any] | None = None, *, page_route: bool = False,
+) -> dict[str, Any]:
+    if transport == "workers-ai":
+        value = {
+            "mode": "cloudflare_workers_ai_editorial_fallback",
+            "model": _generative_model_label(transport),
+            "primary_producer": "chatgpt_work",
+            "disclosure": (
+                "Fallback model-authored from allowlisted evidence after the durable ChatGPT Work "
+                "request outlived its bounded grace period; deterministic validation and scoped "
+                "admission still apply."
+            ),
+        }
+        if fallback:
+            value["fallback_reason"] = fallback.get("reason")
+            value["request_age_minutes"] = fallback.get("request_age_minutes")
+            value["grace_minutes"] = fallback.get("grace_minutes")
+            value["request_ids"] = list(fallback.get("request_ids") or [])
+            value["operational_buffer_deficit"] = int(fallback.get("buffer_deficit", 0) or 0)
+            value["emergency"] = fallback.get("emergency") is True
+        if page_route:
+            value["route_boundary"] = "additional_route_independently_authorised"
+        return value
+    return {
+        "mode": "evidence_grounded_llm",
+        "model": GENERATIVE_MODEL,
+        "disclosure": (
+            "Model-authored from allowlisted evidence; deterministic validation "
+            "and scoped admission still apply."
+        ),
+    }
+
+
 def _model_generate_supply(
     profile: dict[str, Any], *, providers: list[str], count: int, source_sha: str, bucket: str,
-    angle_family: str, repair_reason: str | None = None,
+    angle_family: str, repair_reason: str | None = None, transport: str = "openai",
 ) -> list[dict[str, Any]]:
-    from ocpf_post.reply_model import NoRedirect, key
-
-    credential = key()
-    if not credential:
-        raise ValueError("model_credential_missing")
+    if transport not in {"openai", "workers-ai"}:
+        raise ValueError("generative_model_transport_invalid")
+    credential = None
+    if transport == "openai":
+        from ocpf_post.reply_model import key
+        credential = key()
+        if not credential:
+            raise ValueError("model_credential_missing")
     if angle_family not in GENERATIVE_ANGLE_FAMILIES:
         raise ValueError("generative_angle_family_invalid")
     source_items = _generative_evidence_items(profile)
@@ -735,30 +949,44 @@ comparison_variant must be baseline, challenger_a or challenger_b, once each at 
     schema = {"type": "object", "properties": {
         "candidates": {"type": "array", "items": item_schema, "minItems": count, "maxItems": count},
     }, "required": ["candidates"], "additionalProperties": False}
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=json.dumps({
-            "model": GENERATIVE_MODEL, "store": False, "temperature": 0.4,
-            "max_completion_tokens": 4500,
-            "messages": [{"role": "system", "content": rules},
-                         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-            "response_format": {"type": "json_schema", "json_schema": {
-                "name": "evidence_grounded_supply", "strict": True, "schema": schema,
-            }},
-        }).encode(),
-        headers={"Authorization": "Bearer " + credential, "Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.build_opener(NoRedirect()).open(request, timeout=45) as response:
-            raw = response.read(500_001)
-        if len(raw) > 500_000:
-            raise ValueError("model_response_oversized")
-        choice = json.loads(raw)["choices"][0]
-        if choice.get("finish_reason") != "stop" or choice["message"].get("refusal"):
-            raise ValueError("model_response_incomplete")
-        value = json.loads(choice["message"]["content"])
-    except Exception:
-        raise ValueError("generative_model_request_unavailable_or_invalid") from None
+    messages = [
+        {"role": "system", "content": rules},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    if transport == "workers-ai":
+        from ocpf_post.workers_ai import chat_json
+        value, _model = chat_json(
+            messages=messages,
+            schema=schema,
+            max_tokens=4500,
+            temperature=0.4,
+            timeout=45,
+        )
+    else:
+        from ocpf_post.reply_model import NoRedirect
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/chat/completions",
+            data=json.dumps({
+                "model": GENERATIVE_MODEL, "store": False, "temperature": 0.4,
+                "max_completion_tokens": 4500,
+                "messages": messages,
+                "response_format": {"type": "json_schema", "json_schema": {
+                    "name": "evidence_grounded_supply", "strict": True, "schema": schema,
+                }},
+            }).encode(),
+            headers={"Authorization": "Bearer " + str(credential), "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.build_opener(NoRedirect()).open(request, timeout=45) as response:
+                raw = response.read(500_001)
+            if len(raw) > 500_000:
+                raise ValueError("model_response_oversized")
+            choice = json.loads(raw)["choices"][0]
+            if choice.get("finish_reason") != "stop" or choice["message"].get("refusal"):
+                raise ValueError("model_response_incomplete")
+            value = json.loads(choice["message"]["content"])
+        except Exception:
+            raise ValueError("generative_model_request_unavailable_or_invalid") from None
     rows = value.get("candidates") if isinstance(value, dict) else None
     if not isinstance(rows, list) or len(rows) != count:
         raise ValueError("generative_model_shape_invalid")
@@ -814,9 +1042,29 @@ def _generative_campaigns_for_profile(
     mode = _generative_mode()
     if mode == "disabled":
         return [], "disabled"
+
+    transport = "openai"
+    fallback: dict[str, Any] | None = None
     if mode == "work":
         providers, deficit = _generative_deficits(profile, now=now)
         return ([], "work_refill_requested") if providers and deficit > 0 else ([], "no_low_stock_project")
+    if mode == "work-workers-ai":
+        providers, deficit = _generative_deficits(profile, now=now)
+        if not providers or deficit <= 0:
+            return [], "no_low_stock_project"
+        fallback = _workers_ai_fallback_decision(profile, providers, now=now)
+        if fallback.get("ready") is not True:
+            return [], "work_refill_requested"
+        from ocpf_post.workers_ai import status as workers_ai_status
+        if workers_ai_status().get("status") != "configured":
+            return [], "workers_ai_configuration_missing"
+        transport = "workers-ai"
+    elif mode == "workers-ai":
+        from ocpf_post.workers_ai import status as workers_ai_status
+        if workers_ai_status().get("status") != "configured":
+            return [], "workers_ai_configuration_missing"
+        transport = "workers-ai"
+
     if _generative_daily_remaining(now) <= 0:
         return [], "daily_limit_reached"
     usage = _generative_project_usage_today(now)
@@ -832,6 +1080,13 @@ def _generative_campaigns_for_profile(
     providers, count = _generative_routes(profile, now=now)
     if not providers or count <= 0:
         return [], "not_needed"
+    if transport == "workers-ai" and fallback is not None:
+        buffer_need = int(fallback.get("buffer_deficit", 0) or 0)
+        if buffer_need <= 0:
+            return [], "not_needed"
+        count = min(count, buffer_need)
+        if count <= 0:
+            return [], "not_needed"
 
     bucket_hour = (now.hour // 4) * 4
     bucket = now.strftime("%Y%m%d") + f"{bucket_hour:02d}"
@@ -904,6 +1159,7 @@ def _generative_campaigns_for_profile(
                     bucket=request_bucket,
                     angle_family=angle_family,
                     repair_reason=repair_reason,
+                    transport=transport,
                 )
                 row = _validate_generated_supply(candidate, profile, providers)[0]
                 if row.get("angle_family") != angle_family:
@@ -994,14 +1250,7 @@ def _generative_campaigns_for_profile(
                 now=now,
                 ttl_hours=168,
             )
-            manifest["assistance"] = {
-                "mode": "evidence_grounded_llm",
-                "model": GENERATIVE_MODEL,
-                "disclosure": (
-                    "Model-authored from allowlisted evidence; deterministic validation "
-                    "and scoped admission still apply."
-                ),
-            }
+            manifest["assistance"] = _generative_assistance(transport, fallback)
             manifest["source"].update(
                 evidence_indexes=evidence_indexes,
                 template_version="evidence-grounded-v1",
@@ -1077,14 +1326,9 @@ def _generative_campaigns_for_profile(
                 now=now,
                 ttl_hours=168,
             )
-            route_manifest["assistance"] = {
-                "mode": "evidence_grounded_llm",
-                "model": GENERATIVE_MODEL,
-                "disclosure": (
-                    "Model-authored from allowlisted evidence; this Page route is "
-                    "independently authorised from the member route."
-                ),
-            }
+            route_manifest["assistance"] = _generative_assistance(
+                transport, fallback, page_route=True,
+            )
             route_manifest["source"].update(
                 evidence_indexes=evidence_indexes,
                 template_version="evidence-grounded-v1",
@@ -1397,6 +1641,12 @@ def replenisher_status() -> dict[str, Any]:
         str(row.get("reserve_status") or row.get("status") or "unknown")
         for row in reserve_rows
     ))
+    try:
+        from ocpf_post.workers_ai import status as workers_ai_status
+        workers = workers_ai_status()
+    except (OSError, ValueError, KeyError, TypeError):
+        workers = {"schema_version": 1, "status": "unavailable", "credential_present": False}
+
     return {
         "runtime_campaigns": runtime,
         "runtime_campaign_count": len(runtime),
@@ -1407,6 +1657,8 @@ def replenisher_status() -> dict[str, Any]:
             "routes": reserve_rows,
             "status_counts": reserve_counts,
             "api_fallback_enabled": _generative_mode() == "api",
+            "workers_ai_fallback_enabled": _generative_mode() in {"work-workers-ai", "workers-ai"},
+            "workers_ai": workers,
             "emergency_editorial_mode": _generative_mode(),
         },
     }

@@ -9,6 +9,7 @@ export const preparationContext = z.strictObject({
   callToAction: z.string().min(1).max(500),
 });
 export const preparationSelection = z.strictObject({
+  sourceKind: z.enum(["release", "repository"]).optional(),
   repository: z
     .string()
     .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)

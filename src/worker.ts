@@ -195,6 +195,7 @@ const riskReducingOperations = new Set([
   "schedule_cancel",
   "publishing_pause",
   "automation_pause",
+  "autonomy_pause",
   "model_disconnect",
   "preparation_reject",
 ]);
@@ -259,7 +260,8 @@ export class Workspace extends DurableObject<Env> {
       wake: (at) => this.wake(at),
       authorized,
       source: (profile) => readGitHubSource(profile, this.env, workspace),
-      preparationEvidence: (selection) => readPreparationEvidence(selection, this.env, workspace),
+      preparationEvidence: (selection) =>
+        readPreparationEvidence(selection, this.env, workspace),
       billing,
     });
     const pilot = new Pilot(
@@ -366,12 +368,18 @@ export class Workspace extends DurableObject<Env> {
         const enabledProfiles = this.store
           .list<any>("profile:")
           .filter((profile) => profile?.enabled === true);
+        const enabledAutonomy = this.store
+          .list<any>("autonomy:")
+          .filter((policy) => policy?.enabled === true);
         const blockers =
           input.mode === "local"
             ? [
                 ...(actionable.length ? ["hosted_actionable_deliveries"] : []),
                 ...(enabledProfiles.length
                   ? ["hosted_advanced_profiles_enabled"]
+                  : []),
+                ...(enabledAutonomy.length
+                  ? ["hosted_autonomous_projects_enabled"]
                   : []),
               ]
             : [];
@@ -381,6 +389,7 @@ export class Workspace extends DurableObject<Env> {
           blockers,
           actionableDeliveryCount: actionable.length,
           enabledAdvancedProfileCount: enabledProfiles.length,
+          enabledAutonomousProjectCount: enabledAutonomy.length,
           boundary:
             "Read-only executor-transition preflight. No provider, schedule or authority mutation occurs.",
         });

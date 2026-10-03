@@ -143,10 +143,27 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
   const nullable = (value) =>
     value === "" || value === null ? null : Number(value);
   async function refresh() {
-    const [status, jobs] = await Promise.all([
+    const [status, jobs, policies] = await Promise.all([
       invoke("model_status"),
       invoke("preparations_list"),
+      invoke("autonomy_list"),
     ]);
+    const policyRoot = $("autonomy-projects");
+    policyRoot.replaceChildren();
+    for (const policy of policies) {
+      const row = element("article");
+      row.append(
+        element(
+          "p",
+          `${policy.project}: ${policy.enabled ? (policy.error ? "held: " + policy.error : policy.deferred ? "waiting for daily budget reset" : "running") : "paused"} · stock target ${policy.stockFloor} · spacing ${policy.intervalMinutes} minutes · daily maximum ${policy.maxDailyDeliveries} per destination`,
+        ),
+      );
+      if (policy.enabled)
+        control(row, "Pause " + policy.project, () =>
+          mutate("autonomy_pause", { project: policy.project }),
+        );
+      policyRoot.append(row);
+    }
     jobs.sort(
       (a, b) =>
         activity(b) - activity(a) ||
@@ -853,13 +870,41 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
   };
   $("preparation-model-disconnect").onclick = () =>
     action(() => mutate("model_disconnect", {}));
+  const sourceForm = $("preparation-create");
+  const sourceKind = sourceForm.elements.sourceKind;
+  const sourceFields = () => {
+    const repository = sourceKind.value === "repository";
+    const docs = sourceForm.elements.documentationPaths;
+    docs.required = repository;
+    docs.closest("label").firstChild.textContent = repository
+      ? "Documentation paths, comma separated (one to three)"
+      : "Documentation paths, comma separated (optional; up to three)";
+    sourceForm.elements.previousTag.closest("label").hidden = repository;
+    if (repository) sourceForm.elements.previousTag.value = "";
+    sourceForm.elements.releaseTag.placeholder = repository ? "main" : "v1.0.0";
+    const options = sourceForm.querySelector(".preparation-source-options");
+    if (options) {
+      options.querySelector("summary").textContent = repository
+        ? "Project documentation (required)"
+        : "Additional release sources (optional)";
+      if (repository) options.open = true;
+    }
+  };
+  sourceKind.onchange = sourceFields;
+  sourceFields();
   $("preparation-create").onsubmit = (event) => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    const autonomous = event.submitter?.value === "autonomous";
     action(async () => {
-      await mutate("preparation_create", {
+      if (autonomous && !fd.has("standingConsent"))
+        throw new Error(
+          "Confirm standing model and publishing authority before starting.",
+        );
+      await mutate(autonomous ? "autonomy_configure" : "preparation_create", {
         project: fd.get("project"),
         selection: {
+          sourceKind: fd.get("sourceKind") || "release",
           repository: fd.get("repository"),
           releaseTag: fd.get("releaseTag"),
           ...(fd.get("previousTag")
@@ -873,13 +918,26 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
           allowUnreleased: fd.has("allowUnreleased"),
         },
         context: context(),
+        ...(autonomous
+          ? {
+              enabled: true,
+              intervalMinutes: Number(fd.get("intervalMinutes")),
+              stockFloor: Number(fd.get("stockFloor")),
+              maxDailyDeliveries: Number(fd.get("maxDailyDeliveries")),
+            }
+          : {}),
       });
       show(
-        "Preparation queued. Inspect strategy, evidence and drafts here; no publication or schedule was created.",
+        autonomous
+          ? "Autonomous publishing started. Checked, distinct supply will be scheduled within your account cadence and model budget. Inspect stock or pause under Autonomous projects."
+          : "Preparation queued. Inspect strategy, evidence and drafts here; no publication or schedule was created.",
       );
     });
   };
   return {
+    setExecutor(mode) {
+      $("autonomy-setup").hidden = mode === "local";
+    },
     setProjects(projects) {
       const select = $("preparation-project"),
         previous = select.value;

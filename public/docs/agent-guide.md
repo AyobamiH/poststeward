@@ -118,3 +118,9 @@ Approximate timestamp-to-bookmark recovery is a separate compatibility path and 
 A 429 means admission was rejected; wait for `Retry-After` before retrying an HTTP request. Protected routes have edge admission limits and each workspace has an atomic request allowance across transports and grants. MCP failures report the operation error in the tool result. Keep the same idempotency key for an identical consequential request and inspect existing receipts after an ambiguous outcome.
 
 Owner signup may be restricted even when technical production infrastructure exists. Provider OAuth applications, public signup, Advanced rollout and optional browser capabilities each have separate release evidence. Use `/readiness.json`, `/help.json` and the generated release-gate ledger rather than inferring availability from repository code.
+
+## Autonomous projects
+
+The owner can configure `autonomy_configure` once, with exact source selection (project documentation from a branch/ref or a release snapshot), audience, voice, exclusions, destinations and pacing. Advanced access and a connected workspace model with its own budget are required. Use `autonomy_list` to inspect stock, durable requests and holds. An agent with `campaign:write` can call `autonomy_request` to fill an actual deficit; existing requests are reused. The owner's model setting must explicitly allow agent spending.
+
+This producer reads the selected evidence, creates distinct audience-relevant copy, checks references and editorial issues, admits an immutable campaign, and uses the existing scheduler. Routine posts do not ask for copy approval. Raw `campaign_create` / `publish_now` submissions retain the manual approval path. `autonomy_pause` revokes continuing authority. Hosted operation requires no local installation; a paired local executor keeps its own publisher and blocks hosted autonomy configuration.
