@@ -37,6 +37,12 @@ do not call a previous manifest the exact current release.
 
 ## Remaining acceptance gates
 
+The owner has deferred OpenAI funding acceptance for now. Continue the current delivery
+with Cloudflare Workers AI and checks that require no new paid model access. This
+deferral does not remove the OpenAI implementation or authorise hidden funding fallback.
+Human review and native owner/provider evidence can be assessed independently; never
+hold all development for the unavailable OpenAI account.
+
 | Gate | What is missing | Safe next action |
 | --- | --- | --- |
 | OpenAI via Unified Billing | Owner-configured eligible dedicated gateway, funded account, verified key precedence and explicit bounded live allowance | Use existing owner settings and pipeline; no direct service-funded fallback or automatic credit purchase |
@@ -65,3 +71,19 @@ operations cannot be completed by fabricating sessions, credentials, reviews or 
 
 No model quota change, paid model request, purchase, public post or original Post-Once
 mutation is part of this release. Unavailable external checks remain explicitly open.
+
+## Runtime readiness correction
+
+Earlier diagnosis could report `READY` for an active marker with a stale authority
+generation or expired cloud lease, provided the installation and service flags matched.
+It also described any inactive machine as the target of a workspace's local handoff,
+even when another installation was selected. Provider-write enforcement was already
+separate; this corrects the operational diagnosis.
+
+`status` now reports local and cloud release identities, binding schema and observed
+authority generation/lease. `doctor` blocks mismatched installation, generation,
+activation release, unsupported binding format and expired/missing lease, and reports
+unavailable service inspection explicitly. Local and cloud SHAs may differ with the
+same supported binding format. Lease diagnosis uses the local clock and records its
+observation time; it is a snapshot, not a renewed lease or future publication guarantee.
+Diagnosis never performs a heartbeat, handoff, approval or provider effect.
