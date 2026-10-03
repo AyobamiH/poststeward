@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -45,6 +46,59 @@ def workpack(*, runnable=1, reserved=0, intent=True):
 
 
 class EditorialContinuityTests(unittest.TestCase):
+    def setUp(self):
+        # This suite exercises both legacy and steady policy fixtures. Never
+        # inherit a policy saved by another test or the operator's live host.
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        environment = patch.dict(os.environ, {
+            'OCPF_POST_CONFIG_DIR': str(root / 'config'),
+            'OCPF_POST_STATE_DIR': str(root / 'state'),
+        })
+        environment.start()
+        self.addCleanup(environment.stop)
+
+    def test_sufficient_supply_does_not_hide_unfilled_real_planner_opportunity(self):
+        route = {**workpack(runnable=6)['route_supply'][0], 'unreserved_schedule_opportunities': 1}
+        result = c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 5)
+        self.assertEqual(result['accounts'][0]['blocker_stage'], 'scheduling')
+        self.assertEqual(result['accounts'][0]['completion'], 'B')
+        # No immediate opportunity under the real planner is policy-compliant
+        # waiting, not a demand to publish outside a window or beyond a ceiling.
+        route['unreserved_schedule_opportunities'] = 0
+        self.assertEqual(c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 5)['status'], 'adequate')
+
+    def test_unusable_approval_requires_new_copy_not_repeated_import(self):
+        route = {**workpack(runnable=0)['route_supply'][0], 'vaults': [{
+            'status': 'current', 'active_entries': 1, 'awaiting_import_entries': 0,
+            'entry_state_counts': {'consumed_or_ambiguous': 1}}],
+            'exclusion_counts': {'vault entry already consumed or ambiguous on this destination': 1}}
+        result = c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 5)
+        self.assertEqual(result['accounts'][0]['blocker_stage'], 'generation')
+        self.assertEqual(result['accounts'][0]['completion'], 'B')
+        recovery = c.recovery_work(result, [{**route, 'request_id': 'r1'}])
+        self.assertEqual(recovery[0]['next_action'], 'author_distinct_reviewed_copy_for_exact_account')
+        self.assertEqual(recovery[0]['cadence_deficit'], 5)
+        self.assertFalse(recovery[0]['permission_to_replay_or_activate'])
+        route['vaults'][0]['awaiting_import_entries'] = 1
+        self.assertEqual(c.account_acceptance([route], now=NOW)['accounts'][0]['blocker_stage'], 'admission')
+
+    def test_recovery_first_serves_empty_physical_accounts_and_ignores_disabled(self):
+        route = workpack(runnable=3)['route_supply'][0]
+        routes = [route, {**route, 'account_id': 'empty', 'runnable': 0},
+                  {**route, 'account_id': 'disabled', 'publishing_intent': False, 'runnable': 0}]
+        result = c.account_acceptance(routes, now=NOW, policy_fn=lambda *_: 5)
+        recovery = c.recovery_work(result, [{**r, 'request_id': r['account_id']} for r in routes])
+        self.assertEqual([r['account_id'] for r in recovery], ['empty', '123'])
+        self.assertEqual([r['cadence_deficit'] for r in recovery], [5, 2])
+
+    def test_historical_manual_only_copy_does_not_block_new_authoring(self):
+        route = {**workpack(runnable=0)['route_supply'][0],
+                 'exclusion_counts': {'not opted into portfolio allocation': 40}}
+        result = c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 5)
+        self.assertEqual(result['accounts'][0]['blocker_stage'], 'generation')
+
     def test_low_stock_and_expiry_are_proactive_not_publication_authority(self):
         key = ("example", "x", "123")
         expiries = {key: [NOW + timedelta(hours=12)]}
@@ -403,6 +457,99 @@ class EditorialContinuityTests(unittest.TestCase):
         self.assertNotIn("PRIVATE REF", encoded)
         self.assertNotIn("PRIVATE", encoded)
         self.assertIn("not sentiment", result["boundary"].lower())
+
+
+class AccountAcceptanceTests(unittest.TestCase):
+    @staticmethod
+    def route(provider, account, *, runnable=0, reserved=0, intent=True, available=True, project='example'):
+        return {
+            'project': project, 'provider': provider, 'account_id': account,
+            'publishing_intent': intent, 'destination_available': available,
+            'destination_unavailable_reason': None if available else 'Additional account is inactive or has no private credentials',
+            'runnable': runnable, 'reserved': reserved, 'scheduled_count': reserved,
+            'source': {'status': 'observed'}, 'vaults': [], 'exclusion_counts': {},
+            'last_effect_at': None, 'last_verified_publication_at': None, 'next_scheduled_at': None,
+        }
+
+    def test_one_healthy_account_does_not_hide_an_empty_enabled_account(self):
+        result = c.account_acceptance([
+            self.route('x', 'healthy', runnable=3),
+            self.route('threads', 'empty'),
+        ], now=NOW, policy_fn=lambda *_: 2)
+        rows = {(row['provider'], row['account_id']): row for row in result['accounts']}
+        self.assertEqual(result['status'], 'blocked')
+        self.assertEqual(rows[('x', 'healthy')]['completion'], 'A')
+        self.assertEqual(rows[('threads', 'empty')]['completion'], 'B')
+        self.assertEqual(rows[('threads', 'empty')]['blocker_stage'], 'generation')
+
+    def test_linkedin_supply_does_not_satisfy_threads(self):
+        result = c.account_acceptance([
+            self.route('linkedin', 'brand', runnable=8),
+            self.route('threads', 'brand'),
+        ], now=NOW, policy_fn=lambda *_: 2)
+        rows = {row['provider']: row for row in result['accounts']}
+        self.assertEqual(rows['linkedin']['status'], 'adequate')
+        self.assertEqual(rows['threads']['status'], 'blocked')
+
+    def test_immediate_floor_is_operational_while_deep_reserve_recovers(self):
+        route = self.route('x', 'thin', runnable=25, reserved=1)
+        route.update(reserve_available_items=1, reserve_target_items=180)
+        result = c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 6)
+        row = result['accounts'][0]
+        self.assertEqual(result['status'], 'recovering')
+        self.assertEqual(row['status'], 'recovering')
+        self.assertEqual(row['completion'], 'R')
+        self.assertEqual(row['cadence_available_items'], 26)
+        self.assertEqual(row['operational_buffer_target_items'], 12)
+        self.assertEqual(row['operational_buffer_deficit'], 0)
+        self.assertEqual(row['available_items'], 1)
+        self.assertEqual(row['required_items'], 180)
+        self.assertEqual(row['blocker_stage'], 'generation')
+        self.assertEqual(row['blocker_reason'], 'cadence_ready_reserve_rebuilding')
+        recovery = c.recovery_work(result, [{**route, 'request_id': 'r-thin'}])
+        self.assertEqual(recovery[0]['reserve_deficit'], 179)
+        self.assertEqual(recovery[0]['cadence_deficit'], 0)
+        self.assertEqual(recovery[0]['operational_buffer_target_items'], 12)
+        self.assertEqual(recovery[0]['operational_buffer_deficit'], 0)
+
+    def test_one_item_operational_gap_remains_blocked(self):
+        route = self.route('x', 'brand', runnable=3, reserved=1)
+        route.update(reserve_available_items=4, reserve_target_items=140)
+        result = c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 5)
+        row = result['accounts'][0]
+        self.assertEqual(result['status'], 'blocked')
+        self.assertEqual(row['cadence_available_items'], 4)
+        self.assertEqual(row['operational_buffer_target_items'], 10)
+        self.assertEqual(row['operational_buffer_deficit'], 6)
+        recovery = c.recovery_work(result, [{**route, 'request_id': 'r-brand'}])
+        self.assertEqual(recovery[0]['cadence_deficit'], 1)
+        self.assertEqual(recovery[0]['operational_buffer_deficit'], 6)
+
+    def test_recent_publication_is_evidence_not_current_supply(self):
+        route = self.route('x', 'recent')
+        route['last_effect_at'] = (NOW - timedelta(minutes=5)).isoformat()
+        route['last_verified_publication_at'] = route['last_effect_at']
+        result = c.account_acceptance([route], now=NOW, policy_fn=lambda *_: 2)
+        self.assertEqual(result['status'], 'blocked')
+        self.assertEqual(result['accounts'][0]['available_items'], 0)
+
+    def test_disabled_destination_stays_disabled(self):
+        result = c.account_acceptance([
+            self.route('threads', 'disabled', runnable=12, intent=False),
+        ], now=NOW, policy_fn=lambda *_: 2)
+        self.assertEqual(result['status'], 'no_enabled_destinations')
+        self.assertEqual(result['accounts'][0]['status'], 'disabled')
+        self.assertEqual(result['accounts'][0]['stock_floor'], 0)
+        self.assertEqual(result['accounts'][0]['required_items'], 0)
+
+    def test_unavailable_destination_names_credentials_stage(self):
+        result = c.account_acceptance([
+            self.route('threads', 'offline', runnable=4, available=False),
+        ], now=NOW, policy_fn=lambda *_: 2)
+        row = result['accounts'][0]
+        self.assertEqual(row['status'], 'blocked')
+        self.assertEqual(row['blocker_stage'], 'credentials')
+
 
 
 class HandoffContinuityProjectionTests(unittest.TestCase):

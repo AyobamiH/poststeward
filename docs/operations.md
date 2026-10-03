@@ -2,6 +2,100 @@
 
 Generated from src/operations/catalog.ts. Do not edit by hand.
 
+## autonomy_request
+
+Ask the standing producer to fill an actual stock deficit using owner-selected sources and context. Reuses an existing durable request. Agent model spending still requires owner consent.
+
+- Tier: advanced
+- Required scope: campaign:write
+- Effects: STATE_WRITE, FINANCIAL_EFFECT, FUTURE_CONSEQUENCE
+- Inspect with: autonomy_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "project": "product",
+  "idempotencyKey": "autonomy-request-001"
+}
+```
+
+## autonomy_list
+
+Inspect standing project authority, stock request and editorial holds.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: autonomy_list
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{}
+```
+
+## autonomy_configure
+
+Owner setup consent for recurring evidence-grounded preparation and paced publishing. Clean checks proceed without per-copy approval; existing manual deliveries remain unchanged.
+
+- Tier: advanced
+- Required scope: admin
+- Effects: STATE_WRITE, AUTHORITY_CHANGE, FUTURE_CONSEQUENCE, FINANCIAL_EFFECT
+- Inspect with: autonomy_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "project": "product",
+  "selection": {
+    "repository": "owner/product",
+    "releaseTag": "v1.0",
+    "documentationPaths": [
+      "README.md"
+    ],
+    "allowPrivate": false,
+    "allowUnreleased": false
+  },
+  "context": {
+    "audience": "Builders delegating release communications",
+    "objective": "Explain useful documented capabilities to potential users",
+    "brandVoice": "Specific British English",
+    "productContext": "A source-grounded publishing product",
+    "exclusions": "No unsupported outcomes",
+    "callToAction": "Read the documentation"
+  },
+  "enabled": true,
+  "intervalMinutes": 240,
+  "stockFloor": 2,
+  "maxDailyDeliveries": 3,
+  "idempotencyKey": "autonomy-setup-001"
+}
+```
+
+## autonomy_pause
+
+Owner revocation of standing publishing and generation authority. Captured deliveries stop before further provider writes.
+
+- Tier: free
+- Required scope: admin
+- Effects: STATE_WRITE, AUTHORITY_CHANGE
+- Inspect with: autonomy_list
+- Retry: Reuse the same idempotencyKey and exact inputs. Inspect status after disconnection; never create a fresh key to bypass an uncertain result.
+
+Example:
+
+```json
+{
+  "project": "product",
+  "idempotencyKey": "autonomy-pause-001"
+}
+```
+
 ## model_status
 
 Inspect this workspace’s own model connection and bounded usage. No key is returned.

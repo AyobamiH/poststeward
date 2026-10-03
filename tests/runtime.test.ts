@@ -32,8 +32,8 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
         MPP_ENABLED: "true",
         STRIPE_SECRET_KEY: "sk_test_not_real",
         STRIPE_PRICE_ID: "price_test",
-        ADVANCED_PRICE_AMOUNT_PENCE:"500",
-        STRIPE_WEBHOOK_SECRET:"whsec_test_only",
+        ADVANCED_PRICE_AMOUNT_PENCE: "500",
+        STRIPE_WEBHOOK_SECRET: "whsec_test_only",
         STRIPE_PROFILE_ID: "profile_test",
         MPP_SECRET: "test-mpp-key-".repeat(5),
       },
@@ -161,8 +161,19 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
     );
     assert.equal(discovery.status, 200);
     const operations = ((await discovery.json()) as any).operations;
-    assert.equal(operations.length, 46);
-    assert.ok(operations.some((operation:any)=>operation.name==='preparation_create'));
+    assert.equal(operations.length, 50);
+    for (const name of [
+      "autonomy_configure",
+      "autonomy_request",
+      "autonomy_pause",
+      "autonomy_list",
+    ])
+      assert.ok(operations.some((operation: any) => operation.name === name));
+    assert.ok(
+      operations.some(
+        (operation: any) => operation.name === "preparation_create",
+      ),
+    );
     assert.ok(
       operations.some((operation: any) => operation.name === "receipt_recheck"),
     );

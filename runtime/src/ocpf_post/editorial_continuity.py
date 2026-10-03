@@ -19,6 +19,7 @@ from ocpf_post.state import state_dir
 
 UTC = timezone.utc
 CADENCE_HOURS = 4
+OPERATIONAL_BUFFER_MULTIPLIER = 2
 EXPIRY_HORIZON_HOURS = 48
 MIN_STOCK_FLOOR = 2
 MAX_STOCK_FLOOR = 8
@@ -32,6 +33,7 @@ MAX_AUDIENCE_RECORDS = 160
 DEFAULT_MARKET_COLD_HOURS = 48
 MIN_MARKET_COLD_HOURS = 12
 MAX_MARKET_COLD_HOURS = 168
+ACCOUNT_ACCEPTANCE_MAX_AGE_MINUTES = 45
 
 
 def _stamp(value: datetime) -> str:
@@ -680,6 +682,8 @@ def demand(workpack: dict[str, Any], *, now: datetime | None = None,
             reasons.append("market_presence_cold")
         if intent and reserve["editorial_refill_required"]:
             reasons.append("reserve_runway_below_target")
+        if intent and route.get("unreserved_schedule_opportunities", 0):
+            reasons.append("unfilled_near_term_schedule_opportunity")
         suggested = max(0, floor - surviving)
         if intent and reserve["editorial_refill_required"]:
             suggested = max(suggested, int(reserve["target_deficit"]))
@@ -724,7 +728,10 @@ def demand(workpack: dict[str, Any], *, now: datetime | None = None,
         state = {
             "project": project, "provider": provider, "account_id": account,
             "aliases": list(route.get("aliases") or []), "publishing_intent": intent,
+            "destination_available": route.get("destination_available") is not False,
+            "destination_unavailable_reason": route.get("destination_unavailable_reason"),
             "runnable": runnable, "reserved": reserved, "stock_floor": floor,
+            "unreserved_schedule_opportunities": int(route.get("unreserved_schedule_opportunities", 0) or 0),
             "editorial_runway_hours": runway_hours,
             "surviving_runway_hours": surviving_runway_hours,
             "expiring_within_48h": expiring,
@@ -773,6 +780,230 @@ def demand(workpack: dict[str, Any], *, now: datetime | None = None,
     return {"schema_version": 1, "status": "observed", "observed_at": _stamp(now),
             "requests": requests, "routes": route_states,
             "boundary": "Proactive editorial demand only. Low stock and expiry risk do not authorise publication, quota increases, expiry extension, replay or account substitution."}
+
+
+def _account_blocker(routes: list[dict[str, Any]], *, runnable: int, reserved: int) -> tuple[str, str]:
+    """Return the earliest evidenced stage that prevents account coverage."""
+    if all(row.get("destination_available") is False for row in routes):
+        reasons = {str(row.get("destination_unavailable_reason") or "") for row in routes}
+        if any("circuit open" in reason for reason in reasons):
+            return "provider_recovery", "provider_account_write_circuit_open"
+        return "credentials", "destination_inactive_or_credentials_unavailable"
+    if any(row.get("unreserved_schedule_opportunities", 0) for row in routes):
+        return "scheduling", "eligible_copy_has_unfilled_near_term_slot"
+    if runnable:
+        return "generation", "accepted_supply_below_account_reserve_target"
+    source_states = {
+        str((row.get("source") or {}).get("status") or "")
+        for row in routes if isinstance(row.get("source"), dict)
+    }
+    current_vaults = [
+        vault for row in routes for vault in row.get("vaults", [])
+        if isinstance(vault, dict) and vault.get("status") == "current"
+    ]
+    if not current_vaults and source_states and source_states <= {
+        "collection_unavailable", "not_observed", "profile_changed_review_required",
+        "source_guard_not_confirmed", "stale_or_future_observation",
+    }:
+        return "collection", "source_observation_unavailable_or_stale"
+    awaiting_import_entries = sum(
+        int(vault.get("awaiting_import_entries", 0) or 0)
+        for row in routes
+        for vault in row.get("vaults", [])
+        if isinstance(vault, dict) and vault.get("status") == "current"
+    )
+    exclusions = Counter(
+        reason
+        for row in routes
+        for reason, count in (row.get("exclusion_counts") or {}).items()
+        for _ in range(int(count or 0))
+    )
+    if awaiting_import_entries:
+        return "admission", "current_vault_entries_not_accepted_for_account"
+    # Historical/manual-only campaigns are not an active review request. Their
+    # allocation exclusion must not freeze new, already-authorised vault supply.
+    # Retain the exclusions as evidence, without inventing a manual approval gate.
+    if any("vault authority or observation unavailable" in reason for reason in exclusions):
+        return "collection", "vault_observation_unavailable"
+    if exclusions:
+        return "generation", "existing_copy_expired_consumed_duplicate_or_policy_excluded"
+    if reserved:
+        return "generation", "scheduled_supply_below_account_floor"
+    return "generation", "no_valid_account_specific_supply"
+
+
+def recovery_work(acceptance: dict[str, Any], requests: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Prioritise empty physical accounts before topping up a healthy account.
+
+    Quantities describe the existing policy, not permission to manufacture copy.
+    A consequence-blocked historical item does not block genuinely new authoring.
+    """
+    actions = {
+        "generation": "author_distinct_reviewed_copy_for_exact_account",
+        "review": "review_existing_exact_copy_without_renewing_or_replaying",
+        "admission": "resolve_reported_admission_gate_then_normal_collection",
+        "collection": "retry_normal_collection_with_existing_authority",
+        "scheduling": "retry_normal_allocator_with_existing_policy",
+        "credentials": "restore_existing_account_authorization",
+        "provider_recovery": "wait_for_existing_provider_recovery_policy",
+    }
+    result = []
+    for account in acceptance["accounts"]:
+        if account["status"] not in {"blocked", "recovering"}:
+            continue
+        routes = [r for r in requests if (r["provider"], r["account_id"]) ==
+                  (account["provider"], account["account_id"])]
+        result.append({
+            "provider": account["provider"], "account_id": account["account_id"],
+            "blocker_stage": account["blocker_stage"], "blocker_reason": account["blocker_reason"],
+            "next_action": actions.get(account["blocker_stage"], "inspect_exact_route_evidence"),
+            "cadence_deficit": max(0, account["stock_floor"] - account["runnable"] - account["reserved"]),
+            "operational_buffer_target_items": account["operational_buffer_target_items"],
+            "operational_buffer_deficit": account["operational_buffer_deficit"],
+            "reserve_deficit": max(0, account["required_items"] - account["available_items"]),
+            "available_items": account["available_items"], "stock_floor": account["stock_floor"],
+            "request_ids": [r["request_id"] for r in sorted(
+                routes, key=lambda r: (not r.get("market_cold", False), r.get("first_requested_at", ""), r["project"]))],
+            "permission_to_replay_or_activate": False,
+        })
+    result.sort(key=lambda r: (
+        r["cadence_deficit"] == 0,
+        r["available_items"] / max(1, r["stock_floor"]), r["provider"], r["account_id"],
+    ))
+    return [{**row, "priority": i + 1} for i, row in enumerate(result)]
+
+
+def account_acceptance(routes: list[dict[str, Any]], *, now: datetime | None = None,
+                       policy_fn=stock_floor) -> dict[str, Any]:
+    """Project route evidence into one non-overlapping result per destination."""
+    now = now or datetime.now(UTC)
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in routes:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid editorial account route")
+        provider, account_id = str(row.get("provider") or ""), str(row.get("account_id") or "")
+        if provider not in {"x", "threads", "linkedin"} or not account_id:
+            raise ValueError("Invalid editorial account identity")
+        grouped.setdefault((provider, account_id), []).append(row)
+
+    accounts = []
+    for (provider, account_id), account_routes in sorted(grouped.items()):
+        enabled = any(bool(row.get("publishing_intent")) for row in account_routes)
+        runnable = sum(int(row.get("runnable", 0) or 0) for row in account_routes)
+        reserved = sum(int(row.get("reserved", 0) or 0) for row in account_routes)
+        scheduled = sum(int(row.get("scheduled_count", 0) or 0) for row in account_routes)
+        floor = policy_fn(provider, account_id) if enabled else 0
+        destination_available = all(row.get("destination_available") is not False for row in account_routes)
+        reserve_available = sum(
+            int(row.get("reserve_available_items", int(row.get("runnable", 0) or 0)
+                    + int(row.get("reserved", 0) or 0)) or 0)
+            for row in account_routes
+        )
+        reserve_target = (
+            sum(int(row.get("reserve_target_items", 0) or 0) for row in account_routes)
+            if enabled else 0
+        )
+        required = max(floor, reserve_target) if enabled else 0
+        operational_available = runnable + reserved
+        operational_buffer_target = (
+            floor * OPERATIONAL_BUFFER_MULTIPLIER if enabled else 0
+        )
+        operational_buffer_deficit = max(
+            0, operational_buffer_target - operational_available
+        )
+        available = reserve_available
+        unreserved_slots = sum(int(row.get("unreserved_schedule_opportunities", 0) or 0) for row in account_routes)
+        cadence_ready = (
+            enabled
+            and destination_available
+            and operational_available >= floor
+            and unreserved_slots == 0
+        )
+        reserve_ready = cadence_ready and available >= required
+        last_effects = [row.get("last_effect_at") for row in account_routes if row.get("last_effect_at")]
+        last_verified = [
+            row.get("last_verified_publication_at") for row in account_routes
+            if row.get("last_verified_publication_at")
+        ]
+        next_slots = [row.get("next_scheduled_at") for row in account_routes if row.get("next_scheduled_at")]
+        if not enabled:
+            status, stage, reason = "disabled", None, "publishing_intent_disabled"
+        elif reserve_ready:
+            status, stage, reason = "adequate", None, "account_reserve_target_met"
+        elif cadence_ready:
+            status, stage, reason = "recovering", "generation", "cadence_ready_reserve_rebuilding"
+        else:
+            stage, reason = _account_blocker(account_routes, runnable=runnable, reserved=reserved)
+            status = "blocked"
+        accounts.append({
+            "provider": provider,
+            "account_id": account_id,
+            "publishing_intent": enabled,
+            "destination_available": destination_available,
+            "status": status,
+            "completion": "A" if reserve_ready else "R" if cadence_ready else "B" if enabled else "disabled",
+            "blocker_stage": stage,
+            "blocker_reason": reason,
+            "runnable": runnable,
+            "reserved": reserved,
+            "scheduled_count": scheduled,
+            "unreserved_schedule_opportunities": unreserved_slots,
+            "stock_floor": floor,
+            "cadence_available_items": operational_available,
+            "operational_buffer_target_items": operational_buffer_target,
+            "operational_buffer_deficit": operational_buffer_deficit,
+            "reserve_target_items": reserve_target,
+            "required_items": required,
+            "available_items": available,
+            "runway_hours": round(available * CADENCE_HOURS / max(1, floor), 3) if enabled else None,
+            "last_effect_at": max(last_effects, key=_at) if last_effects else None,
+            "last_verified_publication_at": max(last_verified, key=_at) if last_verified else None,
+            "next_scheduled_at": min(next_slots, key=_at) if next_slots else None,
+            "projects": sorted({str(row.get("project") or "") for row in account_routes if row.get("project")}),
+            "route_count": len(account_routes),
+        })
+    enabled_accounts = [row for row in accounts if row["publishing_intent"]]
+    blocked = [row for row in enabled_accounts if row["status"] == "blocked"]
+    recovering = [row for row in enabled_accounts if row["status"] == "recovering"]
+    overall = (
+        "blocked" if blocked
+        else "recovering" if recovering
+        else "adequate" if enabled_accounts
+        else "no_enabled_destinations"
+    )
+    return {
+        "schema_version": 1,
+        "status": overall,
+        "observed_at": _stamp(now),
+        "enabled_account_count": len(enabled_accounts),
+        "blocked_account_count": len(blocked),
+        "recovering_account_count": len(recovering),
+        "accounts": accounts,
+        "boundary": (
+            "Account-level completion only. Publications are evidence, not inventory; disabled or unavailable "
+            "destinations are not substituted, and this result grants no generation, approval, scheduling or publication authority."
+        ),
+    }
+
+
+def acceptance_status(*, now: datetime | None = None) -> dict[str, Any]:
+    """Read the latest durable account acceptance without recomputing supply."""
+    now = now or datetime.now(UTC)
+    state = local_store.read(path()) or {}
+    observed_at = state.get("observed_at")
+    acceptance = state.get("account_acceptance")
+    if not isinstance(acceptance, dict) or not observed_at:
+        return {
+            "schema_version": 1, "status": "unavailable", "reason": "account_acceptance_not_recorded",
+            "observed_at": observed_at, "accounts": [],
+        }
+    try:
+        stale = not timedelta(0) <= now - _at(observed_at) <= timedelta(minutes=ACCOUNT_ACCEPTANCE_MAX_AGE_MINUTES)
+    except (TypeError, ValueError):
+        stale = True
+    if stale:
+        return {**acceptance, "status": "unavailable", "reason": "account_acceptance_stale"}
+    return dict(acceptance)
 
 
 def reconcile(workpack: dict[str, Any], *, now: datetime | None = None, apply: bool = False,
@@ -827,7 +1058,10 @@ def reconcile(workpack: dict[str, Any], *, now: datetime | None = None, apply: b
         row = {**old, "status": "resolved", "resolved_at": _stamp(now), "resolution": reason}
         next_routes[route_key] = row
         resolved.append({"request_id": old.get("request_id"), "route_key": route_key, "resolution": reason})
-    state = {"schema_version": 1, "observed_at": _stamp(now), "routes": next_routes}
+    acceptance = account_acceptance(projection["routes"], now=now, policy_fn=policy_fn)
+    recovery = recovery_work(acceptance, open_rows)
+    state = {"schema_version": 1, "observed_at": _stamp(now), "routes": next_routes,
+             "account_acceptance": acceptance, "recovery_work": recovery}
     if apply:
         with local_store.locked(path()):
             latest = local_store.read(path()) or {"schema_version": 1, "routes": {}}
@@ -839,8 +1073,9 @@ def reconcile(workpack: dict[str, Any], *, now: datetime | None = None, apply: b
             local_store.write(path(), state)
     return {"schema_version": 1, "status": "observed", "observed_at": state["observed_at"],
             "open_request_count": len(open_rows), "open_requests": open_rows,
-            "resolved_this_cycle": resolved, "apply": apply,
-            "boundary": "Durable editorial request reconciliation only. One open request identity survives unchanged polls until route evidence resolves it; no campaign, schedule, approval or provider state is changed."}
+            "resolved_this_cycle": resolved, "account_acceptance": acceptance,
+            "recovery_work": recovery, "apply": apply,
+            "boundary": "Durable editorial request and account completion reconciliation only. One open request identity survives unchanged polls until route evidence resolves it; no campaign, schedule, approval or provider state is changed."}
 
 
 def record_assessments(packet: dict[str, Any], reviewed: dict[str, Any], *, apply: bool = False,
@@ -850,18 +1085,22 @@ def record_assessments(packet: dict[str, Any], reviewed: dict[str, Any], *, appl
     review_sha = _digest(packet)
     if apply and expected_sha256 != review_sha:
         raise ValueError("Assessment apply requires exact reviewed input hash")
-    entries = {row["campaign"]: row for row in reviewed.get("entries", [])}
-    if reviewed.get("status") != "review_records_valid" or not entries:
+    entries = {(row["campaign"], row["provider"], str(row["account_id"])): row
+               for row in reviewed.get("entries", [])}
+    if reviewed.get("status") not in {"review_records_valid", "review_records_partial"} or not entries:
         raise ValueError("Validated review records required")
     projected = []
     for batch in packet.get("batches", []):
         project, account = str(batch.get("project") or ""), str(batch.get("account_id") or "")
-        reviews = {row["campaign"]: row for row in batch.get("editorial_reviews", [])}
+        reviews = {row["campaign"]: row for row in batch.get("editorial_reviews", [])
+                   if isinstance(row, dict) and isinstance(row.get("campaign"), str)}
         for entry in batch.get("entries", []):
             campaign, provider = entry.get("campaign"), entry.get("provider")
-            validated = entries.get(campaign)
+            validated = entries.get((campaign, provider, account))
             review = reviews.get(campaign)
-            if not validated or not review or not project or not account:
+            if not validated:
+                continue
+            if not review or not project or not account:
                 raise ValueError("Assessment identity mismatch")
             if review.get("audience_response") != "not_observed":
                 raise ValueError("Editorial approval cannot pre-claim audience response")

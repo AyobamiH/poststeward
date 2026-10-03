@@ -95,6 +95,7 @@ export interface Delivery {
     reviewedAt?: number;
     reviewer?: string;
   };
+  standing?: { revision: number; preparation: string; digest: string };
   policy?: string;
   policyVersion?: number;
   phase?:

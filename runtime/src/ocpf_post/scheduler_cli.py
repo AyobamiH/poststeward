@@ -332,7 +332,10 @@ def cmd_run_due(args: argparse.Namespace) -> None:
                 run_once()
             except CloudError as exc:
                 _die(f"Cloud executor command/lease check blocked [{exc.code}]", 3)
+        from ocpf_post.run_due_cycle import cycle
+        # Preserve the cloud bridge/fence above; signal the existing allocator only.
         results = run_due(limit=args.limit)
+        cycle(limit=args.limit, due_runner=lambda **_kwargs: results)
     except RunnerBusy as exc:
         _die(str(exc), 3)
     except ScheduleError as exc:

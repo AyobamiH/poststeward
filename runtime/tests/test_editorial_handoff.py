@@ -322,6 +322,7 @@ class HandoffTests(unittest.TestCase):
             shutil.copyfile(ROOT / 'scripts/runtime-env', root / 'scripts/runtime-env')
             files = {
                 'bin/git': '#!/bin/sh\nexit 0\n',
+                'bin/python3': '#!/bin/sh\ncase "$1" in *reconcile-rolling-supply.py) echo controller >> "$LOG"; exit "$REFILL_EXIT";; *) exit 0;; esac\n',
                 'bin/timeout': '#!/bin/sh\necho telemetry >> "$LOG"\nexit "$TELEMETRY_EXIT"\n',
                 'poststeward': '#!/bin/sh\necho "$*" >> "$LOG"\nif [ "$1 $2" = "portfolio refill" ]; then exit "$REFILL_EXIT"; fi\n',
                 'scripts/run-operating-cycle': '#!/bin/sh\necho report >> "$LOG"\nexit 0\n',
@@ -333,9 +334,7 @@ class HandoffTests(unittest.TestCase):
             result = subprocess.run(['sh', str(root / 'scripts/run-portfolio-refill')], env=env, capture_output=True, timeout=3)
             self.assertEqual(result.returncode, refill_exit)
             self.assertEqual((root / 'calls').read_text().splitlines(), [
-                'portfolio experiment reconcile --apply', 'replenish refresh --apply',
-                'replenish reconcile', 'portfolio reconcile',
-                'portfolio refill --apply --horizon-minutes 75', 'report', 'telemetry'])
+                'portfolio experiment reconcile --apply', 'controller', 'telemetry', 'report'])
 
     def test_telemetry_failure_cannot_change_successful_refill(self):
         self._refill(0, 2)

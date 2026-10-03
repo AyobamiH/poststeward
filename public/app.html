@@ -706,6 +706,50 @@
                         I authorize this bounded generation request against the
                         selected model account.</label
                       ><button>Prepare strategy and original drafts</button>
+                      <details>
+                        <summary>Run this project autonomously</summary>
+                        <p>
+                          Hosted PostSteward keeps useful, distinct supply
+                          flowing from these sources and editorial instructions.
+                          Connect accounts and your model first. Advanced access
+                          is required. The hosted service runs without a local
+                          installation.
+                        </p>
+                        <label
+                          >Spacing in minutes<input
+                            name="intervalMinutes"
+                            type="number"
+                            min="15"
+                            max="10080"
+                            value="240"
+                        /></label>
+                        <label
+                          >Ready posts per destination<input
+                            name="stockFloor"
+                            type="number"
+                            min="1"
+                            max="3"
+                            value="2"
+                        /></label>
+                        <label
+                          >Maximum posts per destination per UTC day<input
+                            name="maxDailyDeliveries"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value="3"
+                        /></label>
+                        <label
+                          ><input name="standingConsent" type="checkbox" />I
+                          authorise ongoing model use within my saved budget and
+                          automatic publishing to this project's accounts after
+                          source and editorial checks. Individual posts will not
+                          wait for my approval.</label
+                        >
+                        <button name="intent" value="autonomous">
+                          Start autonomous publishing
+                        </button>
+                      </details>
                     </form>
                     <p class="muted">
                       Sources are bounded and pinned to a commit. Large or
@@ -827,9 +871,11 @@
                   <p class="muted">
                     Issue the smallest useful grant. Tokens are scoped, expiring
                     and revocable; owner-only controls are not delegated here.
-                    Every delivery created with an agent token waits for an
-                    owner to approve its frozen destination, identity, text and
-                    time before dispatch.
+                    Direct agent copy waits for owner review. For ongoing work,
+                    configure autonomous publishing with sources, context and
+                    account limits once. Your agent can request supply through
+                    autonomy_request; checked supply then runs within that
+                    standing authority.
                   </p>
                   <form id="grant">
                     <fieldset>
@@ -974,7 +1020,14 @@
                 <div class="zone-body">
                   <div id="billing-status"></div>
                   <div id="quote" class="preview" hidden></div>
-                  <h3>Automation profile</h3>
+                  <h3>Autonomous projects</h3>
+                  <p>
+                    Inspect stock and holds here. Pause revokes ongoing
+                    publishing authority. Changing sources, context or cadence
+                    requires saving the setup again.
+                  </p>
+                  <div id="autonomy-projects" class="record-list"></div>
+                  <h3>Template automation profile</h3>
                   <form id="profile">
                     <label
                       >Profile ID<input

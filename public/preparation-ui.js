@@ -143,10 +143,27 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
   const nullable = (value) =>
     value === "" || value === null ? null : Number(value);
   async function refresh() {
-    const [status, jobs] = await Promise.all([
+    const [status, jobs, policies] = await Promise.all([
       invoke("model_status"),
       invoke("preparations_list"),
+      invoke("autonomy_list"),
     ]);
+    const policyRoot = $("autonomy-projects");
+    policyRoot.replaceChildren();
+    for (const policy of policies) {
+      const row = element("article");
+      row.append(
+        element(
+          "p",
+          `${policy.project}: ${policy.enabled ? (policy.error ? "held: " + policy.error : policy.deferred ? "waiting for daily budget reset" : "running") : "paused"} · stock target ${policy.stockFloor} · spacing ${policy.intervalMinutes} minutes · daily maximum ${policy.maxDailyDeliveries} per destination`,
+        ),
+      );
+      if (policy.enabled)
+        control(row, "Pause " + policy.project, () =>
+          mutate("autonomy_pause", { project: policy.project }),
+        );
+      policyRoot.append(row);
+    }
     jobs.sort(
       (a, b) =>
         activity(b) - activity(a) ||
@@ -856,8 +873,13 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
   $("preparation-create").onsubmit = (event) => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    const autonomous = event.submitter?.value === "autonomous";
     action(async () => {
-      await mutate("preparation_create", {
+      if (autonomous && !fd.has("standingConsent"))
+        throw new Error(
+          "Confirm standing model and publishing authority before starting.",
+        );
+      await mutate(autonomous ? "autonomy_configure" : "preparation_create", {
         project: fd.get("project"),
         selection: {
           repository: fd.get("repository"),
@@ -873,9 +895,19 @@ export function mountPreparation({ invoke, action, show, onHandoff }) {
           allowUnreleased: fd.has("allowUnreleased"),
         },
         context: context(),
+        ...(autonomous
+          ? {
+              enabled: true,
+              intervalMinutes: Number(fd.get("intervalMinutes")),
+              stockFloor: Number(fd.get("stockFloor")),
+              maxDailyDeliveries: Number(fd.get("maxDailyDeliveries")),
+            }
+          : {}),
       });
       show(
-        "Preparation queued. Inspect strategy, evidence and drafts here; no publication or schedule was created.",
+        autonomous
+          ? "Autonomous publishing started. Checked, distinct supply will be scheduled within your account cadence and model budget. Inspect stock or pause under Autonomous projects."
+          : "Preparation queued. Inspect strategy, evidence and drafts here; no publication or schedule was created.",
       );
     });
   };

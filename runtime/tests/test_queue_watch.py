@@ -266,7 +266,7 @@ class QueueWatchTests(unittest.TestCase):
 
 
 class WaitingSelectionTests(unittest.TestCase):
-    def test_source_failure_does_not_stop_refill_and_bounded_report_runs(self):
+    def test_controller_runs_before_bounded_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); (root/'scripts').mkdir(); (root/'bin').mkdir()
             (root/'scripts'/'run-portfolio-refill').write_text(Path('scripts/run-portfolio-refill').read_text())
@@ -281,11 +281,9 @@ class WaitingSelectionTests(unittest.TestCase):
                 'esac\n'
             )
             (root/'bin'/'git').chmod(0o700)
-            # The production wrapper now requires a local immutable-release
-            # equality check before any source/refill command. Keep that new
-            # safety property present in this failure-path fixture rather than
-            # bypassing the guard to preserve the old test shape.
-            (root/'bin'/'python3').write_text(f'#!/bin/sh\nprintf "%s\\n" "{accepted_sha}"\n')
+            # The controller owns safe source/refill recovery; this wrapper
+            # must invoke it once and preserve the final bounded report.
+            (root/'bin'/'python3').write_text('#!/bin/sh\ncase "$1" in *reconcile-rolling-supply.py) echo controller >> "$QUEUE_TEST_LOG";; esac\nexit 0\n')
             (root/'bin'/'python3').chmod(0o700)
             (root/'poststeward').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$QUEUE_TEST_LOG"\n'
                                          'if [ "$1 $2" = "replenish refresh" ]; then exit 7; fi\n'
@@ -300,8 +298,8 @@ class WaitingSelectionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0)
             calls = log.read_text().splitlines()
             self.assertEqual(calls[-1], 'cycle report')
-            self.assertIn('portfolio refill --apply --horizon-minutes 75', calls)
-            self.assertLess(calls.index('portfolio experiment reconcile --apply'), calls.index('replenish refresh --apply'))
+            self.assertIn('controller', calls)
+            self.assertLess(calls.index('portfolio experiment reconcile --apply'), calls.index('controller'))
 
     def test_daily_burst_cannot_forever_displace_observed_old_copy(self):
         waiting = [queued('old', priority=60, queue_first_eligible_at=NOW.isoformat(),
