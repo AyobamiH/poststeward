@@ -2,6 +2,7 @@ import { z } from "zod";
 import { digest, Fault, requireValue, uid } from "./common.ts";
 import { credentialRoots, seal, unseal } from "./crypto.ts";
 import { publicationParts } from "./publications.ts";
+import { currentCopyReview } from "./preparation-review.ts";
 import {
   critiqueSchema,
   draftsSchema,
@@ -931,16 +932,7 @@ export class Preparation {
           })),
           ...(stage === "draft" ? { strategy: job.strategy } : {}),
           ...(stage === "check"
-            ? {
-                reviewTarget: "current_saved_channel_text",
-                reviewIntent: {
-                  audience: job.strategy?.audience,
-                  objective: job.strategy?.objective,
-                },
-                // Generated rationale/claims can refer to copy the owner removed.
-                // Check every assertion in current text against pinned evidence.
-                drafts: job.drafts?.map(({ alias, text }) => ({ alias, text })),
-              }
+            ? currentCopyReview(job.strategy, job.drafts)
             : {}),
         };
         let selectedRoute = connection.routing?.primary;

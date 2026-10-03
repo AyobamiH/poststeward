@@ -1,6 +1,10 @@
 /** Explicit evaluation; authored references never masquerade as model outputs. */
 import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { openAIModel } from "../src/preparation-model.ts";
+import {
+  openAIModel,
+  PREPARATION_EDITORIAL_VERSION,
+} from "../src/preparation-model.ts";
+import { currentCopyReview } from "../src/preparation-review.ts";
 import {
   strategySchema,
   draftsSchema,
@@ -32,6 +36,13 @@ for (const item of cases) {
     usage: any[] = [];
   if (live) {
     const material: any = {
+      sourceScope: {
+        mode: "selected_release_snapshot",
+        repository: "example/product",
+        releaseTag: "fixture",
+        pinnedCommit: "a".repeat(40),
+        previousTag: null,
+      },
       context: {
         audience: item.audience,
         objective: item.objective,
@@ -79,7 +90,7 @@ for (const item of cases) {
       const checked = await model(
         key!,
         "check",
-        { ...material, strategy, drafts: drafts.drafts },
+        { ...material, ...currentCopyReview(strategy, drafts.drafts) },
         critiqueSchema,
       );
       calls++;
@@ -129,6 +140,7 @@ await writeFile(
   JSON.stringify(
     {
       mode: live ? "live" : "authored_references",
+      editorialPolicyVersion: PREPARATION_EDITORIAL_VERSION,
       modelCalls: calls,
       limits:
         "At most 24 calls, 4,000 output tokens per call; no retries, no provider publication. API billing belongs to supplied account.",

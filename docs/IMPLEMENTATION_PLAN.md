@@ -159,17 +159,19 @@ Real controlled acceptance:
 
 ## Phase 11 — launch
 
-- [ ] production `poststeward.com/install.sh`;
-- [ ] public signup mode intentionally enabled;
-- [ ] stable release manifest pinned;
+- [x] production `poststeward.com/install.sh` (independently retrieved; native acceptance tracked separately);
+- [x] public signup mode intentionally enabled (owner authorised, 100 total workspaces / 10 new per hour);
+- [x] stable release manifest pinned (refresh and reconcile with deployed app after each release);
 - [ ] install docs/support/privacy/terms reflect local runtime;
 - [ ] status page reports cloud and release channel;
 - [ ] beta feedback/incident path;
 - [ ] publish launch only after external acceptance evidence is recorded.
 
-## Current working branch
+## Current delivery
 
-Implementation currently proceeds on:
+The convergence branch below is historical; its implementation has been integrated
+and deployed on `main`. Continue from `main` and the current acceptance register rather
+than treating the original branch as an unmerged candidate:
 
 ```text
 AyobamiH/poststeward
@@ -185,3 +187,8 @@ implementation/automated checks above do not close the real controlled acceptanc
 or launch checklists.
 
 Delivery milestones and remaining live acceptance: [distributed delivery milestones](DISTRIBUTED_DELIVERY_MILESTONES.md).
+
+Current completion record: [development and acceptance register](DEVELOPMENT_COMPLETION.md).
+Historical unchecked launch rows above are not a claim that public distribution or
+signup is still absent. Native lifecycle proof and complete owner/provider proof are
+recorded separately in that register.

@@ -6,12 +6,16 @@ Owner instruction: set milestones, learn from mature technology companies, imple
 | --- | --- | --- |
 | 1. Bounded remote/local bridge | Outbound machine polling; scoped HTTP/MCP inspection and explicit local schedule creation/cancellation; durable command receipts | Scope denial, grant revoke, expiry, concurrent claim, immutable completion, response loss and stale-generation tests; local tools replace hosted planner tools in MCP |
 | 2. Reviewed recovery generation | Newly paired target; owner-approved exact local restore digest; atomic cloud generation/transition receipt; activation checks the receipt | Old machine cannot renew or relay after handoff; same-identity recovery rejected; changed local review rejected |
-| 3. Reviewed cloud deployment | Merge exact green integration; forward D1 migrations; deploy staging then production through existing protected workflows | Exact deployed release, access boundary, migrations and read-only smoke evidence; signup stays restricted and Advanced stays disabled |
+| 3. Reviewed cloud deployment | Merge exact green integration; forward D1 migrations; deploy through existing protected workflows | Exact deployed release, access boundary, migrations and read-only smoke evidence; owner later authorised bounded public signup and Advanced availability, with GBP purchase price still undecided |
 | 4. Branded distribution | Showcase publishes canonical installer and exact deployed stable metadata | Apex and www return installer/metadata; fresh isolated Linux install validates SHA/tree/provenance and targets app.poststeward.com for pairing |
 | 5. Distributed live acceptance | Owner pairing/consent, reviewed local handoff, one explicitly approved scheduled provider effect and matching receipts | Real machine/provider evidence; historical hosted acceptance remains preserved; LinkedIn requires its separate approved application/permissions |
 | 6. Lifecycle/platform acceptance | Actual deactivation, upgrade/rollback, migration, dead-machine recovery and stale-source drill; WSL/macOS coverage | Evidence per platform and exercise; native Windows remains a separately scoped delivery |
 
 Deployment closes milestones 3–4, not milestones 5–6. Public signup is a separate admission decision.
+
+Current development and observed acceptance are reconciled in
+[DEVELOPMENT_COMPLETION.md](DEVELOPMENT_COMPLETION.md). The historical restricted-signup
+and disabled-Advanced checkpoint is not the current launch configuration.
 
 ## Research applied
 

@@ -16,6 +16,7 @@ import socket
 import threading
 import urllib.request
 import http.cookiejar
+import hashlib
 
 repo = Path(__file__).resolve().parent.parent
 harness_revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
@@ -42,7 +43,17 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
             raise AssertionError({'command': args, 'exit': result.returncode, 'stderr': result.stderr[-3000:], 'stdout':result.stdout[-3000:]})
         return result
     previous='06fb738b71db4782f4b2f7066814b2aa7ea8cb7e'
-    def install(sha):return ['bash', str(repo/'public'/'install.sh'),'--version',sha,'--no-onboard']
+    # Exercise the entrypoint users actually receive, not the harness checkout's copy.
+    installer_url='https://poststeward.com/install.sh'
+    installer=root/'downloaded-install.sh'
+    effective_url=run(['curl','--fail','--silent','--show-error','--location',
+        '--proto','=https','--proto-redir','=https','--max-redirs','3',
+        '--max-time','60','--max-filesize','131072','--output',str(installer),
+        '--write-out','%{url_effective}',installer_url]).stdout.strip()
+    assert effective_url==installer_url, 'Canonical installer unexpectedly redirected: '+effective_url
+    run(['bash','-n',str(installer)])
+    installer_sha256=hashlib.sha256(installer.read_bytes()).hexdigest()
+    def install(sha):return ['bash', str(installer),'--version',sha,'--no-onboard']
     for _ in range(2):run(install(previous))
     command=str(root/'bin'/'poststeward')
     receipt=root/'state'/'poststeward'/'install.json'
@@ -177,7 +188,8 @@ with tempfile.TemporaryDirectory(prefix="PostSteward owner's machine ", dir=Path
     assert not Path(command).exists() and not sentinel.exists()
     print(json.dumps({'platform': sys.platform, 'architecture': platform.machine(), 'revision': revision,
                       'harness_revision':harness_revision,'python_version':platform.python_version(),
-                      'kernel':platform.release(),'installation_method':'canonical HTTPS installer with exact GitHub archive/tree digest',
+                      'kernel':platform.release(),'installation_method':'public-domain HTTPS installer with exact GitHub archive/tree digest',
+                      'installer_url':effective_url,'installer_sha256':installer_sha256,
                       'macos_version': platform.mac_ver()[0], 'wsl': bool(os.environ.get('WSL_DISTRO_NAME')),
                       'fresh_install': 'passed', 'repeat_install': 'passed', 'spaces_and_apostrophes': 'passed',
                       'unpaired_fencing': 'passed', 'native_admission': json.loads(admission.stdout),

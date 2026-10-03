@@ -1,8 +1,12 @@
 # Real-account acceptance environments
 
-Run this after the model-routing delivery. The release under test is production
+Run this after the model-routing delivery. The initial release under test was
 `2962f2ef944c4de35c119e662194d489a7d54a2c`, runtime tree
 `a16fb14913e2220d74f79cf7942ec3911c02683775003d30ffd98d8737615849`.
+The owner subsequently supplied a successful current-copy recheck on production
+`a3c422b46c0126e5548d55d8b5c249f2b553ddb5`; see
+[the current acceptance register](DEVELOPMENT_COMPLETION.md). Initialise new bundles
+with the exact release currently returned by `/health`, not the historical SHA below.
 Harness revision is recorded separately; never substitute a branch name for the
 release users receive. Production remains available; original Post-Once is independent.
 
@@ -11,18 +15,19 @@ release users receive. Production remains available; original Post-Once is indep
 `/workspace/acceptance/poststeward-2962f2e` is a private local acceptance bundle,
 not an authenticated cloud workspace. The actual Google owner session, disposable
 workspace, acceptance agent, customer model account and destinations have not been
-provided. No AI expenditure is authorized. Four existing authored fixtures are reused:
+provided to that harness. The owner has since run Workers AI preparation through the
+owner UI and supplied private exports; that is separate from provisioning the disposable
+harness workspace. No further AI expenditure is authorised by this setup. Four existing authored fixtures are reused:
 feature, bug_fix, maintenance and ambiguous. They are test material, not product claims.
 Human scores are empty; reference drafts and agent judgement are not human assessment.
 
-The private fixture repository provisioning attempt is blocked by GitHub HTTP 403
-`Resource not accessible by integration`. Its write-ahead journal remains preserved;
-remote creation is not reported successful. A credential able to create a private
-repository and write its contents/releases is needed. Do not broaden the production
-GitHub App merely to provision fixture files. If an owner creates the repository
-separately, grant the product GitHub App read-only Contents access to that one fixture
-repository before selecting private sources. Confirm the failed resource state before
-removing its checkpoint or trying a new fixture name.
+The original private-repository creation attempt returned GitHub HTTP 403. The owner
+then created the private fixture repository separately and granted the product GitHub
+App selected-repository access. Private source read succeeded; the pinned documentation
+was independently retrieved and matched the supplied preparation export. Repository
+creation is no longer a blocker. Preserve the failed attempt's checkpoint as history;
+do not rerun provisioning or broaden the product App. Repository, account and preparation
+identifiers remain in the private evidence bundle.
 
 The matrix in `plan.json` covers both routes and all four release cases, human review,
 five native lifecycle runners, three persistent-host power/logout boundaries, and every
@@ -179,6 +184,11 @@ architectures and an actual Windows WSL 2 host for the complete journey. WSL use
 Linux filesystem and reachable user systemd; native PowerShell is not claimed supported.
 macOS user LaunchAgents stop on logout; WSL/Windows shutdown and host sleep interrupt
 operation. Do not promise waking or an always-on publisher.
+
+The native harness now fetches `https://poststeward.com/install.sh` using validated HTTPS,
+refuses unexpected redirects, checks shell syntax and records the downloaded script's
+SHA-256. Earlier native runs exercised the checked-out installer and exact public
+archives; they did not independently prove retrieval of the branded installer.
 
 On each host: retrieve `https://poststeward.com/install.sh` over HTTPS, inspect it, install
 with `--version` the exact SHA, record install receipt and `poststeward doctor --json`.
