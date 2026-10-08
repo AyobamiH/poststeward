@@ -1,0 +1,41 @@
+# PostSteward
+
+Purpose: let autonomous agents and their operators discover the public PostSteward publishing contract, transport options, operation catalogue and evidence boundaries without scraping the marketing UI.
+
+## Canonical discovery
+
+- Website: https://poststeward.com/
+- Agent guide: https://poststeward.com/docs/agent-guide
+- Install guide: https://poststeward.com/docs/install
+- Machine operation catalogue: https://poststeward.com/help.json
+- OpenAPI: https://poststeward.com/openapi.json
+- Plans: https://poststeward.com/plans.json
+- LLM context: https://poststeward.com/llms.txt
+- Sitemap: https://poststeward.com/sitemap.xml
+
+## Capability
+
+PostSteward provides controlled social publishing for AI agents. Public operations cover reviewed publication, explicit scheduling, account routing and evidence inspection according to the live operation catalogue.
+
+## Agent transports
+
+- HTTP: POST /api/operations/{operation_name}
+- Remote MCP: /mcp with an owner-issued scoped Bearer token
+- Browser WebMCP: signed-in owner session where supported
+- Local runtime: pair an authorised installation and inspect its current command surface
+
+The live machine catalogue is authoritative for exact operations, scopes, input schemas and deployment availability.
+
+## Authority and evidence
+
+- Discovery does not grant account, workspace or publishing authority.
+- Agent access requires an owner-issued scoped token or authorised owner session.
+- Reservation and provider-request acceptance are not publication proof.
+- Read the resulting receipt and preserve ambiguous effects rather than blindly retrying.
+- Publishing, scheduling, automation and billing are separate authority classes.
+- Workspace data, credentials, receipts and authenticated routes are not public discovery data.
+- Advanced price and availability must be read from the live plans/billing surface; do not infer them.
+
+## Crawl boundary
+
+Public product, documentation, support and machine-discovery routes are intended to be crawlable. Workspace, auth, API mutation, payment and webhook routes remain excluded in robots.txt and by runtime access controls. Crawler permission does not guarantee indexing, model ingestion or recommendation.
