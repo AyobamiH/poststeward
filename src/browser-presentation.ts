@@ -4,6 +4,7 @@ import { socialPages, socialPreviewTags, socialImagePath } from "./social-previe
 
 const ownerPaths = new Set(["/app", "/pilot", "/advanced-inventory", "/lifecycle", "/recovery"]);
 export const publicPages = ["/", "/docs/", "/docs/install", "/docs/agent-guide", "/docs/operations", "/privacy", "/terms", "/security", "/support", "/status"];
+export const publicDiscoveryPaths = ["/agents.txt", "/llms.txt", "/help.json", "/openapi.json"];
 const navigation = [["/app", "Overview"], ["/app#destinations", "Social accounts"], ["/app#publishing", "Create & schedule"], ["/app#evidence-panel", "Schedules & results"], ["/advanced-inventory", "Automation inventory"], ["/app#profile", "Automation profiles"], ["/app#agent-access", "Agent permissions"], ["/app#sources", "Sources & models"], ["/app#advanced", "Advanced & billing"], ["/app#runtime-authority-panel", "Local runtime"], ["/lifecycle", "Data & deletion"], ["/recovery", "Recovery"], ["/docs/", "Help & guides"], ["/support", "Support"]];
 export function canonicalPath(path: string) {
   if (path === "/index.html") return "/";
@@ -61,7 +62,7 @@ function presentedHeaders(response: Response, type = "text/html; charset=utf-8")
 }
 export function sitemapDocument(env: Env) {
   const origin = safeOrigin(env);
-  const paths = env.DEPLOY_ENV === "production" && env.SIGNUP_MODE === "public" && origin ? publicPages : [];
+  const paths = env.DEPLOY_ENV === "production" && env.SIGNUP_MODE === "public" && origin ? [...publicPages, ...publicDiscoveryPaths] : [];
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${paths.map((path) => `<url><loc>${escapeHtml(origin + path)}</loc></url>`).join("")}</urlset>`;
 }
 async function presentHumanError(request: Request, response: Response) {
