@@ -1,6 +1,9 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-10-03-runtime-readiness-diagnosis
+# Production deployment request: 2026-10-11-owner-approved-builder-footer
+# Footer revision 3d0e9ebaf961e3283217da5ec685f7db9aef3a88 passed exact-source CI.
+# Owner requested the public Tail Wagging credit, postcode and phone on every website.
+# This request preserves the existing admission, billing, provider and runtime configuration.
 # Reviewed 2026-10-08 public discovery release: staging workflow 37777670122 accepted at 377ec357.
 # This file is the only reviewed push-triggered production deployment request.
 # This request opens verified-email Google signup with the existing first-100 and
