@@ -604,8 +604,8 @@ test("removed and renamed private repositories remain fenced on subsequent reads
   }
 });
 
-test("a delayed GitHub callback cannot retain authority after deletion or logout", { timeout: 30_000 }, async () => {
-  for (const boundary of ["pending", "completed", "logout"]) {
+for (const boundary of ["pending", "completed", "logout"]) {
+  test(`a delayed GitHub callback cannot retain authority after ${boundary}`, { timeout: 30_000 }, async () => {
     const entered = gate(), finish = gate();
     const outbound = githubOutbound();
     const { mf, db } = await runtime(async (request) => {
@@ -644,8 +644,8 @@ test("a delayed GitHub callback cannot retain authority after deletion or logout
         assert.equal(result.n, 0, boundary + " " + table);
       }
     } finally { finish.release(); await pending?.catch(() => undefined); await mf.dispose(); }
-  }
-});
+  });
+}
 
 test("owner private-source probe works with Advanced disabled and refuses missing authority before any anonymous read", async () => {
   let commitReads = 0;
