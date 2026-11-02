@@ -32,6 +32,8 @@ export interface RuntimeRelayInput {
   bridgeCommandId?: string;
   provider: Provider;
   accountId: string;
+  accountAlias?: string;
+  bindingVersion?: number;
   effectId?: string;
   campaign?: string;
   text?: string;
@@ -51,14 +53,19 @@ async function rawSha256(value: string) {
     .join("");
 }
 
-function activeAccount(store: Store, provider: Provider, accountId: string) {
+function activeAccount(store: Store, input: RuntimeRelayInput) {
+  const scoped =
+    input.accountAlias !== undefined || input.bindingVersion !== undefined;
   const matches = store
     .list<Account>("account:")
     .filter(
       (account) =>
         account.active &&
-        account.provider === provider &&
-        account.identity.id === accountId,
+        account.provider === input.provider &&
+        account.identity.id === input.accountId &&
+        (!scoped ||
+          (account.alias === input.accountAlias &&
+            account.version === input.bindingVersion)),
     );
   requireValue(
     matches.length === 1,
@@ -165,7 +172,7 @@ export async function handleRuntimeRelay(
     "Exact provider account identity is required.",
   );
 
-  const account = activeAccount(store, input.provider, input.accountId);
+  const account = activeAccount(store, input);
   const secret = await credential(store, env, workspace, account);
   const base = new SocialProviders(fetch, env.LINKEDIN_VERSION);
   const providers = new EffectLedgerProviders(base, env.IDENTITY, workspace);

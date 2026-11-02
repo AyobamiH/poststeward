@@ -102,7 +102,11 @@ def validate_project(value):
         raise OnboardingError("Provide 1 to 32 account aliases")
     for alias, account in accounts.items():
         _slug(alias, "account alias")
-        _object(account, {"provider", "account_id", "label", "role"}, {"provider", "account_id"}, "account")
+        _object(account, {"provider", "account_id", "label", "role", "cloud_alias", "binding_version"}, {"provider", "account_id"}, "account")
+        if "cloud_alias" in account or "binding_version" in account:
+            _text(account.get("cloud_alias"), "cloud alias")
+            if type(account.get("binding_version")) is not int or account["binding_version"] < 1:
+                raise OnboardingError("Invalid cloud binding version")
         provider = account["provider"]
         if not isinstance(provider, str) or provider not in PROVIDERS:
             raise OnboardingError("Unsupported account provider")

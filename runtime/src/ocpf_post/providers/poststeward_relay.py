@@ -57,6 +57,7 @@ class PostStewardRelayProvider(Provider):
         self._account_id = str(account_id or "").strip() or None
         self._effect_scope = str(effect_scope or "manual").strip() or "manual"
         self._bridge_command_id = bridge_command_id
+        self._binding_fields: dict[str, Any] = {}
         self._account: AccountIdentity | None = None
         self._post_effects: dict[str, str] = {}
         self._post_urls: dict[str, str] = {}
@@ -79,6 +80,22 @@ class PostStewardRelayProvider(Provider):
                 for row in candidates
                 if str((row.get("identity") or {}).get("id") or "") == self._account_id
             ]
+        if self._account_id:
+            from ocpf_post.registry import infer_project, load_registry
+            projects = load_registry()["projects"]
+            owner = infer_project(self._effect_scope)
+            relevant = [projects[owner]] if owner else projects.values()
+            selections = {
+                (record.get("cloud_alias"), record.get("binding_version"))
+                for project in relevant for record in project["accounts"].values()
+                if record["provider"] == self.name and record["account_id"] == self._account_id
+            }
+            if len(selections) > 1:
+                raise ProviderRejected(409, "Multiple reviewed bindings match this identity; specify its campaign.")
+            if selections:
+                alias, version = selections.pop()
+                if alias is not None:
+                    candidates = [row for row in candidates if row.get("alias") == alias and row.get("version") == version]
         if len(candidates) != 1:
             if not candidates:
                 raise ProviderRejected(
@@ -89,7 +106,9 @@ class PostStewardRelayProvider(Provider):
                 409,
                 f"Multiple active PostSteward {self.name} connections exist; bind an exact account identity.",
             )
-        return candidates[0]
+        row = candidates[0]
+        self._binding_fields = {"accountAlias": row["alias"], "bindingVersion": row["version"]}
+        return row
 
     def _generation(self) -> int:
         value = bindings()
@@ -148,13 +167,13 @@ class PostStewardRelayProvider(Provider):
 
     def _relay_read(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            return relay(payload)
+            return relay({**payload, **self._binding_fields})
         except CloudError as exc:
             raise self._map_read_error(exc) from exc
 
     def _relay_effect(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            return relay(payload)
+            return relay({**payload, **self._binding_fields})
         except CloudError as exc:
             if exc.code in DEFINITE_PROVIDER_CODES:
                 try:
@@ -197,7 +216,8 @@ class PostStewardRelayProvider(Provider):
             raise
         account = observed.get("account") if isinstance(observed, dict) else None
         seen = account.get("identity") if isinstance(account, dict) else None
-        if not isinstance(seen, dict) or str(seen.get("id") or "") != expected:
+        if (not isinstance(seen, dict) or str(seen.get("id") or "") != expected
+                or account.get("alias") != row["alias"] or account.get("binding") != row["version"]):
             raise ProviderRejected(
                 409,
                 "PostSteward cloud identity readback does not match the runtime binding.",

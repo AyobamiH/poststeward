@@ -140,6 +140,11 @@ const runtimeRelaySchema = z.strictObject({
   bridgeCommandId: z.uuid().optional(),
   provider: z.enum(["x", "threads", "linkedin"]),
   accountId: z.string().min(1).max(256),
+  accountAlias: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]{1,100}$/)
+    .optional(),
+  bindingVersion: z.number().int().positive().optional(),
   effectId: z.string().min(8).max(180).optional(),
   campaign: z.string().min(1).max(160).optional(),
   text: z.string().min(1).max(12500).optional(),
