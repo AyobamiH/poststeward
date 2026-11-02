@@ -64,7 +64,10 @@ class PostStewardRelayProvider(Provider):
         self._effect_counter = 0
 
     def _binding(self) -> dict[str, Any]:
-        value = bindings()
+        try:
+            value = bindings()
+        except CloudError as exc:
+            raise self._map_read_error(exc) from exc
         rows = value.get("accounts")
         candidates = [
             row

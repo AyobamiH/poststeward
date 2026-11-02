@@ -102,6 +102,14 @@ poststeward configure \
 The imported campaign remains manual-only; onboarding does not allocate, schedule or
 publish it.
 
+After applying the reviewed configuration, copy the campaign ID from the result. For a Threads campaign, preview the exact copy and destination on the paired machine:
+
+```bash
+poststeward threads publish --campaign <campaign-id>
+```
+
+Check the account handle, stable ID, text digest, `DRY RUN` and `BOUND DESTINATION`. This preview reads the connected account without scheduling or sending the post. Leave the workspace executor hosted while evaluating setup.
+
 ## 4. Inspect before activation
 
 ```bash

@@ -16,6 +16,7 @@ from ocpf_post.campaigns import (
 )
 from ocpf_post.direct_publication import DirectPublicationStopped, publish as publish_direct
 from ocpf_post.providers import get_provider
+from ocpf_post.product_runtime import standalone_product_active
 from ocpf_post.publication_payload import build_publication
 from ocpf_post.providers.base import AmbiguousProviderEffect, ProviderRejected, ProviderUnavailable
 from ocpf_post.state import (
@@ -246,7 +247,7 @@ def cmd_publish(args: argparse.Namespace) -> None:
             print(f"Prior URL: {prior['url']}")
         _die("A prior terminal/ambiguous effect receipt exists. Use --allow-duplicate only when intentional.", 3)
 
-    print("\nOneClickPostFactory post-once")
+    print("\nPostSteward Local" if standalone_product_active() else "\nOneClickPostFactory post-once")
     print(f"Campaign: {campaign}")
     print(f"Provider: {provider_name}")
     print(f"Account:  {account.display} ({account.account_id})")
