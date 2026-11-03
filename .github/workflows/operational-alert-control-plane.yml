@@ -1,4 +1,5 @@
 name: Operational alert control plane
+run-name: Operational alert control plane — ${{ github.event.client_payload.slot || github.event_name }}
 on:
   workflow_dispatch:
   push:
@@ -8,8 +9,8 @@ on:
       - scripts/github-alert-control-plane.mjs
       - scripts/operational-alert-evidence.mjs
       - tests/github-alert-control-plane.test.mjs
-  schedule:
-    - cron: "*/5 * * * *"
+  repository_dispatch:
+    types: [poststeward-monitor-alerts]
 permissions:
   contents: read
   issues: write

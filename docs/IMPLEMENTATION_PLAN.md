@@ -30,7 +30,7 @@ TUF-informed update metadata is recorded in [ENGINEERING_INSIGHTS.md](ENGINEERIN
 - [x] Replace the temporary thin-client-only install payload with the full local runtime.
 - [x] Stable/beta channel manifest.
 - [x] Exact runtime provenance in install receipt.
-- [ ] Clean-machine install acceptance from the production domain.
+- [x] Clean WSL installation from the production apex verified on 2 November 2026 in a fresh user home with no origin override. The installer reported release `9fd549bea3c094abe38a75b331a3c60967fdad7b` and inactive authority. Both public hostnames served the verified installer and stable/beta manifests. [Acceptance and deployment receipts](https://github.com/AyobamiH/poststeward/issues/197). Live owner pairing and provider readback are tracked separately.
 - [ ] PowerShell/native Windows path after macOS/Linux/WSL acceptance.
 
 ## Phase 2 — adopt the A-K local runtime into PostSteward

@@ -185,7 +185,17 @@ async function prepareRuntimePairing() {
   const pairing = runtimePairingParams();
   const panel = $("runtime-pairing-panel");
   if (!pairing || !panel) return;
-  const details = await api("/api/runtime/pairing/inspect", pairing);
+  let details;
+  try {
+    details = await api("/api/runtime/pairing/inspect", pairing);
+  } catch (error) {
+    if (!["RUNTIME_PAIRING_EXPIRED", "RUNTIME_PAIRING_NOT_PENDING"].includes(error.code))
+      throw error;
+    panel.hidden = true;
+    clearRuntimePairingParams();
+    show("This pairing request has ended. Run poststeward onboard on the intended machine and open the new link.", true);
+    return;
+  }
   $("runtime-pairing-copy").textContent =
     "Compare this installation with the terminal that displayed the pairing code before approving it.";
   $("runtime-pairing-details").textContent = JSON.stringify(

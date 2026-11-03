@@ -15,7 +15,8 @@ test("capacity observer covers staging and production, stays read-only and exact
   assert.match(workflow, /POSTSTEWARD_CAPACITY_TARGET_WORKSPACES: "100"/);
   assert.match(workflow, /provider-quota-20260919\.json/);
   assert.match(workflow, /cloudflare-pricing-20260919\.json/);
-  assert.match(workflow, /cron: "41 \* \* \* \*"/);
+  assert.ok(workflow.includes("types: [poststeward-monitor-capacity]"));
+  assert.ok(readFileSync("ops/monitor-clock/poststeward-clock-capacity.timer", "utf8").includes("OnCalendar=*-*-* *:41:00 UTC"));
   assert.match(workflow, /REQUIRE_CAPACITY_READY/);
   assert.match(workflow, /github\.event_name == 'push'/);
   assert.match(workflow, /j\.ready!==true/);

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { alertOutputDocument } from "../scripts/github-alert-control-plane.mjs";
 const script = readFileSync("scripts/github-alert-control-plane.mjs", "utf8");
@@ -41,6 +42,26 @@ test("workflow is out-of-band across staging and production, issue-write only an
   assert.match(workflow, /- environment: production/);
   assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /secrets\.GITHUB_TOKEN/);
-  assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
+  assert.ok(workflow.includes("types: [poststeward-monitor-alerts]"));
+  assert.ok(readFileSync("ops/monitor-clock/poststeward-clock-alerts.timer", "utf8").includes("OnCalendar=*-*-* *:00/5:00 UTC"));
   assert.doesNotMatch(workflow, /contents: write|actions: write|secrets: inherit|wrangler deploy|publish_now|schedule_create/);
+});
+
+test("routine monitor dispatch cannot run or evaluate a fire drill", () => {
+  for (const name of [
+    "Exercise all reviewed alert classes and failed-path fallback",
+    "Evaluate fire-drill evidence",
+  ]) {
+    const step = workflow.split(`- name: ${name}\n`)[1]?.split("\n      - ")[0];
+    assert.ok(step, `Missing fire-drill step: ${name}`);
+    const condition = step.match(/^        if: (.+)$/m)?.[1];
+    assert.equal(condition, "github.event_name == 'push' || github.event_name == 'workflow_dispatch'");
+  }
+});
+test("monitor clock durably fences interrupted submissions and reconciles without replay", () => {
+  const result = spawnSync("python3", ["-B", "-m", "unittest", "discover", "-s", "ops/monitor-clock", "-p", "test_dispatch.py"], {
+    encoding: "utf8",
+    timeout: 20_000,
+  });
+  assert.equal(result.status, 0, result.error?.message || `${result.stdout}\n${result.stderr}`);
 });
