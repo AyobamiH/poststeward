@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   observe:
-    if: github.repository == 'AyobamiH/poststeward'
+    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +27,7 @@ jobs:
             default_origin: https://poststeward-staging.woeinvests.workers.dev
           - environment: production
             default_origin: https://app.poststeward.com
-    runs-on: ubuntu-latest
+    runs-on: poststeward-operations
     timeout-minutes: 10
     environment:
       name: ${{ matrix.environment }}
