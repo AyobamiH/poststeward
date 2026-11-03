@@ -242,3 +242,31 @@ test("metrics failure is unavailable rather than a zero snapshot", async () => {
   assert.equal(metrics.availability, "unavailable");
   assert.equal(metrics.values, undefined);
 });
+
+// X, LinkedIn member and LinkedIn Page share an evidence contract, but never
+// share tokens, actor identities or permission assumptions.
+for (const scenario of [
+  { provider: "x", id: "123", postId: "99", response: { data: { id: "99", author_id: "123", text: "Approved text" } } },
+  { provider: "linkedin", id: "urn:li:person:123", postId: "urn:li:share:99", response: { id: "urn:li:share:99", author: "urn:li:person:123", commentary: "Approved text", lifecycleState: "PUBLISHED" } },
+  { provider: "linkedin", id: "urn:li:organization:123", postId: "urn:li:share:99", response: { id: "urn:li:share:99", author: "urn:li:organization:123", commentary: "Approved text", lifecycleState: "PUBLISHED" } },
+] as const) {
+  test(`${scenario.provider} ${scenario.id} verifies exact provider ID, author and text`, async () => {
+    const target = { ...delivery, provider: scenario.provider, identity: { id: scenario.id, username: "test" }, postId: scenario.postId } as Delivery;
+    const p = new SocialProviders((async () => Response.json(scenario.response)) as typeof fetch);
+    assert.equal((await p.verify(target, credential)).verified, true);
+    const altered = { ...target, text: "Different text" };
+    assert.equal((await p.verify(altered, credential)).verified, false);
+    const wrongActor = { ...target, identity: { id: "another-account", username: "test" } };
+    assert.equal((await p.verify(wrongActor, credential)).verified, false);
+  });
+  test(`${scenario.provider} ${scenario.id} denied readback does not imply failed publication`, async () => {
+    const target = { ...delivery, provider: scenario.provider, identity: { id: scenario.id, username: "test" }, postId: scenario.postId } as Delivery;
+    const p = new SocialProviders((async () => new Response("{}", { status: 403 })) as typeof fetch);
+    await assert.rejects(p.verify(target, credential), { code: "PROVIDER_HTTP_403" });
+  });
+  test(`${scenario.provider} ${scenario.id} uncertain POST response cannot be retried as known failure`, async () => {
+    const target = { ...delivery, provider: scenario.provider, identity: { id: scenario.id, username: "test" }, postId: undefined } as Delivery;
+    const p = new SocialProviders((async () => new Response("{}", { status: 503 })) as typeof fetch);
+    await assert.rejects(p.publish(target, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
+  });
+}
