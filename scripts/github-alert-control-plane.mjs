@@ -21,15 +21,31 @@ async function jsonRequest(url, token, init = {}) {
   demand(response.ok, `GitHub alert control-plane request failed with HTTP ${response.status}.`);
   return body;
 }
+// Read-only Cloudflare observations may be retried after transport loss; never retry
+// GitHub issue mutations or non-2xx authorization/contract failures.
+export async function readOnlyCloudflareFetch(url, init, send = fetch, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
+  const delays = [0, 350, 1100];
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt]) await wait(delays[attempt]);
+    try {
+      return await send(url, { ...init, signal: AbortSignal.timeout(20_000) });
+    } catch (error) {
+      if (attempt === delays.length - 1) {
+        const failure = new Error(`Cloudflare read-only observation transport failed after ${delays.length} attempts.`);
+        failure.cause = error;
+        throw failure;
+      }
+    }
+  }
+}
 async function cloudflareQuery(accountId, databaseId, token, sql, params = []) {
-  const response = await fetch(
+  const response = await readOnlyCloudflareFetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ sql, params }),
       redirect: "error",
-      signal: AbortSignal.timeout(20_000),
     },
   );
   const body = await response.json().catch(() => ({}));

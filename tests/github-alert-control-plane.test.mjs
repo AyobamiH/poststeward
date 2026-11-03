@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { alertOutputDocument } from "../scripts/github-alert-control-plane.mjs";
+import { alertOutputDocument, readOnlyCloudflareFetch } from "../scripts/github-alert-control-plane.mjs";
 const script = readFileSync("scripts/github-alert-control-plane.mjs", "utf8");
 const workflow = readFileSync(".github/workflows/operational-alert-control-plane.yml", "utf8");
 test("GitHub issue fallback emits only bounded durable alert metadata", () => {
@@ -64,4 +64,33 @@ test("monitor clock durably fences interrupted submissions and reconciles withou
     timeout: 20_000,
   });
   assert.equal(result.status, 0, result.error?.message || `${result.stdout}\n${result.stderr}`);
+});
+
+test("read-only Cloudflare transport retries a transient failure and then succeeds", async () => {
+  let calls = 0;
+  const response = { ok: true };
+  const result = await readOnlyCloudflareFetch("https://api.cloudflare.com/test", { method: "POST" }, async () => {
+    calls++;
+    if (calls === 1) throw new TypeError("fetch failed");
+    return response;
+  }, async () => {});
+  assert.equal(result, response);
+  assert.equal(calls, 2);
+});
+test("Cloudflare HTTP authorization failures are never retried", async () => {
+  let calls = 0;
+  const result = await readOnlyCloudflareFetch("https://api.cloudflare.com/test", { method: "POST" }, async () => {
+    calls++;
+    return { ok: false, status: 403 };
+  }, async () => {});
+  assert.equal(result.status, 403);
+  assert.equal(calls, 1);
+});
+test("persistent read-only transport failure stops after a bounded number of attempts", async () => {
+  let calls = 0;
+  await assert.rejects(readOnlyCloudflareFetch("https://api.cloudflare.com/test", { method: "POST" }, async () => {
+    calls++;
+    throw new TypeError("fetch failed");
+  }, async () => {}), /after 3 attempts/);
+  assert.equal(calls, 3);
 });
