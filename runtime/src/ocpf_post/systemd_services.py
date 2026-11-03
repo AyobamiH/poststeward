@@ -66,6 +66,9 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths={quote(str(state_root))} {quote(str(config_root))} {quote(str(client_root))}
+# Preserve only these owned paths when PrivateTmp hides a temporary installation.
+BindPaths={quote(str(state_root))} {quote(str(config_root))} {quote(str(client_root))}
+BindReadOnlyPaths={quote(str(runtime_root))}
 RestrictSUIDSGID=true
 LockPersonality=true
 ProtectKernelTunables=true

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import plistlib
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -54,6 +55,44 @@ class HostPlatformTests(unittest.TestCase):
         with patch.object(manager, '_run', return_value=subprocess.CompletedProcess([], 1, '', '')):
             with self.assertRaises(ActivationError):
                 manager.stage(runtime_root=Path('/tmp'), state_root=Path('/tmp'), config_root=Path('/tmp'))
+
+    def test_systemd_binds_exact_custom_paths_inside_private_tmp(self):
+        from ocpf_post import systemd_services
+
+        for label in ("custom-runtime", "owner's runtime 100% $special"):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / label
+                runtime = root / "release files"
+                state = root / "state files"
+                config = root / "config files"
+                client = root / "paired client"
+                for directory in (runtime, state, config):
+                    directory.mkdir(parents=True)
+                environment = {
+                    "XDG_CONFIG_HOME": str(root / "unit config"),
+                    "POSTSTEWARD_SETUP_STATE_DIR": str(root / "setup"),
+                }
+                with patch.dict(os.environ, environment), \
+                        patch("ocpf_post.poststeward_cloud.client_path", return_value=client / "client.json"), \
+                        patch("ocpf_post.systemd_services.subprocess.run", return_value=subprocess.CompletedProcess([], 0)) as run:
+                    systemd_services.stage(runtime_root=runtime, state_root=state, config_root=config)
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual(run.call_args_list[0].args[0][:3], ["systemctl", "--user", "link"])
+                self.assertEqual(run.call_args_list[1].args[0], ["systemctl", "--user", "daemon-reload"])
+                writable = [str(path).replace("%", "%%") for path in (state, config, client)]
+                for stem in systemd_services.JOBS:
+                    unit = root / "unit config" / "systemd" / "user" / (stem + ".service")
+                    directives = dict(line.split("=", 1) for line in unit.read_text().splitlines() if "=" in line)
+                    self.assertEqual(shlex.split(directives["BindPaths"]), writable)
+                    self.assertEqual(shlex.split(directives["ReadWritePaths"]), writable)
+                    self.assertEqual(shlex.split(directives["BindReadOnlyPaths"]), [str(runtime).replace("%", "%%")])
+                    for key, value in {
+                        "PrivateTmp": "true", "ProtectSystem": "strict", "ProtectHome": "read-only",
+                        "NoNewPrivileges": "true", "UMask": "0077", "RestrictSUIDSGID": "true",
+                        "LockPersonality": "true", "ProtectKernelTunables": "true",
+                        "ProtectKernelModules": "true", "ProtectControlGroups": "true",
+                    }.items():
+                        self.assertEqual(directives[key], value)
 
     def test_background_execution_without_review_is_fenced(self):
         from ocpf_post.service_runner import main
