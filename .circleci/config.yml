@@ -24,6 +24,39 @@ jobs:
             export PYTHONPATH="$PWD/runtime/src"
             python3 -m unittest discover -s runtime/tests -p test_refill_crash_process.py -v
       - run:
+          name: Install, update, rollback and preserve inactive state on real macOS
+          no_output_timeout: 10m
+          command: |
+            set -euo pipefail
+            ROOT="$(mktemp -d)"
+            trap 'rm -rf "$ROOT"' EXIT
+            mkdir -p "$ROOT/bin"
+            export POSTSTEWARD_INSTALL_PREFIX="$ROOT/install"
+            export POSTSTEWARD_BIN_DIR="$ROOT/bin"
+            bash public/install.sh --version 9fd549bea3c094abe38a75b331a3c60967fdad7b --no-onboard
+            bash public/install.sh --version "$CIRCLE_SHA1" --no-onboard
+            "$ROOT/bin/poststeward" status --json > "$ROOT/status.json"
+            python3 - "$ROOT/status.json" "$CIRCLE_SHA1" <<'PYMAC'
+            import json,sys
+            d=json.load(open(sys.argv[1]));assert d['release_sha']==sys.argv[2]
+            assert d['automation_authority']['status']=='inactive'
+            assert all(not t['active'] and not t['enabled'] for t in d['services']['timers'])
+            PYMAC
+            "$ROOT/bin/poststeward" rollback --json > "$ROOT/rollback-preview.json"
+            python3 - "$ROOT/rollback-preview.json" "$ROOT/review.txt" <<'PYMAC'
+            import json,sys
+            d=json.load(open(sys.argv[1]));assert d['status']=='preview' and d['retain_data']
+            open(sys.argv[2],'w').write(d['review_sha256'])
+            PYMAC
+            "$ROOT/bin/poststeward" rollback --apply --expected-sha256 "$(cat "$ROOT/review.txt")" --json > "$ROOT/rollback.json"
+            bash public/install.sh --version "$CIRCLE_SHA1" --no-onboard
+            "$ROOT/bin/poststeward" status --json > "$ROOT/final-status.json"
+            python3 - "$ROOT/final-status.json" "$CIRCLE_SHA1" <<'PYMAC'
+            import json,sys
+            d=json.load(open(sys.argv[1]));assert d['release_sha']==sys.argv[2]
+            assert d['automation_authority']['status']=='inactive'
+            PYMAC
+      - run:
           name: Verify native launchd and installer fail-closed contracts
           command: |
             set -euo pipefail
