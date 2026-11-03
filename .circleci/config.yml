@@ -1,0 +1,46 @@
+version: 2.1
+jobs:
+  native-macos-local-lifecycle:
+    macos:
+      xcode: "26.4.1"
+    resource_class: m4pro.medium
+    working_directory: ~/poststeward
+    environment:
+      CI: "true"
+    steps:
+      - checkout
+      - run:
+          name: Attest genuine Apple Silicon and exact source
+          command: |
+            set -euo pipefail
+            test "$(uname -s)" = Darwin
+            test "$(uname -m)" = arm64
+            test "$(git rev-parse HEAD)" = "$CIRCLE_SHA1"
+            sw_vers
+      - run:
+          name: Exercise isolated refill crash and recovery on Darwin
+          command: |
+            set -euo pipefail
+            export PYTHONPATH="$PWD/runtime/src"
+            python3 -m unittest discover -s runtime/tests -p test_refill_crash_process.py -v
+      - run:
+          name: Verify native launchd and installer fail-closed contracts
+          command: |
+            set -euo pipefail
+            export PYTHONPATH="$PWD/runtime/src"
+            python3 -m py_compile runtime/src/ocpf_post/launchd_services.py runtime/src/ocpf_post/host_platform.py
+            bash -n public/install.sh
+            python3 - <<'PYMAC'
+            import sys
+            from ocpf_post.host_platform import host
+            assert sys.platform == 'darwin'
+            assert host()['service_manager'] == 'launchd'
+            print('Darwin runtime import and launchd service source verified')
+            PYMAC
+workflows:
+  native-macos-customer-acceptance:
+    jobs:
+      - native-macos-local-lifecycle:
+          filters:
+            branches:
+              only: test/native-macos-and-refill-acceptance
