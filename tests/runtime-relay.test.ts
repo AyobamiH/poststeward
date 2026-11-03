@@ -340,6 +340,45 @@ test("runtime relay reuses the D1 provider-effect fence and hosted consequence p
       "RUNTIME_LOCAL_OPERATION_REQUIRED",
     );
     assert.equal(writes, 1);
+    const duplicate = await mf.dispatchFetch(
+      origin + "/api/connections/import",
+      {
+        method: "POST",
+        headers: auth.agentHeaders,
+        body: JSON.stringify({
+          alias: "second_x",
+          provider: "x",
+          accessToken: "second-binding-test",
+          funding: "customer_app",
+        }),
+      },
+    );
+    assert.equal(duplicate.status, 200, await duplicate.clone().text());
+    const inspect = (fields: Record<string, unknown>) =>
+      mf.dispatchFetch(origin + "/api/runtime/relay", {
+        method: "POST",
+        headers: runtimeHeaders,
+        body: JSON.stringify({
+          action: "account",
+          provider: "x",
+          accountId: "12345",
+          ...fields,
+        }),
+      });
+    const before = reads;
+    for (const fields of [
+      {},
+      { accountAlias: "relay_x" },
+      { accountAlias: "wrong", bindingVersion: 1 },
+      { accountAlias: "relay_x", bindingVersion: 99 },
+    ]) {
+      assert.equal((await inspect(fields)).status, 409);
+    }
+    assert.equal(reads, before);
+    const exact = await inspect({ accountAlias: "relay_x", bindingVersion: 1 });
+    assert.equal(exact.status, 200, await exact.clone().text());
+    assert.equal(((await exact.json()) as any).account.alias, "relay_x");
+    assert.equal(writes, 1);
   } finally {
     await mf.dispose();
   }

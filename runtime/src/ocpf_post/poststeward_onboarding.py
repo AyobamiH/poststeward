@@ -117,7 +117,8 @@ def _cloud_readiness(row: dict[str, Any]) -> dict[str, Any]:
     provider = str(row["provider"])
     expected = _identity(row)
     try:
-        observed = relay({"action": "account", "provider": provider, "accountId": expected})
+        observed = relay({"action": "account", "provider": provider, "accountId": expected,
+                          "accountAlias": row["alias"], "bindingVersion": row["version"]})
     except CloudError as exc:
         _fail(
             "poststeward.onboarding.provider_readback_failed",
@@ -129,6 +130,8 @@ def _cloud_readiness(row: dict[str, Any]) -> dict[str, Any]:
     capabilities = row.get("capabilities") if isinstance(row.get("capabilities"), dict) else {}
     oauth = capabilities.get("oauth") is True
     blockers: list[str] = []
+    if account.get("alias") != row["alias"] or account.get("binding") != row["version"]:
+        blockers.append("provider.binding.mismatch")
     if observed_id != expected:
         blockers.append("provider.identity.mismatch")
     if not oauth:
@@ -269,6 +272,8 @@ def plan(
         account_rows[alias] = {
             "provider": provider,
             "account_id": identity,
+            "cloud_alias": row["alias"],
+            "binding_version": row["version"],
             "label": username or str(row.get("alias") or provider),
         }
         defaults[provider] = alias

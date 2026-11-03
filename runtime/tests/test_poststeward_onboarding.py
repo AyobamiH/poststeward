@@ -81,7 +81,8 @@ class PostStewardOnboardingTests(unittest.TestCase):
                 "schemaVersion": 1,
                 "account": {
                     "identity": {"id": account_id, "username": "observed"},
-                    "binding": 1,
+                    "alias": payload["accountAlias"],
+                    "binding": payload["bindingVersion"],
                 },
             }
 
@@ -148,11 +149,48 @@ class PostStewardOnboardingTests(unittest.TestCase):
         ), patch(
             "ocpf_post.poststeward_onboarding.relay",
             side_effect=lambda payload: {
-                "account": {"identity": {"id": payload["accountId"]}, "binding": 2}
+                "account": {"identity": {"id": payload["accountId"]}, "binding": payload["bindingVersion"], "alias": payload["accountAlias"]}
             },
         ):
             with self.assertRaisesRegex(Exception, "review changed"):
                 apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+
+    def test_reviewed_duplicate_identity_routes_runtime_reads_to_one_binding(self):
+        from ocpf_post.providers.poststeward_relay import PostStewardRelayProvider
+        from ocpf_post.providers.base import ProviderRejected
+
+        rows = cloud_accounts()
+        threads = rows[1]
+        duplicate = dict(threads, alias="other_threads")
+        bindings = {"workspace":"workspace-1", "installationId":"id", "accounts":[threads, duplicate]}
+        with patch("ocpf_post.poststeward_onboarding.bindings", return_value=bindings), patch(
+            "ocpf_post.poststeward_onboarding.relay",
+            return_value={"account":{"identity":threads["identity"], "alias":threads["alias"], "binding":threads["version"]}},
+        ):
+            args = dict(self.kwargs(), threads_alias=threads["alias"])
+            preview = plan(**args)
+            apply(expected_sha256=preview["review_sha256"], **args)
+        adapter = PostStewardRelayProvider("threads", account_id="202")
+        with patch("ocpf_post.providers.poststeward_relay.bindings", return_value=bindings), patch(
+            "ocpf_post.providers.poststeward_relay.relay",
+            return_value={"account":{"identity":threads["identity"], "alias":threads["alias"], "binding":2}},
+        ) as relay:
+            self.assertEqual(adapter.account().account_id, "202")
+            self.assertEqual(relay.call_args.args[0]["accountAlias"], threads["alias"])
+            self.assertEqual(relay.call_args.args[0]["bindingVersion"], 2)
+            threads["version"] = 3
+            with self.assertRaises(ProviderRejected):
+                PostStewardRelayProvider("threads", account_id="202").account()
+            self.assertEqual(relay.call_count, 1)
+
+    def test_relay_cannot_substitute_alias_or_binding(self):
+        rows = cloud_accounts()
+        with patch("ocpf_post.poststeward_onboarding.bindings", return_value={"accounts":rows, "workspace":"workspace-1","installationId":"id"}), patch(
+            "ocpf_post.poststeward_onboarding.relay",
+            side_effect=lambda payload: {"account":{"identity":{"id":payload["accountId"]}, "alias":"different", "binding":payload["bindingVersion"]}},
+        ):
+            with self.assertRaisesRegex(Exception, "provider.binding.mismatch"):
+                plan(**self.kwargs())
 
     def test_multiple_accounts_require_explicit_alias(self):
         rows = cloud_accounts() + [

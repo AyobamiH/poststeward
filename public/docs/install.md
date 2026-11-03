@@ -83,6 +83,8 @@ poststeward configure \
   --text-file first-reviewed-post.txt
 ```
 
+If more than one account is connected for a provider, pass the exact hosted alias with `--threads-alias`, `--x-alias` or `--linkedin-alias` on both preview and apply. Check the returned provider identity as well as the alias. Two alias labels can refer to the same social profile.
+
 Preview is read-only apart from Fresh setup bookkeeping. It verifies the hosted
 provider identities and prints an exact review SHA. Apply only that exact review:
 
@@ -99,6 +101,14 @@ poststeward configure \
 
 The imported campaign remains manual-only; onboarding does not allocate, schedule or
 publish it.
+
+After applying the reviewed configuration, copy the campaign ID from the result. For a Threads campaign, preview the exact copy and destination on the paired machine:
+
+```bash
+poststeward threads publish --campaign <campaign-id>
+```
+
+Check the account handle, stable ID, text digest, `DRY RUN` and `BOUND DESTINATION`. This preview reads the connected account without scheduling or sending the post. Leave the workspace executor hosted while evaluating setup.
 
 ## 4. Inspect before activation
 
