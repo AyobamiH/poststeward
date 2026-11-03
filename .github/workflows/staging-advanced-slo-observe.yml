@@ -13,8 +13,8 @@ concurrency:
 
 jobs:
   observe:
-    if: github.repository == 'AyobamiH/poststeward'
-    runs-on: ubuntu-latest
+    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main'
+    runs-on: poststeward-operations
     timeout-minutes: 10
     environment:
       name: staging
