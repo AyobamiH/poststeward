@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { fetchMonitorReadiness } from "./monitor-readiness.mjs";
 
 function demand(condition, message) {
   if (!condition) throw new Error(message);
@@ -129,11 +130,7 @@ export function buildAdvancedSloObservation({
 }
 
 async function hostedReadiness(origin) {
-  const response = await fetch(new URL("/readiness.json", origin), {
-    redirect: "manual",
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
+  const response = await fetchMonitorReadiness(origin);
   demand(response.ok, `Hosted readiness returned HTTP ${response.status}.`);
   return response.json();
 }

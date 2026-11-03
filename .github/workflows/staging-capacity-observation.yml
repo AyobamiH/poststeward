@@ -7,6 +7,8 @@ on:
   push:
     branches: [main]
     paths:
+      - scripts/monitor-readiness.mjs
+      - tests/monitor-readiness.test.mjs
       - .github/workflows/staging-capacity-observation.yml
       - scripts/capacity-observe.mjs
       - scripts/capacity-calibration.mjs
@@ -57,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          release="$(node --input-type=module -e 'const r=await fetch(process.env.POSTSTEWARD_ORIGIN+"/readiness.json",{redirect:"error",headers:{"Cache-Control":"no-cache"}});if(!r.ok)process.exit(1);const j=await r.json();if(j.environment!==process.env.MATRIX_ENVIRONMENT||!/^[a-f0-9]{40}$/.test(j.release||""))process.exit(1);process.stdout.write(j.release)')"
+          release="$(node scripts/monitor-readiness.mjs)"
           echo "POSTSTEWARD_EXPECTED_RELEASE=$release" >> "$GITHUB_ENV"
       - name: Collect exact-release hosted capacity evidence
         env:

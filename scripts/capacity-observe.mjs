@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { evaluateCapacity } from "./capacity-calibration.mjs";
 import { exactOrigin } from "./promotion-evidence.mjs";
+import { fetchMonitorReadiness } from "./monitor-readiness.mjs";
 
 function demand(condition, message) {
   if (!condition) throw new Error(message);
@@ -223,9 +224,7 @@ export function buildCapacityObservation({ highWater, workerAnalytics, d1Analyti
 export async function readCapacityRuntime(origin, expectedRelease, send = fetch) {
   exactOrigin(origin);
   demand(/^[a-f0-9]{40}$/.test(expectedRelease || ""), "Capacity observation requires the expected release SHA.");
-  const response = await send(`${origin}/readiness.json`, {
-    redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(20_000),
-  });
+  const response = await fetchMonitorReadiness(origin, { send });
   demand(response.status === 200, "Capacity runtime readiness is unavailable.");
   const value = await response.json();
   demand(value?.release === expectedRelease && ["staging", "production"].includes(value?.environment) &&
