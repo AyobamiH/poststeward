@@ -88,13 +88,14 @@ class PostStewardProductLifecycleTests(unittest.TestCase):
                     update("stable", dry_run=True)
                 self.assertEqual(caught.exception.code, "UPDATE_ACTIVE_RUNTIME")
 
-    def diagnosis(self, *, cloud_change=None, executor_change=None, active=True, release="b" * 40, services=None):
-        installation = "22222222-2222-4222-8222-222222222222"
+    def diagnosis(self, *, cloud_change=None, executor_change=None, active=True, release="b" * 40, services=None, recorded_fence=True):
+        installation = "33333333-3333-4333-8333-333333333333"
+        cloud_fence = {"workspace": "ws_fixture", "installation_id": installation, "authority_generation": 2}
         cloud = {
-            "schemaVersion": 1, "release": "c" * 40, "installationId": installation,
+            "schemaVersion": 1, "release": "c" * 40, "workspace": "ws_fixture", "installationId": installation,
             "accounts": [{"alias": "fixture"}],
             "executor": {"executorMode": "local", "executorStatus": "active",
-                         "activeInstallationId": installation, "authorityGeneration": 1,
+                         "activeInstallationId": installation, "authorityGeneration": 2,
                          "leaseExpiresAt": 2000000000000},
         }
         cloud.update(cloud_change or {})
@@ -106,8 +107,9 @@ class PostStewardProductLifecycleTests(unittest.TestCase):
                 if active:
                     automation_authority.activate(root=state,
                         operation_id="11111111-1111-4111-8111-111111111111",
-                        installation_id=installation, authority_generation=1,
-                        review_sha256="a" * 64, runtime_revision="b" * 40)
+                        installation_id="22222222-2222-4222-8222-222222222222", authority_generation=1,
+                        review_sha256="a" * 64, runtime_revision="b" * 40,
+                        cloud_executor=cloud_fence if recorded_fence else None)
                 marker = automation_authority.path(state)
                 before = marker.read_bytes() if marker.exists() else None
                 with patch("ocpf_post.poststeward_product.bindings", return_value=cloud), \
@@ -118,7 +120,7 @@ class PostStewardProductLifecycleTests(unittest.TestCase):
                 self.assertEqual(marker.read_bytes() if marker.exists() else None, before)
                 return result
 
-    def test_live_matching_generation_is_ready_despite_different_cloud_release(self):
+    def test_independent_local_and_cloud_identities_are_ready_with_reviewed_cloud_fence(self):
         result = self.diagnosis()
         self.assertEqual(result["status"], "READY")
         compatibility = result["runtime"]["compatibility"]
@@ -126,9 +128,12 @@ class PostStewardProductLifecycleTests(unittest.TestCase):
         self.assertEqual(compatibility["local_release_sha"], "b" * 40)
         self.assertEqual(compatibility["cloud_release_sha"], "c" * 40)
         self.assertTrue(compatibility["execution_authority"]["lease_live"])
+        self.assertEqual(compatibility["execution_authority"]["local_generation"], 1)
+        self.assertEqual(compatibility["execution_authority"]["cloud_generation"], 2)
+        self.assertEqual(compatibility["execution_authority"]["reviewed_cloud_fence"]["authority_generation"], 2)
 
     def test_stale_missing_or_boolean_generation_cannot_report_ready(self):
-        for generation in (2, None, True, 0):
+        for generation in (1, 3, None, True, 0):
             with self.subTest(generation=generation):
                 result = self.diagnosis(executor_change={"authorityGeneration": generation})
                 self.assertEqual(result["status"], "BLOCKED")
@@ -149,6 +154,25 @@ class PostStewardProductLifecycleTests(unittest.TestCase):
                 self.assertIn("authority.cloud_local_mismatch", [r["code"] for r in result["findings"]])
         result = self.diagnosis(cloud_change={"installationId": "another-machine"})
         self.assertEqual(result["status"], "BLOCKED")
+
+    def test_different_paired_workspace_or_repaired_installation_requires_review(self):
+        for workspace in ("ws_other", None):
+            with self.subTest(workspace=workspace):
+                result = self.diagnosis(cloud_change={"workspace": workspace})
+                self.assertEqual(result["status"], "BLOCKED")
+                self.assertIn("authority.cloud_local_mismatch", [r["code"] for r in result["findings"]])
+        installation = "44444444-4444-4444-8444-444444444444"
+        result = self.diagnosis(
+            cloud_change={"installationId": installation}, executor_change={"activeInstallationId": installation},
+        )
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("authority.cloud_local_mismatch", [r["code"] for r in result["findings"]])
+
+    def test_legacy_marker_without_cloud_review_cannot_report_compatible(self):
+        result = self.diagnosis(recorded_fence=False)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("authority.cloud_fence_unrecorded", [r["code"] for r in result["findings"]])
+        self.assertIsNone(result["runtime"]["compatibility"]["execution_authority"]["reviewed_cloud_fence"])
 
     def test_inactive_other_machine_does_not_request_local_activation(self):
         result = self.diagnosis(active=False, executor_change={"activeInstallationId": "another-machine"})

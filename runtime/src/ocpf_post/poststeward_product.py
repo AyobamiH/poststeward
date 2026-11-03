@@ -101,6 +101,7 @@ def _compatibility(marker: dict[str, Any], cloud: dict[str, Any], release: str |
     active = marker.get("status") == "active"
     generation = executor.get("authorityGeneration")
     local_generation = marker.get("authority_generation")
+    cloud_fence = marker.get("cloud_executor")
     lease = executor.get("leaseExpiresAt")
     observed_at = int(time.time() * 1000)
     lease_live = type(lease) is int and lease > observed_at
@@ -108,17 +109,23 @@ def _compatibility(marker: dict[str, Any], cloud: dict[str, Any], release: str |
         if not release or marker.get("runtime_revision") != release:
             block("runtime.activation_release_mismatch", "The running release does not match the locally reviewed activation. Inspect and deactivate before updating or reviewing activation again.")
         if available:
-            installation = cloud.get("installationId")
-            if not (
-                isinstance(installation, str) and installation
-                and marker.get("installation_id") == installation
-                and executor.get("activeInstallationId") == installation
-                and executor.get("executorMode") == "local"
-                and executor.get("executorStatus", "active") == "active"
-            ):
-                block("authority.cloud_local_mismatch", "Local automation is active but cloud executor authority does not match this installation. Inspect the selected executor; no automatic handoff occurs.")
-            if type(generation) is not int or generation < 1 or generation != local_generation:
-                block("authority.generation_mismatch", "Local activation belongs to a different or unavailable cloud authority generation. A fresh owner-reviewed activation is required.")
+            # SetupStore identities and generations belong to the local operation.
+            # Compare the live cloud authority only with its separately reviewed fence.
+            if not isinstance(cloud_fence, dict):
+                block("authority.cloud_fence_unrecorded", "Local activation has no recorded cloud executor review. Deactivate and perform a fresh owner-reviewed activation before relying on compatibility.")
+            else:
+                installation = cloud.get("installationId")
+                if not (
+                    isinstance(installation, str) and installation
+                    and cloud_fence.get("installation_id") == installation
+                    and cloud_fence.get("workspace") == cloud.get("workspace")
+                    and executor.get("activeInstallationId") == installation
+                    and executor.get("executorMode") == "local"
+                    and executor.get("executorStatus", "active") == "active"
+                ):
+                    block("authority.cloud_local_mismatch", "Local automation is active but cloud executor authority does not match its reviewed workspace and paired installation. Inspect the selected executor; no automatic handoff occurs.")
+                if type(generation) is not int or generation < 1 or generation != cloud_fence.get("authority_generation"):
+                    block("authority.generation_mismatch", "Local activation belongs to a different or unavailable cloud authority generation. A fresh owner-reviewed activation is required.")
             if not lease_live:
                 block("authority.lease_not_live", "The local executor lease is expired or unavailable. Inspect runtime connectivity and authority; diagnosis does not renew the lease.")
     return {
@@ -130,6 +137,7 @@ def _compatibility(marker: dict[str, Any], cloud: dict[str, Any], release: str |
         "execution_authority": {
             "local_active": active,
             "local_generation": local_generation,
+            "reviewed_cloud_fence": cloud_fence,
             "cloud_generation": generation,
             "lease_expires_at": lease,
             "lease_live": lease_live if available else None,

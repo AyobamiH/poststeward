@@ -60,6 +60,30 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 500
+    },
+    "cloud_executor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspace",
+        "installation_id",
+        "authority_generation"
+      ],
+      "description": "Stable cloud executor fence included in the activation review, present only while active; durable SetupStore events retain the proof after deactivation.",
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "installation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "authority_generation": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   },
   "allOf": [
@@ -78,7 +102,12 @@
         "required": [
           "deactivated_at",
           "reason"
-        ]
+        ],
+        "not": {
+          "required": [
+            "cloud_executor"
+          ]
+        }
       }
     },
     {

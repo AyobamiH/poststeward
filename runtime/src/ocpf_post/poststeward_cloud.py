@@ -219,10 +219,47 @@ def relay(payload: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def heartbeat() -> dict[str, Any]:
+def _unattended_fence() -> dict[str, Any] | None:
+    from ocpf_post.automation_authority import AutomationAuthorityError, unattended_cloud_fence
+    try:
+        return unattended_cloud_fence()
+    except AutomationAuthorityError as exc:
+        raise CloudError("RUNTIME_EXECUTOR_FENCED", str(exc), 3) from exc
+
+
+def _require_reviewed_executor(value: dict[str, Any], expected: dict[str, Any], *, live_lease: bool) -> None:
+    executor = value.get("executor") if isinstance(value.get("executor"), dict) else {}
+    generation = executor.get("authorityGeneration")
+    lease = executor.get("leaseExpiresAt")
+    if not (
+        type(value.get("schemaVersion")) is int and value["schemaVersion"] == 1
+        and value.get("workspace") == expected["workspace"]
+        and value.get("installationId") == expected["installation_id"]
+        and executor.get("activeInstallationId") == expected["installation_id"]
+        and executor.get("executorMode") == "local"
+        and executor.get("executorStatus") == "active"
+        and type(generation) is int and generation == expected["authority_generation"]
+        and (not live_lease or type(lease) is int and lease > int(time.time() * 1000))
+    ):
+        raise CloudError("RUNTIME_EXECUTOR_FENCED", "Cloud authority does not match this invocation's reviewed executor fence.", 3)
+
+
+def heartbeat(*, expected_fence: dict[str, Any] | None = None) -> dict[str, Any]:
+    pinned = _unattended_fence()
+    if pinned is not None:
+        if expected_fence is not None and expected_fence != pinned:
+            raise CloudError("RUNTIME_EXECUTOR_FENCED", "Consequence preflight differs from the pinned unattended review.", 3)
+        expected_fence = pinned
     current = bindings()
     executor = current.get("executor") if isinstance(current.get("executor"), dict) else {}
     generation = executor.get("authorityGeneration")
+    if expected_fence is not None:
+        # An expired lease may renew for this same reviewed holder/generation.
+        # A handoff must fail before renewal; never follow the newly observed generation.
+        _require_reviewed_executor(current, expected_fence, live_lease=False)
+        generation = expected_fence["authority_generation"]
+    if pinned is not None and _unattended_fence() != pinned:
+        raise CloudError("RUNTIME_EXECUTOR_FENCED", "Local authority changed during heartbeat preflight.", 3)
     if executor.get("executorMode") != "local":
         raise CloudError(
             "RUNTIME_EXECUTOR_NOT_LOCAL",
@@ -235,6 +272,8 @@ def heartbeat() -> dict[str, Any]:
         token=runtime_token(),
         payload={"authorityGeneration": generation},
     )
+    if expected_fence is not None:
+        _require_reviewed_executor({**current, "executor": value}, expected_fence, live_lease=True)
     return value
 
 

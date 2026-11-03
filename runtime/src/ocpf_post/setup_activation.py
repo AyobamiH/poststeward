@@ -921,6 +921,13 @@ class ActivationManager:
         state = Path(review["state_root"])
         config = Path(review["config_root"])
         session, operation, installation, events = self._session_context(review["session_id"])
+        # Keep the reviewed cloud fence in durable evidence before any marker cutover.
+        # Local setup identity/generation remain independent of this paired authority.
+        cloud_executor = {
+            key: review["cloud_executor"][key]
+            for key in ("workspace", "installation_id", "authority_generation")
+        } if review["cloud_executor"] is not None else None
+        cloud_evidence = {"cloud_executor": cloud_executor} if cloud_executor is not None else {}
         quarantine, _source_rows = _restore_index_from_events(events)
         transaction = RestoreTransaction(
             state_root=state,
@@ -948,6 +955,7 @@ class ActivationManager:
                     "state_root": str(state),
                     "config_root": str(config),
                     "publishing_authority": False,
+                    **cloud_evidence,
                 },
             )
             committed = True
@@ -965,6 +973,7 @@ class ActivationManager:
                 installation_id=installation["installation_id"],
                 authority_generation=int(operation["authority_generation"]),
                 review_sha256=review["review_sha256"], runtime_revision=review["runtime_revision"],
+                cloud_executor=cloud_executor,
             )
             cutover = True
             post = self.services.inspect()
@@ -982,6 +991,7 @@ class ActivationManager:
                     "authority_generation": operation["authority_generation"],
                     "state_root": str(state), "config_root": str(config),
                     "service_attestation": post, "cutover": "automation_authority_marker",
+                    **cloud_evidence,
                 },
             )
             return {
@@ -1025,6 +1035,7 @@ class ActivationManager:
                                 "cutover_happened": cutover,
                                 "state_rollback_attempted": not cutover,
                                 "provider_replay_attempted": False,
+                                **cloud_evidence,
                             },
                         )
                     except Exception:
@@ -1072,6 +1083,7 @@ class ActivationManager:
             "runtime_revision": _runtime_revision(runtime), "state_root": str(state),
             "reason": reason_text, "marker_sha256": _json_sha({k:v for k,v in marker.items() if k != "path"}),
             "service_before": self.services.inspect(),
+            **({"cloud_executor": marker["cloud_executor"]} if "cloud_executor" in marker else {}),
         }
         return {
             **body, "status": "preview", "review_sha256": _json_sha(body),
@@ -1160,6 +1172,7 @@ class ActivationManager:
                 "cloud_fence_attempted_before_local_marker": bool(cloud_fence["attempted"]),
                 "marker_cutoff_first": True, "provider_replay_attempted": False,
                 "service_attestation": observed,
+                **({"cloud_executor": review["cloud_executor"]} if "cloud_executor" in review else {}),
             },
         )
         return {

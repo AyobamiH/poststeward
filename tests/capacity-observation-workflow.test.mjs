@@ -8,7 +8,7 @@ test("capacity observer covers staging and production, stays read-only and exact
   assert.match(workflow, /- environment: staging/);
   assert.match(workflow, /- environment: production/);
   assert.match(workflow, /permissions:\n  contents: read/);
-  assert.match(workflow, /readiness\.json/);
+  assert.match(workflow, /node scripts\/monitor-readiness\.mjs/);
   assert.match(workflow, /POSTSTEWARD_EXPECTED_RELEASE/);
   assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /capacity-observe\.mjs/);

@@ -24,6 +24,7 @@ from ocpf_post.state import state_dir
 UTC = timezone.utc
 SCHEMA_VERSION = 1
 AUTHORITY_FILE = "automation-authority.json"
+UNATTENDED_FENCE_ENV = "POSTSTEWARD_UNATTENDED_FENCE"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -75,6 +76,8 @@ def validate(value: dict[str, Any]) -> dict[str, Any]:
     }
     inactive_fields = active_fields | {"deactivated_at", "reason"}
     expected_fields = active_fields if status == "active" else inactive_fields
+    if status == "active" and "cloud_executor" in value:
+        expected_fields = expected_fields | {"cloud_executor"}
     if set(value) != expected_fields:
         raise AutomationAuthorityError("Automation-authority fields do not match the stored status")
     _uuid4(value.get("operation_id"), "operation_id")
@@ -85,6 +88,15 @@ def validate(value: dict[str, Any]) -> dict[str, Any]:
     review = value.get("review_sha256")
     if not isinstance(review, str) or not _SHA256_RE.fullmatch(review):
         raise AutomationAuthorityError("Invalid review_sha256")
+    if "cloud_executor" in value:
+        cloud = value["cloud_executor"]
+        if not isinstance(cloud, dict) or set(cloud) != {"workspace", "installation_id", "authority_generation"}:
+            raise AutomationAuthorityError("Invalid reviewed cloud executor fields")
+        if not isinstance(cloud["workspace"], str) or not cloud["workspace"].strip():
+            raise AutomationAuthorityError("Invalid reviewed cloud workspace")
+        _uuid4(cloud["installation_id"], "cloud_executor.installation_id")
+        if type(cloud["authority_generation"]) is not int or cloud["authority_generation"] < 1:
+            raise AutomationAuthorityError("Invalid reviewed cloud authority generation")
     _time(value.get("updated_at"), "updated_at")
     _time(value.get("activated_at"), "activated_at")
     if status == "inactive":
@@ -159,6 +171,7 @@ def activate(
     authority_generation: int,
     review_sha256: str,
     runtime_revision: str,
+    cloud_executor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     value = {
         "schema_version": SCHEMA_VERSION,
@@ -171,6 +184,8 @@ def activate(
         "activated_at": _now(),
         "updated_at": _now(),
     }
+    if cloud_executor is not None:
+        value["cloud_executor"] = dict(cloud_executor)
     _atomic_write(path(root), value)
     return read(root)
 
@@ -200,6 +215,8 @@ def deactivate(
         "updated_at": _now(),
         "reason": reason_text,
     }
+    # SetupStore keeps the reviewed cloud proof in activation/deactivation events.
+    # Keep this inactive fence readable by a prior release during rollback.
     _atomic_write(path(root), value)
     return read(root)
 
@@ -213,14 +230,57 @@ def require_active(root: str | Path | None = None) -> dict[str, Any]:
     return value
 
 
+def unattended_context(root: str | Path | None = None) -> dict[str, Any]:
+    """Capture one reviewed local/cloud fence for a background invocation."""
+    marker = require_active(root)
+    cloud = marker.get("cloud_executor")
+    if not isinstance(cloud, dict):
+        raise AutomationAuthorityError("Unattended execution requires a recorded cloud executor review")
+    runtime = os.environ.get("POSTSTEWARD_RUNTIME_ROOT")
+    if not runtime:
+        raise AutomationAuthorityError("Unattended runtime root is unavailable")
+    from ocpf_post.setup_activation import ActivationError, _runtime_revision
+    try:
+        revision = _runtime_revision(Path(runtime))
+    except ActivationError as exc:
+        raise AutomationAuthorityError("Unattended runtime release could not be verified") from exc
+    if marker["runtime_revision"] != revision:
+        raise AutomationAuthorityError("Unattended runtime release differs from its reviewed activation")
+    return {
+        "review_sha256": marker["review_sha256"], "runtime_revision": revision,
+        "cloud_executor": dict(cloud),
+    }
+
+
+def unattended_cloud_fence() -> dict[str, Any] | None:
+    """Revalidate a child's pinned review; manual commands have no such context."""
+    raw = os.environ.get(UNATTENDED_FENCE_ENV)
+    if raw is None:
+        return None
+    try:
+        if len(raw) > 4096:
+            raise ValueError("oversized context")
+        expected = json.loads(raw)
+    except (ValueError, TypeError) as exc:
+        raise AutomationAuthorityError("Invalid unattended review context") from exc
+    current = unattended_context()
+    if not isinstance(expected, dict) or expected != current:
+        raise AutomationAuthorityError("Unattended activation changed after this invocation started")
+    return current["cloud_executor"]
+
+
 def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Inspect the local unattended-automation gate")
     parser.add_argument("action", choices=("check", "status"))
     parser.add_argument("--state-dir")
+    parser.add_argument("--unattended", action="store_true")
     args = parser.parse_args()
     try:
+        if args.action == "check" and args.unattended:
+            print(json.dumps(unattended_context(args.state_dir), sort_keys=True))
+            return
         value = read(args.state_dir)
         if args.action == "check" and value.get("status") != "active":
             print(json.dumps(value, sort_keys=True))
