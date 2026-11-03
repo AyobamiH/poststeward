@@ -69,7 +69,7 @@
         "installation_id",
         "authority_generation"
       ],
-      "description": "Stable cloud executor fence included in the activation review; independent of the local setup identity and generation.",
+      "description": "Stable cloud executor fence included in the activation review, present only while active; durable SetupStore events retain the proof after deactivation.",
       "properties": {
         "workspace": {
           "type": "string",
@@ -102,7 +102,12 @@
         "required": [
           "deactivated_at",
           "reason"
-        ]
+        ],
+        "not": {
+          "required": [
+            "cloud_executor"
+          ]
+        }
       }
     },
     {

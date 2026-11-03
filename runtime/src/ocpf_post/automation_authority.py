@@ -75,7 +75,7 @@ def validate(value: dict[str, Any]) -> dict[str, Any]:
     }
     inactive_fields = active_fields | {"deactivated_at", "reason"}
     expected_fields = active_fields if status == "active" else inactive_fields
-    if "cloud_executor" in value:
+    if status == "active" and "cloud_executor" in value:
         expected_fields = expected_fields | {"cloud_executor"}
     if set(value) != expected_fields:
         raise AutomationAuthorityError("Automation-authority fields do not match the stored status")
@@ -214,8 +214,8 @@ def deactivate(
         "updated_at": _now(),
         "reason": reason_text,
     }
-    if "cloud_executor" in current:
-        value["cloud_executor"] = current["cloud_executor"]
+    # SetupStore keeps the reviewed cloud proof in activation/deactivation events.
+    # Keep this inactive fence readable by a prior release during rollback.
     _atomic_write(path(root), value)
     return read(root)
 
