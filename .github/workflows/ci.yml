@@ -12,7 +12,12 @@ permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.self_hosted_verify && 'poststeward-operations' || 'ubuntu-latest' }}
+    runs-on: >-
+      ${{ ((github.event_name == 'workflow_dispatch' && inputs.self_hosted_verify) ||
+           (github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == vars.POSTSTEWARD_VERIFY_BRANCH) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.head_ref == vars.POSTSTEWARD_VERIFY_BRANCH))
+          && 'poststeward-verification' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
