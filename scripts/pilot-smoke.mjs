@@ -6,13 +6,15 @@ export async function inspectPilot(origin, send = fetch, wait = (ms) => new Prom
   const checks = [];
   async function check(name, path, expected, init = {}, inspect = async () => true) {
     let status = 0, passed = false, attempts = 0;
-    // Only static GET/200 expectations may wait through a fresh asset's 404.
-    // Never retry an authentication denial, redirect, POST, or failed content check.
+    // Only static GET/200 expectations may wait through a transport failure or
+    // a fresh asset's 404. Never retry an authentication denial, redirect, POST,
+    // or failed content/security check, including an inspection exception.
     const limit = expected === 200 && (!init.method || init.method === "GET") ? 5 : 1;
     while (attempts < limit) {
       attempts++;
+      let response;
       try {
-        const response = await send(new URL(path, origin), {
+        response = await send(new URL(path, origin), {
           ...init, headers: { "Cache-Control": "no-cache", ...init.headers },
           redirect: "manual", signal: AbortSignal.timeout(15000),
         });
@@ -21,7 +23,8 @@ export async function inspectPilot(origin, send = fetch, wait = (ms) => new Prom
           !!response.headers.get("strict-transport-security") && await inspect(response);
         void response.body?.cancel().catch(() => {});
       } catch { status = 0; /* Never forward network exceptions or OAuth state. */ }
-      if (passed || status !== 404 || attempts === limit) break;
+      const retryable = status === 404 || (status === 0 && !response);
+      if (passed || !retryable || attempts === limit) break;
       await wait(2000);
     }
     checks.push({ name, status, expected, attempts, passed });
