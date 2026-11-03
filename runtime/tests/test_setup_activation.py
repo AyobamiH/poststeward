@@ -13,7 +13,7 @@ import uuid
 from jsonschema import Draft202012Validator, FormatChecker
 
 from ocpf_post import automation_authority
-from ocpf_post.setup_activation import ActivationError, _exclusive_activation_lock, _runtime_revision
+from ocpf_post.setup_activation import ActivationError, ActivationManager, _exclusive_activation_lock, _runtime_revision
 from ocpf_post.setup_engine import SetupEngine, SetupEngineError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -328,35 +328,103 @@ class AutomationAuthorityTests(unittest.TestCase):
 
     def test_stored_markers_match_json_schema(self) -> None:
         schema = json.loads(
-            (
-                ROOT
-                / "schemas"
-                / "setup-recovery"
-                / "v1"
-                / "automation-authority.schema.json"
-            ).read_text(encoding="utf-8")
+            (ROOT / "schemas" / "setup-recovery" / "v1" / "automation-authority.schema.json").read_text(encoding="utf-8")
         )
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            active = automation_authority.activate(
-                root=root,
-                operation_id=str(uuid.uuid4()),
-                installation_id=str(uuid.uuid4()),
-                authority_generation=1,
-                review_sha256="c" * 64,
-                runtime_revision="d" * 40,
-            )
-            validator.validate({k: v for k, v in active.items() if k != "path"})
-            inactive = automation_authority.deactivate(
-                root=root,
-                review_sha256="e" * 64,
-                reason="schema test",
-            )
-            validator.validate({k: v for k, v in inactive.items() if k != "path"})
+        for cloud in (None, {
+            "workspace": "ws_fixture", "installation_id": str(uuid.uuid4()), "authority_generation": 7,
+        }):
+            with self.subTest(cloud=cloud), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                active = automation_authority.activate(
+                    root=root, operation_id=str(uuid.uuid4()), installation_id=str(uuid.uuid4()),
+                    authority_generation=1, review_sha256="c" * 64, runtime_revision="d" * 40,
+                    cloud_executor=cloud,
+                )
+                validator.validate({k: v for k, v in active.items() if k != "path"})
+                inactive = automation_authority.deactivate(root=root, review_sha256="e" * 64, reason="schema test")
+                validator.validate({k: v for k, v in inactive.items() if k != "path"})
+                self.assertEqual(inactive.get("cloud_executor"), cloud)
+
+    def test_cloud_fence_rejects_invalid_or_unexpected_fields_before_writing(self) -> None:
+        for change in (
+            {"installation_id": "not-an-installation"}, {"authority_generation": True},
+            {"authority_generation": 0}, {"workspace": " "}, {"runtime_token": "not-allowed"},
+        ):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                cloud = {
+                    "workspace": "ws_fixture", "installation_id": str(uuid.uuid4()), "authority_generation": 2,
+                    **change,
+                }
+                with self.assertRaises(automation_authority.AutomationAuthorityError):
+                    automation_authority.activate(
+                        root=root, operation_id=str(uuid.uuid4()), installation_id=str(uuid.uuid4()),
+                        authority_generation=1, review_sha256="c" * 64, runtime_revision="d" * 40,
+                        cloud_executor=cloud,
+                    )
+                self.assertFalse(automation_authority.path(root).exists())
 
 
 class ActivationTests(ActivationFixture):
+    def test_activation_retains_reviewed_cloud_fence_separately_from_local_identity(self) -> None:
+        from ocpf_post.poststeward_product import _compatibility
+
+        target, before = self.migration_target()
+        state_root = self.root / "target-state"
+        config_root = self.root / "target-config"
+        config_root.mkdir()
+        services = FakeServices()
+        transition = ActivationManager(
+            store=target.store, workspace=target.workspace, service_controller=services,
+        ).cloud_recovery_review()
+        cloud_fence = {
+            "workspace": "ws_fixture",
+            "installation_id": "33333333-3333-4333-8333-333333333333",
+            "authority_generation": 7,
+        }
+        proof = {
+            "schema_version": 1, **cloud_fence, "executor_mode": "local", "lease_proven_live": True,
+            "transition": {"purpose": "migrate", "reviewSha256": transition["recoveryReviewSha256"]},
+        }
+        with (
+            patch.dict(os.environ, {"POSTSTEWARD_REQUIRE_CLOUD_FENCE": "1", "POSTSTEWARD_RUNTIME_RELEASE_SHA": REVISION}),
+            patch("ocpf_post.poststeward_cloud.activation_executor_proof", return_value=proof),
+        ):
+            preview = target.activation_preview(
+                runtime_root=ROOT, state_root=state_root, config_root=config_root, service_controller=services,
+            )
+            self.assertEqual(preview["cloud_executor"], proof)
+            # A new cloud generation invalidates the exact owner review before any service mutation.
+            proof["authority_generation"] = 8
+            with self.assertRaises(SetupEngineError) as caught:
+                target.activate(
+                    runtime_root=ROOT, state_root=state_root, config_root=config_root,
+                    expected_sha256=preview["review_sha256"], service_controller=services,
+                )
+            self.assertEqual(caught.exception.code, "activation.review.changed")
+            self.assertFalse(services.staged)
+            self.assertFalse(automation_authority.path(state_root).exists())
+            proof["authority_generation"] = 7
+            active = target.activate(
+                runtime_root=ROOT, state_root=state_root, config_root=config_root,
+                expected_sha256=preview["review_sha256"], service_controller=services,
+            )
+        marker = automation_authority.read(state_root)
+        self.assertEqual(marker["installation_id"], before["installation"]["installation_id"])
+        self.assertEqual(marker["authority_generation"], 2)
+        self.assertNotEqual(marker["installation_id"], cloud_fence["installation_id"])
+        self.assertEqual(marker.get("cloud_executor"), cloud_fence)
+        self.assertEqual(active["authority"]["cloud_executor"], cloud_fence)
+        cloud = {
+            "schemaVersion": 1, "workspace": "ws_fixture", "installationId": cloud_fence["installation_id"],
+            "executor": {"executorMode": "local", "executorStatus": "active",
+                         "activeInstallationId": cloud_fence["installation_id"], "authorityGeneration": 7,
+                         "leaseExpiresAt": 2000000000000},
+        }
+        with patch("ocpf_post.poststeward_product.time.time", return_value=1800000000):
+            self.assertEqual(_compatibility(marker, cloud, REVISION)["status"], "compatible")
+
     def test_activation_apply_serializes_local_writer_before_mutation(self) -> None:
         target, _ = self.migration_target()
         state_root = self.root / "target-state"

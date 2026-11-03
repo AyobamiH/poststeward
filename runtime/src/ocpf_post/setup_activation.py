@@ -965,6 +965,12 @@ class ActivationManager:
                 installation_id=installation["installation_id"],
                 authority_generation=int(operation["authority_generation"]),
                 review_sha256=review["review_sha256"], runtime_revision=review["runtime_revision"],
+                # Setup identity/generation and the paired cloud fence are independent.
+                # Retain only the stable cloud fields covered by the exact review digest.
+                cloud_executor={
+                    key: review["cloud_executor"][key]
+                    for key in ("workspace", "installation_id", "authority_generation")
+                } if review["cloud_executor"] is not None else None,
             )
             cutover = True
             post = self.services.inspect()

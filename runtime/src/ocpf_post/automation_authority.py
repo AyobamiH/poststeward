@@ -75,6 +75,8 @@ def validate(value: dict[str, Any]) -> dict[str, Any]:
     }
     inactive_fields = active_fields | {"deactivated_at", "reason"}
     expected_fields = active_fields if status == "active" else inactive_fields
+    if "cloud_executor" in value:
+        expected_fields = expected_fields | {"cloud_executor"}
     if set(value) != expected_fields:
         raise AutomationAuthorityError("Automation-authority fields do not match the stored status")
     _uuid4(value.get("operation_id"), "operation_id")
@@ -85,6 +87,15 @@ def validate(value: dict[str, Any]) -> dict[str, Any]:
     review = value.get("review_sha256")
     if not isinstance(review, str) or not _SHA256_RE.fullmatch(review):
         raise AutomationAuthorityError("Invalid review_sha256")
+    if "cloud_executor" in value:
+        cloud = value["cloud_executor"]
+        if not isinstance(cloud, dict) or set(cloud) != {"workspace", "installation_id", "authority_generation"}:
+            raise AutomationAuthorityError("Invalid reviewed cloud executor fields")
+        if not isinstance(cloud["workspace"], str) or not cloud["workspace"].strip():
+            raise AutomationAuthorityError("Invalid reviewed cloud workspace")
+        _uuid4(cloud["installation_id"], "cloud_executor.installation_id")
+        if type(cloud["authority_generation"]) is not int or cloud["authority_generation"] < 1:
+            raise AutomationAuthorityError("Invalid reviewed cloud authority generation")
     _time(value.get("updated_at"), "updated_at")
     _time(value.get("activated_at"), "activated_at")
     if status == "inactive":
@@ -159,6 +170,7 @@ def activate(
     authority_generation: int,
     review_sha256: str,
     runtime_revision: str,
+    cloud_executor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     value = {
         "schema_version": SCHEMA_VERSION,
@@ -171,6 +183,8 @@ def activate(
         "activated_at": _now(),
         "updated_at": _now(),
     }
+    if cloud_executor is not None:
+        value["cloud_executor"] = dict(cloud_executor)
     _atomic_write(path(root), value)
     return read(root)
 
@@ -200,6 +214,8 @@ def deactivate(
         "updated_at": _now(),
         "reason": reason_text,
     }
+    if "cloud_executor" in current:
+        value["cloud_executor"] = current["cloud_executor"]
     _atomic_write(path(root), value)
     return read(root)
 
