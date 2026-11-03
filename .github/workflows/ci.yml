@@ -69,6 +69,14 @@ jobs:
           assert value["schema_version"] == 1
           assert value["commands"]
           PY
+      - name: Embedded runtime authority and recovery regressions
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python3 -m venv "$RUNNER_TEMP/poststeward-runtime-verify"
+          "$RUNNER_TEMP/poststeward-runtime-verify/bin/python" -m pip install -e "./runtime[dev]" "setuptools>=68" wheel
+          cd runtime
+          "$RUNNER_TEMP/poststeward-runtime-verify/bin/python" -m unittest discover -s tests -p 'test_*.py'
       - run: npm run verify
   runtime:
     runs-on: ubuntu-latest
