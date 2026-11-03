@@ -11,6 +11,7 @@ import json
 import time
 from typing import Any
 
+from ocpf_post import automation_authority
 from ocpf_post.model import AccountIdentity
 from ocpf_post.poststeward_cloud import CloudError, bindings, heartbeat, relay
 from ocpf_post.providers.base import (
@@ -113,7 +114,21 @@ class PostStewardRelayProvider(Provider):
         self._binding_fields = {"accountAlias": row["alias"], "bindingVersion": row["version"]}
         return row
 
+    @staticmethod
+    def _reviewed_fence() -> dict[str, Any] | None:
+        try:
+            return automation_authority.unattended_cloud_fence()
+        except automation_authority.AutomationAuthorityError as exc:
+            raise ProviderRejected(409, f"Unattended executor review is no longer valid: {exc}") from exc
+
     def _generation(self) -> int:
+        fence = self._reviewed_fence()
+        if fence is not None:
+            try:
+                heartbeat(expected_fence=fence)
+            except CloudError as exc:
+                raise ProviderRejected(exc.status, f"Reviewed executor lease could not be renewed: {exc}") from exc
+            return fence["authority_generation"]
         value = bindings()
         executor = value.get("executor")
         generation = executor.get("authorityGeneration") if isinstance(executor, dict) else None
@@ -175,6 +190,12 @@ class PostStewardRelayProvider(Provider):
             raise self._map_read_error(exc) from exc
 
     def _relay_effect(self, payload: dict[str, Any]) -> dict[str, Any]:
+        fence = self._reviewed_fence()
+        if fence is not None and (
+            type(payload.get("authorityGeneration")) is not int
+            or payload["authorityGeneration"] != fence["authority_generation"]
+        ):
+            raise ProviderRejected(409, "Provider effect differs from the pinned unattended generation.")
         try:
             return relay({**payload, **self._binding_fields})
         except CloudError as exc:
@@ -245,10 +266,12 @@ class PostStewardRelayProvider(Provider):
         value = str(text or "")
         if not value.strip():
             raise ProviderRejected(0, f"{self.name} post text is empty")
+        # Stale unattended authority is refused before even provider identity I/O.
+        generation = self._generation() if self._reviewed_fence() is not None else None
         account = self.account()
         effect_id = self._effect_id(value, reply_to_id)
         common = {
-            "authorityGeneration": self._generation(),
+            "authorityGeneration": generation if generation is not None else self._generation(),
             "provider": self.name,
             "accountId": account.account_id,
             "effectId": effect_id,

@@ -862,8 +862,9 @@ class ActivationTests(ActivationFixture):
         state = self.root / "unattended-state"
         config = self.root / "unattended-config"
         env = dict(os.environ)
-        env["OCPF_POST_STATE_DIR"] = str(state)
-        env["OCPF_POST_CONFIG_DIR"] = str(config)
+        env["POSTSTEWARD_RUNTIME_STATE_DIR"] = str(state)
+        env["POSTSTEWARD_RUNTIME_CONFIG_DIR"] = str(config)
+        env["POSTSTEWARD_SETUP_STATE_DIR"] = str(self.root / "unattended-setup")
         result = subprocess.run(
             ["sh", str(ROOT / "scripts" / "run-unattended"), "run-due"],
             cwd=ROOT,

@@ -62,8 +62,7 @@ class HostPlatformTests(unittest.TestCase):
             'POSTSTEWARD_RUNTIME_CONFIG_DIR': temp + '/config', 'POSTSTEWARD_SETUP_STATE_DIR': temp + '/setup',
         }), patch('subprocess.run', return_value=subprocess.CompletedProcess([], 3)) as run:
             self.assertEqual(main(['run-due']), 3)
-            self.assertEqual(run.call_count, 1)
-            self.assertEqual(run.call_args.args[0][-2:], ['ocpf_post.automation_authority', 'check'])
+            run.assert_not_called()
 
 
 if __name__ == '__main__':
