@@ -1,0 +1,9 @@
+[Unit]
+Description=PostSteward slo observation clock
+[Timer]
+OnCalendar=*-*-* 00/4:29:00 UTC
+Persistent=true
+AccuracySec=1s
+Unit=poststeward-clock@slo.service
+[Install]
+WantedBy=timers.target

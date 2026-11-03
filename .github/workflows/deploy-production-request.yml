@@ -1,6 +1,7 @@
 name: Deploy requested production revision
 run-name: Deploy production revision ${{ github.sha }}
-# Production deployment request: 2026-10-11-owner-approved-builder-footer
+# Production deployment request: 2026-11-03-reviewed-threads-binding
+# Stage and verify the same revision before the production preflight.
 # Footer revision 3d0e9ebaf961e3283217da5ec685f7db9aef3a88 passed exact-source CI.
 # Owner requested the public Tail Wagging credit, postcode and phone on every website.
 # This request preserves the existing admission, billing, provider and runtime configuration.
@@ -25,9 +26,34 @@ permissions:
   contents: read
   pull-requests: read
 jobs:
-  preflight:
+  staging:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
+      run_pitr_diagnostic: false
+      advanced_rollout_request: stop
+      signup_mode_request: restricted
+    # Pass only explicitly named fallbacks, never every repository secret.
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
+      OIDC_CLIENT_SECRET: ${{ secrets.OIDC_CLIENT_SECRET }}
+      ALLOWED_OWNER_EMAILS: ${{ secrets.ALLOWED_OWNER_EMAILS }}
+      POSTSTEWARD_GITHUB_APP_CLIENT_SECRET: ${{ secrets.POSTSTEWARD_GITHUB_APP_CLIENT_SECRET }}
+      X_OAUTH_CLIENT_SECRET: ${{ secrets.X_OAUTH_CLIENT_SECRET }}
+      THREADS_OAUTH_CLIENT_SECRET: ${{ secrets.THREADS_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_OAUTH_CLIENT_SECRET }}
+      LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET: ${{ secrets.LINKEDIN_ORGANIZATION_OAUTH_CLIENT_SECRET }}
+      STRIPE_SANDBOX_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}
+      STRIPE_SANDBOX_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET }}
+      OPERATIONAL_ALERT_WEBHOOK_URL: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_URL }}
+      OPERATIONAL_ALERT_WEBHOOK_TOKEN: ${{ secrets.OPERATIONAL_ALERT_WEBHOOK_TOKEN }}
+  preflight:
+    needs: staging
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'AyobamiH/poststeward' && github.actor == 'AyobamiH'
+    runs-on: poststeward-release
     timeout-minutes: 10
     environment:
       name: production

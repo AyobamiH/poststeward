@@ -1,8 +1,9 @@
 name: Staging capacity and cost observation
+run-name: Staging capacity and cost observation — ${{ github.event.client_payload.slot || github.event_name }}
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "41 * * * *"
+  repository_dispatch:
+    types: [poststeward-monitor-capacity]
   push:
     branches: [main]
     paths:

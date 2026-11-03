@@ -41,6 +41,7 @@ test("workflow is out-of-band across staging and production, issue-write only an
   assert.match(workflow, /- environment: production/);
   assert.match(workflow, /secrets\.CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /secrets\.GITHUB_TOKEN/);
-  assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
+  assert.ok(workflow.includes("types: [poststeward-monitor-alerts]"));
+  assert.ok(readFileSync("ops/monitor-clock/poststeward-clock-alerts.timer", "utf8").includes("OnCalendar=*-*-* *:00/5:00 UTC"));
   assert.doesNotMatch(workflow, /contents: write|actions: write|secrets: inherit|wrangler deploy|publish_now|schedule_create/);
 });

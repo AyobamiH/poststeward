@@ -1,0 +1,9 @@
+[Unit]
+Description=PostSteward alerts observation clock
+[Timer]
+OnCalendar=*-*-* *:00/5:00 UTC
+Persistent=true
+AccuracySec=1s
+Unit=poststeward-clock@alerts.service
+[Install]
+WantedBy=timers.target

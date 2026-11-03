@@ -1,8 +1,9 @@
 name: Staging Advanced SLO observation
+run-name: Staging Advanced SLO observation — ${{ github.event.client_payload.slot || github.event_name }}
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "29 */4 * * *"
+  repository_dispatch:
+    types: [poststeward-monitor-slo]
 
 permissions:
   contents: read

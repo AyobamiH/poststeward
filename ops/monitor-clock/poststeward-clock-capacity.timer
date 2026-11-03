@@ -1,0 +1,9 @@
+[Unit]
+Description=PostSteward capacity observation clock
+[Timer]
+OnCalendar=*-*-* *:41:00 UTC
+Persistent=true
+AccuracySec=1s
+Unit=poststeward-clock@capacity.service
+[Install]
+WantedBy=timers.target
