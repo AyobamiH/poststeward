@@ -776,6 +776,22 @@ Example:
 }
 ```
 
+## engagement_inspect
+
+Inspect read-only engagement checkpoints and reply evidence count; no provider calls or reply authority.
+
+- Tier: free
+- Required scope: read
+- Effects: READ_ONLY
+- Inspect with: engagement_inspect
+- Retry: Safe to repeat.
+
+Example:
+
+```json
+{}
+```
+
 ## automation_inspect
 
 Inspect profiles, source snapshots, decisions and pending automated deliveries. Inspection remains free after subscription expiry.
