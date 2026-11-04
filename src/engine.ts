@@ -1807,7 +1807,7 @@ export class Engine {
     }
   }
   private async engagementTick() {
-    if (!this.paid() || !this.options.engagementReader || this.paused()) return;
+    if (this.env.DEPLOY_ENV !== "staging" || !this.paid() || !this.options.engagementReader || this.paused()) return;
     const now = this.now();
     if ((this.store.get<number>("engagement:nextAt") || 0) > now) return;
     const workspace = this.store.get<string>("workspace");
@@ -1861,7 +1861,7 @@ export class Engine {
         .filter((p) => p.enabled)
         .flatMap((p) => [p.nextRun, p.nextMetrics]),
     );
-    if (this.paid() && this.options.engagementReader &&
+    if (this.env.DEPLOY_ENV === "staging" && this.paid() && this.options.engagementReader &&
         this.store.list<Profile>("profile:").some((p) => p.enabled))
       times.push(this.store.get<number>("engagement:nextAt") || this.now() + 15 * 60000);
     if (times.length)

@@ -24,6 +24,9 @@ import {
   workspaceQuarantined,
 } from "./effects.ts";
 import { Engine } from "./engine.ts";
+import { threadsReplyReader } from "./threads-reply-reader.ts";
+import { credentialRoots, unseal } from "./crypto.ts";
+import type { Credential } from "./providers.ts";
 import { readGitHubSource, readPreparationEvidence } from "./github-sources.ts";
 import { byName } from "./operations/catalog.ts";
 import { SocialProviders } from "./providers.ts";
@@ -268,6 +271,16 @@ export class Workspace extends DurableObject<Env> {
       preparationEvidence: (selection) =>
         readPreparationEvidence(selection, this.env, workspace),
       billing,
+      engagementReader: threadsReplyReader(async (alias) => {
+        const account = this.store.get<Account>("account:" + alias);
+        requireValue(account?.active && account.provider === "threads" &&
+          account.capabilities?.readback === true,
+          "THREADS_READ_AUTHORITY_REQUIRED", "Account has no active Threads read authority.", 403);
+        const sealed = await unseal<Credential>(account.secret, credentialRoots(this.env), workspace + ":" + alias);
+        requireValue(typeof sealed.accessToken === "string" && sealed.accessToken.length > 0,
+          "THREADS_READ_AUTHORITY_REQUIRED", "Threads token unavailable.", 403);
+        return sealed.accessToken;
+      }),
     });
     const pilot = new Pilot(
       this.store,
