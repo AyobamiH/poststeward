@@ -610,6 +610,15 @@ export const catalog: Operation[] = [
     "advanced",
   ),
   op(
+    "engagement_inspect",
+    "Inspect read-only engagement checkpoints and reply evidence count; no provider calls or reply authority.",
+    "read",
+    ["READ_ONLY"],
+    empty,
+    {},
+    "engagement_inspect",
+  ),
+  op(
     "automation_inspect",
     "Inspect profiles, source snapshots, decisions and pending automated deliveries. Inspection remains free after subscription expiry.",
     "read",

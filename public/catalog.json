@@ -2304,6 +2304,30 @@
     }
   },
   {
+    "name": "engagement_inspect",
+    "description": "Inspect read-only engagement checkpoints and reply evidence count; no provider calls or reply authority.",
+    "scope": "read",
+    "tier": "free",
+    "effects": [
+      "READ_ONLY"
+    ],
+    "example": {},
+    "inspection": "engagement_inspect",
+    "retry": "Safe to repeat.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "automation_inspect",
     "description": "Inspect profiles, source snapshots, decisions and pending automated deliveries. Inspection remains free after subscription expiry.",
     "scope": "read",

@@ -7,6 +7,7 @@ import {
   Response as RuntimeResponse,
 } from "miniflare";
 import { digest } from "../src/common.ts";
+import { catalog } from "../src/operations/catalog.ts";
 import { environment, owner } from "./helpers.ts";
 import { builtWorkerScriptPath } from "./runtime-fixture.ts";
 test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP against SQLite objects", async () => {
@@ -161,7 +162,7 @@ test("real Workers runtime serves discovery, isolates tenants and runs HTTP/MCP 
     );
     assert.equal(discovery.status, 200);
     const operations = ((await discovery.json()) as any).operations;
-    assert.equal(operations.length, 50);
+    assert.equal(operations.length, catalog.length);
     for (const name of [
       "autonomy_configure",
       "autonomy_request",
