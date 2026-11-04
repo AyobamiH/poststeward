@@ -56,3 +56,15 @@ test("concurrent scans cannot read or commit the same root twice", async () => {
   assert.equal(second.attempted, 0);
   assert.equal(reads, 1);
 });
+test("workspace operation exposes checkpoint inspection without scan claims or reply content", async () => {
+  const { harness } = await import("./helpers.ts");
+  const h = harness();
+  h.store.put("engagement:checkpoint:test:account:root", { account: "account", rootId: "root", cursor: "next", claimId: "secret-claim" });
+  h.store.put("engagement:reply:test:account:root:reply", { text: "private reply" });
+  const result = await h.run("engagement_inspect", {});
+  assert.equal(result.replyEvidenceCount, 1);
+  assert.equal(result.readOnly, true);
+  assert.equal(result.publishingAuthority, false);
+  assert.equal("claimId" in result.checkpoints[0], false);
+  assert.equal(JSON.stringify(result).includes("private reply"), false);
+});

@@ -492,6 +492,13 @@ export class Engine {
         this.store.put("profile:" + p.id, p);
         return p;
       },
+      engagement_inspect: () => ({
+        checkpoints: this.store.list<import("./engagement-collector.ts").EngagementCheckpoint>("engagement:checkpoint:")
+          .map(({ claimId, ...checkpoint }) => checkpoint),
+        replyEvidenceCount: this.store.list("engagement:reply:").length,
+        readOnly: true,
+        publishingAuthority: false,
+      }),
       automation_inspect: () => ({
         profiles: this.store
           .list<Profile>("profile:")
