@@ -3,7 +3,7 @@ import { planEngagementReads, type EngagementScope } from "./engagement-read-pla
 
 /** No posting/replying methods are available to this read-only collector. */
 export interface ReplyPage {
-  replies: { id: string; rootId: string; text: string; authorId: string }[];
+  replies: { id: string; rootId: string; text: string; authorUsername: string }[];
   nextCursor?: string;
   retryAt?: number;
 }
@@ -67,7 +67,7 @@ export async function collectEngagement(
           (page.nextCursor !== undefined && (!page.nextCursor || page.nextCursor.length > 512)))
           throw new Error("Invalid provider reply page");
         for (const reply of page.replies) {
-          if (!idPattern.test(reply.id) || reply.rootId !== rootId || !reply.authorId ||
+          if (!idPattern.test(reply.id) || reply.rootId !== rootId || !reply.authorUsername ||
               typeof reply.text !== "string" || reply.text.length > 10000)
             throw new Error("Invalid provider reply evidence");
         }

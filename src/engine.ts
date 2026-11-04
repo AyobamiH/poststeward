@@ -2,6 +2,8 @@ import { Autonomy, type StandingAdmission } from "./autonomy.ts";
 import { billingPrice } from "./billing-mode.ts";
 import { Preparation, type PreparationOptions } from "./preparation.ts";
 import { byName, plans } from "./operations/catalog.ts";
+import { collectEngagement, type ReadReplies } from "./engagement-collector.ts";
+import type { EngagementScope } from "./engagement-read-plan.ts";
 import { guardControlledPublication } from "./controlled.ts";
 import {
   active,
@@ -43,6 +45,8 @@ export interface BillingPort {
   portal(input: any, actor: Actor): Promise<unknown>;
 }
 export interface EngineOptions {
+  /** Optional, explicitly authorised GET-only engagement transport. */
+  engagementReader?: ReadReplies;
   now?: () => number;
   wake: (at: number) => Promise<void>;
   authorized: (actor: Actor) => Promise<boolean>;
@@ -1802,8 +1806,28 @@ export class Engine {
       });
     }
   }
+  private async engagementTick() {
+    if (!this.paid() || !this.options.engagementReader || this.paused()) return;
+    const now = this.now();
+    if ((this.store.get<number>("engagement:nextAt") || 0) > now) return;
+    const workspace = this.store.get<string>("workspace");
+    if (!workspace || !this.store.list<Profile>("profile:").some((p) => p.enabled)) return;
+    const scopes: EngagementScope[] = this.store.list<Account>("account:")
+      .filter((account) => account.provider === "threads")
+      .map((account) => ({
+        workspace, account: account.alias, provider: "threads" as const,
+        active: account.active, readbackGranted: account.capabilities?.readback === true,
+        rootIds: this.deliveries().filter((d) =>
+          d.account === account.alias && d.provider === "threads" &&
+          d.status === "published_verified" && !!d.postId,
+        ).map((d) => d.postId!),
+      }));
+    this.store.tx(() => this.store.put("engagement:nextAt", now + 15 * 60000));
+    await collectEngagement(this.store, workspace, scopes, this.options.engagementReader, now, 20000);
+  }
   async tick() {
     await this.autonomy.tick();
+    await this.engagementTick();
     await this.automationTick();
     const due = this.deliveries()
       .filter((d) =>
@@ -1837,6 +1861,9 @@ export class Engine {
         .filter((p) => p.enabled)
         .flatMap((p) => [p.nextRun, p.nextMetrics]),
     );
+    if (this.paid() && this.options.engagementReader &&
+        this.store.list<Profile>("profile:").some((p) => p.enabled))
+      times.push(this.store.get<number>("engagement:nextAt") || this.now() + 15 * 60000);
     if (times.length)
       await this.options.wake(
         Math.max(

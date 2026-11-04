@@ -11,7 +11,7 @@ test("durable cursor and reply evidence survive restart without duplication", as
   let calls = 0;
   const read = async ({ cursor }: { cursor?: string }) => {
     calls++;
-    return { replies: cursor ? [] : [{ id: "reply-1", rootId: "root-1", text: "Hello", authorId: "member-1" }], nextCursor: "cursor-2" };
+    return { replies: cursor ? [] : [{ id: "reply-1", rootId: "root-1", text: "Hello", authorUsername: "member-1" }], nextCursor: "cursor-2" };
   };
   const first = await collectEngagement(store, "workspace-a", [scope("workspace-a")], read, 100, 10000);
   const restarted = await collectEngagement(store, "workspace-a", [scope("workspace-a")], read, 200, 10000);
@@ -28,7 +28,7 @@ test("crash before commit replays safely and no cross-workspace reads occur", as
   let fail = true;
   const read = async () => {
     if (fail) { fail = false; throw Error("process interrupted"); }
-    return { replies: [{ id: "reply-1", rootId: "root-1", text: "Hello", authorId: "member-1" }], nextCursor: "cursor-2" };
+    return { replies: [{ id: "reply-1", rootId: "root-1", text: "Hello", authorUsername: "member-1" }], nextCursor: "cursor-2" };
   };
   assert.equal((await collectEngagement(store, "workspace-a", [scope("workspace-a")], read, 100, 10000)).collected, 0);
   assert.equal((await collectEngagement(store, "workspace-a", [scope("workspace-a")], read, 61000, 10000)).collected, 1);
@@ -47,7 +47,7 @@ test("concurrent scans cannot read or commit the same root twice", async () => {
   const reader = async () => {
     reads++;
     await wait;
-    return { replies: [{ id: "reply-1", rootId: "root-1", text: "Hello", authorId: "member-1" }], nextCursor: "next" };
+    return { replies: [{ id: "reply-1", rootId: "root-1", text: "Hello", authorUsername: "member-1" }], nextCursor: "next" };
   };
   const first = collectEngagement(store, "workspace-a", [scope("workspace-a")], reader, 100, 10000);
   const second = await collectEngagement(store, "workspace-a", [scope("workspace-a")], reader, 100, 10000);
