@@ -230,6 +230,11 @@ test("capacity observer emits bounded failure codes without reflecting exception
   );
 });
 
+test("transport failures use a bounded non-secret diagnostic code", () => {
+  assert.equal(capacityFailureCode(new TypeError("fetch failed: bearer secret-value")), "cloudflare_transport_failure");
+  assert.equal(capacityFailureCode(Object.assign(new Error("private URL"), { name: "AbortError" })), "cloudflare_request_aborted");
+});
+
 test("zero-sample capacity evidence distinguishes registry, sweep and release drift", () => {
   const context = {
     release: "b".repeat(40),
