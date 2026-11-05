@@ -114,6 +114,8 @@ export function capacityFailureCode(error) {
     return "cloudflare_graphql_account_unavailable";
   if (error instanceof DOMException && error.name === "TimeoutError")
     return "cloudflare_request_timeout";
+  if (error instanceof TypeError && /fetch failed/i.test(message)) return "cloudflare_transport_failure";
+  if (error instanceof Error && error.name === "AbortError") return "cloudflare_request_aborted";
   return "invalid_input_or_observation";
 }
 
@@ -359,6 +361,7 @@ async function capacityAbsenceDiagnostics(accountId, databaseId, token) {
   };
 }
 
+let capacityPhase = "initialisation";
 async function main() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
   const databaseId = process.env.D1_ID || "";
@@ -372,12 +375,14 @@ async function main() {
   demand(/^[a-z0-9-]{1,100}$/.test(scriptName), "POSTSTEWARD_WORKER_NAME is invalid.");
   const origin = process.env.POSTSTEWARD_ORIGIN || "https://poststeward-staging.woeinvests.workers.dev";
   const expectedRelease = process.env.POSTSTEWARD_EXPECTED_RELEASE ?? process.env.GITHUB_SHA;
+  capacityPhase = "readiness";
   const context = await readCapacityRuntime(origin, expectedRelease);
   demand(scriptName === capacityWorkerName(context.environment), "Capacity Worker name and runtime environment differ.");
 
   const end = new Date();
   const start = new Date(end.getTime() - windowDays * 86400000);
   const cutoff = start.toISOString().slice(0, 10);
+  capacityPhase = "d1_high_water";
   const highRows = await queryD1(accountId, databaseId, token,
     `SELECT count(DISTINCT workspace_fingerprint) AS workspaces,
        min(observed_at) AS firstObservedAt, max(observed_at) AS lastObservedAt,
@@ -394,6 +399,7 @@ async function main() {
     [cutoff, context.release]);
   const highWater = highRows[0] || {};
   if (Number(highWater.workspaces || 0) <= 0) {
+    capacityPhase = "d1_absence_diagnostics";
     const diagnostics = await capacityAbsenceDiagnostics(
       accountId,
       databaseId,
@@ -406,6 +412,7 @@ async function main() {
     return;
   }
 
+  capacityPhase = "cloudflare_graphql";
   const graphql = await queryGraphql(accountId, scriptName, databaseId, token, start.toISOString(), end.toISOString());
   const workerCpuUs = maxGroups(
     graphql.workersInvocationsAdaptive,
@@ -422,6 +429,7 @@ async function main() {
     ]),
     ...maxGroups(graphql.d1AnalyticsAdaptiveGroups, ["queryBatchTimeMsP90"]),
   };
+  capacityPhase = "d1_alerts";
   const alertRows = await queryD1(accountId, databaseId, token,
     `SELECT count(*) AS total,
       sum(CASE WHEN status='sent' THEN 1 ELSE 0 END) AS sent,
@@ -430,12 +438,15 @@ async function main() {
   worker.alertVolume = alertRows[0] || { total: 0, sent: 0, dead: 0 };
 
   const targetWorkspaces = Number(process.env.POSTSTEWARD_CAPACITY_TARGET_WORKSPACES || highWater.workspaces);
+  capacityPhase = "evaluation";
   const evaluated = buildCapacityObservation({ highWater, workerAnalytics: worker, d1Analytics: d1,
     providerQuota: optionalJson(process.env.POSTSTEWARD_PROVIDER_QUOTA_EVIDENCE, "provider quota"),
     pricing: optionalJson(process.env.POSTSTEWARD_PRICING_EVIDENCE, "pricing"), windowDays,
     targetWorkspaces });
+  capacityPhase = "final_release_readback";
   demand(isDeepStrictEqual(context, await readCapacityRuntime(origin, expectedRelease)),
     "Capacity runtime changed while collecting evidence.");
+  capacityPhase = "receipt";
   const report = bindCapacityObservation(evaluated, context, highWater);
   const serialized = emit(report);
   demand(!serialized.includes(token), "Capacity observation attempted to emit protected material.");
@@ -444,6 +455,6 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   main().catch((error) => {
-    console.error(`POSTSTEWARD_CAPACITY_OBSERVATION_FAILED ${capacityFailureCode(error)}`);
+    console.error(`POSTSTEWARD_CAPACITY_OBSERVATION_FAILED phase=${capacityPhase} code=${capacityFailureCode(error)}`);
     process.exitCode = 1;
   });
