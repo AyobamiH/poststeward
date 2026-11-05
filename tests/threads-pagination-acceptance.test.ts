@@ -18,7 +18,13 @@ test("two actual GET pagination pages checkpoint independently and never mix acc
   assert.equal((await collectEngagement(store, "tenant-one", [scope], reader, 10200, 10000)).collected, 1);
   assert.deepEqual(cursors, [null, "next_page"]);
   assert.equal(store.list("engagement:reply:").length, 2);
-  assert.equal(store.list<{cursor:string}>("engagement:checkpoint:")[0].cursor, "next_page");
+  const checkpoint = store.list<{cursor?:string; retryAt:number}>("engagement:checkpoint:")[0];
+  assert.equal(checkpoint.cursor, undefined);
+  assert.equal(checkpoint.retryAt, 10200 + 15 * 60000);
+  assert.equal((await collectEngagement(store, "tenant-one", [scope], reader, 20000, 10000)).attempted, 0);
+  assert.deepEqual(cursors, [null, "next_page"]);
+  assert.equal((await collectEngagement(store, "tenant-one", [scope], reader, checkpoint.retryAt, 10000)).attempted, 1);
+  assert.deepEqual(cursors, [null, "next_page", null]);
 });
 test("readback permission denial holds without advancing the cursor or publishing", async () => {
   const store = new MemoryStore();

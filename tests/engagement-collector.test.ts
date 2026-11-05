@@ -19,7 +19,7 @@ test("durable cursor and reply evidence survive restart without duplication", as
   assert.equal(restarted.collected, 0);
   assert.equal(calls, 2);
   assert.equal(store.list("engagement:reply:").length, 1);
-  assert.equal(store.list<{ cursor: string }>("engagement:checkpoint:")[0].cursor, "cursor-2");
+  assert.equal(store.list<{ cursor?: string }>("engagement:checkpoint:")[0].cursor, undefined);
 });
 test("crash before commit replays safely and no cross-workspace reads occur", async () => {
   const store = new MemoryStore();
