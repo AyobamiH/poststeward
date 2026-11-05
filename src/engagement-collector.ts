@@ -93,8 +93,12 @@ export async function collectEngagement(
           }
         }
         store.put(key, {
-          account: account.account, rootId, cursor: page.nextCursor ?? checkpoint.cursor,
-          lastSuccessAt: now, retryAt: page.retryAt, error: undefined,
+          account: account.account, rootId,
+          // Terminal pagination is not permanent: revisit the first page
+          // after a cooldown so newly arriving replies remain discoverable.
+          cursor: page.nextCursor && page.nextCursor !== checkpoint.cursor ? page.nextCursor : undefined,
+          retryAt: page.retryAt ?? (!page.nextCursor || page.nextCursor === checkpoint.cursor ? now + 15 * 60000 : undefined),
+          lastSuccessAt: now, error: undefined,
         } satisfies EngagementCheckpoint);
       });
     }
