@@ -6,22 +6,37 @@ function demand(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+export function classifyCanaryTransport(error) {
+  const code = error?.cause?.code || error?.code || "UNKNOWN";
+  const category = error?.name === "TimeoutError" || code === "ETIMEDOUT" ? "timeout"
+    : ["ECONNRESET", "EPIPE"].includes(code) ? "connection_reset"
+    : ["ENOTFOUND", "EAI_AGAIN"].includes(code) ? "dns"
+    : ["CERT_HAS_EXPIRED", "UNABLE_TO_VERIFY_LEAF_SIGNATURE"].includes(code) ? "tls"
+    : "transport";
+  return { operation: "cloudflare_d1_canary_boundary", category, retryable: ["timeout", "connection_reset", "dns", "transport"].includes(category) };
+}
 async function cfJson(url, token, body) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-    redirect: "error",
-    signal: AbortSignal.timeout(20_000),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      redirect: "error",
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (error) {
+    const detail = classifyCanaryTransport(error);
+    throw new Error(`Cloudflare D1 canary boundary ${detail.category} failure; operation=${detail.operation}; retryable=${detail.retryable}`, { cause: error });
+  }
   const value = await response.json().catch(() => ({}));
   demand(
     response.ok && value?.success !== false,
-    `Cloudflare D1 canary-boundary request failed with HTTP ${response.status}.`,
+    `Cloudflare D1 canary boundary HTTP ${response.status}; operation=cloudflare_d1_canary_boundary; retryable=${[429, 502, 503, 504].includes(response.status)}.`,
   );
   return value;
 }

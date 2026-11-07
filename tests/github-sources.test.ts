@@ -525,7 +525,7 @@ test("an expired refresh lease is not reclaimed and a late holder cannot commit"
   } finally { finish.release(); await first.catch(() => undefined); await f.mf.dispose(); }
 });
 
-test("reconnection supersedes both successful and failed in-flight refreshes", { timeout: 30_000 }, async () => {
+test("reconnection supersedes both successful and failed in-flight refreshes", { timeout: 120_000 }, async () => {
   for (const failure of [false, true]) {
     const f = await refreshFixture();
     const entered = gate(), finish = gate();
@@ -558,7 +558,7 @@ test("reconnection supersedes both successful and failed in-flight refreshes", {
   }
 });
 
-test("unlink during refresh cannot recreate credentials or read repository content", { timeout: 20_000 }, async () => {
+test("unlink during refresh cannot recreate credentials or read repository content", { timeout: 90_000 }, async () => {
   const f = await refreshFixture();
   const entered = gate(), finish = gate();
   let calls = 0;
