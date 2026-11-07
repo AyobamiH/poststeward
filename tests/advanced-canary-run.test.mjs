@@ -72,3 +72,12 @@ test("global, oversized and contradictory rollout states cannot create SLO bound
       /bounded staging canaries|contradictory/,
     );
 });
+
+test("canary transport diagnosis is bounded and does not expose secrets", async () => {
+  const { classifyCanaryTransport } = await import("../scripts/advanced-canary-run.mjs");
+  assert.deepEqual(classifyCanaryTransport({ cause: { code: "ETIMEDOUT" } }), {
+    operation: "cloudflare_d1_canary_boundary", category: "timeout", retryable: true,
+  });
+  assert.equal(classifyCanaryTransport({ cause: { code: "CERT_HAS_EXPIRED" } }).retryable, false);
+  assert.equal(JSON.stringify(classifyCanaryTransport({ message: "Bearer private-token" })).includes("private-token"), false);
+});
