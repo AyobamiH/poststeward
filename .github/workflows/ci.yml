@@ -83,8 +83,10 @@ jobs:
           "$RUNNER_TEMP/poststeward-runtime-verify/bin/python" -m unittest discover -s tests -p 'test_*.py'
       - run: npm run verify
   runtime:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Independent Python matrix runs on the owner-operated release runner.
+    # Keep it separate from the single heavy Node verification lane.
+    runs-on: poststeward-release
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
