@@ -16,9 +16,9 @@ jobs:
     # External fork PRs remain on hosted infrastructure; they cannot enter the
     # trusted local runner without explicit authorisation.
     runs-on: >-
-      ${{ (github.event_name == 'workflow_dispatch' && inputs.self_hosted_verify) ||
+      ${{ ((github.event_name == 'workflow_dispatch' && inputs.self_hosted_verify) ||
            (github.event_name == 'push' && github.ref_type == 'branch') ||
-           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
           && 'poststeward-verification' || 'ubuntu-latest' }}
     # Includes dependency download and the full Worker suite on the bounded runner.
     timeout-minutes: 30
