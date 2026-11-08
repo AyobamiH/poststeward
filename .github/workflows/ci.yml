@@ -104,6 +104,17 @@ jobs:
           "python${{ matrix.python }}" -m venv "$RUNNER_TEMP/python-matrix"
           "$RUNNER_TEMP/python-matrix/bin/python" -m pip install -e "./runtime[dev]" "setuptools>=68" wheel
       - name: Embedded runtime regression suite
+        env:
+          OCPF_POST_CONFIG_DIR: ${{ runner.temp }}/matrix-config
+          OCPF_POST_STATE_DIR: ${{ runner.temp }}/matrix-state
+          OCPF_POST_SETUP_STATE_DIR: ${{ runner.temp }}/matrix-setup
+          OCPF_POST_RELEASES_DIR: ${{ runner.temp }}/matrix-releases
+          XDG_CONFIG_HOME: ${{ runner.temp }}/matrix-xdg-config
+          XDG_STATE_HOME: ${{ runner.temp }}/matrix-xdg-state
+          XDG_DATA_HOME: ${{ runner.temp }}/matrix-xdg-data
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: commit.gpgsign
+          GIT_CONFIG_VALUE_0: 'false'
         run: |
           cd runtime
           "$RUNNER_TEMP/python-matrix/bin/python" -m unittest discover -s tests -p 'test_*.py'
