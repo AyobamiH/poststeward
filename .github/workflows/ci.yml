@@ -99,12 +99,17 @@ jobs:
           persist-credentials: false
       - name: Use preinstalled owner-operated Python
         run: |
-          command -v "python${{ matrix.python }}"
-          "python${{ matrix.python }}" --version
+          if [ "${{ matrix.python }}" = "3.10" ]; then
+            echo '/opt/poststeward/python310/bin' >> "$GITHUB_PATH"
+            /opt/poststeward/python310/bin/python3.10 --version
+          else
+            /usr/bin/python3.12 --version
+          fi
+          uv --version
       - name: Install embedded runtime
         run: |
-          "python${{ matrix.python }}" -m venv "$RUNNER_TEMP/python-matrix"
-          "$RUNNER_TEMP/python-matrix/bin/python" -m pip install -e "./runtime[dev]" "setuptools>=68" wheel
+          uv venv --python "python${{ matrix.python }}" "$RUNNER_TEMP/python-matrix"
+          uv pip install --python "$RUNNER_TEMP/python-matrix/bin/python" -e "./runtime[dev]" "setuptools>=68" wheel
       - name: Embedded runtime regression suite
         env:
           OCPF_POST_CONFIG_DIR: ${{ runner.temp }}/matrix-config
