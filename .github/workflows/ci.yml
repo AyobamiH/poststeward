@@ -45,6 +45,8 @@ jobs:
           POSTSTEWARD_SETUP_STATE_DIR="$RUNNER_TEMP/runtime-setup" \
           POSTSTEWARD_RELEASES_DIR="$RUNNER_TEMP/runtime-releases" \
             ./runtime/poststeward --version
+      - name: Monitor clock recovery regressions
+        run: python3 -m unittest discover -s ops/monitor-clock -p 'test_*.py'
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
       - name: Full dependency audit
