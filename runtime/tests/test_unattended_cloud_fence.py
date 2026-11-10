@@ -43,7 +43,9 @@ class UnattendedCloudFenceTests(unittest.TestCase):
             "authority_generation": 7,
         }
         self.activate()
-        self.pin = {"review_sha256": "a" * 64, "runtime_revision": "b" * 40, "cloud_executor": self.fence}
+        self.pin = {"review_sha256": "a" * 64, "runtime_revision": "b" * 40, "cloud_executor": self.fence,
+                    "installation_id": "22222222-2222-4222-8222-222222222222",
+                    "operation_id": "11111111-1111-4111-8111-111111111111", "authority_generation": 1}
         os.environ[PIN_ENV] = json.dumps(self.pin)
         self.cloud = {
             "schemaVersion": 1, "workspace": self.fence["workspace"], "installationId": self.fence["installation_id"],
@@ -100,6 +102,17 @@ class UnattendedCloudFenceTests(unittest.TestCase):
             raise CloudError("RUNTIME_EXECUTOR_FENCED", "generation or lease changed", 409)
         self.provider_writes.append(payload)
         return 200, {"id": "published-1"}
+
+    def test_legacy_context_without_local_identity_cannot_reach_provider(self):
+        for field in ("installation_id", "operation_id", "authority_generation"):
+            with self.subTest(field=field):
+                pin = dict(self.pin)
+                pin.pop(field)
+                os.environ[PIN_ENV] = json.dumps(pin)
+                with self.assertRaises(ProviderRejected):
+                    PostStewardRelayProvider("x").publish("reviewed fixture")
+                self.assertEqual(self.calls, [])
+                self.assertEqual(self.provider_writes, [])
 
     def test_stale_review_cannot_renew_or_reach_provider(self):
         self.cloud["executor"]["authorityGeneration"] = 8
