@@ -4,6 +4,11 @@ on:
   push:
     branches: [main, feat/production-ux-closure-rebased]
   workflow_dispatch:
+    inputs:
+      isolated_browser:
+        description: Allow a bounded owner-only main-branch browser check on the existing isolated runner
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -11,7 +16,18 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser:
-    runs-on: ubuntu-latest
+    # Only the canonical repository owner's PRs, main pushes, or a bounded
+    # owner-dispatched main check may use the isolated browser runner.
+    # Untrusted forks and all other dispatches remain on hosted isolation.
+    runs-on: >-
+      ${{ ((github.event_name == 'pull_request' &&
+             github.event.pull_request.head.repo.full_name == github.repository &&
+             github.event.pull_request.user.login == 'AyobamiH') ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+            (github.event_name == 'workflow_dispatch' && inputs.isolated_browser &&
+             github.actor == 'AyobamiH' && github.ref_type == 'branch' &&
+             github.ref_name == 'main'))
+          && 'poststeward-release' || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -43,13 +59,24 @@ jobs:
           npm audit --prefix tools/browser --audit-level=high
           npm run build
           cd tools/browser
-          npx --no-install playwright install --with-deps chromium
+          if [ "$POSTSTEWARD_BROWSER_PREINSTALLED" = "true" ]; then
+            # The isolated non-root browser image already includes Chromium
+            # and its shared libraries; never attempt privileged apt installs.
+            test "$(id -u)" -ne 0
+            test -x /usr/local/bin/chromium
+            /usr/local/bin/chromium --version
+          else
+            npx --no-install playwright install --with-deps chromium
+          fi
+        env:
+          POSTSTEWARD_BROWSER_PREINSTALLED: ${{ runner.environment == 'self-hosted' }}
       - name: Browser accessibility and interaction acceptance
+        env:
+          POSTSTEWARD_BROWSER_EXECUTABLE: ${{ runner.environment == 'self-hosted' && '/usr/local/bin/chromium' || '' }}
         run: node tools/browser/verify.mjs
-      - name: Preserve bounded synthetic review evidence
+      - name: Attest bounded browser evidence in the native GitHub job summary
+        # GitHub artifact storage is quota-exhausted. The full checked report,
+        # archive digests and exact revisions are recorded in the job log and
+        # job summary instead, without weakening any browser acceptance check.
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: ux-evidence-${{ github.run_id }}
-          path: ux-evidence/
-          retention-days: 7
+        run: node tools/browser/ci-evidence.mjs
