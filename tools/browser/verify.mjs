@@ -141,7 +141,13 @@ const failures = [];
 const checks = [];
 const forbidden = [];
 const errors = [];
-const browser = await chromium.launch({ headless: true });
+// The isolated, non-root CI image supplies an audited Chromium binary.
+// Keep Playwright's own managed browser for ordinary developer/hosted runs.
+const browserExecutable = process.env.POSTSTEWARD_BROWSER_EXECUTABLE;
+const browser = await chromium.launch({
+  headless: true,
+  ...(browserExecutable ? { executablePath: browserExecutable } : {}),
+});
 async function check(name, run) {
   if (process.env.POSTSTEWARD_BROWSER_CHECK && !new RegExp(process.env.POSTSTEWARD_BROWSER_CHECK).test(name)) return;
   try {
