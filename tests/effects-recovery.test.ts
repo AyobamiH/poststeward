@@ -146,14 +146,30 @@ test("provider HTTP 429 after a write is uncertain and cannot release either dur
     const post = delivery("delivery-rate-limit", "e".repeat(64));
     await assert.rejects(wrapped.publish(post, credential), { code: "PROVIDER_HTTP_429" });
     assert.equal((await effectSummary(db, "workspace-a")).uncertain, 1);
-    await assert.rejects(wrapped.publish(post, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
-    assert.equal(publications, 1, "a 429 must never authorise a second publication");
+    // Simulate process replacement: a new provider adapter sees only D1,
+    // not the previous adapter's in-memory call state.
+    const restarted = new EffectLedgerProviders(
+      provider({
+        publish: async () => {
+          publications++;
+          return { id: "must-not-publish-after-429" };
+        },
+        createContainer: async () => {
+          containers++;
+          return "must-not-create-container-after-429";
+        },
+      }),
+      db,
+      "workspace-a",
+    );
+    await assert.rejects(restarted.publish(post, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
+    assert.equal(publications, 1, "a 429 must remain fenced after adapter replacement");
 
     const thread = { ...delivery("container-rate-limit", "f".repeat(64)), provider: "threads" as const };
     await assert.rejects(wrapped.createContainer(thread, credential), { code: "PROVIDER_HTTP_429" });
     assert.equal((await effectSummary(db, "workspace-a")).containerUncertain, 1);
-    await assert.rejects(wrapped.createContainer(thread, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
-    assert.equal(containers, 1, "a 429 must never authorise a second Threads container");
+    await assert.rejects(restarted.createContainer(thread, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
+    assert.equal(containers, 1, "a 429 must fence Threads containers after adapter replacement");
   } finally {
     await mf.dispose();
   }
