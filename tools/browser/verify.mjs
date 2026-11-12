@@ -141,7 +141,13 @@ const failures = [];
 const checks = [];
 const forbidden = [];
 const errors = [];
-const browser = await chromium.launch({ headless: true });
+// The isolated, non-root CI image supplies an audited Chromium binary.
+// Keep Playwright's own managed browser for ordinary developer/hosted runs.
+const browserExecutable = process.env.POSTSTEWARD_BROWSER_EXECUTABLE;
+const browser = await chromium.launch({
+  headless: true,
+  ...(browserExecutable ? { executablePath: browserExecutable } : {}),
+});
 async function check(name, run) {
   if (process.env.POSTSTEWARD_BROWSER_CHECK && !new RegExp(process.env.POSTSTEWARD_BROWSER_CHECK).test(name)) return;
   try {
@@ -573,7 +579,13 @@ try {
     for(const [width,height,double] of [[320,225,false],[640,450,false],[360,600,true]]) {
       await page.setViewportSize({width,height});
       for(const path of ['/','/docs/','/docs/install','/docs/agent-guide','/docs/operations','/privacy','/terms','/security','/support','/status','/app','/advanced-inventory','/lifecycle','/recovery','/pilot','/auth/callback','/missing-layout-audit-page']) {
-        await page.goto(origin+path);await page.waitForLoadState('networkidle');
+        // A page can be rendered and accessible while its background requests
+        // remain active. Transport idleness is not a layout readiness gate.
+        await page.goto(origin+path,{waitUntil:'load'});
+        await page.locator('main').waitFor({state:'visible'});
+        await page.evaluate(async()=>{await document.fonts.ready;});
+        // Check the hydrated owner workspace, not just its loading shell.
+        if(path==='/app') await page.locator('#workspace-content').waitFor({state:'visible'});
         if(double)await page.evaluate(()=>{const values=[...document.querySelectorAll('body *')].map(e=>{const s=getComputedStyle(e);return[e,parseFloat(s.fontSize),parseFloat(s.lineHeight)];});for(const [e,font,line]of values){e.style.fontSize=font*2+'px';if(Number.isFinite(line))e.style.lineHeight=line*2+'px';}});
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`${path} ${width} doubled=${double}`);
         assert.deepEqual(await audit(page),[],`${path} ${width} doubled=${double}`);
@@ -612,7 +624,7 @@ try {
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.equal(await page.locator('#delivery').isVisible(),!failure);
         if(!failure)assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+text);
         assert.equal(await page.locator('#result').evaluate(e=>getComputedStyle(e).position),'static');assert.deepEqual(await audit(page),[]);
-        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:true});
+        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:false,animations:'disabled',caret:'hide'});
       }await context.close();
     }assert.equal(calls.length,12); // Synthetic responses only; delivery is never submitted.
   });
