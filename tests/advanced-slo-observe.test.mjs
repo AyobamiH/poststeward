@@ -40,6 +40,7 @@ test("hosted rows build the exact evaluator schema and can become promotion-read
     providerReconciliationDurations: [10_000, 20_000],
     webhookDurations: [5_000],
     duplicateExternalEffects: 0,
+    duplicateEvidenceMethod: "independent_provider_readback",
   });
   assert.equal(observation.evidenceClass, "hosted_observation");
   assert.equal(observation.publication.eligible, 20);
@@ -47,6 +48,25 @@ test("hosted rows build the exact evaluator schema and can become promotion-read
   assert.equal(observation.schedule.withinFiveMinutes, 20);
   assert.equal(observation.advanced.productPath.providerEffects, 20);
   assert.equal(evaluateSloObservation(observation).promotion.ready, true);
+});
+
+test("DB primary-key uniqueness cannot become provider exactly-once evidence", () => {
+  const observation = buildAdvancedSloObservation({
+    run: {release: "c".repeat(40), canary_bps: 100, started_at: 1000, stopped_at: 1000 + 86400000},
+    observedAt: 1000 + 86400000,
+    workspaceCount: 1,
+    eventCounts: {advanced_operation: 20, source_change: 1, inventory_snapshot: 1,
+      spaced_allocation: 20, publication_eligible: 20, verified_readback: 20,
+      oauth_refresh_attempt: 1, oauth_refresh_success: 1, scheduled_metrics_capture: 1},
+    scheduleDurations: Array(20).fill(1000),
+    providerReconciliationDurations: [1000], webhookDurations: [1000],
+    duplicateExternalEffects: null,
+    duplicateEvidenceMethod: "workspace_fingerprint_primary_key",
+  });
+  assert.equal(observation.invariants.duplicateExternalEffects, null);
+  const report = evaluateSloObservation(observation);
+  assert.equal(report.promotion.ready, false);
+  assert.deepEqual(report.promotion.blockers, ["duplicate_external_effect_evidence_unverified"]);
 });
 
 test("observation remains evidence, not a fabricated pass, when required paths are absent", () => {
@@ -70,6 +90,7 @@ test("observation remains evidence, not a fabricated pass, when required paths a
     providerReconciliationDurations: [1_000],
     webhookDurations: [1_000],
     duplicateExternalEffects: 0,
+    duplicateEvidenceMethod: "independent_provider_readback",
   });
   const report = evaluateSloObservation(observation);
   assert.equal(report.promotion.ready, false);

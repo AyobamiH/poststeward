@@ -66,6 +66,7 @@ export function buildAdvancedSloObservation({
   providerReconciliationDurations,
   webhookDurations,
   duplicateExternalEffects,
+  duplicateEvidenceMethod = "unverified",
 }) {
   demand(run && /^[a-f0-9]{40}$/.test(run.release || ""), "Canary run release is invalid.");
   const startedAt = Number(run.started_at);
@@ -93,7 +94,8 @@ export function buildAdvancedSloObservation({
       advancedOperations: count("advanced_operation"),
     },
     invariants: {
-      duplicateExternalEffects: integer(duplicateExternalEffects),
+      duplicateExternalEffects: duplicateExternalEffects == null ? null : integer(duplicateExternalEffects),
+      evidenceMethod: duplicateEvidenceMethod,
     },
     publication: { verified, eligible },
     schedule: { withinFiveMinutes: scheduleGood, due: scheduleDue },
@@ -226,19 +228,11 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1) {
     .map((row) => Number(row.completed_at) - Number(row.received_at))
     .filter((value) => Number.isFinite(value) && value >= 0);
 
-  const duplicateRows = await query(
-    accountId,
-    databaseId,
-    token,
-    `SELECT count(*) AS count FROM (
-       SELECT workspace,fingerprint,count(*) AS effects
-         FROM external_effects
-        WHERE workspace IN (${canaryWorkspaces})
-        GROUP BY workspace,fingerprint HAVING effects>1
-     )`,
-    [run.release, startedAt, observedAt],
-  );
-
+  // external_effects has PRIMARY KEY(workspace, fingerprint). Grouping by
+  // those columns can never count more than one row and cannot establish
+  // whether a provider published twice after an uncertain network effect.
+  // Until independent provider readback exists, expose unknown evidence,
+  // never a fabricated zero for the release invariant.
   return buildAdvancedSloObservation({
     run,
     observedAt,
@@ -247,7 +241,8 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1) {
     scheduleDurations: durations("schedule_observation"),
     providerReconciliationDurations: durations("provider_reconciliation"),
     webhookDurations,
-    duplicateExternalEffects: integer(duplicateRows[0]?.count),
+    duplicateExternalEffects: null,
+    duplicateEvidenceMethod: "workspace_fingerprint_primary_key",
   });
 }
 

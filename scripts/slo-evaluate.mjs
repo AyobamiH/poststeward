@@ -114,16 +114,22 @@ export function evaluateSloObservation(observation) {
       advancedOperations >= SLO_POLICY.minimumAdvancedOperations,
   };
 
-  const duplicateExternalEffects = integerNonNegative(
-    observation.invariants?.duplicateExternalEffects,
-    "invariants.duplicateExternalEffects",
-  );
+  // The (workspace, fingerprint) primary key makes duplicate ledger rows
+  // impossible; a zero from that query does not prove provider-side exactly once.
+  const evidenceMethod = observation.invariants?.evidenceMethod || "unspecified";
+  const observed = observation.invariants?.duplicateExternalEffects;
+  const duplicateExternalEffects = observed == null
+    ? null
+    : integerNonNegative(observed, "invariants.duplicateExternalEffects");
+  const evidenceVerified = evidenceMethod === "independent_provider_readback";
   const invariant = {
     name: "duplicate_external_effects",
     expected: SLO_POLICY.invariants.duplicateExternalEffects,
     observed: duplicateExternalEffects,
-    passed: duplicateExternalEffects === 0,
-    severity: duplicateExternalEffects === 0 ? "none" : "page",
+    evidenceMethod,
+    evidenceVerified,
+    passed: evidenceVerified && duplicateExternalEffects === 0,
+    severity: duplicateExternalEffects > 0 ? "page" : evidenceVerified ? "none" : "unverified",
   };
 
   const ratios = [
@@ -197,7 +203,8 @@ export function evaluateSloObservation(observation) {
 
   const blockers = [];
   if (!cohortEvidence.passed) blockers.push("insufficient_canary_exposure");
-  if (!invariant.passed) blockers.push("duplicate_external_effect_invariant");
+  if (duplicateExternalEffects > 0) blockers.push("duplicate_external_effect_invariant");
+  else if (!invariant.passed) blockers.push("duplicate_external_effect_evidence_unverified");
   for (const check of ratios)
     if (!check.sufficient) blockers.push(`${check.name}_insufficient_samples`);
     else if (!check.passed) blockers.push(`${check.name}_error_budget_exhausted`);
