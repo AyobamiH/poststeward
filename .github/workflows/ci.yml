@@ -53,9 +53,9 @@ jobs:
       - name: Monitor clock recovery regressions
         run: python3 -m unittest discover -s ops/monitor-clock -p 'test_*.py'
       - name: Production dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/ci-npm-audit.mjs --production-only
       - name: Full dependency audit
-        run: npm audit --audit-level=high
+        run: node scripts/ci-npm-audit.mjs
       - name: Embedded runtime product identity
         run: |
           POSTSTEWARD_RUNTIME_ROOT="$PWD/runtime" \
