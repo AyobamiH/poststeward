@@ -732,6 +732,54 @@ class ActivationTests(ActivationFixture):
         self.assertTrue(services.marker_was_inactive_before_disarm)
         self.assertEqual(automation_authority.read(state_root)["status"], "inactive")
 
+    def test_unverified_cloud_fence_ack_closes_local_gate_without_false_success(self) -> None:
+        target, _before = self.migration_target()
+        state_root = self.root / "target-state"
+        config_root = self.root / "target-config"
+        config_root.mkdir()
+        services = MarkerAwareServices(state_root)
+        preview = target.activation_preview(
+            runtime_root=ROOT, state_root=state_root, config_root=config_root,
+            service_controller=services,
+        )
+        target.activate(
+            runtime_root=ROOT, state_root=state_root, config_root=config_root,
+            expected_sha256=preview["review_sha256"], service_controller=services,
+        )
+        installation = "33333333-3333-4333-8333-333333333333"
+        off_preview = target.deactivation_preview(
+            runtime_root=ROOT, state_root=state_root, reason="network ambiguity",
+            service_controller=services,
+        )
+        with (
+            patch.dict(os.environ, {"POSTSTEWARD_REQUIRE_CLOUD_FENCE": "1"}),
+            patch("ocpf_post.poststeward_cloud.bindings", return_value={
+                "executor": {
+                    "executorMode": "local", "executorStatus": "active",
+                    "activeInstallationId": installation, "authorityGeneration": 7,
+                },
+            }),
+            patch("ocpf_post.poststeward_cloud.installation_identity",
+                  return_value={"installation_id": installation}),
+            patch("ocpf_post.poststeward_cloud.runtime_token", return_value="fixture-token"),
+            patch("ocpf_post.poststeward_cloud._request", return_value=(200, {
+                "executorMode": "local", "executorStatus": "active",
+                "activeInstallationId": installation, "authorityGeneration": 7,
+            })) as remote,
+        ):
+            inactive = target.deactivate(
+                runtime_root=ROOT, state_root=state_root, reason="network ambiguity",
+                expected_sha256=off_preview["review_sha256"],
+                service_controller=services,
+            )
+        remote.assert_called_once()
+        self.assertEqual(inactive["status"], "inactive")
+        self.assertEqual(inactive["cloud_fence"]["status"], "attention")
+        self.assertEqual(inactive["cloud_fence"]["error_code"],
+                         "RUNTIME_EXECUTOR_FENCE_UNVERIFIED")
+        self.assertTrue(services.marker_was_inactive_before_disarm)
+        self.assertEqual(automation_authority.read(state_root)["status"], "inactive")
+
     def test_activation_review_detects_target_drift(self) -> None:
         target, _ = self.migration_target()
         state_root = self.root / "target-state"

@@ -295,7 +295,7 @@ def deactivate_executor_fence(reason: str) -> dict[str, Any]:
             "This installation does not own the current active local executor generation.",
             3,
         )
-    _, value = _request(
+    status, value = _request(
         "POST",
         "/api/runtime/executor/fence",
         token=runtime_token(),
@@ -304,6 +304,25 @@ def deactivate_executor_fence(reason: str) -> dict[str, Any]:
             "reason": str(reason or "").strip(),
         },
     )
+    # A 2xx response only proves that the request reached Cloud. Never record
+    # local self-fencing as confirmed unless the authoritative response names
+    # this installation, its inactive local executor and a successor generation.
+    # On ambiguous responses SetupEngine closes the local gate but records
+    # cloud_fence=attention; it must not infer a hosted handoff.
+    successor = value.get("authorityGeneration")
+    if not (
+        status == 200
+        and value.get("executorMode") == "local"
+        and value.get("executorStatus") == "inactive"
+        and value.get("activeInstallationId") == installation
+        and type(successor) is int
+        and successor > generation
+    ):
+        raise CloudError(
+            "RUNTIME_EXECUTOR_FENCE_UNVERIFIED",
+            "Cloud did not confirm an inactive local executor for this installation.",
+            3,
+        )
     return value
 
 
