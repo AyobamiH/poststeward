@@ -58,6 +58,22 @@ browser shows the exact installation ID, host/platform and pairing code. Owner
 approval returns a separate installation-bound runtime token once; it does **not**
 grant provider/admin authority and does not turn on publishing automation.
 
+For an unattended terminal or an owner approval that takes longer than the command
+session, request the code without waiting and resume the **same** pending request:
+
+```bash
+poststeward onboard --no-open --no-wait
+# Approve the exact installation details in the owner workspace.
+poststeward onboard --no-open
+```
+
+The short-lived polling credential is saved in the private, mode-0600 local
+PostSteward client configuration. Reopening onboarding does not send another
+pairing request while its installation-bound, same-origin approval remains valid.
+Expired, rejected, changed-installation or changed-origin requests require a fresh
+explicit owner review; an interrupted request never enables publishing. Pairing
+alone does not activate the local executor.
+
 ## 2. Connect destinations in the owner workspace
 
 Connect any combination of:
