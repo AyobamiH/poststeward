@@ -30,6 +30,10 @@ DEFINITE_PROVIDER_CODES = {
     "PROVIDER_HTTP_422",
     "PROVIDER_HTTP_429",
 }
+# HTTP 429 can be a rate-limited read, but a write-side 429 cannot attest
+# that a provider did not accept the consequence. Never turn it into an
+# automatic fresh-effect/replay authority.
+DEFINITE_PROVIDER_WRITE_CODES = DEFINITE_PROVIDER_CODES - {"PROVIDER_HTTP_429"}
 PRECONSEQUENCE_CODES = {
     "NETWORK_ERROR",
     "RUNTIME_PAIRING_REQUIRED",
@@ -199,7 +203,7 @@ class PostStewardRelayProvider(Provider):
         try:
             return relay({**payload, **self._binding_fields})
         except CloudError as exc:
-            if exc.code in DEFINITE_PROVIDER_CODES:
+            if exc.code in DEFINITE_PROVIDER_WRITE_CODES:
                 try:
                     status = int(exc.code.rsplit("_", 1)[1])
                 except (ValueError, IndexError):

@@ -143,6 +143,25 @@ class UnattendedCloudFenceTests(unittest.TestCase):
             PostStewardRelayProvider("x").publish("reviewed fixture")
         self.assertEqual(self.calls, [])
 
+    def test_rate_limited_relay_write_is_ambiguous_not_safe_to_replay(self):
+        from ocpf_post.providers.base import AmbiguousProviderEffect
+        from ocpf_post.poststeward_cloud import CloudError
+        adapter = PostStewardRelayProvider("x")
+        with patch("ocpf_post.providers.poststeward_relay.relay",
+                   side_effect=CloudError("PROVIDER_HTTP_429", "rate limit after write", 429)):
+            with self.assertRaises(AmbiguousProviderEffect):
+                adapter._relay_effect({"action": "publish", "authorityGeneration": 7})
+        # Rejected validation writes and rate-limited reads retain their prior
+        # definite/availability semantics. The uncertainty is write-specific.
+        with patch("ocpf_post.providers.poststeward_relay.relay",
+                   side_effect=CloudError("PROVIDER_HTTP_422", "validation", 422)):
+            with self.assertRaises(ProviderRejected):
+                adapter._relay_effect({"action": "publish", "authorityGeneration": 7})
+        self.assertIsInstance(
+            adapter._map_read_error(CloudError("PROVIDER_HTTP_429", "read limit", 429)),
+            ProviderRejected,
+        )
+
     def test_same_reviewed_generation_publishes_with_pinned_payload(self):
         result = PostStewardRelayProvider("x").publish("reviewed fixture")
         self.assertEqual(result["id"], "published-1")

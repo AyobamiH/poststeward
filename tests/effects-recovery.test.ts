@@ -124,6 +124,41 @@ test("uncertain provider writes and Threads container writes remain fenced acros
   }
 });
 
+test("provider HTTP 429 after a write is uncertain and cannot release either durable fence", async () => {
+  const { mf, db } = await runtime();
+  try {
+    let publications = 0;
+    let containers = 0;
+    const wrapped = new EffectLedgerProviders(
+      provider({
+        publish: async () => {
+          publications++;
+          throw new Fault("PROVIDER_HTTP_429", "rate-limited after request", 502);
+        },
+        createContainer: async () => {
+          containers++;
+          throw new Fault("PROVIDER_HTTP_429", "rate-limited after request", 502);
+        },
+      }),
+      db,
+      "workspace-a",
+    );
+    const post = delivery("delivery-rate-limit", "e".repeat(64));
+    await assert.rejects(wrapped.publish(post, credential), { code: "PROVIDER_HTTP_429" });
+    assert.equal((await effectSummary(db, "workspace-a")).uncertain, 1);
+    await assert.rejects(wrapped.publish(post, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
+    assert.equal(publications, 1, "a 429 must never authorise a second publication");
+
+    const thread = { ...delivery("container-rate-limit", "f".repeat(64)), provider: "threads" as const };
+    await assert.rejects(wrapped.createContainer(thread, credential), { code: "PROVIDER_HTTP_429" });
+    assert.equal((await effectSummary(db, "workspace-a")).containerUncertain, 1);
+    await assert.rejects(wrapped.createContainer(thread, credential), { code: "AMBIGUOUS_PROVIDER_WRITE" });
+    assert.equal(containers, 1, "a 429 must never authorise a second Threads container");
+  } finally {
+    await mf.dispose();
+  }
+});
+
 test("known no-effect rejection removes only the provisional fence so a later reviewed retry can proceed", async () => {
   const { mf, db } = await runtime();
   try {
