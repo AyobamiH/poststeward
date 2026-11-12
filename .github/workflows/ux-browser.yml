@@ -74,10 +74,9 @@ jobs:
         env:
           POSTSTEWARD_BROWSER_EXECUTABLE: ${{ runner.environment == 'self-hosted' && '/usr/local/bin/chromium' || '' }}
         run: node tools/browser/verify.mjs
-      - name: Preserve bounded synthetic review evidence
+      - name: Attest bounded browser evidence in the native GitHub job summary
+        # GitHub artifact storage is quota-exhausted. The full checked report,
+        # archive digests and exact revisions are recorded in the job log and
+        # job summary instead, without weakening any browser acceptance check.
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: ux-evidence-${{ github.run_id }}
-          path: ux-evidence/
-          retention-days: 7
+        run: node tools/browser/ci-evidence.mjs
