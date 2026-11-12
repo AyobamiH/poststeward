@@ -27,3 +27,11 @@ test('runtime uses pinned Python setup and both supported Python versions', () =
   assert.match(runtime, /actions\/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065/);
   assert.doesNotMatch(runtime, /setup-python@v[0-9]+/);
 });
+
+test('runtime installs into a fresh virtual environment, never modifying an externally managed toolcache', () => {
+  const runtime = workflow.slice(workflow.indexOf('  runtime:\n'));
+  assert.match(runtime, /python -m venv "\$RUNNER_TEMP\/poststeward-runtime-matrix"/);
+  assert.match(runtime, /poststeward-runtime-matrix\/bin\/python" -m pip install -e/);
+  assert.match(runtime, /poststeward-runtime-matrix\/bin" >> "\$GITHUB_PATH"/);
+  assert.doesNotMatch(runtime, /--break-system-packages/);
+});

@@ -105,8 +105,12 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Install embedded runtime
-        run: python -m pip install -e "./runtime[dev]" "setuptools>=68" wheel
+      - name: Install embedded runtime into isolated Python environment
+        run: |
+          # Do not mutate the uv-managed Python 3.10 toolcache (PEP 668).
+          python -m venv "$RUNNER_TEMP/poststeward-runtime-matrix"
+          "$RUNNER_TEMP/poststeward-runtime-matrix/bin/python" -m pip install -e "./runtime[dev]" "setuptools>=68" wheel
+          echo "$RUNNER_TEMP/poststeward-runtime-matrix/bin" >> "$GITHUB_PATH"
       - name: Embedded runtime regression suite
         run: |
           cd runtime
