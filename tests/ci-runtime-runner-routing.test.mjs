@@ -12,6 +12,11 @@ function lane(job) {
   const end = "  && 'poststeward-verification' || 'ubuntu-latest' }}";
   return workflow.slice(begin, workflow.indexOf(end, begin) + end.length);
 }
+test('automatic verification runs once for a PR, but still checks protected main pushes', () => {
+  assert.match(workflow, /on:\n  push:\n    branches: \[main\]\n  pull_request:/);
+  assert.match(workflow, /  workflow_dispatch:/);
+});
+
 test('runtime matrix shares the exact trust predicate used by the primary verifier', () => {
   const verify = lane('verify');
   const runtime = lane('runtime');
