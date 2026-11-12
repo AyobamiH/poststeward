@@ -624,7 +624,7 @@ try {
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.equal(await page.locator('#delivery').isVisible(),!failure);
         if(!failure)assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+text);
         assert.equal(await page.locator('#result').evaluate(e=>getComputedStyle(e).position),'static');assert.deepEqual(await audit(page),[]);
-        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:true});
+        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:false,animations:'disabled',caret:'hide'});
       }await context.close();
     }assert.equal(calls.length,12); // Synthetic responses only; delivery is never submitted.
   });

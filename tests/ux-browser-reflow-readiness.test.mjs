@@ -18,3 +18,16 @@ test('reflow waits for actual document, visible main and settled fonts, not netw
   assert.match(reflow, /document\.documentElement\.scrollWidth\s*<=\s*innerWidth\+1/);
   assert.match(reflow, /audit\(page\)/);
 });
+
+test('campaign feedback evidence captures the visible reviewed result, not an unbounded page', () => {
+  const start = script.indexOf("await check('Campaign review success and lengthy validation failure stay adjacent");
+  const end = script.indexOf("await check('Focused workspace routes", start);
+  const campaign = script.slice(start, end);
+  assert.ok(start > 0 && end > start);
+  assert.match(campaign, /page\.locator\('#result'\)\.scrollIntoViewIfNeeded\(\)/);
+  assert.match(campaign, /page\.screenshot\(\{path:`ux-evidence\/layout-campaign-/);
+  assert.match(campaign, /fullPage:false/);
+  assert.match(campaign, /animations:'disabled'/);
+  assert.match(campaign, /caret:'hide'/);
+  assert.doesNotMatch(campaign, /fullPage:true/);
+});
