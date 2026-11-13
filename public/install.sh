@@ -66,10 +66,65 @@ import sys
 raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 
+# Bound each network transfer; retry only transient transport errors. Never
+# parse or extract a partially downloaded archive, and never alter the current
+# installed release/receipt until the candidate passes verification.
 if command -v curl >/dev/null 2>&1; then
-  fetch_file() { curl -fsSL --proto '=https' --tlsv1.2 "$1" -o "$2"; }
+  fetch_file() {
+    local url="$1" destination="$2" part attempt code
+    part="$destination.partial.$$"
+    for attempt in 1 2 3; do
+      rm -f -- "$part"
+      if curl -fsSL --proto '=https' --proto-redir '=https' --tlsv1.2 \
+          --connect-timeout 10 --max-time 60 "$url" -o "$part"; then
+        mv -f -- "$part" "$destination"
+        return 0
+      else
+        code=$?
+        rm -f -- "$part"
+        # Do not retry permanent HTTP (curl 22), TLS trust or local-file errors.
+        case "$code" in
+          5|6|7|18|28|35|52|55|56|92) ;;
+          *) return "$code" ;;
+        esac
+        if (( attempt < 3 )); then sleep 1; fi
+      fi
+    done
+    return "$code"
+  }
 elif command -v wget >/dev/null 2>&1; then
-  fetch_file() { wget -qO "$2" "$1"; }
+  fetch_file() {
+    local url="$1" destination="$2" part attempt code
+    part="$destination.partial.$$"
+    for attempt in 1 2 3; do
+      rm -f -- "$part"
+      # wget --timeout is an inactivity deadline, not a total transfer limit.
+      # Python is already a required dependency; supervise the entire process.
+      if python3 - "$url" "$part" <<'PY_WGET'
+import subprocess, sys
+try:
+    result = subprocess.run(
+        ["wget", "-q", "--https-only", "--timeout=60", "--tries=1",
+         "-O", sys.argv[2], sys.argv[1]],
+        timeout=60, check=False,
+    )
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+raise SystemExit(result.returncode)
+PY_WGET
+      then
+        mv -f -- "$part" "$destination"
+        return 0
+      else
+        code=$?
+        rm -f -- "$part"
+        # wget status 4 is network failure; don't retry HTTP/SSL/auth failures.
+        case "$code" in 4|124) ;; *) return "$code" ;; esac
+        if (( attempt < 3 )); then sleep 1; fi
+      fi
+    done
+    return "$code"
+  }
 else
   fail "curl or wget is required"
 fi
