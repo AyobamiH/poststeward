@@ -539,6 +539,7 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
     raw_poll_ms = started.get("pollAfterMs")
     poll_ms = min(10_000, max(1000, raw_poll_ms)) if type(raw_poll_ms) is int else 3000
     first_probe = True
+    claim_race_retries = 0
     while (first_probe and recovery_only) or int(time.time() * 1000) < expires_at:
         first_probe = False
         try:
@@ -549,7 +550,30 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
                 runtime_candidate=candidate,
             )
         except CloudError as exc:
+            if exc.status == 409 and exc.code == "RUNTIME_PAIRING_RACE":
+                # Two owner CLI processes may poll the same approved pairing.
+                # The losing D1 compare-and-swap returns this *transient* 409
+                # after the other claim has already committed. It is NOT
+                # revocation: retiring our persisted private candidate here
+                # can make an acknowledged Cloud claim irrecoverable if its
+                # winning client crashes before writing its local token.
+                #
+                # Re-read the *same* pairing/candidate a bounded number of
+                # times. An expired owner code permits only one read-only
+                # recovery probe; preserve its journal for a later retry.
+                claim_race_retries += 1
+                if recovery_only or claim_race_retries >= 3:
+                    raise CloudError(
+                        "RUNTIME_PAIRING_RECOVERY_UNVERIFIED",
+                        "Concurrent claim could not be confirmed; the original "
+                        "private candidate is retained for exact recovery.",
+                        3,
+                    ) from exc
+                time.sleep(poll_ms / 1000)
+                continue
             if exc.status in {404, 409, 410}:
+                # A positive unknown/consumed/revoked response, unlike a
+                # transient RUNTIME_PAIRING_RACE, must not be retried blindly.
                 _retire_pending_pairing(pairing_id)
                 raise
             if recovery_only:
