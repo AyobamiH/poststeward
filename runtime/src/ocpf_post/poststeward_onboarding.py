@@ -482,13 +482,30 @@ def _undo_unverified_imports(intent: dict[str, Any], preview: dict[str, Any]) ->
             _fail('poststeward.onboarding.recovery_changed',
                   'Imported project changed; manual review required.')
 
-        # An independent importer can legally import the same campaign while
-        # Fresh created its project. Removing that project would orphan the
-        # independent campaign; preserve both and retain the recovery journal.
-        if (project_status == 'created' and current is not None
-                and campaign_status == 'preexisting' and campaign_exists):
-            _fail('poststeward.onboarding.recovery_external_campaign_dependency',
-                  'Independent campaign depends on this project; manual recovery required.')
+        # A different importer may have created a campaign with this reviewed
+        # project ID during Fresh verification. Inspect all runtime campaign
+        # dependencies under the importer exclusion before deleting the
+        # project; matching *only* the reviewed campaign ID is insufficient.
+        if project_status == 'created' and current is not None:
+            root = runtime_campaign_root()
+            for candidate in root.iterdir() if root.exists() else ():
+                if (candidate.name == intent['campaign_id']
+                        and campaign_status == 'created'):
+                    continue  # This exact campaign is owned by this rollback.
+                if candidate.is_symlink() or not candidate.is_dir():
+                    _fail('poststeward.onboarding.recovery_dependency_unknown',
+                          'Campaign dependency cannot be inspected; manual recovery required.')
+                try:
+                    other = json.loads((candidate / 'manifest.json').read_text(encoding='utf-8'))
+                except (OSError, ValueError, TypeError):
+                    _fail('poststeward.onboarding.recovery_dependency_unknown',
+                          'Campaign dependency is unreadable; manual recovery required.')
+                if not isinstance(other, dict):
+                    _fail('poststeward.onboarding.recovery_dependency_unknown',
+                          'Campaign dependency is invalid; manual recovery required.')
+                if other.get('project') == intent['project_id']:
+                    _fail('poststeward.onboarding.recovery_external_campaign_dependency',
+                          'Independent campaign depends on this project; manual recovery required.')
 
         if campaign_status == 'created' and campaign_exists:
             shutil.rmtree(destination)

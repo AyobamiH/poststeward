@@ -233,6 +233,33 @@ class PostStewardOnboardingTests(unittest.TestCase):
         self.assertIn("brand", registry["projects"])
         self.assertTrue((self.root / "state" / "fresh-onboarding-apply.json").exists())
 
+    def test_unrelated_campaign_created_during_fresh_cannot_be_orphaned(self):
+        from ocpf_post import onboarding as imports
+        import ocpf_post.poststeward_onboarding as fresh
+
+        one, two = self.mocks()
+        with one, two:
+            preview = plan(**self.kwargs())
+            def independently_import_other_campaign(*args, **kwargs):
+                value = dict(preview["campaign"], campaign="BRAND-002")
+                with tempfile.TemporaryDirectory() as tmp:
+                    source = Path(tmp) / "independent.json"
+                    source.write_text(json.dumps(value))
+                    result = imports.import_campaign(source)
+                    imported = imports.import_campaign(
+                        source, apply=True, expected_sha256=result["input_sha256"]
+                    )
+                    self.assertEqual(imported["result"], "imported")
+                raise ValueError("verification rejected")
+
+            with patch.object(fresh.SetupEngine, "verify_fresh", side_effect=independently_import_other_campaign):
+                with self.assertRaisesRegex(ValueError, "Independent campaign depends"):
+                    apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        registry = json.loads((self.root / "config" / "runtime-projects.json").read_text())
+        self.assertIn("brand", registry["projects"])
+        self.assertTrue((self.root / "state" / "runtime-campaigns" / "BRAND-002" / "manifest.json").exists())
+        self.assertTrue((self.root / "state" / "fresh-onboarding-apply.json").exists())
+
     def test_crash_before_creation_receipt_retains_uncertain_project(self):
         import ocpf_post.poststeward_onboarding as fresh
 
