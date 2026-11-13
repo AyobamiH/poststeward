@@ -1,11 +1,13 @@
 """Real child-process proof: a timed-out supply stage must not keep mutating state."""
 from __future__ import annotations
 
+import signal
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ocpf_post import rolling_supply
 
@@ -61,6 +63,22 @@ class SupplyStageProcessFenceTests(unittest.TestCase):
             self.assertEqual(result["exit_code"], 125)
             time.sleep(1.8)
             self.assertFalse(marker.exists(), "SIGTERM-resistant child escaped stage cleanup")
+
+    def test_process_group_disappears_between_probe_and_term(self):
+        """An ESRCH cleanup race must not discard a completed stage receipt."""
+        calls = []
+
+        def group_disappears(pid, sig):
+            calls.append(sig)
+            if sig == signal.SIGTERM:
+                raise ProcessLookupError("group exited after probe")
+
+        with patch.object(rolling_supply.os, "killpg", side_effect=group_disappears):
+            result = rolling_supply.run_stage(
+                "safe", [sys.executable, "-c", "raise SystemExit(0)"], timeout=2,
+            )
+        self.assertEqual((result["status"], result["exit_code"]), ("completed", 0))
+        self.assertEqual(calls, [0, signal.SIGTERM])
 
     def test_direct_success_and_failure_reporting_preserved(self):
         ok = rolling_supply.run_stage("safe", [sys.executable, "-c", "print('done')"], timeout=2)

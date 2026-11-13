@@ -67,7 +67,13 @@ def _fence_stage_processes(proc: subprocess.Popen[bytes]) -> bool:
             os.killpg(proc.pid, 0)
         except ProcessLookupError:
             return False
-        os.killpg(proc.pid, signal.SIGTERM)
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            # ESRCH is possible after the probe: the group exited before
+            # TERM delivery. It is not an unfinished descendant.
+            proc.wait(timeout=0.4)
+            return False
         deadline = time.monotonic() + 0.3
         while time.monotonic() < deadline:
             try:
