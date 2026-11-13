@@ -32,7 +32,7 @@ function matchingPr(run, pulls) {
 export function supersededCandidate(run, pr) {
   if (!run || !pr || run.event !== 'pull_request' || run.status !== 'queued' ||
       !WORKFLOWS.has(run.name) || !Number.isSafeInteger(run.id) ||
-      pr.state !== 'open' || pr.user?.login !== OWNER ||
+      run.actor?.login !== OWNER || pr.state !== 'open' || pr.user?.login !== OWNER ||
       pr.head?.repo?.full_name !== REPO ||
       run.head_repository?.full_name !== REPO ||
       run.head_branch !== pr.head?.ref || !Array.isArray(run.pull_requests) ||

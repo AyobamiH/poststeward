@@ -58,7 +58,7 @@ const project = { number: 24, state: 'open', head: { ref: 'feature', sha: 'b'.re
   repo: { full_name: 'AyobamiH/poststeward' } }, user: { login: 'AyobamiH' },
   base: { ref: 'main' }, labels: [{name:'release-critical'}] };
 const queued = { id: 12, name: 'Verify', event: 'pull_request', status: 'queued',
-  head_branch: 'feature', head_sha: 'a'.repeat(40),
+  actor:{login:'AyobamiH'}, head_branch: 'feature', head_sha: 'a'.repeat(40),
   head_repository: { full_name: 'AyobamiH/poststeward' },
   pull_requests: [{ number: 24 }], created_at: '2026-11-13T10:00:00Z' };
 
@@ -66,7 +66,8 @@ test('only genuinely superseded, same-repo owner queued PR checks are cancellabl
   assert.equal(supersededCandidate(queued, project), true);
   for (const run of [
     { ...queued, head_sha: project.head.sha }, { ...queued, status:'in_progress' },
-    { ...queued, event:'push' }, { ...queued, name:'Deploy requested staging revision' },
+    { ...queued, event:'push' }, { ...queued, actor:{login:'other-user'} },
+    { ...queued, name:'Deploy requested staging revision' },
     { ...queued, pull_requests:[{number:23}] }, { ...queued, head_branch:'main' },
     { ...queued, head_repository:{full_name:'foreign/repo'} },
   ]) assert.equal(supersededCandidate(run, project), false);
