@@ -65,6 +65,29 @@ class HostedIdentityReadbackContractTests(unittest.TestCase):
         self.assertFalse(value["ready_for_write_configuration"])
         self.assertIn("provider.readback.schema_invalid", value["blocking_reasons"])
 
+    def test_zero_binding_version_is_not_a_valid_cloud_generation(self):
+        row = binding()
+        row["version"] = 0
+        with patch("ocpf_post.poststeward_onboarding.relay", return_value=response(binding_version=0)):
+            value = _cloud_readiness(row)
+        self.assertFalse(value["ready_for_write_configuration"])
+        self.assertIn("provider.binding.mismatch", value["blocking_reasons"])
+
+    def test_numeric_provider_identity_cannot_impersonate_string_id(self):
+        payload = response()
+        payload["account"]["identity"]["id"] = 123
+        value = self.projection(payload)
+        self.assertFalse(value["ready_for_write_configuration"])
+        self.assertIn("provider.identity.mismatch", value["blocking_reasons"])
+
+    def test_numeric_snapshot_identity_is_not_a_reviewed_immutable_id(self):
+        row = binding()
+        row["identity"]["id"] = 123
+        with patch("ocpf_post.poststeward_onboarding.relay") as relay:
+            with self.assertRaisesRegex(Exception, "stable identity"):
+                _cloud_readiness(row)
+        relay.assert_not_called()
+
     def test_non_object_relay_response_is_blocked_without_exception(self):
         value = self.projection(None)
         self.assertFalse(value["ready_for_write_configuration"])

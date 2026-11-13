@@ -107,7 +107,8 @@ def _selected_account(
 
 def _identity(row: dict[str, Any]) -> str:
     identity = row.get("identity") if isinstance(row.get("identity"), dict) else {}
-    value = str(identity.get("id") or "").strip()
+    account_id = identity.get("id")
+    value = account_id.strip() if type(account_id) is str else ""
     if not value:
         _fail("poststeward.onboarding.identity_missing", "Hosted provider binding has no stable identity.")
     return value
@@ -130,7 +131,8 @@ def _cloud_readiness(row: dict[str, Any]) -> dict[str, Any]:
     observed = observed if isinstance(observed, dict) else {}
     account = observed.get("account") if isinstance(observed.get("account"), dict) else {}
     identity = account.get("identity") if isinstance(account.get("identity"), dict) else {}
-    observed_id = str(identity.get("id") or "")
+    observed_value = identity.get("id")
+    observed_id = observed_value if type(observed_value) is str else ""
     capabilities = row.get("capabilities") if isinstance(row.get("capabilities"), dict) else {}
     current_capabilities = (
         observed.get("capabilities")
@@ -152,6 +154,8 @@ def _cloud_readiness(row: dict[str, Any]) -> dict[str, Any]:
         account.get("alias") != row["alias"]
         or type(row.get("version")) is not int
         or type(account.get("binding")) is not int
+        or row["version"] <= 0
+        or account["binding"] <= 0
         or account["binding"] != row["version"]
     ):
         blockers.append("provider.binding.mismatch")
