@@ -333,3 +333,70 @@ test("uncertain provider effect blocks executor handoff before authority generat
     await mf.dispose();
   }
 });
+
+test("approved pairing claim can recover a lost HTTP acknowledgement without a second issuance", async () => {
+  const { mf, db } = await runtime(undefined, {
+    OIDC_ISSUER: "https://accounts.google.com",
+  }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "55555555-5555-4555-8555-555555555555";
+    const initial = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId,
+        label: "Interrupted claim",
+        platform: "Linux",
+        runtimeVersion: "0.28.29",
+      }),
+    });
+    assert.equal(initial.status, 201, await initial.clone().text());
+    const start: any = await initial.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST",
+      headers: owner.headers,
+      body: JSON.stringify({ pairingId: start.pairingId, userCode: start.userCode }),
+    });
+    assert.equal(approval.status, 200, await approval.clone().text());
+    // Candidate material is generated and retained locally before any owner-claim GET.
+    const candidate = "A".repeat(64);
+    const query = origin + "/api/runtime/pairing/status?pairing_id=" + start.pairingId;
+    const headers = {
+      Authorization: "Bearer " + start.pollToken,
+      "X-PostSteward-Runtime-Candidate": candidate,
+    };
+    const first = await mf.dispatchFetch(query, { headers });
+    assert.equal(first.status, 200, await first.clone().text());
+    const firstBody: any = await first.json();
+    assert.equal(firstBody.status, "paired");
+    assert.equal(firstBody.candidateAccepted, true);
+    assert.equal(firstBody.runtimeToken, undefined, "Cloud must not echo the client-held token");
+    // Simulate an interrupted client that did not receive or persist the first HTTP response.
+    const second = await mf.dispatchFetch(query, { headers });
+    assert.equal(second.status, 200, await second.clone().text());
+    const secondBody: any = await second.json();
+    assert.equal(secondBody.status, "paired");
+    assert.equal(secondBody.candidateAccepted, true);
+    assert.equal(secondBody.tokenExpiresAt, firstBody.tokenExpiresAt);
+    const installations = await db.prepare(
+      "SELECT installation_id,token_hash,status FROM runtime_installations WHERE installation_id=?",
+    ).bind(installationId).all<any>();
+    assert.equal(installations.results.length, 1);
+    assert.equal(installations.results[0].token_hash, await digest(candidate));
+    const binding = await mf.dispatchFetch(origin + "/api/runtime/bindings", {
+      headers: { Authorization: "Bearer " + candidate },
+    });
+    assert.equal(binding.status, 200, await binding.clone().text());
+    const different = await mf.dispatchFetch(query, {
+      headers: { ...headers, "X-PostSteward-Runtime-Candidate": "B".repeat(64) },
+    });
+    assert.equal(different.status, 409, "wrong candidate must not inherit authority");
+    const legacy = await mf.dispatchFetch(query, {
+      headers: { Authorization: "Bearer " + start.pollToken },
+    });
+    assert.equal(legacy.status, 409, "legacy replay must remain denied");
+  } finally {
+    await mf.dispose();
+  }
+});

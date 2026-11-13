@@ -161,6 +161,44 @@ export async function claimRuntimePairing(
     404,
   );
 
+  // The same owner-poll credential and private client-generated token
+  // can recover an already-committed claim after a lost HTTP acknowledgement.
+  const runtimeCandidate = request.headers.get("x-poststeward-runtime-candidate");
+  if (runtimeCandidate !== null)
+    requireValue(
+      /^[A-Za-z0-9_-]{64,128}$/.test(runtimeCandidate),
+      "RUNTIME_PAIRING_CANDIDATE_INVALID",
+      "Invalid precommitted runtime claim credential.",
+      400,
+    );
+  if (row.status === "claimed") {
+    requireValue(
+      runtimeCandidate !== null,
+      "RUNTIME_PAIRING_ALREADY_CONSUMED",
+      "Pairing bootstrap has already been consumed or revoked.",
+      409,
+    );
+    const installed = await db.prepare(
+      `SELECT workspace,token_expires_at FROM runtime_installations
+       WHERE installation_id=? AND token_hash=? AND status='active' AND token_expires_at>?`,
+    ).bind(row.installation_id, await digest(runtimeCandidate), now).first<any>();
+    requireValue(
+      installed && installed.workspace === row.workspace,
+      "RUNTIME_PAIRING_ALREADY_CONSUMED",
+      "Pairing bootstrap has already been consumed or revoked.",
+      409,
+    );
+    return {
+      schemaVersion: 1,
+      status: "paired",
+      workspace: row.workspace,
+      installationId: row.installation_id,
+      candidateAccepted: true,
+      tokenExpiresAt: installed.token_expires_at,
+      executor: await executorStatus(db, row.workspace, now),
+    };
+  }
+
   if (row.expires_at <= now && row.status !== "claimed") {
     await db
       .prepare(
@@ -188,7 +226,7 @@ export async function claimRuntimePairing(
     409,
   );
 
-  const runtimeToken = randomToken(48);
+  const runtimeToken = runtimeCandidate ?? randomToken(48);
   const runtimeTokenHash = await digest(runtimeToken);
   const tokenExpiresAt = now + RUNTIME_TOKEN_TTL_MS;
 
@@ -239,10 +277,12 @@ export async function claimRuntimePairing(
     status: "paired",
     workspace: row.workspace,
     installationId: row.installation_id,
-    runtimeToken,
+    ...(runtimeCandidate === null ? { runtimeToken } : { candidateAccepted: true }),
     tokenExpiresAt,
     executor: await executorStatus(db, row.workspace, now),
-    notice: "Runtime token is shown once. Store it with user-only permissions.",
+    notice: runtimeCandidate === null
+      ? "Runtime token is shown once. Store it with user-only permissions."
+      : "Approved runtime credential retained only by the local client.",
   };
 }
 
