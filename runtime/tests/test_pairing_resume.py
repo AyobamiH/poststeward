@@ -276,6 +276,89 @@ with patch.object(cloud, '_request', side_effect=request):
         self.assertNotIn("runtime_token", cloud._read())
         self.assertNotIn("pending_pairing", cloud._read())
 
+    def test_ack_lost_after_cloud_consumes_pairing_is_recovered_from_private_candidate(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        installation = cloud._read()["installation_id"]
+        attempted = []
+        expected_candidate = None
+
+        def interrupted_claim(method, path, **kwargs):
+            nonlocal expected_candidate
+            self.assertEqual(method, "GET")
+            candidate = kwargs.get("runtime_candidate")
+            self.assertIsInstance(candidate, str)
+            self.assertGreaterEqual(len(candidate), 64)
+            attempted.append(candidate)
+            if expected_candidate is None:
+                expected_candidate = candidate
+                raise cloud.CloudError("NETWORK_ERROR", "Response lost after Cloud committed")
+            self.assertEqual(candidate, expected_candidate, "resume must retain exact token")
+            return 200, {
+                "status": "paired",
+                "candidateAccepted": True,
+                "installationId": installation,
+                "workspace": "owner-workspace",
+                "tokenExpiresAt": int(time.time() * 1000) + 900_000,
+                "executor": {"executorMode": "hosted", "authorityGeneration": 1},
+            }
+
+        with patch.object(cloud, "_request", side_effect=interrupted_claim), patch.object(
+            cloud.time, "sleep"
+        ), patch.object(cloud, "bindings", return_value={"workspace": "owner-workspace"}):
+            result = cloud.onboard(no_open=True, wait=True)
+        self.assertEqual(result["workspace"], "owner-workspace")
+        self.assertEqual(len(attempted), 2)
+        self.assertEqual(cloud._read()["runtime_token"], expected_candidate)
+        self.assertNotIn("pending_pairing", cloud._read())
+
+    def test_claimed_pairing_recovers_after_owner_code_expired_without_new_post(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        saved = cloud._read()
+        identity = saved["installation_id"]
+        original_candidate = saved["pending_pairing"]["claim_token"]
+        saved["pending_pairing"]["started"]["expiresAt"] = int(time.time() * 1000) - 2_000
+        cloud._write(saved)
+
+        def recovered(method, path, **kwargs):
+            self.assertEqual(method, "GET", "must not create a new approval")
+            self.assertEqual(kwargs["runtime_candidate"], original_candidate)
+            return 200, {
+                "status": "paired",
+                "candidateAccepted": True,
+                "installationId": identity,
+                "workspace": "owner-workspace",
+                "tokenExpiresAt": int(time.time() * 1000) + 600_000,
+            }
+        with patch.object(cloud, "_request", side_effect=recovered) as request, patch.object(
+            cloud, "bindings", return_value={"workspace": "owner-workspace"}
+        ), patch.object(cloud.webbrowser, "open") as browser:
+            cloud.onboard(no_open=False, wait=True)
+        self.assertEqual(request.call_count, 1)
+        browser.assert_not_called()
+        self.assertEqual(cloud._read()["runtime_token"], original_candidate)
+
+    def test_offline_claim_recovery_retains_original_provenance_without_new_post(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        saved = cloud._read()
+        saved["pending_pairing"]["started"]["expiresAt"] = int(time.time() * 1000) - 1_000
+        cloud._write(saved)
+        with patch.object(
+            cloud, "_request", side_effect=cloud.CloudError("NETWORK_ERROR", "offline")
+        ) as request, patch.object(cloud.time, "sleep") as sleep:
+            with self.assertRaises(cloud.CloudError) as caught:
+                cloud.onboard(no_open=True, wait=True)
+        self.assertEqual(caught.exception.code, "RUNTIME_PAIRING_RECOVERY_UNVERIFIED")
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(request.call_args.args[0], "GET")
+        sleep.assert_not_called()
+        self.assertEqual(cloud._read()["pending_pairing"], saved["pending_pairing"])
+
     def test_old_poll_failure_does_not_delete_newer_approval_request(self):
         offered = self.started()
         with patch.object(cloud, "_request", return_value=(200, offered)):

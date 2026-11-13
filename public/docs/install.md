@@ -55,8 +55,12 @@ poststeward onboard
 
 The runtime creates a short-lived pairing request and opens the owner workspace. The
 browser shows the exact installation ID, host/platform and pairing code. Owner
-approval returns a separate installation-bound runtime token once; it does **not**
+approval activates a separate installation-bound runtime token; it does **not**
 grant provider/admin authority and does not turn on publishing automation.
+On current compatible Cloud and Local releases, the local machine generates and
+saves that private credential **before** the one-time Cloud claim. Cloud stores
+only its digest and can confirm the *same* claim again if the first HTTP
+acknowledgement was lost; it never creates a second installation token on retry.
 
 For an unattended terminal or an owner approval that takes longer than the command
 session, request the code without waiting and resume the **same** pending request:
@@ -67,12 +71,18 @@ poststeward onboard --no-open --no-wait
 poststeward onboard --no-open
 ```
 
-The short-lived polling credential is saved in the private, mode-0600 local
-PostSteward client configuration. Reopening onboarding does not send another
-pairing request while its installation-bound, same-origin approval remains valid.
-Expired, rejected, changed-installation or changed-origin requests require a fresh
-explicit owner review; an interrupted request never enables publishing. Pairing
-alone does not activate the local executor.
+The short-lived polling credential and the private runtime claim candidate are
+saved in the user-only, mode-0600 local PostSteward client configuration.
+Reopening onboarding does not send another request while the exact same-origin
+review remains valid. After the owner code expires, the CLI permits a **read-only**
+check of the original claim for up to 24 hours: an already-approved, installed
+token can be recovered only when its exact stored candidate matches Cloud. It
+never approves an expired, pending or revoked request. On an outage, the private
+recovery evidence is retained for retry rather than silently creating another
+review. A rejected or mismatched request needs explicit new owner approval.
+Pairing alone does not activate the local executor. The first release with this
+recovery protocol must be deployed to both Cloud and Local; older Cloud revisions
+retain their previous one-time acknowledgement limitation.
 
 ## 2. Connect destinations in the owner workspace
 
