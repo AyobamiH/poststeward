@@ -7,6 +7,10 @@ verified provider identities and reviewed local campaign intent.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
+import os
+import shutil
 import hashlib
 import json
 from pathlib import Path
@@ -15,7 +19,10 @@ import sys
 import tempfile
 from typing import Any
 
-from ocpf_post.campaigns import normalize_campaign_id
+from ocpf_post.campaigns import normalize_campaign_id, runtime_campaign_root
+from ocpf_post import onboarding as imports
+from ocpf_post.state import state_dir, ensure_private_dir, write_private_json
+from ocpf_post.setup_migration import validate_provider_readiness
 from ocpf_post.onboarding import (
     TEXT_LIMITS,
     import_campaign,
@@ -392,45 +399,157 @@ def plan(
     }
 
 
+@contextmanager
+def _fresh_import_lock():
+    """Fail fast rather than overlap independent Fresh apply operations."""
+    root = state_dir()
+    ensure_private_dir(root)
+    fd = os.open(root / 'fresh-onboarding-apply.lock',
+                 os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            _fail('poststeward.onboarding.apply_busy', 'Another reviewed Fresh import is active.')
+        yield
+    finally:
+        os.close(fd)
+
+
+def _fresh_intent_path() -> Path:
+    return state_dir() / 'fresh-onboarding-apply.json'
+
+
+def _undo_unverified_imports(intent: dict[str, Any], preview: dict[str, Any]) -> None:
+    """Compensate ONLY exact content introduced by this pending review.
+
+    This never restores an older entire registry or rewrites another project.
+    Every deletion is guarded against a concurrent or externally altered record.
+    The intent remains on disk for owner recovery if any guard fails.
+    """
+    if (intent.get('review_sha256') != preview['review_sha256']
+        or intent.get('project_id') != preview['project']['project']
+        or intent.get('campaign_id') != preview['campaign']['campaign']):
+        _fail('poststeward.onboarding.recovery_review_mismatch',
+              'An earlier incomplete Fresh import requires exact owner review before recovery.')
+    with imports._import_lock(operation='fresh-apply-recovery'):
+        if not intent['campaign_preexisting']:
+            destination = runtime_campaign_root() / intent['campaign_id']
+            if destination.is_symlink():
+                _fail('poststeward.onboarding.recovery_changed', 'Campaign became a symlink; manual review required.')
+            if destination.exists():
+                manifest, texts = imports.validate_campaign(preview['campaign'], allocate=False)
+                if not imports._existing_campaign(manifest, texts):
+                    _fail('poststeward.onboarding.recovery_changed', 'Imported campaign changed; manual review required.')
+                shutil.rmtree(destination)
+        if not intent['project_preexisting']:
+            path = imports.registry_path()
+            if path.exists():
+                registry = imports._runtime_registry()
+                current = registry['projects'].get(intent['project_id'])
+                if current is not None:
+                    if current != preview['project']:
+                        _fail('poststeward.onboarding.recovery_changed', 'Imported project changed; manual review required.')
+                    del registry['projects'][intent['project_id']]
+                    if not registry['projects'] and not intent['registry_preexisting']:
+                        path.unlink()
+                    else:
+                        write_private_json(path, registry)
+
+
+def _fresh_precheck(engine: SetupEngine, preview: dict[str, Any]) -> None:
+    """Reject contradictory Cloud/setup state before writing any local content."""
+    session = engine.status(preview['setup_session_id'])['session']
+    if (session.get('mode') != 'fresh' or session.get('stage') != 'configuration_ready'
+            or session.get('revision') != preview['setup_revision']):
+        _fail('poststeward.onboarding.setup_changed', 'Fresh setup session changed; review again.')
+    authority = validate_provider_readiness(preview['expected_identities'], preview['provider_readiness'])
+    if authority['status'] != 'ready':
+        _fail('poststeward.onboarding.provider_authority_blocked',
+              'Fresh provider identity/write-authority evidence is incomplete or contradictory.')
+
+
 def apply(*, expected_sha256: str, **kwargs: Any) -> dict[str, Any]:
     preview = plan(**kwargs)
-    if preview["review_sha256"] != str(expected_sha256 or ""):
-        _fail("poststeward.onboarding.review_changed", "Onboarding review changed; preview again.")
-    engine = SetupEngine(kwargs.get("workspace"))
-    with tempfile.TemporaryDirectory(prefix="poststeward-onboard-") as temp:
-        root = Path(temp)
-        project_file = _json_file(root, "project.json", preview["project"])
-        project_preview = import_project(project_file)
-        project_result = import_project(
-            project_file,
-            apply=True,
-            expected_sha256=project_preview["input_sha256"],
-        )
-        campaign_file = _json_file(root, "campaign.json", preview["campaign"])
-        campaign_preview = import_campaign(campaign_file, allocate=False)
-        campaign_result = import_campaign(
-            campaign_file,
-            apply=True,
-            expected_sha256=campaign_preview["input_sha256"],
-            allocate=False,
-        )
-    verified = engine.verify_fresh(
-        preview["provider_readiness"],
-        preview["expected_identities"],
-        session_id=preview["setup_session_id"],
-    )
+    if preview['review_sha256'] != str(expected_sha256 or ''):
+        _fail('poststeward.onboarding.review_changed', 'Onboarding review changed; preview again.')
+    engine = SetupEngine(kwargs.get('workspace'))
+    with _fresh_import_lock():
+        journal = _fresh_intent_path()
+        if journal.exists():
+            try:
+                pending = json.loads(journal.read_text(encoding='utf-8'))
+            except (OSError, ValueError, TypeError) as exc:
+                _fail('poststeward.onboarding.recovery_corrupt',
+                      'Incomplete Fresh import intent is unreadable; do not overwrite it.')
+            if not isinstance(pending, dict) or pending.get('schema_version') != 1:
+                _fail('poststeward.onboarding.recovery_corrupt', 'Incomplete Fresh import intent is invalid.')
+            # Interrupted after verification but before intent cleanup: do not
+            # undo a committed setup session. Keep it held for owner inspection.
+            if engine.status(preview['setup_session_id'])['session']['stage'] == 'verification_ready':
+                _fail('poststeward.onboarding.recovery_verified',
+                      'Fresh setup already verified; inspect and clear the completed intent explicitly.')
+            _undo_unverified_imports(pending, preview)
+            journal.unlink()
+
+        _fresh_precheck(engine, preview)
+        with tempfile.TemporaryDirectory(prefix='poststeward-onboard-') as temp:
+            root = Path(temp)
+            project_file = _json_file(root, 'project.json', preview['project'])
+            campaign_file = _json_file(root, 'campaign.json', preview['campaign'])
+            project_preview = import_project(project_file)
+            # A durable intent exists BEFORE the first write and lets a later
+            # exact-review retry undo crash-interrupted add-only imports.
+            intent = {
+                'schema_version': 1,
+                'review_sha256': preview['review_sha256'],
+                'project_id': preview['project']['project'],
+                'campaign_id': preview['campaign']['campaign'],
+                'session_id': preview['setup_session_id'],
+                'registry_preexisting': imports.registry_path().exists(),
+                'project_preexisting': project_preview['result'] == 'already_present',
+                'campaign_preexisting': (runtime_campaign_root() / preview['campaign']['campaign']).exists(),
+            }
+            write_private_json(journal, intent)
+            try:
+                project_result = import_project(
+                    project_file, apply=True,
+                    expected_sha256=project_preview['input_sha256'],
+                )
+                campaign_preview = import_campaign(campaign_file, allocate=False)
+                campaign_result = import_campaign(
+                    campaign_file, apply=True,
+                    expected_sha256=campaign_preview['input_sha256'], allocate=False,
+                )
+                verified = engine.verify_fresh(
+                    preview['provider_readiness'], preview['expected_identities'],
+                    session_id=preview['setup_session_id'],
+                )
+            except Exception:
+                # If the transition succeeded but the following status read
+                # failed, never undo content required by an already-verified
+                # session. Retain the journal for exact owner inspection.
+                if engine.status(preview['setup_session_id'])['session']['stage'] == 'verification_ready':
+                    _fail('poststeward.onboarding.recovery_verified',
+                          'Setup verified but final acknowledgement failed; inspect saved import intent.')
+                # Guarded compensation; if state drift prevents undo, keep the
+                # durable intent and fail closed for manual owner recovery.
+                _undo_unverified_imports(intent, preview)
+                journal.unlink()
+                raise
+            journal.unlink()
     return {
         **preview,
-        "status": "verification_ready",
-        "project_import": project_result,
-        "campaign_import": campaign_result,
-        "setup": verified,
-        "publishing_authority": bool(verified.get("publishing_authority")),
-        "automation_enabled": bool(verified.get("automation_enabled")),
-        "next_actions": [
+        'status': 'verification_ready',
+        'project_import': project_result,
+        'campaign_import': campaign_result,
+        'setup': verified,
+        'publishing_authority': bool(verified.get('publishing_authority')),
+        'automation_enabled': bool(verified.get('automation_enabled')),
+        'next_actions': [
             f"poststeward campaign show --campaign {preview['campaign']['campaign']} --provider <provider>",
-            "Review executor authority in the PostSteward owner workspace before local activation.",
-            "poststeward setup activate ...  # preview/review/apply; cloud executor fence is mandatory",
+            'Review executor authority in the PostSteward owner workspace before local activation.',
+            'poststeward setup activate ...  # preview/review/apply; cloud executor fence is mandatory',
         ],
     }
 

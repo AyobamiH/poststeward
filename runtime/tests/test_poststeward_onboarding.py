@@ -135,6 +135,35 @@ class PostStewardOnboardingTests(unittest.TestCase):
         }
         self.assertEqual(providers, {"x", "threads", "linkedin"})
 
+    def test_verification_failure_does_not_leave_imported_project_or_campaign(self):
+        one, two = self.mocks()
+        with one, two:
+            preview = plan(**self.kwargs())
+            with patch('ocpf_post.poststeward_onboarding.SetupEngine.verify_fresh',
+                       side_effect=ValueError('injected verification failure')):
+                with self.assertRaisesRegex(ValueError, 'injected verification failure'):
+                    apply(expected_sha256=preview['review_sha256'], **self.kwargs())
+            self.assertFalse((self.root / 'config' / 'runtime-projects.json').exists())
+            self.assertFalse((self.root / 'state' / 'runtime-campaigns' / 'BRAND-001').exists())
+            completed = apply(expected_sha256=preview['review_sha256'], **self.kwargs())
+        self.assertEqual(completed['status'], 'verification_ready')
+
+    def test_interrupted_import_resumes_exact_review_without_duplicate_state(self):
+        one, two = self.mocks()
+        with one, two:
+            preview = plan(**self.kwargs())
+            with patch('ocpf_post.poststeward_onboarding.import_campaign',
+                       side_effect=KeyboardInterrupt('simulated interrupted process')):
+                with self.assertRaisesRegex(KeyboardInterrupt, 'interrupted process'):
+                    apply(expected_sha256=preview['review_sha256'], **self.kwargs())
+            self.assertTrue((self.root / 'config' / 'runtime-projects.json').exists())
+            intent = self.root / 'state' / 'fresh-onboarding-apply.json'
+            self.assertTrue(intent.exists())
+            resumed = apply(expected_sha256=preview['review_sha256'], **self.kwargs())
+        self.assertEqual(resumed['status'], 'verification_ready')
+        self.assertFalse(intent.exists())
+        self.assertTrue((self.root / 'state' / 'runtime-campaigns' / 'BRAND-001' / 'manifest.json').exists())
+
     def test_changed_cloud_binding_changes_review_and_blocks_apply(self):
         one, two = self.mocks()
         with one, two:
