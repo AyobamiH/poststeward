@@ -153,6 +153,23 @@ class FreshVerificationTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "setup.fresh.provider_authority_blocked")
         self.assertEqual(engine.status()["session"]["stage"], "configuration_ready")
 
+    def test_claimed_ready_with_contradictory_receipt_does_not_advance(self) -> None:
+        engine = self._fresh()
+        self._user_content()
+        before = engine.status()["session"]["revision"]
+        forged = readiness()
+        forged["observed_identity"] = "different-account"
+        forged["blocking_reasons"] = ["provider.oauth.revoked"]
+        with self.assertRaises(SetupEngineError) as caught:
+            engine.verify_fresh(
+                [forged],
+                [{"provider": "x", "account_id": READY_ID}],
+            )
+        self.assertEqual(caught.exception.code, "setup.fresh.provider_authority_blocked")
+        after = engine.status()["session"]
+        self.assertEqual(after["stage"], "configuration_ready")
+        self.assertEqual(after["revision"], before)
+
     def test_owner_packaged_defaults_cannot_satisfy_fresh_content_gate(self) -> None:
         engine = self._fresh()
         with self.assertRaises(SetupEngineError) as caught:

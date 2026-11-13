@@ -36,10 +36,13 @@ interface ContainerEffectRow {
 }
 
 function knownNoEffect(error: unknown) {
+  // A write receiving 429 may already have reached the provider. Unlike a
+  // definite validation rejection, it cannot release the durable effect fence.
+  // Keep it uncertain until independent readback resolves the consequence.
   return (
     error instanceof Fault &&
     (error.code === "CONTAINER_REQUIRED" ||
-      /^PROVIDER_HTTP_(400|401|403|404|422|429)$/.test(error.code))
+      /^PROVIDER_HTTP_(400|401|403|404|422)$/.test(error.code))
   );
 }
 function safeReason(error: unknown) {
