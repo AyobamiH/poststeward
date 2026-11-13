@@ -1,7 +1,7 @@
 // Re-attempt only transport-failed lockfile installs in the isolated CI runner.
 // No dependency bypass, no synthetic success, and no arbitrary command execution.
 // Terminal dependency/integrity errors fail on their first occurrence.
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -38,12 +38,57 @@ export function resolveInstall(mode, env = process.env) {
   throw new Error('Unknown locked CI installation mode: ' + mode);
 }
 
+// Run in a separate POSIX process group so that a timed-out npm/pip install
+// cannot leave lifecycle-script or pip subprocesses running into the retry.
+// spawnSync's timeout only kills its direct child and is insufficient here.
+export function spawnBoundedInstall(command, args, { env = process.env, timeout = 150000 } = {}) {
+  if (process.platform === 'win32') throw new Error('Isolated CI installer requires a POSIX runner');
+  return new Promise(resolve => {
+    let child;
+    try {
+      child = spawn(command, args, { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+      resolve({ status: null, error, stdout: '', stderr: '' });
+      return;
+    }
+    let stdout = '';
+    let stderr = '';
+    let error;
+    let timedOut = false;
+    let escalation;
+    // Retain enough diagnostics for classification without unbounded memory use.
+    const append = (previous, bytes) => (previous + bytes.toString('utf8')).slice(-8 * 1024 * 1024);
+    child.stdout?.on('data', bytes => { stdout = append(stdout, bytes); });
+    child.stderr?.on('data', bytes => { stderr = append(stderr, bytes); });
+    child.once('error', failure => { error = failure; });
+    const stopGroup = signal => {
+      if (!child.pid) return;
+      try { process.kill(-child.pid, signal); }
+      catch (failure) { if (failure.code !== 'ESRCH') error ||= failure; }
+    };
+    const watchdog = setTimeout(() => {
+      timedOut = true;
+      stopGroup('SIGTERM');
+      escalation = setTimeout(() => stopGroup('SIGKILL'), 2000);
+    }, timeout);
+    child.once('close', (status, signal) => {
+      clearTimeout(watchdog);
+      if (escalation) clearTimeout(escalation);
+      // Fence descendants even if the parent exits zero; no background
+      // installer may outlive this attempt or overlap a later CI phase.
+      stopGroup('SIGKILL');
+      resolve({ status: timedOut ? null : status, signal, stdout, stderr,
+        error: timedOut ? Object.assign(new Error('CI installer deadline exceeded'), { code: 'ETIMEDOUT' }) : error });
+    });
+  });
+}
+
 export async function runInstall(mode, {
-  env = process.env, run = spawnSync, sleep = delay, stdout = process.stdout, stderr = process.stderr
+  env = process.env, run = spawnBoundedInstall, sleep = delay, stdout = process.stdout, stderr = process.stderr
 } = {}) {
   const spec = resolveInstall(mode, env);
   for (let attempt = 1; attempt <= spec.attempts; attempt++) {
-    const result = run(spec.command, spec.args, {
+    const result = await run(spec.command, spec.args, {
       encoding: 'utf8', timeout: spec.timeout, maxBuffer: 8 * 1024 * 1024, env
     });
     stdout.write(String(result.stdout || ''));

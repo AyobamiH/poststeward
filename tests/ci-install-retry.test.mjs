@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { resolveInstall, isRetryableInstallTransport, runInstall } from '../scripts/ci-install-retry.mjs';
+import { resolveInstall, isRetryableInstallTransport, runInstall, spawnBoundedInstall } from '../scripts/ci-install-retry.mjs';
+import { execFileSync } from 'node:child_process';
 
 const pipes = () => {
   let output = '';
@@ -89,4 +90,40 @@ test('protected workflows use bounded retry for the four source install gates', 
   assert.match(browser, /node scripts\/ci-install-retry\.mjs npm-browser/);
   assert.match(browser, /node scripts\/ci-install-retry\.mjs npm-root/);
   assert.doesNotMatch(browser, /^\s+npm ci\s*$/m);
+});
+
+
+test('real timeout terminates installer process group before any retry can start', { skip: process.platform === 'win32' }, async () => {
+  const result = await spawnBoundedInstall('bash', ['-c', 'sleep 20 & echo $!; wait'], { timeout: 150 });
+  const grandchild = Number(result.stdout.trim());
+  assert.ok(Number.isInteger(grandchild) && grandchild > 0);
+  assert.equal(result.error?.code, 'ETIMEDOUT');
+  let state = '';
+  try { state = execFileSync('ps', ['-o', 'stat=', '-p', String(grandchild)], { encoding: 'utf8' }).trim(); }
+  catch { state = ''; }
+  // A momentary zombie is harmless: it cannot execute another install.
+  assert.ok(!state || state.startsWith('Z'), `timed-out descendant still running: pid=${grandchild} state=${state}`);
+});
+
+test('real nonzero installer exit fences abandoned grandchildren', { skip: process.platform === 'win32' }, async () => {
+  const result = await spawnBoundedInstall('bash', ['-c', 'sleep 20 >/dev/null 2>&1 & echo $!; exit 17'], { timeout: 1800 });
+  const grandchild = Number(result.stdout.trim());
+  assert.equal(result.status, 17);
+  assert.ok(grandchild > 0);
+  let state = '';
+  try { state = execFileSync('ps', ['-o', 'stat=', '-p', String(grandchild)], { encoding: 'utf8' }).trim(); }
+  catch { state = ''; }
+  assert.ok(!state || state.startsWith('Z'), `failed installer descendant still running: pid=${grandchild} state=${state}`);
+});
+
+
+test('successful installer cannot leave untracked background dependencies running', { skip: process.platform === 'win32' }, async () => {
+  const result = await spawnBoundedInstall('bash', ['-c', 'sleep 20 >/dev/null 2>&1 & echo $!; exit 0'], { timeout: 1800 });
+  const grandchild = Number(result.stdout.trim());
+  assert.equal(result.status, 0);
+  assert.ok(grandchild > 0);
+  let state = '';
+  try { state = execFileSync('ps', ['-o', 'stat=', '-p', String(grandchild)], { encoding: 'utf8' }).trim(); }
+  catch { state = ''; }
+  assert.ok(!state || state.startsWith('Z'), `successful installer leaked process: pid=${grandchild} state=${state}`);
 });
