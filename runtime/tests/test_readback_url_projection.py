@@ -64,9 +64,15 @@ class ReadbackUrlProjectionTests(unittest.TestCase):
     def save_verified_readback(self, row):
         observation = {key: row[key] for key in
                        ('schedule_id', 'campaign', 'provider', 'account_id', 'post_id', 'text_sha256')}
-        observation['status'] = 'verified'
+        observation.update(
+            status='verified', original_status='published_unverified',
+            observed_at=NOW.isoformat(), http_status=200,
+            matches={'post_id': True, 'author': True, 'text': True},
+            mismatch_fields=[],
+        )
         local_store.write(state_dir() / 'publication-readbacks.json',
-                          {'schema_version': 1, 'observations': {'proof': observation}})
+                          {'schema_version': 1, 'observations': {
+                              pr._key(observation): observation}})
 
     def test_x_expands_only_explicit_url_entities_then_compares_exactly(self):
         expected = {'post_id': '123', 'author': 'owner',

@@ -11,6 +11,7 @@ from ocpf_post.providers import get_provider, for_account
 from ocpf_post.providers.base import ProviderRejected, ProviderUnavailable
 from ocpf_post.engagement import digest, post_id, at
 from ocpf_post.readback_details import compare
+from ocpf_post.publication_readback_contract import complete_observation
 
 KEYS = ('schedule_id', 'campaign', 'provider', 'account_id', 'post_id', 'text_sha256')
 MAX_READS = 20
@@ -129,7 +130,7 @@ def _checked_readback_state(path):
         raise ValueError("Invalid durable provider-readback state: JSON null.")
     if not isinstance(saved, dict) or not isinstance(saved.get('observations'), dict):
         raise ValueError("Invalid durable provider-readback state: observations must be a mapping.")
-    if any(not isinstance(key, str) or not isinstance(value, dict)
+    if any(not complete_observation(key, value)
            for key, value in saved['observations'].items()):
         raise ValueError("Invalid durable provider-readback state: malformed observation entry.")
     backoffs = saved.get('account_backoff', {})

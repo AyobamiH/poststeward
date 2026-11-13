@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from ocpf_post import local_store
+from ocpf_post import local_store, publication_reconcile
 from ocpf_post import performance_feedback as feedback
 from ocpf_post import performance_review as review
 from ocpf_post import learning_supply
@@ -29,9 +29,14 @@ class EffectivePublicationVerificationTests(unittest.TestCase):
         append_receipt(self.receipt)
 
     def readback(self, **overrides):
-        row = {**self.receipt, 'status': 'verified', 'observed_at': NOW.isoformat(), **overrides}
+        row = {
+            **self.receipt, 'original_status':'published_unverified',
+            'status': 'verified', 'observed_at': NOW.isoformat(), 'http_status':200,
+            'matches':{'post_id':True,'author':True,'text':True},
+            'mismatch_fields':[], **overrides,
+        }
         local_store.write(state_dir() / 'publication-readbacks.json', {
-            'schema_version': 1, 'observations': {'one': row}})
+            'schema_version': 1, 'observations': {publication_reconcile._key(row): row}})
 
     def test_exact_sidecar_projects_verified_read_model_without_rewriting_receipt(self):
         self.readback()

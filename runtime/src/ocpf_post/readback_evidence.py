@@ -5,6 +5,7 @@ from typing import Any
 
 from ocpf_post import local_store
 from ocpf_post.state import state_dir
+from ocpf_post.publication_readback_contract import complete_observation
 
 IDENTITY_FIELDS = ('schedule_id', 'campaign', 'provider', 'account_id', 'post_id', 'text_sha256')
 
@@ -18,7 +19,9 @@ def observations(data: dict[str, Any] | None = None) -> list[dict[str, Any]]:
             return []
     if not isinstance(data, dict) or not isinstance(data.get('observations'), dict):
         return []
-    return [row for row in data['observations'].values() if isinstance(row, dict)]
+    if any(not complete_observation(key, row) for key, row in data['observations'].items()):
+        return []
+    return list(data['observations'].values())
 
 
 def verified(record: dict[str, Any], *, data: dict[str, Any] | None = None) -> bool:
