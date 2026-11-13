@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { resolveInstall, isRetryableInstallTransport, runInstall, spawnBoundedInstall } from '../scripts/ci-install-retry.mjs';
+import { resolveInstall, isRetryableInstallTransport, runInstall, spawnBoundedInstall, inspectNativeArtifacts } from '../scripts/ci-install-retry.mjs';
 import { execFileSync } from 'node:child_process';
 
 const pipes = () => {
@@ -16,7 +16,7 @@ test('transient npm registry failure retries locked install and preserves succes
   const sequence = [{ status: 155, stderr: 'npm error code ENETUNREACH' }, { status: 0, stdout: 'added 20 packages' }];
   const result = await runInstall('npm-root', {
     run: (command, args, options) => { calls.push({ command, args, options }); return sequence.shift(); },
-    sleep: ms => { waits.push(ms); }, ...io
+    sleep: ms => { waits.push(ms); }, inspectNative: () => ({ ok: true, missing: [] }), ...io
   });
   assert.equal(result, 0);
   assert.equal(calls.length, 2);
@@ -126,4 +126,65 @@ test('successful installer cannot leave untracked background dependencies runnin
   try { state = execFileSync('ps', ['-o', 'stat=', '-p', String(grandchild)], { encoding: 'utf8' }).trim(); }
   catch { state = ''; }
   assert.ok(!state || state.startsWith('Z'), `successful installer leaked process: pid=${grandchild} state=${state}`);
+});
+
+
+test('npm root install explicitly preserves platform-specific optional packages', () => {
+  const spec = resolveInstall('npm-root');
+  assert.ok(spec.args.includes('--include=optional'));
+  assert.ok(spec.args.includes('ci'));
+});
+
+test('native receipt detects absent required Linux binaries but not other platforms or browser-only deps', () => {
+  const required = [
+    'node_modules/@cloudflare/workerd-linux-64/bin/workerd',
+    'node_modules/@esbuild/linux-x64/bin/esbuild',
+  ];
+  const seen = [];
+  const missing = inspectNativeArtifacts('npm-root', {
+    platform: 'linux', arch: 'x64', cwd: '/tmp/ci-platform',
+    exists: path => { seen.push(path); return false; }
+  });
+  assert.deepEqual(missing.missing, required);
+  assert.equal(missing.ok, false);
+  assert.deepEqual(seen, required.map(file => '/tmp/ci-platform/' + file));
+  assert.equal(inspectNativeArtifacts('npm-root', {
+    platform: 'linux', arch: 'arm64', exists: () => false
+  }).ok, true);
+  assert.equal(inspectNativeArtifacts('npm-browser', {
+    platform: 'linux', arch: 'x64', exists: () => false
+  }).ok, true);
+});
+
+test('npm success without required platform binary retries boundedly but never returns green', async () => {
+  let installs = 0;
+  const waits = [];
+  const io = pipes();
+  const result = await runInstall('npm-root', {
+    run: () => { installs++; return { status: 0, stdout: 'added packages' }; },
+    inspectNative: () => ({ ok: false, missing: ['node_modules/@cloudflare/workerd-linux-64/bin/workerd'] }),
+    sleep: ms => waits.push(ms), ...io
+  });
+  assert.equal(result, 1);
+  assert.equal(installs, 2);
+  assert.deepEqual(waits, [1000]);
+  assert.doesNotMatch(io.get(), /POSTSTEWARD_CI_INSTALL_OK/);
+  assert.match(io.get(), /classification=missing_native_artifact/);
+});
+
+test('a second complete locked install can recover missing optional binary without false early success', async () => {
+  let installs = 0;
+  const waits = [];
+  const io = pipes();
+  const result = await runInstall('npm-root', {
+    run: () => { installs++; return { status: 0 }; },
+    inspectNative: () => installs === 2
+      ? ({ ok: true, missing: [] })
+      : ({ ok: false, missing: ['node_modules/@cloudflare/workerd-linux-64/bin/workerd'] }),
+    sleep: ms => waits.push(ms), ...io
+  });
+  assert.equal(result, 0);
+  assert.equal(installs, 2);
+  assert.deepEqual(waits, [1000]);
+  assert.match(io.get(), /POSTSTEWARD_CI_INSTALL_OK mode=npm-root attempts=2/);
 });
