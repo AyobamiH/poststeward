@@ -1,6 +1,7 @@
 name: UX browser verification
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
   push:
     branches: [main, feat/production-ux-closure-rebased]
   workflow_dispatch:
@@ -11,11 +12,15 @@ on:
         default: false
 permissions:
   contents: read
+# Preserve every protected-main/dispatch check; cancel only same-owner PR
+# superseded runs in this workflow, never main or untrusted fork evidence.
 concurrency:
-  group: ux-browser-${{ github.ref }}
-  cancel-in-progress: true
+  group: ux-browser-${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'AyobamiH' && github.actor == 'AyobamiH' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false # Never discard an executing exact-source receipt.
 jobs:
   browser:
+    # Draft PRs are not release candidates; ready_for_review triggers fresh CI.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     # Only the canonical repository owner's PRs, main pushes, or a bounded
     # owner-dispatched main check may use the isolated browser runner.
     # Untrusted forks and all other dispatches remain on hosted isolation.
@@ -33,26 +38,36 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+          fetch-depth: 2
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
+      - name: Classify narrowly scoped documentation-only PR
+        id: ci_profile
+        run: node scripts/ci-change-profile.mjs --github-output
+      - name: Validate documentation-only source diff
+        if: steps.ci_profile.outputs.profile == 'docs'
+        run: git diff --check HEAD^1 HEAD^2
       - name: Package exact source for review
         run: |
           mkdir -p ux-evidence
           git archive --format=tar HEAD > ux-evidence/source.tar
           git rev-parse HEAD > ux-evidence/revision.txt
       - name: Read current main for integration review
+        if: steps.ci_profile.outputs.profile != 'docs'
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: main
           path: ux-main
           persist-credentials: false
       - name: Preserve integration reference
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: |
           git -C ux-main archive --format=tar HEAD > ux-evidence/main-source.tar
           git -C ux-main rev-parse HEAD > ux-evidence/main-revision.txt
           rm -rf ux-main
       - name: Install locked runtime and browser tooling
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: |
           npm ci
           npm ci --prefix tools/browser --ignore-scripts
@@ -71,6 +86,7 @@ jobs:
         env:
           POSTSTEWARD_BROWSER_PREINSTALLED: ${{ runner.environment == 'self-hosted' }}
       - name: Browser accessibility and interaction acceptance
+        if: steps.ci_profile.outputs.profile != 'docs'
         env:
           POSTSTEWARD_BROWSER_EXECUTABLE: ${{ runner.environment == 'self-hosted' && '/usr/local/bin/chromium' || '' }}
         run: node tools/browser/verify.mjs
@@ -78,5 +94,5 @@ jobs:
         # GitHub artifact storage is quota-exhausted. The full checked report,
         # archive digests and exact revisions are recorded in the job log and
         # job summary instead, without weakening any browser acceptance check.
-        if: always()
+        if: always() && steps.ci_profile.outputs.profile != 'docs'
         run: node tools/browser/ci-evidence.mjs

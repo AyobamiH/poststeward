@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
     inputs:
       self_hosted_verify:
@@ -11,8 +12,15 @@ on:
         default: false
 permissions:
   contents: read
+# Keep trusted current-main/dispatch evidence; coalesce only owner-authored
+# superseded PR runs of this workflow. Untrusted forks cannot cancel peers.
+concurrency:
+  group: poststeward-verify-${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'AyobamiH' && github.actor == 'AyobamiH' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false # Never discard an executing exact-source receipt.
 jobs:
   verify:
+    # Draft PRs are not release candidates; ready_for_review triggers fresh CI.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: >-
       ${{ github.repository == 'AyobamiH/poststeward' &&
           ((github.event_name == 'workflow_dispatch' && inputs.self_hosted_verify &&
@@ -29,12 +37,21 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          fetch-depth: 2
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           # npm ci installs pinned dependencies; avoid a cache-save hang on isolated runners.
+      - name: Classify narrowly scoped documentation-only PR
+        id: ci_profile
+        run: node scripts/ci-change-profile.mjs --github-output
+      - name: Validate documentation-only source diff
+        if: steps.ci_profile.outputs.profile == 'docs'
+        run: git diff --check HEAD^1 HEAD^2
       - run: npm ci
+        if: steps.ci_profile.outputs.profile != 'docs'
       - name: Installable runtime syntax
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: |
           bash -n public/install.sh
           python3 -m py_compile \
@@ -51,12 +68,16 @@ jobs:
           POSTSTEWARD_RELEASES_DIR="$RUNNER_TEMP/runtime-releases" \
             ./runtime/poststeward --version
       - name: Monitor clock recovery regressions
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: python3 -m unittest discover -s ops/monitor-clock -p 'test_*.py'
       - name: Production dependency audit
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: node scripts/ci-npm-audit.mjs --production-only
       - name: Full dependency audit
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: node scripts/ci-npm-audit.mjs
       - name: Embedded runtime product identity
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: |
           POSTSTEWARD_RUNTIME_ROOT="$PWD/runtime" \
           POSTSTEWARD_RUNTIME_CONFIG_DIR="$RUNNER_TEMP/poststeward-config" \
@@ -77,10 +98,12 @@ jobs:
           assert value["commands"]
           PY
       - name: Set up Python for embedded runtime verification
+        if: steps.ci_profile.outputs.profile != 'docs'
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - name: Embedded runtime authority and recovery regressions
+        if: steps.ci_profile.outputs.profile != 'docs'
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
@@ -89,7 +112,10 @@ jobs:
           cd runtime
           "$RUNNER_TEMP/poststeward-runtime-verify/bin/python" -m unittest discover -s tests -p 'test_*.py'
       - run: npm run verify
+        if: steps.ci_profile.outputs.profile != 'docs'
   runtime:
+    # Draft PRs are not release candidates; ready_for_review triggers fresh CI.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: >-
       ${{ github.repository == 'AyobamiH/poststeward' &&
           ((github.event_name == 'workflow_dispatch' && inputs.self_hosted_verify &&
@@ -111,20 +137,40 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          fetch-depth: 2
+      - name: Classify narrowly scoped documentation-only PR
+        id: ci_profile
+        run: node scripts/ci-change-profile.mjs --github-output
+      - name: Validate documentation-only source diff
+        if: steps.ci_profile.outputs.profile == 'docs'
+        run: git diff --check HEAD^1 HEAD^2
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: steps.ci_profile.outputs.profile != 'docs'
         with:
           python-version: ${{ matrix.python }}
       - name: Install embedded runtime into isolated Python environment
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: |
           # Do not mutate the uv-managed Python 3.10 toolcache (PEP 668).
           python -m venv "$RUNNER_TEMP/poststeward-runtime-matrix"
           "$RUNNER_TEMP/poststeward-runtime-matrix/bin/python" -m pip install -e "./runtime[test]" "setuptools>=68" wheel
           echo "$RUNNER_TEMP/poststeward-runtime-matrix/bin" >> "$GITHUB_PATH"
       - name: Embedded runtime regression suite
+        if: steps.ci_profile.outputs.profile != 'docs'
         run: |
           cd runtime
-          python -m unittest discover -s tests -p 'test_*.py'
+          if [ "${{ matrix.python }}" = '3.10' ]; then
+            # Full 3.10 suite runs once; required verify runs full 3.12.
+            python -m unittest discover -s tests -p 'test_*.py'
+          else
+            # Independent 3.12 package/authority smoke, not a duplicate
+            # of the full 3.12 suite already required by verify.
+            python -m unittest discover -s tests -p 'test_poststeward_onboarding.py'
+            python -m unittest discover -s tests -p 'test_poststeward_cloud.py'
+            python -m unittest discover -s tests -p 'test_setup_activation.py'
+          fi
       - name: Canonical PostSteward runtime discovery
+        if: steps.ci_profile.outputs.profile != 'docs'
         env:
           POSTSTEWARD_RUNTIME_ROOT: ${{ github.workspace }}/runtime
           POSTSTEWARD_RUNTIME_CONFIG_DIR: ${{ runner.temp }}/poststeward-config
