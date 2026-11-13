@@ -164,6 +164,148 @@ class PostStewardOnboardingTests(unittest.TestCase):
         self.assertFalse(intent.exists())
         self.assertTrue((self.root / 'state' / 'runtime-campaigns' / 'BRAND-001' / 'manifest.json').exists())
 
+    def test_independent_project_import_survives_fresh_verification_failure(self):
+        from ocpf_post import onboarding as imports
+        import ocpf_post.poststeward_onboarding as fresh
+
+        one, two = self.mocks()
+        collided = []
+        actual = fresh.import_project
+
+        def competing_project(path, *, apply=False, expected_sha256=None):
+            if not apply and not collided:
+                reviewed = actual(path)
+                imported = imports.import_project(
+                    path, apply=True, expected_sha256=reviewed["input_sha256"]
+                )
+                self.assertEqual(imported["result"], "imported")
+                collided.append(True)
+                return reviewed
+            return actual(path, apply=apply, expected_sha256=expected_sha256)
+
+        with one, two:
+            preview = plan(**self.kwargs())
+            with patch.object(fresh, "import_project", side_effect=competing_project), patch.object(
+                fresh.SetupEngine, "verify_fresh", side_effect=ValueError("verification rejected")
+            ):
+                with self.assertRaisesRegex(ValueError, "verification rejected"):
+                    apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        self.assertEqual(collided, [True])
+        registry = json.loads((self.root / "config" / "runtime-projects.json").read_text())
+        self.assertIn("brand", registry["projects"])
+        self.assertFalse((self.root / "state" / "runtime-campaigns" / "BRAND-001").exists())
+        # Retry the same exact reviewed operation: preserve the independent
+        # project's entry and create only the missing manual-only campaign.
+        with one, two:
+            completed = apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        self.assertEqual(completed["project_import"]["result"], "already_present")
+        self.assertEqual(completed["status"], "verification_ready")
+
+    def test_independent_campaign_import_survives_fresh_verification_failure(self):
+        from ocpf_post import onboarding as imports
+        import ocpf_post.poststeward_onboarding as fresh
+
+        one, two = self.mocks()
+        collided = []
+        actual = fresh.import_campaign
+
+        def competing_campaign(path, *, apply=False, expected_sha256=None, allocate=False):
+            if apply and not collided:
+                reviewed = actual(path, allocate=allocate)
+                imported = imports.import_campaign(
+                    path, apply=True, expected_sha256=reviewed["input_sha256"],
+                    allocate=allocate,
+                )
+                self.assertEqual(imported["result"], "imported")
+                collided.append(True)
+            return actual(path, apply=apply, expected_sha256=expected_sha256, allocate=allocate)
+
+        with one, two:
+            preview = plan(**self.kwargs())
+            with patch.object(fresh, "import_campaign", side_effect=competing_campaign), patch.object(
+                fresh.SetupEngine, "verify_fresh", side_effect=ValueError("verification rejected")
+            ):
+                with self.assertRaisesRegex(ValueError, "Independent campaign depends"):
+                    apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        self.assertEqual(collided, [True])
+        self.assertTrue((self.root / "state" / "runtime-campaigns" / "BRAND-001" / "manifest.json").exists())
+        registry = json.loads((self.root / "config" / "runtime-projects.json").read_text())
+        self.assertIn("brand", registry["projects"])
+        self.assertTrue((self.root / "state" / "fresh-onboarding-apply.json").exists())
+
+    def test_unrelated_campaign_created_during_fresh_cannot_be_orphaned(self):
+        from ocpf_post import onboarding as imports
+        import ocpf_post.poststeward_onboarding as fresh
+
+        one, two = self.mocks()
+        with one, two:
+            preview = plan(**self.kwargs())
+            def independently_import_other_campaign(*args, **kwargs):
+                value = dict(preview["campaign"], campaign="BRAND-002")
+                with tempfile.TemporaryDirectory() as tmp:
+                    source = Path(tmp) / "independent.json"
+                    source.write_text(json.dumps(value))
+                    result = imports.import_campaign(source)
+                    imported = imports.import_campaign(
+                        source, apply=True, expected_sha256=result["input_sha256"]
+                    )
+                    self.assertEqual(imported["result"], "imported")
+                raise ValueError("verification rejected")
+
+            with patch.object(fresh.SetupEngine, "verify_fresh", side_effect=independently_import_other_campaign):
+                with self.assertRaisesRegex(ValueError, "Independent campaign depends"):
+                    apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        registry = json.loads((self.root / "config" / "runtime-projects.json").read_text())
+        self.assertIn("brand", registry["projects"])
+        self.assertTrue((self.root / "state" / "runtime-campaigns" / "BRAND-002" / "manifest.json").exists())
+        self.assertTrue((self.root / "state" / "fresh-onboarding-apply.json").exists())
+
+    def test_crash_before_creation_receipt_retains_uncertain_project(self):
+        import ocpf_post.poststeward_onboarding as fresh
+
+        one, two = self.mocks()
+        actual_write = fresh.write_private_json
+
+        def interrupted_receipt(path, value):
+            if Path(path).name == "fresh-onboarding-apply.json" and value.get("project_status") == "created":
+                raise KeyboardInterrupt("crash between import and durable receipt")
+            return actual_write(path, value)
+
+        with one, two:
+            preview = plan(**self.kwargs())
+            with patch.object(fresh, "write_private_json", side_effect=interrupted_receipt):
+                with self.assertRaisesRegex(KeyboardInterrupt, "durable receipt"):
+                    apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+            self.assertTrue((self.root / "config" / "runtime-projects.json").exists())
+            with self.assertRaisesRegex(ValueError, "provenance|uncertain|inspection"):
+                apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        registry = json.loads((self.root / "config" / "runtime-projects.json").read_text())
+        self.assertIn("brand", registry["projects"])
+        self.assertTrue((self.root / "state" / "fresh-onboarding-apply.json").exists())
+
+    def test_crash_before_campaign_receipt_keeps_project_and_campaign_for_review(self):
+        import ocpf_post.poststeward_onboarding as fresh
+
+        one, two = self.mocks()
+        actual_write = fresh.write_private_json
+
+        def interrupted_receipt(path, value):
+            if Path(path).name == "fresh-onboarding-apply.json" and value.get("campaign_status") == "created":
+                raise KeyboardInterrupt("crash before campaign ownership durability")
+            return actual_write(path, value)
+
+        with one, two:
+            preview = plan(**self.kwargs())
+            with patch.object(fresh, "write_private_json", side_effect=interrupted_receipt):
+                with self.assertRaisesRegex(KeyboardInterrupt, "campaign ownership durability"):
+                    apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+            with self.assertRaisesRegex(ValueError, "durable Fresh creation receipt"):
+                apply(expected_sha256=preview["review_sha256"], **self.kwargs())
+        registry = json.loads((self.root / "config" / "runtime-projects.json").read_text())
+        self.assertIn("brand", registry["projects"])
+        self.assertTrue((self.root / "state" / "runtime-campaigns" / "BRAND-001" / "manifest.json").exists())
+        self.assertTrue((self.root / "state" / "fresh-onboarding-apply.json").exists())
+
     def test_changed_cloud_binding_changes_review_and_blocks_apply(self):
         one, two = self.mocks()
         with one, two:

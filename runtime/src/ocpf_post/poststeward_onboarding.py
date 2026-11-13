@@ -420,41 +420,101 @@ def _fresh_intent_path() -> Path:
     return state_dir() / 'fresh-onboarding-apply.json'
 
 
-def _undo_unverified_imports(intent: dict[str, Any], preview: dict[str, Any]) -> None:
-    """Compensate ONLY exact content introduced by this pending review.
+def _record_fresh_import_result(
+    journal: Path, intent: dict[str, Any], *, kind: str, result: dict[str, Any],
+) -> None:
+    """Persist actual import ownership, never infer it from an unlocked preview.
 
-    This never restores an older entire registry or rewrites another project.
-    Every deletion is guarded against a concurrent or externally altered record.
-    The intent remains on disk for owner recovery if any guard fails.
+    If the process crashes after an import and before this write, the durable
+    status remains unknown. Recovery then holds an existing record for owner
+    inspection instead of deleting another writer's equal-content import.
     """
-    if (intent.get('review_sha256') != preview['review_sha256']
+    if kind not in ('project', 'campaign') or result.get('result') not in ('imported', 'already_present'):
+        _fail('poststeward.onboarding.import_receipt_invalid',
+              'Fresh importer returned an unrecognised creation result; inspect local state.')
+    intent[kind + '_status'] = 'created' if result['result'] == 'imported' else 'preexisting'
+    write_private_json(journal, intent)
+
+
+def _undo_unverified_imports(intent: dict[str, Any], preview: dict[str, Any]) -> None:
+    """Undo only records this Fresh transaction actually reported creating.
+
+    A matching payload does not establish provenance: another importer may
+    have created it after our preview. Unknown durable status + existing data
+    is a deliberate manual-recovery hold, never a deletion opportunity.
+    """
+    if (intent.get('schema_version') != 2
+        or intent.get('review_sha256') != preview['review_sha256']
         or intent.get('project_id') != preview['project']['project']
-        or intent.get('campaign_id') != preview['campaign']['campaign']):
+        or intent.get('campaign_id') != preview['campaign']['campaign']
+        or intent.get('session_id') != preview['setup_session_id']):
         _fail('poststeward.onboarding.recovery_review_mismatch',
               'An earlier incomplete Fresh import requires exact owner review before recovery.')
+    project_status = intent.get('project_status')
+    campaign_status = intent.get('campaign_status')
+    if project_status not in (None, 'created', 'preexisting') or campaign_status not in (None, 'created', 'preexisting'):
+        _fail('poststeward.onboarding.recovery_provenance_invalid',
+              'Fresh import creation receipts are invalid; manual inspection required.')
+    # Preflight both records *before any deletion* under the shared importer
+    # exclusion. Never partially compensate a transaction with uncertain data.
     with imports._import_lock(operation='fresh-apply-recovery'):
-        if not intent['campaign_preexisting']:
-            destination = runtime_campaign_root() / intent['campaign_id']
-            if destination.is_symlink():
-                _fail('poststeward.onboarding.recovery_changed', 'Campaign became a symlink; manual review required.')
-            if destination.exists():
-                manifest, texts = imports.validate_campaign(preview['campaign'], allocate=False)
-                if not imports._existing_campaign(manifest, texts):
-                    _fail('poststeward.onboarding.recovery_changed', 'Imported campaign changed; manual review required.')
-                shutil.rmtree(destination)
-        if not intent['project_preexisting']:
-            path = imports.registry_path()
-            if path.exists():
-                registry = imports._runtime_registry()
-                current = registry['projects'].get(intent['project_id'])
-                if current is not None:
-                    if current != preview['project']:
-                        _fail('poststeward.onboarding.recovery_changed', 'Imported project changed; manual review required.')
-                    del registry['projects'][intent['project_id']]
-                    if not registry['projects'] and not intent['registry_preexisting']:
-                        path.unlink()
-                    else:
-                        write_private_json(path, registry)
+        destination = runtime_campaign_root() / intent['campaign_id']
+        if destination.is_symlink():
+            _fail('poststeward.onboarding.recovery_changed',
+                  'Campaign became a symlink; manual review required.')
+        campaign_exists = destination.exists()
+        path = imports.registry_path()
+        if path.is_symlink():
+            _fail('poststeward.onboarding.recovery_changed',
+                  'Project registry became a symlink; manual review required.')
+        registry = imports._runtime_registry() if path.exists() else {'projects': {}}
+        current = registry['projects'].get(intent['project_id'])
+
+        if (campaign_status is None and campaign_exists) or (project_status is None and current is not None):
+            _fail('poststeward.onboarding.recovery_provenance_uncertain',
+                  'Import exists without a durable Fresh creation receipt; manual inspection required.')
+        if campaign_status == 'created' and campaign_exists:
+            manifest, texts = imports.validate_campaign(preview['campaign'], allocate=False)
+            if not imports._existing_campaign(manifest, texts):
+                _fail('poststeward.onboarding.recovery_changed',
+                      'Imported campaign changed; manual review required.')
+        if project_status == 'created' and current is not None and current != preview['project']:
+            _fail('poststeward.onboarding.recovery_changed',
+                  'Imported project changed; manual review required.')
+
+        # A different importer may have created a campaign with this reviewed
+        # project ID during Fresh verification. Inspect all runtime campaign
+        # dependencies under the importer exclusion before deleting the
+        # project; matching *only* the reviewed campaign ID is insufficient.
+        if project_status == 'created' and current is not None:
+            root = runtime_campaign_root()
+            for candidate in root.iterdir() if root.exists() else ():
+                if (candidate.name == intent['campaign_id']
+                        and campaign_status == 'created'):
+                    continue  # This exact campaign is owned by this rollback.
+                if candidate.is_symlink() or not candidate.is_dir():
+                    _fail('poststeward.onboarding.recovery_dependency_unknown',
+                          'Campaign dependency cannot be inspected; manual recovery required.')
+                try:
+                    other = json.loads((candidate / 'manifest.json').read_text(encoding='utf-8'))
+                except (OSError, ValueError, TypeError):
+                    _fail('poststeward.onboarding.recovery_dependency_unknown',
+                          'Campaign dependency is unreadable; manual recovery required.')
+                if not isinstance(other, dict):
+                    _fail('poststeward.onboarding.recovery_dependency_unknown',
+                          'Campaign dependency is invalid; manual recovery required.')
+                if other.get('project') == intent['project_id']:
+                    _fail('poststeward.onboarding.recovery_external_campaign_dependency',
+                          'Independent campaign depends on this project; manual recovery required.')
+
+        if campaign_status == 'created' and campaign_exists:
+            shutil.rmtree(destination)
+        if project_status == 'created' and current is not None:
+            del registry['projects'][intent['project_id']]
+            if not registry['projects'] and not intent.get('registry_preexisting'):
+                path.unlink()
+            else:
+                write_private_json(path, registry)
 
 
 def _fresh_precheck(engine: SetupEngine, preview: dict[str, Any]) -> None:
@@ -482,7 +542,7 @@ def apply(*, expected_sha256: str, **kwargs: Any) -> dict[str, Any]:
             except (OSError, ValueError, TypeError) as exc:
                 _fail('poststeward.onboarding.recovery_corrupt',
                       'Incomplete Fresh import intent is unreadable; do not overwrite it.')
-            if not isinstance(pending, dict) or pending.get('schema_version') != 1:
+            if not isinstance(pending, dict) or pending.get('schema_version') != 2:
                 _fail('poststeward.onboarding.recovery_corrupt', 'Incomplete Fresh import intent is invalid.')
             # Interrupted after verification but before intent cleanup: do not
             # undo a committed setup session. Keep it held for owner inspection.
@@ -501,14 +561,14 @@ def apply(*, expected_sha256: str, **kwargs: Any) -> dict[str, Any]:
             # A durable intent exists BEFORE the first write and lets a later
             # exact-review retry undo crash-interrupted add-only imports.
             intent = {
-                'schema_version': 1,
+                'schema_version': 2,
                 'review_sha256': preview['review_sha256'],
                 'project_id': preview['project']['project'],
                 'campaign_id': preview['campaign']['campaign'],
                 'session_id': preview['setup_session_id'],
                 'registry_preexisting': imports.registry_path().exists(),
-                'project_preexisting': project_preview['result'] == 'already_present',
-                'campaign_preexisting': (runtime_campaign_root() / preview['campaign']['campaign']).exists(),
+                'project_status': None,  # Unknown until the actual locked importer returns.
+                'campaign_status': None,
             }
             write_private_json(journal, intent)
             try:
@@ -516,11 +576,13 @@ def apply(*, expected_sha256: str, **kwargs: Any) -> dict[str, Any]:
                     project_file, apply=True,
                     expected_sha256=project_preview['input_sha256'],
                 )
+                _record_fresh_import_result(journal, intent, kind='project', result=project_result)
                 campaign_preview = import_campaign(campaign_file, allocate=False)
                 campaign_result = import_campaign(
                     campaign_file, apply=True,
                     expected_sha256=campaign_preview['input_sha256'], allocate=False,
                 )
+                _record_fresh_import_result(journal, intent, kind='campaign', result=campaign_result)
                 verified = engine.verify_fresh(
                     preview['provider_readiness'], preview['expected_identities'],
                     session_id=preview['setup_session_id'],
