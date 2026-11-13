@@ -248,6 +248,9 @@ export async function claimRuntimePairing(
   const runtimeTokenHash = await digest(runtimeToken);
   const tokenExpiresAt = now + RUNTIME_TOKEN_TTL_MS;
 
+  // Revalidate short-lived owner approval when the D1 claim is committed.
+  // A denied claim must not provision executor state: executorStatus() creates
+  // the default hosted record only after both credential CAS statements pass.
   const result = await db.batch([
     db
       .prepare(
@@ -257,7 +260,9 @@ export async function claimRuntimePairing(
          WHERE EXISTS(
            SELECT 1 FROM runtime_pairings
            WHERE id=? AND status='approved'
-             AND workspace=? AND installation_id=?
+             AND workspace=? AND installation_id=? AND expires_at>?
+             -- D1 decides at execution, not at an earlier Worker SELECT.
+             AND expires_at>CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
          )
          ON CONFLICT(installation_id) DO UPDATE SET
            label=excluded.label,
@@ -289,7 +294,8 @@ export async function claimRuntimePairing(
         pairingId,
         row.workspace,
         row.installation_id,
-        now,
+        now, // Owner approval must still be in its permitted claim window.
+        now, // Existing installation may rotate only after its own token expires.
       ),
     db
       .prepare(
@@ -302,14 +308,6 @@ export async function claimRuntimePairing(
            )`,
       )
       .bind(now, pairingId, row.installation_id, row.workspace, runtimeTokenHash, now),
-    db
-      .prepare(
-        `INSERT INTO workspace_executors
-         (workspace,executor_mode,active_installation_id,authority_generation,lease_expires_at,updated_at,reason)
-         VALUES (?,'hosted',NULL,1,NULL,?,'initial runtime pairing')
-         ON CONFLICT(workspace) DO NOTHING`,
-      )
-      .bind(row.workspace, now),
   ]);
   requireValue(
     result[0].meta.changes === 1 && result[1].meta.changes === 1,

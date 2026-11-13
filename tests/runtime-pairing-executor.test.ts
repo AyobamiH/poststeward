@@ -588,6 +588,107 @@ test("a revoked approval during a claim cannot mint an orphaned installation cre
     assert.equal(pairing?.status, "revoked");
     const stray = await db.prepare("SELECT token_hash FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
     assert.equal(stray, null, "revoked owner approval must never mint a token even transiently");
+    const executor = await db.prepare("SELECT workspace FROM workspace_executors WHERE workspace=?").bind(owner.workspace).first<any>();
+    assert.equal(executor, null, "rejected claim must not provision a default hosted executor");
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("claim expiry changed after owner-read cannot mint a token or executor in the atomic batch", async () => {
+  const { mf, db } = await runtime(undefined, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const started = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, label: "Expired during claim", platform: "Linux", runtimeVersion: "0.28.29" }),
+    });
+    assert.equal(started.status, 201);
+    const offer: any = await started.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST", headers: owner.headers,
+      body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+    });
+    assert.equal(approval.status, 200);
+
+    let intervened = 0;
+    const intercepted = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch")
+          return async (statements: D1PreparedStatement[]) => {
+            intervened++;
+            // The owner/policy expires this approval after initial SELECT,
+            // before the atomic D1 claim begins. It remains status=approved.
+            await target.prepare(
+              "UPDATE runtime_pairings SET expires_at=? WHERE id=? AND status='approved'",
+            ).bind(Date.now() - 1000, offer.pairingId).run();
+            return target.batch(statements);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const pollRequest = new Request(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+      headers: {
+        Authorization: "Bearer " + offer.pollToken,
+        "X-PostSteward-Runtime-Candidate": "I".repeat(64),
+      },
+    });
+    await assert.rejects(
+      claimRuntimePairing(intercepted, pollRequest, offer.pairingId),
+      (error: any) => error?.code === "RUNTIME_PAIRING_RACE",
+    );
+    assert.equal(intervened, 1);
+    const pairing = await db.prepare("SELECT status,expires_at FROM runtime_pairings WHERE id=?").bind(offer.pairingId).first<any>();
+    assert.equal(pairing?.status, "approved", "expiry must not consume the approval");
+    assert.ok(pairing?.expires_at < Date.now());
+    const credential = await db.prepare("SELECT token_hash FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
+    assert.equal(credential, null, "expired owner approval must not mint a credential");
+    const executor = await db.prepare("SELECT workspace FROM workspace_executors WHERE workspace=?").bind(owner.workspace).first<any>();
+    assert.equal(executor, null, "expired owner approval must not provision an executor");
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("database clock refuses an approval that expires after the request timestamp", async () => {
+  const { mf, db } = await runtime(undefined, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const started = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, label: "Delayed database claim", platform: "Linux", runtimeVersion: "0.28.29" }),
+    });
+    assert.equal(started.status, 201);
+    const offer: any = await started.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST", headers: owner.headers,
+      body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+    });
+    assert.equal(approval.status, 200);
+    const now = Date.now();
+    // Simulate a request timestamp captured before the expiry while the D1
+    // commit happens afterwards. No sleep and no concurrent provider effects.
+    await db.prepare("UPDATE runtime_pairings SET expires_at=? WHERE id=?")
+      .bind(now - 1000, offer.pairingId).run();
+    const poll = new Request(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+      headers: {
+        Authorization: "Bearer " + offer.pollToken,
+        "X-PostSteward-Runtime-Candidate": "J".repeat(64),
+      },
+    });
+    await assert.rejects(
+      claimRuntimePairing(db, poll, offer.pairingId, now - 2000),
+      (error: any) => error?.code === "RUNTIME_PAIRING_RACE",
+    );
+    const pairing = await db.prepare("SELECT status FROM runtime_pairings WHERE id=?").bind(offer.pairingId).first<any>();
+    assert.equal(pairing?.status, "approved");
+    const installation = await db.prepare("SELECT token_hash FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
+    assert.equal(installation, null);
+    const executor = await db.prepare("SELECT workspace FROM workspace_executors WHERE workspace=?").bind(owner.workspace).first<any>();
+    assert.equal(executor, null);
   } finally {
     await mf.dispose();
   }
