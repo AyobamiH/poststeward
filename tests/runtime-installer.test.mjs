@@ -77,6 +77,30 @@ test("inherited Cloud origin never changes the public release distribution", (t)
   assert.equal(existsSync(m.prefix), false);
 });
 
+// Cloud API overrides must never redirect release manifests to the OAuth host.
+// The mocked transport rejects any unexpected endpoint, so this proves the
+// selected distribution endpoint was actually used, not merely parsed.
+for (const explicitDistribution of [true, false]) {
+  test(`Cloud CLI --origin preserves ${explicitDistribution ? "explicit" : "default"} distribution`, (t) => {
+    const m = machine(t);
+    if (!explicitDistribution) delete m.env.POSTSTEWARD_DISTRIBUTION_ORIGIN;
+    const distribution = explicitDistribution ? "https://poststeward.example" : "https://poststeward.com";
+    const cloud = "https://customer-cloud.example";
+    const preview = m.run("--origin", cloud, "--dry-run");
+    assert.equal(preview.status, 0, preview.stderr);
+    assert.equal(readFileSync(m.env.FIXTURE_REQUESTS, "utf8").trim(),
+      `${distribution}/releases/stable.json`);
+    assert.equal(existsSync(m.prefix), false, "dry run must not write installed state");
+    const install = m.run("--origin", cloud);
+    assert.equal(install.status, 0, install.stderr);
+    assert.equal(JSON.parse(readFileSync(m.receipt, "utf8")).origin, cloud);
+    assert.match(readFileSync(join(m.bin, "poststeward"), "utf8"),
+      /export POSTSTEWARD_ORIGIN=https:\/\/customer-cloud\.example/);
+    const requests = readFileSync(m.env.FIXTURE_REQUESTS, "utf8");
+    assert.ok(!requests.includes("customer-cloud.example/releases/"), requests);
+  });
+}
+
 test("installer dry run resolves a pinned channel without creating an installation", (t) => {
   const m = machine(t);
   const result = m.run("--dry-run");

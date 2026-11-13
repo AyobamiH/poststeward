@@ -43,7 +43,7 @@ while (($#)); do
     --beta) VERSION="beta"; shift ;;
     --prefix) (($# >= 2)) || fail "--prefix requires a value"; PREFIX="$2"; shift 2 ;;
     --bin-dir) (($# >= 2)) || fail "--bin-dir requires a value"; BIN_DIR="$2"; shift 2 ;;
-    --origin) (($# >= 2)) || fail "--origin requires a value"; ORIGIN="$2"; DISTRIBUTION_ORIGIN="$2"; shift 2 ;;
+    --origin) (($# >= 2)) || fail "--origin requires a value"; ORIGIN="$2"; shift 2 ;;
     --no-onboard) NO_ONBOARD=1; shift ;;
     --no-verify) VERIFY=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
