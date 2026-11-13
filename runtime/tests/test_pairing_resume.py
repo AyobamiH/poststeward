@@ -359,6 +359,148 @@ with patch.object(cloud, '_request', side_effect=request):
         sleep.assert_not_called()
         self.assertEqual(cloud._read()["pending_pairing"], saved["pending_pairing"])
 
+    def test_claim_race_must_retry_original_candidate_without_new_owner_request(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        original = cloud._read()["pending_pairing"]["claim_token"]
+        installation = cloud._read()["installation_id"]
+        requests = []
+
+        def contested_get(method, path, **kwargs):
+            self.assertEqual(method, "GET", "No new owner pairing may be issued")
+            self.assertEqual(kwargs.get("runtime_candidate"), original)
+            requests.append(method)
+            if len(requests) == 1:
+                raise cloud.CloudError(
+                    "RUNTIME_PAIRING_RACE", "Concurrent claim committed remotely", 409
+                )
+            return 200, {
+                "status": "paired",
+                "candidateAccepted": True,
+                "installationId": installation,
+                "workspace": "owner-workspace",
+                "tokenExpiresAt": int(time.time() * 1000) + 900_000,
+            }
+
+        with patch.object(cloud, "_request", side_effect=contested_get), patch.object(
+            cloud.time, "sleep"
+        ) as sleep, patch.object(cloud, "bindings", return_value={"workspace": "owner-workspace"}):
+            result = cloud.onboard(no_open=True, wait=True)
+        self.assertEqual(result["workspace"], "owner-workspace")
+        self.assertEqual(requests, ["GET", "GET"])
+        self.assertEqual(sleep.call_count, 1)
+        self.assertEqual(cloud._read()["runtime_token"], original)
+        self.assertNotIn("pending_pairing", cloud._read())
+
+    def test_expired_claim_race_keeps_private_candidate_for_read_only_recovery(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        original = cloud._read()
+        candidate = original["pending_pairing"]["claim_token"]
+        original["pending_pairing"]["started"]["expiresAt"] = int(time.time() * 1000) - 1_000
+        cloud._write(original)
+
+        with patch.object(cloud, "_request", side_effect=cloud.CloudError(
+            "RUNTIME_PAIRING_RACE", "Competing claim in-flight", 409
+        )) as request:
+            with self.assertRaises(cloud.CloudError) as failure:
+                cloud.onboard(no_open=True, wait=True)
+        self.assertEqual(failure.exception.code, "RUNTIME_PAIRING_RECOVERY_UNVERIFIED")
+        request.assert_called_once()
+        self.assertEqual(request.call_args.args[0], "GET")
+        self.assertEqual(cloud._read()["pending_pairing"]["claim_token"], candidate)
+        self.assertNotIn("runtime_token", cloud._read())
+
+    def test_parallel_claim_race_cannot_consume_private_recovery_before_ack(self):
+        import threading
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        identity = cloud._read()["installation_id"]
+        original = cloud._read()["pending_pairing"]["claim_token"]
+        first_remote_committed = threading.Event()
+        unblock_first_ack = threading.Event()
+        poll_lock = threading.Lock()
+        calls = []
+        outcomes = {}
+
+        def contested_get(method, path, **kwargs):
+            self.assertEqual(method, "GET")
+            self.assertEqual(kwargs.get("runtime_candidate"), original)
+            with poll_lock:
+                calls.append(method)
+                index = len(calls)
+            if index == 1:
+                first_remote_committed.set()
+                self.assertTrue(unblock_first_ack.wait(8), "First acknowledgement blocked")
+            elif index == 2:
+                raise cloud.CloudError(
+                    "RUNTIME_PAIRING_RACE", "Other waiter committed remotely", 409
+                )
+            return 200, {
+                "status": "paired",
+                "candidateAccepted": True,
+                "installationId": identity,
+                "workspace": "owner-workspace",
+                "tokenExpiresAt": int(time.time() * 1000) + 900_000,
+            }
+
+        def waiter(name):
+            try:
+                cloud.onboard(no_open=True, wait=True)
+                outcomes[name] = "paired"
+            except cloud.CloudError as exc:
+                outcomes[name] = exc.code
+
+        with patch.object(cloud, "_request", side_effect=contested_get), patch.object(
+            cloud.time, "sleep"
+        ), patch.object(cloud, "bindings", return_value={"workspace": "owner-workspace"}):
+            first = threading.Thread(target=waiter, args=("first",), daemon=True)
+            second = threading.Thread(target=waiter, args=("second",), daemon=True)
+            first.start()
+            self.assertTrue(first_remote_committed.wait(8))
+            second.start()
+            second.join(8)
+            self.assertFalse(second.is_alive(), "Second waiter must finish promptly")
+            unblock_first_ack.set()
+            first.join(8)
+            self.assertFalse(first.is_alive(), "First waiter must finish promptly")
+        self.assertEqual(outcomes["second"], "paired", outcomes)
+        self.assertIn(outcomes["first"], ("paired", "RUNTIME_PAIRING_CONTEXT_CHANGED"))
+        self.assertEqual(cloud._read()["runtime_token"], original)
+        self.assertNotIn("pending_pairing", cloud._read())
+
+    def test_bounded_claim_race_retry_preserves_exact_provenance(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        candidate = cloud._read()["pending_pairing"]["claim_token"]
+        with patch.object(cloud, "_request", side_effect=cloud.CloudError(
+            "RUNTIME_PAIRING_RACE", "Concurrent D1 claim raced", 409
+        )) as requests, patch.object(cloud.time, "sleep") as sleep:
+            with self.assertRaises(cloud.CloudError) as failure:
+                cloud.onboard(no_open=True, wait=True)
+        self.assertEqual(failure.exception.code, "RUNTIME_PAIRING_RECOVERY_UNVERIFIED")
+        self.assertEqual(requests.call_count, 3, "Transient claim retries must be bounded")
+        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(cloud._read()["pending_pairing"]["claim_token"], candidate)
+        self.assertNotIn("runtime_token", cloud._read())
+
+    def test_proven_consumed_pairing_still_retires_invalid_candidate(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        with patch.object(cloud, "_request", side_effect=cloud.CloudError(
+            "RUNTIME_PAIRING_ALREADY_CONSUMED", "Claim no longer matches active installation", 409
+        )):
+            with self.assertRaises(cloud.CloudError) as failure:
+                cloud.onboard(no_open=True, wait=True)
+        self.assertEqual(failure.exception.code, "RUNTIME_PAIRING_ALREADY_CONSUMED")
+        self.assertNotIn("pending_pairing", cloud._read())
+        self.assertNotIn("runtime_token", cloud._read())
+
     def test_old_poll_failure_does_not_delete_newer_approval_request(self):
         offered = self.started()
         with patch.object(cloud, "_request", return_value=(200, offered)):
