@@ -148,7 +148,7 @@ test("SLO file collection uses the actual evaluator verdict and event-window tim
     const raw = {
       schemaVersion: 1, evidenceClass: "hosted_observation", environment: "staging", release,
       cohort: { mode: "canary", bps: 100, startedAt: now - 86400000, observedAt: now, workspaceCount: 1, advancedOperations: 20 },
-      invariants: { duplicateExternalEffects: 0 },
+      invariants: { duplicateExternalEffects: 0, evidenceMethod: "independent_provider_readback" },
       publication: { verified: 20, eligible: 20 }, schedule: { withinFiveMinutes: 20, due: 20 },
       oauthRefresh: { succeeded: 1, attempts: 1 },
       providerReconciliation: { samples: 1, p95Ms: 100 }, webhookReconciliation: { samples: 1, p95Ms: 100 },
