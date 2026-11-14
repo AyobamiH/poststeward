@@ -1,12 +1,24 @@
 version: 2.1
+parameters:
+  native_macos_main_acceptance:
+    type: boolean
+    default: false
+  native_macos_main_revision:
+    type: string
+    default: ""
 jobs:
   native-macos-local-lifecycle:
+    parameters:
+      expected_revision:
+        type: string
+        default: ""
     macos:
       xcode: "26.4.1"
     resource_class: m4pro.medium
     working_directory: ~/poststeward
     environment:
       CI: "true"
+      POSTSTEWARD_EXPECTED_MAIN_SHA: "<< parameters.expected_revision >>"
     steps:
       - checkout
       - run:
@@ -16,6 +28,15 @@ jobs:
             test "$(uname -s)" = Darwin
             test "$(uname -m)" = arm64
             test "$(git rev-parse HEAD)" = "$CIRCLE_SHA1"
+            # For the explicitly requested current-main job, the owner-provided
+            # SHA must be an exact 40-byte hex revision of checked-out source.
+            # The historical branch test lanes keep their default empty pin.
+            if [ "${CIRCLE_BRANCH:-}" = "main" ]; then
+              [[ "$POSTSTEWARD_EXPECTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+              test "$CIRCLE_SHA1" = "$POSTSTEWARD_EXPECTED_MAIN_SHA"
+            else
+              test -z "$POSTSTEWARD_EXPECTED_MAIN_SHA"
+            fi
             sw_vers
       - run:
           name: Exercise isolated refill crash and recovery on Darwin
@@ -85,3 +106,14 @@ workflows:
               only:
                 - test/native-macos-and-refill-acceptance
                 - agent/native-customer-lifecycle-20261112
+  # Opt-in ONLY, using existing CircleCI macOS capacity. Never run for each
+  # main push. The caller must explicitly supply the reviewed main SHA.
+  native-macos-current-main-acceptance:
+    when: << pipeline.parameters.native_macos_main_acceptance >>
+    jobs:
+      - native-macos-local-lifecycle:
+          expected_revision: << pipeline.parameters.native_macos_main_revision >>
+          filters:
+            branches:
+              only:
+                - main
