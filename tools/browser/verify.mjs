@@ -146,7 +146,13 @@ const errors = [];
 const browserExecutable = process.env.POSTSTEWARD_BROWSER_EXECUTABLE;
 const browser = await chromium.launch({
   headless: true,
-  ...(browserExecutable ? { executablePath: browserExecutable } : {}),
+  ...(browserExecutable ? {
+    executablePath: browserExecutable,
+    // The isolated CI image has no GPU. Without software compositing,
+    // Playwright screenshot capture can hang even after fonts have loaded.
+    // Keep every real screenshot and visual/accessibility assertion intact.
+    args: ['--disable-gpu'],
+  } : {}),
 });
 async function check(name, run) {
   if (process.env.POSTSTEWARD_BROWSER_CHECK && !new RegExp(process.env.POSTSTEWARD_BROWSER_CHECK).test(name)) return;
@@ -555,12 +561,17 @@ try {
     for(const height of [600,225]) {
       await page.setViewportSize({width:360,height});
       for(const path of ['/','/app','/docs/','/privacy']) {
-        await page.goto(origin+path);await page.waitForLoadState('networkidle');
+        // Rendered controls, not background transport idleness, establish
+        // menu readiness. Polling may legitimately continue after navigation.
+        await page.goto(origin+path,{waitUntil:'load'});
         const menu=page.locator('.site-menu,.product-menu,.docs-mobile-menu').first();
+        await menu.locator('summary').waitFor({state:'visible'});
         await menu.locator('summary').focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('.site-menu[open],.product-menu[open],.docs-mobile-menu[open]'));
         const bounds=await menu.evaluate(e=>{const a=e.querySelector('summary').getBoundingClientRect(),p=e.querySelector('nav,.site-menu-panel').getBoundingClientRect();return {below:p.top>=a.bottom,inside:p.left>=0&&p.right<=innerWidth+1&&p.bottom<=innerHeight+1};});
         assert.equal(bounds.below,true,`${path}: menu obscures its summary`);assert.equal(bounds.inside,true,`${path}: menu escapes viewport`);
-        const links=menu.locator('a');for(let i=0;i<await links.count();i++) {await page.keyboard.press('Tab');const focused=await links.nth(i).evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('nav,.site-menu-panel').getBoundingClientRect();return e===document.activeElement&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});assert.equal(focused,true,`${path}: task ${i} unreachable`);}
+        const links=menu.locator('a');const linkCount=await links.count();
+        assert.ok(linkCount>0,`${path}: no menu task links rendered`);
+        for(let i=0;i<linkCount;i++) {await page.keyboard.press('Tab');const focused=await links.nth(i).evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('nav,.site-menu-panel').getBoundingClientRect();return e===document.activeElement&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});assert.equal(focused,true,`${path}: task ${i} unreachable`);}
         await page.keyboard.press('Escape');assert.equal(await menu.locator('summary').evaluate(e=>document.activeElement===e),true);
       }
     }await context.close();

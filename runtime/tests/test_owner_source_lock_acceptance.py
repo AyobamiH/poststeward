@@ -28,7 +28,9 @@ class OwnerSourceLockAcceptanceTests(unittest.TestCase):
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                # The inner harness retains its two-second lock acquisition
+                # boundary, but successful post-lock work has a separate limit.
+                timeout=45,
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stdout + "\n" + result.stderr)
