@@ -72,6 +72,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     options = {},
     predicate = () => true,
     retrySafe = false,
+    transportOnly = false,
   ) {
     let status = 0,
       passed = false,
@@ -96,7 +97,9 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         // Store only fixed check names/status. No response bodies, cookies, state or exception data.
         status = 0;
       }
-      if (passed || !retrySafe || ![200, 404].includes(status)) break;
+      // Only retry transport failures on explicitly marked non-effect checks.
+      // Never replay a response-bearing POST, even after a denial or mismatch.
+      if (passed || !retrySafe || (transportOnly ? status !== 0 : (status !== 0 && ![200, 404].includes(status)))) break;
       if (attempts < limit) await sleep(2000);
     }
     checks.push({ name, status, expected, attempts, passed });
@@ -288,6 +291,8 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
       }),
     },
     unauthenticated,
+    true, // Unauthenticated probe is guaranteed to reject before any provider effect.
+    true, // Only retry when no HTTP response was received.
   );
   await check(
     "unauthenticated GitHub source unlink rejected",

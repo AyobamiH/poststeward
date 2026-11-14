@@ -363,3 +363,31 @@ test("hosted catalogue follows the built operation contract and rejects missing 
     );
   }
 });
+
+test("transient transport loss on unauthenticated private probe retries safely", async () => {
+  const stable = service();
+  let attempts = 0;
+  const report = await verifyHosted(c, { sleep, send: (url, options) => {
+    if (new URL(url).pathname === "/api/sources/github/probe" && ++attempts === 1)
+      return Promise.reject(new Error("transient network error; private-secret"));
+    return stable(url, options);
+  }});
+  assert.equal(report.passed, true);
+  assert.equal(attempts, 2);
+  assert.equal(report.checks.find((x) => x.name === "unauthenticated private source probe rejected").attempts, 2);
+  assert.equal(JSON.stringify(report).includes("private-secret"), false);
+});
+
+test("unauthenticated probe never retries a received incorrect response", async () => {
+  const stable = service();
+  let attempts = 0;
+  const report = await verifyHosted(c, { sleep, send: (url, options) => {
+    if (new URL(url).pathname === "/api/sources/github/probe") {
+      attempts++;
+      return Promise.resolve(Response.json({}, { status: 200, headers }));
+    }
+    return stable(url, options);
+  }});
+  assert.equal(report.passed, false);
+  assert.equal(attempts, 1);
+});
