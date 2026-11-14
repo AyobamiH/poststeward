@@ -79,6 +79,8 @@ class PostStewardOnboardingTests(unittest.TestCase):
             account_id = payload["accountId"]
             return {
                 "schemaVersion": 1,
+                "provider": payload["provider"],
+                "capabilities": {"oauth": True, "refresh": True, "readback": True},
                 "account": {
                     "identity": {"id": account_id, "username": "observed"},
                     "alias": payload["accountAlias"],
@@ -149,6 +151,8 @@ class PostStewardOnboardingTests(unittest.TestCase):
         ), patch(
             "ocpf_post.poststeward_onboarding.relay",
             side_effect=lambda payload: {
+                "schemaVersion": 1, "provider": payload["provider"],
+                "capabilities": {"oauth": True},
                 "account": {"identity": {"id": payload["accountId"]}, "binding": payload["bindingVersion"], "alias": payload["accountAlias"]}
             },
         ):
@@ -165,7 +169,7 @@ class PostStewardOnboardingTests(unittest.TestCase):
         bindings = {"workspace":"workspace-1", "installationId":"id", "accounts":[threads, duplicate]}
         with patch("ocpf_post.poststeward_onboarding.bindings", return_value=bindings), patch(
             "ocpf_post.poststeward_onboarding.relay",
-            return_value={"account":{"identity":threads["identity"], "alias":threads["alias"], "binding":threads["version"]}},
+            return_value={"schemaVersion":1, "provider":"threads", "capabilities":{"oauth":True}, "account":{"identity":threads["identity"], "alias":threads["alias"], "binding":threads["version"]}},
         ):
             args = dict(self.kwargs(), threads_alias=threads["alias"])
             preview = plan(**args)
@@ -187,10 +191,60 @@ class PostStewardOnboardingTests(unittest.TestCase):
         rows = cloud_accounts()
         with patch("ocpf_post.poststeward_onboarding.bindings", return_value={"accounts":rows, "workspace":"workspace-1","installationId":"id"}), patch(
             "ocpf_post.poststeward_onboarding.relay",
-            side_effect=lambda payload: {"account":{"identity":{"id":payload["accountId"]}, "alias":"different", "binding":payload["bindingVersion"]}},
+            side_effect=lambda payload: {"schemaVersion":1, "provider":payload["provider"], "capabilities":{"oauth":True}, "account":{"identity":{"id":payload["accountId"]}, "alias":"different", "binding":payload["bindingVersion"]}},
         ):
             with self.assertRaisesRegex(Exception, "provider.binding.mismatch"):
                 plan(**self.kwargs())
+
+    def test_plan_refuses_hosted_oauth_revoked_after_bindings_snapshot(self):
+        one, _ = self.mocks()
+
+        def stale_capability(payload):
+            return {
+                "schemaVersion": 1,
+                "provider": payload["provider"],
+                "capabilities": {"oauth": False},
+                "account": {
+                    "identity": {"id": payload["accountId"]},
+                    "alias": payload["accountAlias"],
+                    "binding": payload["bindingVersion"],
+                },
+            }
+
+        with one, patch(
+            "ocpf_post.poststeward_onboarding.relay",
+            side_effect=stale_capability,
+        ):
+            with self.assertRaisesRegex(
+                Exception, "provider.oauth.hosted_connection_required"
+            ):
+                plan(**self.kwargs())
+        self.assertFalse((self.root / "config" / "runtime-projects.json").exists())
+
+    def test_plan_refuses_cross_provider_identity_substitution(self):
+        one, _ = self.mocks()
+
+        def wrong_provider(payload):
+            return {
+                "schemaVersion": 1,
+                "provider": "x" if payload["provider"] == "threads" else "threads",
+                "capabilities": {"oauth": True},
+                "account": {
+                    "identity": {"id": payload["accountId"]},
+                    "alias": payload["accountAlias"],
+                    "binding": payload["bindingVersion"],
+                },
+            }
+
+        with one, patch(
+            "ocpf_post.poststeward_onboarding.relay",
+            side_effect=wrong_provider,
+        ):
+            with self.assertRaisesRegex(
+                Exception, "provider.binding.provider_mismatch"
+            ):
+                plan(**self.kwargs())
+        self.assertFalse((self.root / "config" / "runtime-projects.json").exists())
 
     def test_multiple_accounts_require_explicit_alias(self):
         rows = cloud_accounts() + [
