@@ -18,6 +18,15 @@ The no-root installer resolves one reviewed release to an exact Git revision, ve
 the embedded runtime tree before promotion, installs a user-local release under the
 PostSteward XDG namespace and creates the canonical `poststeward` command.
 
+The installed `poststeward update --channel stable|beta` command retrieves the
+installer and release manifests from **https://poststeward.com**, not the
+authenticated Cloud API at **https://app.poststeward.com**. These are deliberately
+different authorities. A local staging/test distribution can be selected explicitly
+using `POSTSTEWARD_DISTRIBUTION_ORIGIN=https://your-reviewed-staging-origin`;
+this must be a single HTTPS origin. The hosted API origin stays independent in
+`POSTSTEWARD_ORIGIN`. No update activates publishing, changes account grants or
+moves executor authority; deactivate an active local executor before an update.
+
 Useful installer modes:
 
 ```bash

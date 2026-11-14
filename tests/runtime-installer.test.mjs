@@ -36,7 +36,7 @@ import json, os, shutil, sys
 args = sys.argv[1:]
 url = args[args.index('-o') - 1]
 target = args[args.index('-o') + 1]
-if url == 'https://poststeward.example/releases/stable.json':
+if url in ('https://poststeward.example/releases/stable.json', 'https://poststeward.com/releases/stable.json'):
     shutil.copyfile(os.environ['FIXTURE_MANIFEST'], target)
 elif url == 'https://github.com/AyobamiH/poststeward/archive/' + os.environ['FIXTURE_REVISION'] + '.tar.gz':
     shutil.copyfile(os.environ['FIXTURE_ARCHIVE'], target)
@@ -53,6 +53,7 @@ with open(os.environ['FIXTURE_REQUESTS'], 'a') as log:
   const env = { ...process.env, PATH: tools + ":" + process.env.PATH,
     XDG_CONFIG_HOME: join(root, "config"), XDG_STATE_HOME: join(root, "state"), XDG_DATA_HOME: join(root, "data"),
     POSTSTEWARD_INSTALL_PREFIX: prefix, POSTSTEWARD_BIN_DIR: bin, POSTSTEWARD_ORIGIN: "https://poststeward.example",
+    POSTSTEWARD_DISTRIBUTION_ORIGIN: "https://poststeward.example",
     FIXTURE_MANIFEST: metadataPath, FIXTURE_REVISION: revision, FIXTURE_ARCHIVE: archive,
     FIXTURE_REQUESTS: join(root, "requests.txt"),
   };
@@ -62,6 +63,19 @@ with open(os.environ['FIXTURE_REQUESTS'], 'a') as log:
   const run = (...args) => spawnSync("bash", [installer, ...args, "--no-onboard"], { env, encoding: "utf8", timeout: 30000 });
   return { root, prefix, bin, env, run, receipt: join(root, "state/poststeward/install.json") };
 }
+
+test("inherited Cloud origin never changes the public release distribution", (t) => {
+  const m = machine(t);
+  delete m.env.POSTSTEWARD_DISTRIBUTION_ORIGIN;
+  m.env.POSTSTEWARD_ORIGIN = "https://app.poststeward.com";
+  const result = m.run("--dry-run");
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(revision));
+  const requests = readFileSync(m.env.FIXTURE_REQUESTS, "utf8");
+  assert.match(requests, /https:\/\/poststeward\.com\/releases\/stable\.json/);
+  assert.doesNotMatch(requests, /https:\/\/app\.poststeward\.com\/releases\//);
+  assert.equal(existsSync(m.prefix), false);
+});
 
 test("installer dry run resolves a pinned channel without creating an installation", (t) => {
   const m = machine(t);

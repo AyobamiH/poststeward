@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -328,10 +329,28 @@ def update(channel: str, *, dry_run: bool = False) -> int:
             "Deactivate PostSteward before changing the installed runtime release.",
         )
 
-    origin = str(
-        os.environ.get("POSTSTEWARD_ORIGIN") or "https://poststeward.com"
-    ).rstrip("/")
-    url = origin + "/install.sh"
+    # Cloud is the OAuth and provider authority, not the public release
+    # distribution. An installed shim may set POSTSTEWARD_ORIGIN to the app;
+    # never inherit that as the origin of installer or channel manifests.
+    requested_distribution = str(
+        os.environ.get("POSTSTEWARD_DISTRIBUTION_ORIGIN") or "https://poststeward.com"
+    )
+    parsed_distribution = urllib.parse.urlsplit(requested_distribution)
+    if (requested_distribution != requested_distribution.strip()
+        or parsed_distribution.scheme != "https"
+        or not parsed_distribution.hostname
+        or parsed_distribution.username is not None
+        or parsed_distribution.password is not None
+        or parsed_distribution.path not in {"", "/"}
+        or parsed_distribution.query or parsed_distribution.fragment):
+        raise ProductLifecycleError(
+            "UPDATE_DISTRIBUTION_ORIGIN_INVALID",
+            "Installer distribution origin must be one HTTPS origin without credentials, a path or query.",
+        )
+    distribution_origin = urllib.parse.urlunsplit(
+        (parsed_distribution.scheme, parsed_distribution.netloc, "", "", "")
+    )
+    url = distribution_origin + "/install.sh"
     request = urllib.request.Request(
         url,
         headers={"User-Agent": f"poststeward-runtime/{__version__}"},
@@ -377,7 +396,10 @@ def update(channel: str, *, dry_run: bool = False) -> int:
         args.extend(['--prefix', str(prefix), '--bin-dir', str(binary)])
         if dry_run:
             args.append("--dry-run")
-        result = subprocess.run(args, check=False)
+        # Pin the same reviewed distribution endpoint for the nested installer
+        # while retaining POSTSTEWARD_ORIGIN as the independent Cloud API origin.
+        env = dict(os.environ, POSTSTEWARD_DISTRIBUTION_ORIGIN=distribution_origin)
+        result = subprocess.run(args, check=False, env=env)
         return int(result.returncode)
 
 
