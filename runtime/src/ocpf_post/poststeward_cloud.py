@@ -6,10 +6,12 @@ pairing.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from pathlib import Path
 import platform
+import secrets
 import socket
 import sys
 import time
@@ -86,6 +88,7 @@ def _request(
     payload: dict[str, Any] | None = None,
     token: str | None = None,
     timeout: float = 30,
+    runtime_candidate: str | None = None,
 ) -> tuple[int, dict[str, Any]]:
     headers = {
         "Accept": "application/json",
@@ -97,6 +100,8 @@ def _request(
         headers["Content-Type"] = "application/json"
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if runtime_candidate:
+        headers["X-PostSteward-Runtime-Candidate"] = runtime_candidate
     request = urllib.request.Request(origin() + path, data=body, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -355,30 +360,156 @@ def activation_executor_proof() -> dict[str, Any]:
     }
 
 
-def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
-    current = installation_identity()
-    existing = str(current.get("runtime_token") or "").strip()
-    if existing:
-        try:
-            value = bindings()
-            print("PostSteward runtime is already paired.")
-            print(json.dumps(value, indent=2, ensure_ascii=False))
-            return value
-        except CloudError as exc:
-            if exc.code not in {"RUNTIME_UNAUTHENTICATED", "RUNTIME_PAIRING_EXPIRED"}:
-                raise
+def _validated_pairing_offer(value: Any, *, recovery_only: bool = False) -> dict[str, Any]:
+    """Accept only a bounded, same-origin, unexpired owner approval request."""
+    if not isinstance(value, dict):
+        raise CloudError("RUNTIME_PAIRING_INVALID_RESPONSE", "Pairing response is not an object.", 3)
+    for key in ("pairingId", "pollToken", "userCode", "verificationUrl"):
+        item = value.get(key)
+        if not isinstance(item, str) or not item or len(item) > 1024:
+            raise CloudError("RUNTIME_PAIRING_INVALID_RESPONSE", "Pairing response is incomplete.", 3)
+    expiry = value.get("expiresAt")
+    now_ms = int(time.time() * 1000)
+    if (type(expiry) is not int
+        or (not recovery_only and expiry <= now_ms)
+        or (recovery_only and not (now_ms - 24 * 60 * 60_000 < expiry <= now_ms))):
+        raise CloudError("RUNTIME_PAIRING_EXPIRED", "Pairing approval window has expired.", 3)
+    candidate = urllib.parse.urlsplit(value["verificationUrl"])
+    approved_origin = urllib.parse.urlsplit(origin())
+    if candidate.scheme != "https" or candidate.netloc != approved_origin.netloc or candidate.username or candidate.password:
+        raise CloudError("RUNTIME_PAIRING_INVALID_RESPONSE", "Pairing verification URL did not match the hosted origin.", 3)
+    return value
 
-    _, started = _request(
-        "POST",
-        "/api/runtime/pairing/start",
-        payload={
-            "installationId": current["installation_id"],
-            "label": current["label"],
-            "platform": current["platform"],
-            "runtimeVersion": _runtime_version(),
-            **({"sourceRevision": _source_revision()} if _source_revision() else {}),
-        },
-    )
+
+def _forget_pending_pairing() -> None:
+    value = _read()
+    if "pending_pairing" in value:
+        value.pop("pending_pairing", None)
+        _write(value)
+
+
+def _matching_pending_pairing(identity: dict[str, Any]) -> dict[str, Any] | None:
+    pending = _read().get("pending_pairing")
+    if not isinstance(pending, dict):
+        return None
+    if pending.get("installation_id") != identity.get("installation_id") or pending.get("origin") != origin():
+        return None
+    try:
+        return _validated_pairing_offer(pending.get("started"))
+    except CloudError as exc:
+        if exc.code != "RUNTIME_PAIRING_EXPIRED":
+            return None
+        # A concluded Cloud claim can be recovered after the owner code expired,
+        # but only using a locally retained exact candidate and a read-only poll.
+        if not isinstance(pending.get("claim_token"), str):
+            return None
+        try:
+            return _validated_pairing_offer(pending.get("started"), recovery_only=True)
+        except CloudError:
+            return None
+
+
+@contextlib.contextmanager
+def _pairing_start_lock():
+    """Serialize first installation identity and pairing start across processes.
+
+    The lock ends before polling for human approval; no owner interaction or
+    provider consequence is held inside this critical section.
+    """
+    try:
+        import fcntl
+    except ImportError as exc:
+        raise CloudError("RUNTIME_PAIRING_LOCK_UNSUPPORTED", "Pairing requires a macOS, Linux or WSL user filesystem.", 3) from exc
+    directory = client_path().parent
+    directory.mkdir(parents=True, exist_ok=True)
+    directory.chmod(0o700)
+    lock_path = directory / "pairing-start.lock"
+    try:
+        descriptor = os.open(str(lock_path), os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    except OSError as exc:
+        raise CloudError("RUNTIME_PAIRING_LOCK_UNAVAILABLE", "Cannot open the private pairing lock.", 3) from exc
+    acquired = False
+    try:
+        os.fchmod(descriptor, 0o600)
+        deadline = time.monotonic() + 8
+        while not acquired:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+            except BlockingIOError as exc:
+                if time.monotonic() >= deadline:
+                    raise CloudError("RUNTIME_PAIRING_BUSY", "Another pairing request is active; retry the same installation.", 3) from exc
+                time.sleep(0.1)
+        yield
+    finally:
+        if acquired:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def _retire_pending_pairing(pairing_id: str) -> None:
+    """A stale waiter must never delete a newer pending owner review."""
+    with _pairing_start_lock():
+        value = _read()
+        pending = value.get("pending_pairing")
+        started = pending.get("started") if isinstance(pending, dict) else None
+        if isinstance(started, dict) and started.get("pairingId") == pairing_id:
+            value.pop("pending_pairing", None)
+            _write(value)
+
+
+def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
+    with _pairing_start_lock():
+        current = installation_identity()
+        existing = str(current.get("runtime_token") or "").strip()
+        if existing:
+            try:
+                value = bindings()
+                print("PostSteward runtime is already paired.")
+                print(json.dumps(value, indent=2, ensure_ascii=False))
+                return value
+            except CloudError as exc:
+                if exc.code not in {"RUNTIME_UNAUTHENTICATED", "RUNTIME_PAIRING_EXPIRED"}:
+                    raise
+
+        started = _matching_pending_pairing(current)
+        if started is None:
+            # A fresh request requires an explicit owner invocation. Never replay
+            # an existing unexpired review simply because --no-wait exited.
+            _forget_pending_pairing()
+            _, started = _request(
+                "POST",
+                "/api/runtime/pairing/start",
+                payload={
+                    "installationId": current["installation_id"],
+                    "label": current["label"],
+                    "platform": current["platform"],
+                    "runtimeVersion": _runtime_version(),
+                    **({"sourceRevision": _source_revision()} if _source_revision() else {}),
+                },
+            )
+            started = _validated_pairing_offer(started)
+            latest = _read()
+            if latest.get("installation_id") not in (None, current["installation_id"]):
+                raise CloudError("RUNTIME_PAIRING_IDENTITY_MISMATCH", "Local installation changed while pairing began.", 3)
+            latest["pending_pairing"] = {
+                "installation_id": current["installation_id"],
+                "origin": origin(),
+                "started": started,
+                # Save before any claim request, so response loss is recoverable.
+                "claim_token": secrets.token_urlsafe(48),
+            }
+            _write(latest)
+        # Upgrade an existing short-lived pending review under the same lock.
+        latest = _read()
+        pending = latest.get("pending_pairing")
+        if not isinstance(pending, dict) or not isinstance(pending.get("started"), dict) or pending["started"].get("pairingId") != started["pairingId"]:
+            raise CloudError("RUNTIME_PAIRING_CONTEXT_CHANGED", "Pairing context changed before claim.", 3)
+        candidate = pending.get("claim_token")
+        if not isinstance(candidate, str) or not candidate:
+            candidate = secrets.token_urlsafe(48)
+            pending["claim_token"] = candidate
+            _write(latest)
     pairing_id = str(started["pairingId"])
     poll_token = str(started["pollToken"])
     url = str(started["verificationUrl"])
@@ -388,64 +519,147 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
     print(f"Code: {code}")
     print(f"Open: {url}")
     print("Approve the exact machine details in your owner workspace.")
-    if not no_open:
+    recovery_only = expires_at <= int(time.time() * 1000)
+    if recovery_only:
+        print("Owner code has expired; checking only the original confirmed Cloud claim.")
+    if not no_open and not recovery_only:
         try:
             webbrowser.open(url, new=2)
         except Exception:
             pass
     if not wait:
+        if recovery_only:
+            raise CloudError(
+                "RUNTIME_PAIRING_RECOVERY_REQUIRES_POLL",
+                "Previous owner code expired; resume the exact claim without --no-wait.",
+                3,
+            )
         return started
 
-    poll_ms = max(1000, int(started.get("pollAfterMs") or 3000))
-    while int(time.time() * 1000) < expires_at:
+    raw_poll_ms = started.get("pollAfterMs")
+    poll_ms = min(10_000, max(1000, raw_poll_ms)) if type(raw_poll_ms) is int else 3000
+    first_probe = True
+    claim_race_retries = 0
+    while (first_probe and recovery_only) or int(time.time() * 1000) < expires_at:
+        first_probe = False
         try:
             status, value = _request(
                 "GET",
                 "/api/runtime/pairing/status?" + urllib.parse.urlencode({"pairing_id": pairing_id}),
                 token=poll_token,
+                runtime_candidate=candidate,
             )
         except CloudError as exc:
+            if exc.status == 409 and exc.code == "RUNTIME_PAIRING_RACE":
+                # Two owner CLI processes may poll the same approved pairing.
+                # The losing D1 compare-and-swap returns this *transient* 409
+                # after the other claim has already committed. It is NOT
+                # revocation: retiring our persisted private candidate here
+                # can make an acknowledged Cloud claim irrecoverable if its
+                # winning client crashes before writing its local token.
+                #
+                # Re-read the *same* pairing/candidate a bounded number of
+                # times. An expired owner code permits only one read-only
+                # recovery probe; preserve its journal for a later retry.
+                claim_race_retries += 1
+                if recovery_only or claim_race_retries >= 3:
+                    raise CloudError(
+                        "RUNTIME_PAIRING_RECOVERY_UNVERIFIED",
+                        "Concurrent claim could not be confirmed; the original "
+                        "private candidate is retained for exact recovery.",
+                        3,
+                    ) from exc
+                time.sleep(poll_ms / 1000)
+                continue
             if exc.status in {404, 409, 410}:
+                # A positive unknown/consumed/revoked response, unlike a
+                # transient RUNTIME_PAIRING_RACE, must not be retried blindly.
+                _retire_pending_pairing(pairing_id)
                 raise
+            if recovery_only:
+                raise CloudError(
+                    "RUNTIME_PAIRING_RECOVERY_UNVERIFIED",
+                    "Claim status unavailable; saved exact private recovery evidence was retained.",
+                    3,
+                ) from exc
             time.sleep(poll_ms / 1000)
             continue
         if status == 202 or value.get("status") == "pending":
+            if recovery_only:
+                raise CloudError(
+                    "RUNTIME_PAIRING_RECOVERY_UNVERIFIED",
+                    "Original claim not confirmed; private recovery evidence retained.",
+                    3,
+                )
             time.sleep(poll_ms / 1000)
             continue
         if value.get("status") == "paired":
-            updated = _read()
-            executor = value.get("executor") if isinstance(value.get("executor"), dict) else {}
-            updated.update(
-                {
-                    "schema_version": 1,
-                    "origin": origin(),
-                    "installation_id": value["installationId"],
-                    "workspace": value["workspace"],
-                    "runtime_token": value["runtimeToken"],
-                    "token_expires_at": value["tokenExpiresAt"],
-                    "authority_generation": executor.get("authorityGeneration"),
-                    "executor_mode": executor.get("executorMode"),
-                }
-            )
-            _write(updated)
+            # Legacy Cloud returns the original token once. New Cloud confirms
+            # the saved client candidate, never echoing that secret in the reply.
+            server_token = value.get("runtimeToken")
+            approved_token = (server_token if isinstance(server_token, str) and server_token
+                              else candidate if value.get("candidateAccepted") is True else None)
+            if (value.get("installationId") != current["installation_id"]
+                or not isinstance(value.get("workspace"), str) or not value["workspace"]
+                or not isinstance(approved_token, str) or not approved_token
+                or type(value.get("tokenExpiresAt")) is not int
+                or value["tokenExpiresAt"] <= int(time.time() * 1000)):
+                _retire_pending_pairing(pairing_id)
+                raise CloudError("RUNTIME_PAIRING_IDENTITY_MISMATCH", "Owner pairing approval did not match the active installation.", 3)
+            with _pairing_start_lock():
+                updated = _read()
+                saved = updated.get("pending_pairing")
+                saved_offer = saved.get("started") if isinstance(saved, dict) else None
+                if (not isinstance(saved_offer, dict)
+                    or saved_offer.get("pairingId") != pairing_id
+                    or saved_offer.get("pollToken") != poll_token
+                    or saved.get("origin") != origin()
+                    or saved.get("installation_id") != current["installation_id"]):
+                    raise CloudError("RUNTIME_PAIRING_CONTEXT_CHANGED", "Local pairing approval was replaced or revoked; token not installed.", 3)
+                if updated.get("installation_id") not in (None, current["installation_id"]):
+                    raise CloudError("RUNTIME_PAIRING_IDENTITY_MISMATCH", "Local installation changed during owner approval.", 3)
+                executor = value.get("executor") if isinstance(value.get("executor"), dict) else {}
+                updated.pop("pending_pairing", None)
+                updated.update(
+                    {
+                        "schema_version": 1,
+                        "origin": origin(),
+                        "installation_id": value["installationId"],
+                        "workspace": value["workspace"],
+                        "runtime_token": approved_token,
+                        "token_expires_at": value["tokenExpiresAt"],
+                        "authority_generation": executor.get("authorityGeneration"),
+                        "executor_mode": executor.get("executorMode"),
+                    }
+                )
+                _write(updated)
             print(f"Paired workspace: {value['workspace']}")
             print("Provider OAuth credentials remain in PostSteward Cloud.")
             return bindings()
+        _retire_pending_pairing(pairing_id)
         raise CloudError("RUNTIME_PAIRING_INVALID_RESPONSE", "Pairing returned an unexpected state.")
-    raise CloudError("RUNTIME_PAIRING_EXPIRED", "Pairing approval window expired. Run onboarding again.", 3)
+    # A successful claim response may have been lost at the boundary.
+    # Do not discard the exact candidate until Cloud resolves it explicitly.
+    raise CloudError(
+        "RUNTIME_PAIRING_RECOVERY_UNVERIFIED",
+        "Owner pairing timed out; the original claim evidence is retained for a bounded retry.",
+        3,
+    )
 
 
 def logout() -> None:
-    value = _read()
-    for key in (
-        "runtime_token",
-        "token_expires_at",
-        "workspace",
-        "authority_generation",
-        "executor_mode",
-    ):
-        value.pop(key, None)
-    _write(value)
+    with _pairing_start_lock():
+        value = _read()
+        for key in (
+            "runtime_token",
+            "token_expires_at",
+            "workspace",
+            "authority_generation",
+            "executor_mode",
+            "pending_pairing",
+        ):
+            value.pop(key, None)
+        _write(value)
 
 
 def mcp_info() -> dict[str, Any]:

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { digest } from "../src/common.ts";
+import { claimRuntimePairing } from "../src/runtime-coordination.ts";
 import { runtime } from "./runtime-fixture.ts";
 
 const origin = "https://publish.example";
@@ -329,6 +330,300 @@ test("uncertain provider effect blocks executor handoff before authority generat
       .bind(owner.workspace)
       .first<any>();
     assert.equal(Number(row.authority_generation), 1);
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("approved pairing claim can recover a lost HTTP acknowledgement without a second issuance", async () => {
+  const { mf, db } = await runtime(undefined, {
+    OIDC_ISSUER: "https://accounts.google.com",
+  }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "55555555-5555-4555-8555-555555555555";
+    const initial = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId,
+        label: "Interrupted claim",
+        platform: "Linux",
+        runtimeVersion: "0.28.29",
+      }),
+    });
+    assert.equal(initial.status, 201, await initial.clone().text());
+    const start: any = await initial.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST",
+      headers: owner.headers,
+      body: JSON.stringify({ pairingId: start.pairingId, userCode: start.userCode }),
+    });
+    assert.equal(approval.status, 200, await approval.clone().text());
+    // Candidate material is generated and retained locally before any owner-claim GET.
+    const candidate = "A".repeat(64);
+    const query = origin + "/api/runtime/pairing/status?pairing_id=" + start.pairingId;
+    const headers = {
+      Authorization: "Bearer " + start.pollToken,
+      "X-PostSteward-Runtime-Candidate": candidate,
+    };
+    const first = await mf.dispatchFetch(query, { headers });
+    assert.equal(first.status, 200, await first.clone().text());
+    const firstBody: any = await first.json();
+    assert.equal(firstBody.status, "paired");
+    assert.equal(firstBody.candidateAccepted, true);
+    assert.equal(firstBody.runtimeToken, undefined, "Cloud must not echo the client-held token");
+    // Simulate an interrupted client that did not receive or persist the first HTTP response.
+    const second = await mf.dispatchFetch(query, { headers });
+    assert.equal(second.status, 200, await second.clone().text());
+    const secondBody: any = await second.json();
+    assert.equal(secondBody.status, "paired");
+    assert.equal(secondBody.candidateAccepted, true);
+    assert.equal(secondBody.tokenExpiresAt, firstBody.tokenExpiresAt);
+    const installations = await db.prepare(
+      "SELECT installation_id,token_hash,status FROM runtime_installations WHERE installation_id=?",
+    ).bind(installationId).all<any>();
+    assert.equal(installations.results.length, 1);
+    assert.equal(installations.results[0].token_hash, await digest(candidate));
+    const binding = await mf.dispatchFetch(origin + "/api/runtime/bindings", {
+      headers: { Authorization: "Bearer " + candidate },
+    });
+    assert.equal(binding.status, 200, await binding.clone().text());
+    const different = await mf.dispatchFetch(query, {
+      headers: { ...headers, "X-PostSteward-Runtime-Candidate": "B".repeat(64) },
+    });
+    assert.equal(different.status, 409, "wrong candidate must not inherit authority");
+    const legacy = await mf.dispatchFetch(query, {
+      headers: { Authorization: "Bearer " + start.pollToken },
+    });
+    assert.equal(legacy.status, 409, "legacy replay must remain denied");
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("new owner-approved claim can rotate an expired credential for the same installation and workspace", async () => {
+  const { mf, db } = await runtime(undefined, {
+    OIDC_ISSUER: "https://accounts.google.com",
+  }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "66666666-6666-4666-8666-666666666666";
+
+    async function approvedOffer(label: string) {
+      const start = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installationId, label, platform: "Linux", runtimeVersion: "0.28.29" }),
+      });
+      assert.equal(start.status, 201, await start.clone().text());
+      const offer: any = await start.json();
+      const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+        method: "POST",
+        headers: owner.headers,
+        body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+      });
+      assert.equal(approval.status, 200, await approval.clone().text());
+      return offer;
+    }
+
+    async function claim(offer: any, candidate: string) {
+      return mf.dispatchFetch(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+        headers: {
+          Authorization: "Bearer " + offer.pollToken,
+          "X-PostSteward-Runtime-Candidate": candidate,
+        },
+      });
+    }
+
+    const oldCandidate = "A".repeat(64);
+    const first = await claim(await approvedOffer("Original laptop"), oldCandidate);
+    assert.equal(first.status, 200, await first.clone().text());
+    await db.prepare("UPDATE runtime_installations SET token_expires_at=? WHERE installation_id=?")
+      .bind(Date.now() - 1000, installationId).run();
+
+    const newCandidate = "B".repeat(64);
+    const second = await claim(await approvedOffer("Recovered laptop"), newCandidate);
+    assert.equal(second.status, 200, await second.clone().text());
+    assert.equal((await second.json() as any).candidateAccepted, true);
+    const saved = await db.prepare(
+      "SELECT workspace,token_hash,status,token_expires_at FROM runtime_installations WHERE installation_id=?",
+    ).bind(installationId).first<any>();
+    assert.equal(saved?.workspace, owner.workspace);
+    assert.equal(saved?.status, "active");
+    assert.equal(saved?.token_hash, await digest(newCandidate));
+    assert.ok(saved?.token_expires_at > Date.now());
+    const staleBinding = await mf.dispatchFetch(origin + "/api/runtime/bindings", {
+      headers: { Authorization: "Bearer " + oldCandidate },
+    });
+    assert.equal(staleBinding.status, 401);
+    const currentBinding = await mf.dispatchFetch(origin + "/api/runtime/bindings", {
+      headers: { Authorization: "Bearer " + newCandidate },
+    });
+    assert.equal(currentBinding.status, 200);
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("an unexpired active installation cannot consume a different approved owner claim", async () => {
+  const { mf, db } = await runtime(undefined, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "77777777-7777-4777-8777-777777777777";
+    const firstToken = "C".repeat(64);
+    await db.prepare(
+      "INSERT INTO runtime_installations (installation_id,workspace,label,platform,runtime_version,token_hash,status,created_at,approved_at,token_expires_at) VALUES (?,?,?,?,?,?,'active',?,?,?)",
+    ).bind(installationId, owner.workspace, "Existing", "Linux", "0.28.29", await digest(firstToken), Date.now(), Date.now(), Date.now() + 900_000).run();
+    const started = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, label: "Competing request", platform: "Linux", runtimeVersion: "0.28.29" }),
+    });
+    assert.equal(started.status, 201);
+    const offer: any = await started.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST", headers: owner.headers,
+      body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+    });
+    assert.equal(approval.status, 200);
+    const refusal = await mf.dispatchFetch(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+      headers: {
+        Authorization: "Bearer " + offer.pollToken,
+        "X-PostSteward-Runtime-Candidate": "D".repeat(64),
+      },
+    });
+    assert.equal(refusal.status, 409);
+    const pairing = await db.prepare("SELECT status FROM runtime_pairings WHERE id=?").bind(offer.pairingId).first<any>();
+    assert.equal(pairing?.status, "approved", "refused claim must not be falsely recorded as consumed");
+    const installed = await db.prepare("SELECT token_hash FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
+    assert.equal(installed?.token_hash, await digest(firstToken));
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("an expired installation cannot be reclaimed by a different owner's workspace", async () => {
+  const { mf, db } = await runtime(undefined, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "88888888-8888-4888-8888-888888888888";
+    const oldToken = "E".repeat(64);
+    await db.prepare(
+      "INSERT INTO runtime_installations (installation_id,workspace,label,platform,runtime_version,token_hash,status,created_at,approved_at,token_expires_at) VALUES (?,?,?,?,?,?,'active',?,?,?)",
+    ).bind(installationId, "different-workspace", "Other owner", "Linux", "0.28.29", await digest(oldToken), Date.now() - 5000, Date.now() - 5000, Date.now() - 1000).run();
+    const started = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, label: "Cross-workspace", platform: "Linux", runtimeVersion: "0.28.29" }),
+    });
+    assert.equal(started.status, 201);
+    const offer: any = await started.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST", headers: owner.headers,
+      body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+    });
+    assert.equal(approval.status, 200);
+    const refused = await mf.dispatchFetch(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+      headers: {
+        Authorization: "Bearer " + offer.pollToken,
+        "X-PostSteward-Runtime-Candidate": "F".repeat(64),
+      },
+    });
+    assert.equal(refused.status, 409);
+    const pairing = await db.prepare("SELECT status FROM runtime_pairings WHERE id=?").bind(offer.pairingId).first<any>();
+    assert.equal(pairing?.status, "approved");
+    const installed = await db.prepare("SELECT workspace,token_hash FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
+    assert.equal(installed?.workspace, "different-workspace");
+    assert.equal(installed?.token_hash, await digest(oldToken));
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("a revoked approval during a claim cannot mint an orphaned installation credential", async () => {
+  const { mf, db } = await runtime(undefined, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "99999999-9999-4999-8999-999999999999";
+    const started = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, label: "Revoked during claim", platform: "Linux", runtimeVersion: "0.28.29" }),
+    });
+    assert.equal(started.status, 201);
+    const offer: any = await started.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST", headers: owner.headers,
+      body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+    });
+    assert.equal(approval.status, 200);
+    let intervened = 0;
+    const intercepted = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch")
+          return async (statements: D1PreparedStatement[]) => {
+            intervened++;
+            // Another authorised operation revokes the approved bootstrap
+            // after this claimant read the row, before the D1 atomic batch.
+            await target.prepare(
+              "UPDATE runtime_pairings SET status='revoked' WHERE id=? AND status='approved'",
+            ).bind(offer.pairingId).run();
+            return target.batch(statements);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const candidate = "Z".repeat(64);
+    const pollRequest = new Request(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+      headers: {
+        Authorization: "Bearer " + offer.pollToken,
+        "X-PostSteward-Runtime-Candidate": candidate,
+      },
+    });
+    await assert.rejects(
+      claimRuntimePairing(intercepted, pollRequest, offer.pairingId),
+      (error: any) => error?.code === "RUNTIME_PAIRING_RACE",
+    );
+    assert.equal(intervened, 1);
+    const pairing = await db.prepare("SELECT status FROM runtime_pairings WHERE id=?").bind(offer.pairingId).first<any>();
+    assert.equal(pairing?.status, "revoked");
+    const stray = await db.prepare("SELECT token_hash FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
+    assert.equal(stray, null, "revoked owner approval must never mint a token even transiently");
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("owner-approved pairing never silently revives a revoked installation identity", async () => {
+  const { mf, db } = await runtime(undefined, { OIDC_ISSUER: "https://accounts.google.com" }, 100);
+  try {
+    const owner = await seedOwner(db);
+    const installationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const oldToken = "G".repeat(64);
+    await db.prepare(
+      "INSERT INTO runtime_installations (installation_id,workspace,label,platform,runtime_version,token_hash,status,created_at,approved_at,token_expires_at,revoked_at) VALUES (?,?,?,?,?,?,'revoked',?,?,?,?)",
+    ).bind(installationId, owner.workspace, "Revoked", "Linux", "0.28.29", await digest(oldToken), Date.now() - 5000, Date.now() - 5000, Date.now() - 1000, Date.now() - 1500).run();
+    const started = await mf.dispatchFetch(origin + "/api/runtime/pairing/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ installationId, label: "Revoked try", platform: "Linux", runtimeVersion: "0.28.29" }),
+    });
+    assert.equal(started.status, 201);
+    const offer: any = await started.json();
+    const approval = await mf.dispatchFetch(origin + "/api/runtime/pairing/approve", {
+      method: "POST", headers: owner.headers,
+      body: JSON.stringify({ pairingId: offer.pairingId, userCode: offer.userCode }),
+    });
+    assert.equal(approval.status, 200);
+    const attempt = await mf.dispatchFetch(origin + "/api/runtime/pairing/status?pairing_id=" + offer.pairingId, {
+      headers: {
+        Authorization: "Bearer " + offer.pollToken,
+        "X-PostSteward-Runtime-Candidate": "H".repeat(64),
+      },
+    });
+    assert.equal(attempt.status, 409);
+    const record = await db.prepare("SELECT token_hash,status,revoked_at FROM runtime_installations WHERE installation_id=?").bind(installationId).first<any>();
+    assert.equal(record?.token_hash, await digest(oldToken));
+    assert.equal(record?.status, "revoked");
+    assert.ok(record?.revoked_at);
   } finally {
     await mf.dispose();
   }

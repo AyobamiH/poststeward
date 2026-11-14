@@ -161,6 +161,44 @@ export async function claimRuntimePairing(
     404,
   );
 
+  // The same owner-poll credential and private client-generated token
+  // can recover an already-committed claim after a lost HTTP acknowledgement.
+  const runtimeCandidate = request.headers.get("x-poststeward-runtime-candidate");
+  if (runtimeCandidate !== null)
+    requireValue(
+      /^[A-Za-z0-9_-]{64,128}$/.test(runtimeCandidate),
+      "RUNTIME_PAIRING_CANDIDATE_INVALID",
+      "Invalid precommitted runtime claim credential.",
+      400,
+    );
+  if (row.status === "claimed") {
+    requireValue(
+      runtimeCandidate !== null,
+      "RUNTIME_PAIRING_ALREADY_CONSUMED",
+      "Pairing bootstrap has already been consumed or revoked.",
+      409,
+    );
+    const installed = await db.prepare(
+      `SELECT workspace,token_expires_at FROM runtime_installations
+       WHERE installation_id=? AND token_hash=? AND status='active' AND token_expires_at>?`,
+    ).bind(row.installation_id, await digest(runtimeCandidate), now).first<any>();
+    requireValue(
+      installed && installed.workspace === row.workspace,
+      "RUNTIME_PAIRING_ALREADY_CONSUMED",
+      "Pairing bootstrap has already been consumed or revoked.",
+      409,
+    );
+    return {
+      schemaVersion: 1,
+      status: "paired",
+      workspace: row.workspace,
+      installationId: row.installation_id,
+      candidateAccepted: true,
+      tokenExpiresAt: installed.token_expires_at,
+      executor: await executorStatus(db, row.workspace, now),
+    };
+  }
+
   if (row.expires_at <= now && row.status !== "claimed") {
     await db
       .prepare(
@@ -188,7 +226,25 @@ export async function claimRuntimePairing(
     409,
   );
 
-  const runtimeToken = randomToken(48);
+  // Reuse the exact installation only after a fresh approval by the *same*
+  // owner workspace and expiration of its former active credential. Never
+  // revive a revoked device, transfer it between workspaces or rotate a
+  // currently valid token behind an active executor's back.
+  const previous = await db.prepare(
+    "SELECT workspace,status,token_expires_at FROM runtime_installations WHERE installation_id=?",
+  ).bind(row.installation_id).first<any>();
+  requireValue(
+    !previous || (
+      previous.workspace === row.workspace &&
+      previous.status === "active" &&
+      previous.token_expires_at <= now
+    ),
+    "RUNTIME_PAIRING_INSTALLATION_CONFLICT",
+    "Installation belongs to another workspace, was revoked or still has an active token.",
+    409,
+  );
+
+  const runtimeToken = runtimeCandidate ?? randomToken(48);
   const runtimeTokenHash = await digest(runtimeToken);
   const tokenExpiresAt = now + RUNTIME_TOKEN_TTL_MS;
 
@@ -197,8 +253,26 @@ export async function claimRuntimePairing(
       .prepare(
         `INSERT INTO runtime_installations
          (installation_id,workspace,label,platform,runtime_version,source_revision,token_hash,status,created_at,approved_at,token_expires_at,last_seen_at,revoked_at)
-         VALUES (?,?,?,?,?,?,?,'active',?,?,?,?,NULL)
-         ON CONFLICT(installation_id) DO NOTHING`,
+         SELECT ?,?,?,?,?,?,?,'active',?,?,?,?,NULL
+         WHERE EXISTS(
+           SELECT 1 FROM runtime_pairings
+           WHERE id=? AND status='approved'
+             AND workspace=? AND installation_id=?
+         )
+         ON CONFLICT(installation_id) DO UPDATE SET
+           label=excluded.label,
+           platform=excluded.platform,
+           runtime_version=excluded.runtime_version,
+           source_revision=excluded.source_revision,
+           token_hash=excluded.token_hash,
+           status='active',
+           approved_at=excluded.approved_at,
+           token_expires_at=excluded.token_expires_at,
+           last_seen_at=excluded.last_seen_at,
+           revoked_at=NULL
+         WHERE runtime_installations.workspace=excluded.workspace
+           AND runtime_installations.status='active'
+           AND runtime_installations.token_expires_at<=?`,
       )
       .bind(
         row.installation_id,
@@ -212,12 +286,22 @@ export async function claimRuntimePairing(
         row.approved_at || now,
         tokenExpiresAt,
         now,
+        pairingId,
+        row.workspace,
+        row.installation_id,
+        now,
       ),
     db
       .prepare(
-        "UPDATE runtime_pairings SET status='claimed',claimed_at=? WHERE id=? AND status='approved'",
+        `UPDATE runtime_pairings SET status='claimed',claimed_at=?
+         WHERE id=? AND status='approved'
+           AND EXISTS(
+             SELECT 1 FROM runtime_installations
+             WHERE installation_id=? AND workspace=? AND token_hash=?
+               AND status='active' AND token_expires_at>?
+           )`,
       )
-      .bind(now, pairingId),
+      .bind(now, pairingId, row.installation_id, row.workspace, runtimeTokenHash, now),
     db
       .prepare(
         `INSERT INTO workspace_executors
@@ -239,10 +323,12 @@ export async function claimRuntimePairing(
     status: "paired",
     workspace: row.workspace,
     installationId: row.installation_id,
-    runtimeToken,
+    ...(runtimeCandidate === null ? { runtimeToken } : { candidateAccepted: true }),
     tokenExpiresAt,
     executor: await executorStatus(db, row.workspace, now),
-    notice: "Runtime token is shown once. Store it with user-only permissions.",
+    notice: runtimeCandidate === null
+      ? "Runtime token is shown once. Store it with user-only permissions."
+      : "Approved runtime credential retained only by the local client.",
   };
 }
 
