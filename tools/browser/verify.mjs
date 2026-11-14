@@ -146,7 +146,13 @@ const errors = [];
 const browserExecutable = process.env.POSTSTEWARD_BROWSER_EXECUTABLE;
 const browser = await chromium.launch({
   headless: true,
-  ...(browserExecutable ? { executablePath: browserExecutable } : {}),
+  ...(browserExecutable ? {
+    executablePath: browserExecutable,
+    // The isolated CI image has no GPU. Without software compositing,
+    // Playwright screenshot capture can hang even after fonts have loaded.
+    // Keep every real screenshot and visual/accessibility assertion intact.
+    args: ['--disable-gpu'],
+  } : {}),
 });
 async function check(name, run) {
   if (process.env.POSTSTEWARD_BROWSER_CHECK && !new RegExp(process.env.POSTSTEWARD_BROWSER_CHECK).test(name)) return;

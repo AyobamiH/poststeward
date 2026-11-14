@@ -103,6 +103,31 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(second['polls']['threads']['roots_not_yet_scanned'], 0)
             self.assertEqual(len(set(calls)), 82)
 
+    def test_threads_active_scope_uses_bounded_time_without_empty_account_penalty(self):
+        # Simulated monotonic cost isolates the admission/allocation decision
+        # from CI host scheduling. Real 65s wall-clock deadlines remain enforced.
+        from ocpf_post.model import AccountIdentity
+        account = AccountIdentity(provider='threads', account_id=e.ACCOUNTS['threads'], username='owner')
+        elapsed = [0.0]
+        calls = []
+        def bearer(url, **kwargs):
+            elapsed[0] += 0.012
+            calls.append(url)
+            return 200, {}, {'data': []}
+        client = SimpleNamespace(name='threads', account=lambda: account, _bearer=bearer)
+        roots = {str(1000 + i): {'campaign': 'TEST-001', 'published_at': NOW.isoformat()} for i in range(82)}
+        with (patch.object(e, 'own_publications',
+                           side_effect=lambda provider, account, now: roots if provider == 'threads' else {}),
+              patch.object(e.time, 'monotonic', side_effect=lambda: elapsed[0])):
+            first = e.sync(apply=True, now=NOW, factory=lambda _: client, budget_seconds=0.64)
+            self.assertEqual(first['polls']['threads']['pages_completed'], 41)
+            self.assertEqual(first['polls']['threads']['roots_not_yet_scanned'], 41)
+            second = e.sync(apply=True, now=NOW + timedelta(minutes=16),
+                            factory=lambda _: client, budget_seconds=0.64)
+            self.assertEqual(second['polls']['threads']['roots_not_yet_scanned'], 0)
+        self.assertEqual(len(set(calls)), 82)
+        self.assertLessEqual(elapsed[0], 1.28)
+
     def test_interrupted_metrics_read_consumes_a_durable_attempt(self):
         from ocpf_post import performance_review
         append_receipt({'campaign': 'TEST-001', 'provider': 'x', 'account_id': '123', 'post_id': '10',
