@@ -2,8 +2,9 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
-import { assertRetainedRoots, runRootCutover } from "./root-cutover.mjs";
+import { createHash } from "node:crypto";
+import { assertRetainedRoots } from "./root-cutover.mjs";
+import { assertNoImplicitRootCutover, assertCompleteRemoteMigrations } from "./deployment-effect-preflight.mjs";
 import { operationalAlertSecrets } from "./operational-alert-config.mjs";
 import {
   demand,
@@ -39,18 +40,17 @@ const currentResponse = await fetch(`https://api.cloudflare.com/client/v4/accoun
   redirect: "error", signal: AbortSignal.timeout(15000),
 });
 demand(currentResponse.ok || currentResponse.status === 404, "Cannot inspect current Worker root bindings; deployment stopped.");
+let currentRootBindings = null;
 if (currentResponse.ok) {
   const current = await currentResponse.json();
   demand(current.success && Array.isArray(current.result?.bindings), "Current Worker settings are incomplete.");
-  const vars = Object.fromEntries(current.result.bindings.filter(b => b.type === "plain_text").map(b => [b.name, b.text]));
-  assertRetainedRoots(vars, c.vars);
+  currentRootBindings = Object.fromEntries(current.result.bindings.filter(b => b.type === "plain_text").map(b => [b.name, b.text]));
+  assertRetainedRoots(currentRootBindings, c.vars);
 }
-if (c.vars.ENCRYPTION_ROOT_WRITE === "next") {
-  secrets.ROOT_ROTATION_TOKEN = randomBytes(32).toString("hex");
-  c.vars.ROOT_ROTATION_EXPIRES_AT = String(Date.now() + 45 * 60 * 1000);
-} else {
-  c.vars.ROOT_ROTATION_EXPIRES_AT = "0";
-}
+// Existing next-root writes can be retained only on the exact same roots.
+// An initial cutover or rotation is never started by an ordinary release.
+assertNoImplicitRootCutover(currentRootBindings, c.vars);
+c.vars.ROOT_ROTATION_EXPIRES_AT = "0";
 writeFileSync("wrangler.jsonc", JSON.stringify(c, null, 2) + "\n");
 await verifySandboxPrice(process.env);
 await verifyProductionPrice(process.env);
@@ -78,6 +78,29 @@ demand(
   metadata.result.read_replication?.mode !== "auto",
   "Keep identity read replication disabled for this deployment.",
 );
+// D1 schema writes belong to a separately authorised migration operation.
+// Read the exact database ledger and refuse a deploy if any migration is pending.
+const migrationResponse = await fetch(
+  `https://api.cloudflare.com/client/v4/accounts/${c.account_id}/d1/database/${db.database_id}/query`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ sql: "SELECT name FROM d1_migrations ORDER BY name" }),
+    signal: AbortSignal.timeout(15000),
+    redirect: "error",
+  },
+);
+demand(migrationResponse.ok, "Cannot inspect remote D1 migrations; deployment stopped.");
+const migrationProof = assertCompleteRemoteMigrations(await migrationResponse.json(), db);
+console.log("POSTSTEWARD_D1_PREFLIGHT " + JSON.stringify({
+  release: c.vars.RELEASE_SHA,
+  database_id: db.database_id,
+  applied: migrationProof.applied,
+  remote_migration_effects: 0,
+}));
 const dir = mkdtempSync(join(tmpdir(), "poststeward-secrets-"));
 try {
   const file = join(dir, "secrets.json");
@@ -96,16 +119,9 @@ try {
       "Cloudflare command failed; inspect the preceding operation status before retrying.",
     );
   }
-  wrangler(["d1", "migrations", "apply", db.database_name, "--remote"]);
+  // No implicit migration apply: the read-only ledger must match source above.
   wrangler(["deploy", "--secrets-file", file]);
-  if (secrets.ROOT_ROTATION_TOKEN) {
-    // Allow bounded requests from the prior deployment to finish before the
-    // current writer's inventory is traversed. No provider request is retried.
-    await new Promise(resolve => setTimeout(resolve, 120000));
-    const report = await runRootCutover({ origin: c.vars.PUBLIC_ORIGIN, release: c.vars.RELEASE_SHA,
-      token: secrets.ROOT_ROTATION_TOKEN });
-    console.log("POSTSTEWARD_ROOT_CUTOVER " + JSON.stringify(report));
-  }
+
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
