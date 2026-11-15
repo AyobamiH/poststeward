@@ -72,6 +72,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     options = {},
     predicate = () => true,
     retrySafe = false,
+    transportOnly = false,
   ) {
     let status = 0,
       passed = false,
@@ -80,6 +81,9 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     while (attempts < limit) {
       attempts++;
       let response;
+      // A parsed or rejected HTTP response is NOT a transport loss.
+      // Do not replay checks after the server may already have answered.
+      let responseReceived = false;
       try {
         response = await send(new URL(path, origin), {
           ...options,
@@ -89,6 +93,7 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
           redirect: "manual",
           signal: AbortSignal.timeout(10000),
         });
+        responseReceived = true;
         status = response.status;
         passed = status === expected && Boolean(await predicate(response));
         if (response.body && !response.bodyUsed) await response.body.cancel();
@@ -96,7 +101,15 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
         // Store only fixed check names/status. No response bodies, cookies, state or exception data.
         status = 0;
       }
-      if (passed || !retrySafe || ![200, 404].includes(status)) break;
+      // Only retry transport failures on explicitly marked non-effect checks.
+      // Never replay a response-bearing POST, even after a denial or mismatch.
+      if (
+        passed ||
+        !retrySafe ||
+        (transportOnly
+          ? responseReceived || status !== 0
+          : status !== 0 && ![200, 404].includes(status))
+      ) break;
       if (attempts < limit) await sleep(2000);
     }
     checks.push({ name, status, expected, attempts, passed });
@@ -216,7 +229,10 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
     "/openapi.json",
     "/plans.json",
   ])
-    await check(`public resource: ${path}`, path, 200, {}, secure);
+    // These are explicitly enumerated, effect-free static GETs. Retry only
+    // when transport failed before any HTTP response; never retry a denial,
+    // redirect, security-header mismatch or response parsing failure.
+    await check(`public resource: ${path}`, path, 200, {}, secure, true, true);
   await check(
     "Threads uninstall callback route exists without side effects",
     "/connections/oauth/threads/uninstall",
@@ -288,6 +304,8 @@ export async function verifyHosted(c, { send = fetch, sleep = delay } = {}) {
       }),
     },
     unauthenticated,
+    true, // Unauthenticated probe is guaranteed to reject before any provider effect.
+    true, // Only retry when no HTTP response was received.
   );
   await check(
     "unauthenticated GitHub source unlink rejected",
