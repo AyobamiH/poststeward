@@ -31,6 +31,7 @@ test('browser job retains read-only checkout, bounded execution and non-root bro
   assert.match(workflow, /test -x \/usr\/local\/bin\/chromium/);
   assert.match(workflow, /npx --no-install playwright install --with-deps chromium/);
   assert.match(workflow, /POSTSTEWARD_BROWSER_EXECUTABLE: \$\{\{ runner\.environment == 'self-hosted'/);
-  assert.match(browser, /\.\.\.\(browserExecutable \? \{ executablePath: browserExecutable \} : \{\}\)/);
+  assert.match(browser, /browserExecutable \? \{[\s\S]*executablePath: browserExecutable,[\s\S]*args: \['--disable-gpu'\]/);
+  assert.match(browser, /\} : \{\}\)/, 'Do not change ordinary managed browser options');
   assert.doesNotMatch(workflow, /secrets\./);
 });

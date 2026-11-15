@@ -8,7 +8,7 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --experimental-transform-types --test tests/*.test.*",
+    "test": "node --experimental-transform-types --test --test-concurrency=2 tests/*.test.*",
     "docs": "node --experimental-transform-types scripts/generate-docs.ts",
     "docs:check": "node --experimental-transform-types scripts/generate-docs.ts --check",
     "assets": "node scripts/export-brand-assets.mjs && node scripts/generate-runtime-release-manifest.mjs",

@@ -339,15 +339,22 @@ def sync(*, apply=False, now=None, factory=get_provider, budget_seconds=65):
                     key, row['provider'], str(row['account_id'])
                 )
         accounts = list(accounts_by_scope.values())
+        # Only receipt-backed scopes with work share the collection deadline.
+        # Unused account slots must not consume another provider's bounded
+        # collection budget. This snapshot cannot acquire new publishing roots:
+        # collection creates pending inbox rows, never verified outgoing posts.
+        targets = [conversation_targets(name, expected, now, data)
+                   for _, name, expected in accounts]
+        remaining_active = sum(bool(roots) for roots in targets)
         deadline = time.monotonic() + budget_seconds
-        for account_index, (poll_key, name, expected) in enumerate(accounts):
-            account_deadline = time.monotonic() + max(0, deadline - time.monotonic()) / max(1, len(accounts) - account_index)
+        for (poll_key, name, expected), roots in zip(accounts, targets):
             previous = data['polls'].get(poll_key, {})
             # Avoid surprising new-account discovery: require a local publication.
-            roots = conversation_targets(name, expected, now, data)
             if not roots:
                 data['polls'][poll_key] = {**previous, 'status': 'no_recent_local_publications', 'observed_at': stamp(now)}
                 continue
+            account_deadline = time.monotonic() + max(0, deadline - time.monotonic()) / max(1, remaining_active)
+            remaining_active -= 1
             if name == 'linkedin' and factory is get_provider:
                 try:
                     from ocpf_post.providers.linkedin import recorded_read_permission

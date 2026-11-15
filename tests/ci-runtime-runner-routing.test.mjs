@@ -44,3 +44,12 @@ test('runtime installs into a fresh virtual environment, never modifying an exte
   assert.match(runtime, /poststeward-runtime-matrix\/bin" >> "\$GITHUB_PATH"/);
   assert.doesNotMatch(runtime, /--break-system-packages/);
 });
+
+
+test('bounded Node test file concurrency retains the complete protected verification suite', () => {
+  const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
+  assert.match(pkg.scripts.test, /--test-concurrency=2(?=\s|$)/);
+  assert.match(pkg.scripts.test, /tests\/\*\.test\.\*/);
+  assert.match(pkg.scripts.verify, /&& npm test(?:\s|$)/);
+  assert.match(workflow, /- run: npm run verify/);
+});

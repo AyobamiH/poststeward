@@ -31,3 +31,16 @@ test('campaign feedback evidence captures the visible reviewed result, not an un
   assert.match(campaign, /caret:'hide'/);
   assert.doesNotMatch(campaign, /fullPage:true/);
 });
+
+test('short mobile menu waits for visible keyboard controls rather than idle transport', () => {
+  const start = script.indexOf("await check('Short mobile menus clear their toggle");
+  const end = script.indexOf("await check('Installation command", start);
+  const menu = script.slice(start, end);
+  assert.ok(start > 0 && end > start, 'Reviewed mobile keyboard check must exist');
+  assert.match(menu, /page\.goto\(origin\+path,\{waitUntil:'load'\}\)/);
+  assert.match(menu, /menu\.locator\('summary'\)\.waitFor\(\{state:'visible'\}\)/);
+  assert.doesNotMatch(menu, /networkidle/, 'Network idleness is not a rendered menu readiness check');
+  assert.match(menu, /linkCount>0/, 'Empty navigation must fail rather than silently pass');
+  assert.match(menu, /page\.keyboard\.press\('Tab'\)/);
+  assert.match(menu, /page\.keyboard\.press\('Escape'\)/);
+});

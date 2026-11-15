@@ -137,7 +137,10 @@ def run_acceptance(
                 time.sleep(success_hold_seconds)
                 completed_before_release = waiting.done()
                 success_release.set()
-                result = waiting.result(timeout=success_timeout_seconds + 5)
+                # Lock acquisition remains bounded by SOURCE_OPERATION_WAIT_SECONDS.
+                # The successful refresh that follows may perform independent
+                # isolated work; do not confuse its completion with lock wait.
+                result = waiting.result(timeout=max(20.0, success_timeout_seconds + 5))
                 elapsed = time.monotonic() - started
                 held.result(timeout=2)
         finally:

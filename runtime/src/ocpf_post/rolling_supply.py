@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -55,8 +56,52 @@ def _command_safe(args: list[str]) -> None:
         raise ValueError("Rolling supply controller cannot invoke provider consequence commands")
 
 
+def _fence_stage_processes(proc: subprocess.Popen[bytes]) -> bool:
+    """Stop the isolated stage process group, including children after parent exit.
+
+    Returns True when an exited parent left a group behind. This is a failed
+    stage even if the parent returned zero: its descendants were unfinished.
+    """
+    if os.name == "posix":
+        try:
+            os.killpg(proc.pid, 0)
+        except ProcessLookupError:
+            return False
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            # ESRCH is possible after the probe: the group exited before
+            # TERM delivery. It is not an unfinished descendant.
+            proc.wait(timeout=0.4)
+            return False
+        deadline = time.monotonic() + 0.3
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.03)
+        # A child ignoring TERM must not continue into a later refill pass.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    elif proc.poll() is None:
+        # Native Windows fallback cannot claim descendant isolation. The
+        # supported unattended lifecycle uses POSIX (Linux or macOS).
+        proc.terminate()
+    elif os.name != "posix":
+        return False
+    try:
+        proc.wait(timeout=0.4)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=0.4)
+    return True
+
+
 def run_stage(name: str, args: list[str], *, timeout: int) -> dict[str, Any]:
-    """Run one bounded local stage without echoing arbitrary child output."""
+    """Run one bounded local stage, fencing descendants and withholding output."""
     _command_safe(args)
     started = time.monotonic()
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
@@ -64,25 +109,33 @@ def run_stage(name: str, args: list[str], *, timeout: int) -> dict[str, Any]:
     if env.get("PYTHONPATH"):
         pythonpath += os.pathsep + env["PYTHONPATH"]
     env["PYTHONPATH"] = pythonpath
+    timed_out = False
+    unfinished_children = False
     with tempfile.TemporaryFile() as output:
+        proc = subprocess.Popen(
+            args, cwd=ROOT, env=env, stdout=output, stderr=output,
+            start_new_session=(os.name == "posix"),
+        )
         try:
-            result = subprocess.run(
-                args, cwd=ROOT, env=env, stdout=output, stderr=output,
-                timeout=timeout, check=False,
-            )
-            code = result.returncode
-            timed_out = False
-        except subprocess.TimeoutExpired:
-            code = None
-            timed_out = True
+            try:
+                code = proc.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                timed_out = True
+                code = 124  # Never treat an unfinished allocator as successful.
+        finally:
+            group_was_alive = _fence_stage_processes(proc)
+            unfinished_children = not timed_out and group_was_alive
         size = output.tell()
+    if unfinished_children and code == 0:
+        code = 125  # Parent exited successfully with unacknowledged child work.
     return {
         "stage": name,
         "status": "timed_out" if timed_out else "completed" if code == 0 else "attention",
         "exit_code": code,
+        "incomplete_process_group": unfinished_children,
         "duration_seconds": round(time.monotonic() - started, 2),
         "output_bytes": size,
-        "boundary": "Child output withheld; no candidate copy or provider response body is emitted.",
+        "boundary": "Stage descendants fenced; child output withheld without provider or candidate copy leakage.",
     }
 
 
