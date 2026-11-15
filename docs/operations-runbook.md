@@ -10,7 +10,7 @@ Use `/health` for revision/configuration status and authenticated `workspace_sta
 
 ## An uncertain post
 
-Do not delete a receipt, overwrite its fingerprint pointer or create a revised campaign to bypass duplicate protection. Inspect the provider account and recorded container/post ID. `ambiguous_effect` requires evidence-based reconciliation. A later readback failure keeps the provider creation ID and `published_unverified` status.
+Do not delete a receipt, overwrite its fingerprint pointer or create a revised campaign to bypass duplicate protection. A provider HTTP 429 returned after an effect request cannot, by itself, prove that the write did not happen; retain the uncertain Cloud effect/container fence and the Local ambiguous-effect hold until independent readback. Do not retry with a new effect ID or fingerprint to bypass that hold. Inspect the provider account and recorded container/post ID. `ambiguous_effect` requires evidence-based reconciliation. A later readback failure keeps the provider creation ID and `published_unverified` status.
 
 An expired executing claim is handled by phase: after the publish boundary it becomes ambiguous; with a durable provider ID it remains unverified; before publication it becomes failed. No post is automatically replayed. Threads readiness retries are reads of the existing container, not repeated publication.
 

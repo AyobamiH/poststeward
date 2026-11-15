@@ -248,6 +248,9 @@ def unattended_context(root: str | Path | None = None) -> dict[str, Any]:
         raise AutomationAuthorityError("Unattended runtime release differs from its reviewed activation")
     return {
         "review_sha256": marker["review_sha256"], "runtime_revision": revision,
+        "installation_id": marker["installation_id"],
+        "operation_id": marker["operation_id"],
+        "authority_generation": marker["authority_generation"],
         "cloud_executor": dict(cloud),
     }
 

@@ -391,3 +391,66 @@ test("unauthenticated probe never retries a received incorrect response", async 
   assert.equal(report.passed, false);
   assert.equal(attempts, 1);
 });
+
+
+test("safe static GET retries only pre-response transport loss", async () => {
+  const stable = service();
+  let calls = 0;
+  const report = await verifyHosted(c, {
+    sleep,
+    send: (url, options) => {
+      if (new URL(url).pathname === "/openapi.json" && ++calls === 1)
+        return Promise.reject(new Error("private-transport-details"));
+      return stable(url, options);
+    },
+  });
+  assert.equal(report.passed, true);
+  assert.equal(calls, 2);
+  assert.equal(report.checks.find((x) => x.name === "public resource: /openapi.json").attempts, 2);
+  assert.equal(JSON.stringify(report).includes("private-transport-details"), false);
+});
+
+test("static GET response denials, errors and header mismatches never retry", async () => {
+  for (const status of [403, 500, 307, 200]) {
+    const stable = service();
+    let calls = 0;
+    const report = await verifyHosted(c, {
+      sleep,
+      send: (url, options) => {
+        if (new URL(url).pathname === "/docs/agent-guide.md") {
+          calls++;
+          return Promise.resolve(new Response("denied", {
+            status,
+            headers: status === 200 ? {} : headers,
+          }));
+        }
+        return stable(url, options);
+      },
+    });
+    assert.equal(report.passed, false);
+    assert.equal(calls, 1);
+    assert.equal(report.checks.find((x) => x.name === "public resource: /docs/agent-guide.md").attempts, 1);
+  }
+});
+
+test("a response already received is never replayed after predicate throws", async () => {
+  const stable = service();
+  let calls = 0;
+  const report = await verifyHosted(c, {
+    sleep,
+    send: (url, options) => {
+      if (new URL(url).pathname === "/openapi.json") {
+        calls++;
+        return Promise.resolve({
+          status: 200,
+          headers: { get() { throw Error("private-header-details"); } },
+        });
+      }
+      return stable(url, options);
+    },
+  });
+  assert.equal(report.passed, false);
+  assert.equal(calls, 1);
+  assert.equal(report.checks.find((x) => x.name === "public resource: /openapi.json").attempts, 1);
+  assert.equal(JSON.stringify(report).includes("private-header-details"), false);
+});

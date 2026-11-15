@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  cloudflareJson,
   buildCapacityObservation,
   capacityAnalyticsRequest,
   capacityFailureCode,
@@ -230,6 +231,11 @@ test("capacity observer emits bounded failure codes without reflecting exception
   );
 });
 
+test("transport failures use a bounded non-secret diagnostic code", () => {
+  assert.equal(capacityFailureCode(new TypeError("fetch failed: bearer secret-value")), "cloudflare_transport_failure");
+  assert.equal(capacityFailureCode(Object.assign(new Error("private URL"), { name: "AbortError" })), "cloudflare_request_aborted");
+});
+
 test("zero-sample capacity evidence distinguishes registry, sweep and release drift", () => {
   const context = {
     release: "b".repeat(40),
@@ -299,4 +305,69 @@ test("absence report exposes only bounded operational counts and release timing"
   });
   assert.deepEqual(report.blockers, ["capacity_rows_only_for_older_release"]);
   assert.equal(JSON.stringify(report).includes("workspace_fingerprint"), false);
+});
+
+test("capacity read recovers transport failure with bounded secret-free diagnostics", async () => {
+  const entries = [], waits = [];
+  let calls = 0;
+  const result = await cloudflareJson("https://api.cloudflare.com/test", "secret", {}, {
+    send: async () => {
+      calls++;
+      if (calls === 1) throw new TypeError("fetch failed private secret", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } });
+      return new Response(JSON.stringify({ success: true, result: [] }));
+    },
+    wait: async (ms) => waits.push(ms), record: (entry) => entries.push(entry),
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.success, true);
+  assert.deepEqual(waits, [1000]);
+  assert.equal(JSON.stringify(entries).includes("secret"), false);
+});
+
+test("capacity transient HTTP recovery and exhausted retries remain bounded", async () => {
+  for (const status of [502, 503, 504]) {
+    let calls = 0;
+    await assert.rejects(cloudflareJson("https://api.cloudflare.com/test", "secret", {}, {
+      send: async () => { calls++; return new Response("provider private body", { status }); },
+      wait: async () => {}, record: () => {},
+    }), new RegExp("HTTP " + status));
+    assert.equal(calls, 3);
+  }
+});
+
+test("capacity auth, malformed documents and unclassified errors fail without retries", async () => {
+  for (const send of [
+    async () => new Response("private", { status: 403 }),
+    async () => new Response("not json"),
+    async () => { throw new Error("private"); },
+    async () => new Response(JSON.stringify({ success: false })),
+  ]) {
+    let calls = 0;
+    await assert.rejects(cloudflareJson("https://api.cloudflare.com/test", "secret", {}, {
+      send: async (...args) => { calls++; return send(...args); },
+      wait: async () => { assert.fail("must not retry"); }, record: () => {},
+    }));
+    assert.equal(calls, 1);
+  }
+});
+
+test("capacity response-body transport interruption can recover but timeout exhaustion fails", async () => {
+  let calls = 0;
+  await cloudflareJson("https://api.cloudflare.com/test", "secret", {}, {
+    send: async () => ({
+      ok: true, status: 200,
+      json: async () => {
+        if (++calls === 1) throw new TypeError("terminated", { cause: { code: "UND_ERR_SOCKET" } });
+        return { success: true };
+      },
+    }),
+    wait: async () => {}, record: () => {},
+  });
+  assert.equal(calls, 2);
+  calls = 0;
+  await assert.rejects(cloudflareJson("https://api.cloudflare.com/test", "secret", {}, {
+    send: async () => { calls++; throw new DOMException("private", "TimeoutError"); },
+    wait: async () => {}, record: () => {},
+  }), { name: "TimeoutError" });
+  assert.equal(calls, 3);
 });

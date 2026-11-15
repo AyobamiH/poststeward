@@ -141,7 +141,19 @@ const failures = [];
 const checks = [];
 const forbidden = [];
 const errors = [];
-const browser = await chromium.launch({ headless: true });
+// The isolated, non-root CI image supplies an audited Chromium binary.
+// Keep Playwright's own managed browser for ordinary developer/hosted runs.
+const browserExecutable = process.env.POSTSTEWARD_BROWSER_EXECUTABLE;
+const browser = await chromium.launch({
+  headless: true,
+  ...(browserExecutable ? {
+    executablePath: browserExecutable,
+    // The isolated CI image has no GPU. Without software compositing,
+    // Playwright screenshot capture can hang even after fonts have loaded.
+    // Keep every real screenshot and visual/accessibility assertion intact.
+    args: ['--disable-gpu'],
+  } : {}),
+});
 async function check(name, run) {
   if (process.env.POSTSTEWARD_BROWSER_CHECK && !new RegExp(process.env.POSTSTEWARD_BROWSER_CHECK).test(name)) return;
   try {
@@ -549,12 +561,17 @@ try {
     for(const height of [600,225]) {
       await page.setViewportSize({width:360,height});
       for(const path of ['/','/app','/docs/','/privacy']) {
-        await page.goto(origin+path);await page.waitForLoadState('networkidle');
+        // Rendered controls, not background transport idleness, establish
+        // menu readiness. Polling may legitimately continue after navigation.
+        await page.goto(origin+path,{waitUntil:'load'});
         const menu=page.locator('.site-menu,.product-menu,.docs-mobile-menu').first();
+        await menu.locator('summary').waitFor({state:'visible'});
         await menu.locator('summary').focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('.site-menu[open],.product-menu[open],.docs-mobile-menu[open]'));
         const bounds=await menu.evaluate(e=>{const a=e.querySelector('summary').getBoundingClientRect(),p=e.querySelector('nav,.site-menu-panel').getBoundingClientRect();return {below:p.top>=a.bottom,inside:p.left>=0&&p.right<=innerWidth+1&&p.bottom<=innerHeight+1};});
         assert.equal(bounds.below,true,`${path}: menu obscures its summary`);assert.equal(bounds.inside,true,`${path}: menu escapes viewport`);
-        const links=menu.locator('a');for(let i=0;i<await links.count();i++) {await page.keyboard.press('Tab');const focused=await links.nth(i).evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('nav,.site-menu-panel').getBoundingClientRect();return e===document.activeElement&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});assert.equal(focused,true,`${path}: task ${i} unreachable`);}
+        const links=menu.locator('a');const linkCount=await links.count();
+        assert.ok(linkCount>0,`${path}: no menu task links rendered`);
+        for(let i=0;i<linkCount;i++) {await page.keyboard.press('Tab');const focused=await links.nth(i).evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('nav,.site-menu-panel').getBoundingClientRect();return e===document.activeElement&&r.top>=p.top-1&&r.bottom<=p.bottom+1;});assert.equal(focused,true,`${path}: task ${i} unreachable`);}
         await page.keyboard.press('Escape');assert.equal(await menu.locator('summary').evaluate(e=>document.activeElement===e),true);
       }
     }await context.close();
@@ -573,7 +590,13 @@ try {
     for(const [width,height,double] of [[320,225,false],[640,450,false],[360,600,true]]) {
       await page.setViewportSize({width,height});
       for(const path of ['/','/docs/','/docs/install','/docs/agent-guide','/docs/operations','/privacy','/terms','/security','/support','/status','/app','/advanced-inventory','/lifecycle','/recovery','/pilot','/auth/callback','/missing-layout-audit-page']) {
-        await page.goto(origin+path);await page.waitForLoadState('networkidle');
+        // A page can be rendered and accessible while its background requests
+        // remain active. Transport idleness is not a layout readiness gate.
+        await page.goto(origin+path,{waitUntil:'load'});
+        await page.locator('main').waitFor({state:'visible'});
+        await page.evaluate(async()=>{await document.fonts.ready;});
+        // Check the hydrated owner workspace, not just its loading shell.
+        if(path==='/app') await page.locator('#workspace-content').waitFor({state:'visible'});
         if(double)await page.evaluate(()=>{const values=[...document.querySelectorAll('body *')].map(e=>{const s=getComputedStyle(e);return[e,parseFloat(s.fontSize),parseFloat(s.lineHeight)];});for(const [e,font,line]of values){e.style.fontSize=font*2+'px';if(Number.isFinite(line))e.style.lineHeight=line*2+'px';}});
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,`${path} ${width} doubled=${double}`);
         assert.deepEqual(await audit(page),[],`${path} ${width} doubled=${double}`);
@@ -612,7 +635,7 @@ try {
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.equal(await page.locator('#delivery').isVisible(),!failure);
         if(!failure)assert.equal(await page.locator('#campaign-preview').textContent(),'fixture_x\n'+text);
         assert.equal(await page.locator('#result').evaluate(e=>getComputedStyle(e).position),'static');assert.deepEqual(await audit(page),[]);
-        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:true});
+        await page.locator('#result').scrollIntoViewIfNeeded();await page.screenshot({path:`ux-evidence/layout-campaign-${failure?'error':'review'}-${width}.png`,fullPage:false,animations:'disabled',caret:'hide'});
       }await context.close();
     }assert.equal(calls.length,12); // Synthetic responses only; delivery is never submitted.
   });

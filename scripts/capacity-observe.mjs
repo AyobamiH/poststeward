@@ -20,26 +20,49 @@ function d1Rows(response) {
   return batches.flatMap((batch) => (Array.isArray(batch?.results) ? batch.results : []));
 }
 
-async function cloudflareJson(url, token, init = {}) {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...(init.headers || {}),
-    },
-    redirect: "error",
-    signal: AbortSignal.timeout(20_000),
-  });
-  let value = {};
-  try {
-    value = await response.json();
-  } catch {
-    value = {};
+// Used only for the SELECT and analytics query requests below; never mutations.
+export async function cloudflareJson(url, token, init = {}, {
+  send = fetch,
+  wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  record = (entry) => console.error("POSTSTEWARD_CAPACITY_READ_ATTEMPT " + JSON.stringify(entry)),
+} = {}) {
+  const codes = new Set(["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EAI_AGAIN",
+    "ENETUNREACH", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_SOCKET"]);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response, value;
+    try {
+      response = await send(url, {
+        ...init,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(init.body ? { "Content-Type": "application/json" } : {}),
+          ...(init.headers || {}),
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(20_000),
+      });
+      if ([502, 503, 504].includes(response.status)) {
+        // Release the body before retrying, without logging provider material.
+        await response.body?.cancel();
+        record({ attempt, status: response.status, retrying: attempt < 3 });
+        if (attempt < 3) { await wait(attempt * 1000); continue; }
+      }
+      demand(response.ok, `Cloudflare observation failed with HTTP ${response.status}.`);
+      value = await response.json();
+    } catch (error) {
+      const rawCode = error?.cause?.code ?? error?.code;
+      const code = error?.name === "TimeoutError" ? "timeout" : codes.has(rawCode) ? rawCode : null;
+      const retrying = code !== null && attempt < 3;
+      record({ attempt, code: code ?? "non_retryable_error", retrying });
+      if (!retrying) throw error;
+      await wait(attempt * 1000);
+      continue;
+    }
+    demand(value && typeof value === "object" && value.success !== false,
+      `Cloudflare observation failed with HTTP ${response.status}.`);
+    return value;
   }
-  demand(response.ok && value.success !== false, `Cloudflare observation failed with HTTP ${response.status}.`);
-  return value;
 }
 
 async function queryD1(accountId, databaseId, token, sql, params = []) {
@@ -114,6 +137,8 @@ export function capacityFailureCode(error) {
     return "cloudflare_graphql_account_unavailable";
   if (error instanceof DOMException && error.name === "TimeoutError")
     return "cloudflare_request_timeout";
+  if (error instanceof TypeError && /fetch failed/i.test(message)) return "cloudflare_transport_failure";
+  if (error instanceof Error && error.name === "AbortError") return "cloudflare_request_aborted";
   return "invalid_input_or_observation";
 }
 
@@ -359,6 +384,7 @@ async function capacityAbsenceDiagnostics(accountId, databaseId, token) {
   };
 }
 
+let capacityPhase = "initialisation";
 async function main() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID || "";
   const databaseId = process.env.D1_ID || "";
@@ -372,12 +398,14 @@ async function main() {
   demand(/^[a-z0-9-]{1,100}$/.test(scriptName), "POSTSTEWARD_WORKER_NAME is invalid.");
   const origin = process.env.POSTSTEWARD_ORIGIN || "https://poststeward-staging.woeinvests.workers.dev";
   const expectedRelease = process.env.POSTSTEWARD_EXPECTED_RELEASE ?? process.env.GITHUB_SHA;
+  capacityPhase = "readiness";
   const context = await readCapacityRuntime(origin, expectedRelease);
   demand(scriptName === capacityWorkerName(context.environment), "Capacity Worker name and runtime environment differ.");
 
   const end = new Date();
   const start = new Date(end.getTime() - windowDays * 86400000);
   const cutoff = start.toISOString().slice(0, 10);
+  capacityPhase = "d1_high_water";
   const highRows = await queryD1(accountId, databaseId, token,
     `SELECT count(DISTINCT workspace_fingerprint) AS workspaces,
        min(observed_at) AS firstObservedAt, max(observed_at) AS lastObservedAt,
@@ -394,6 +422,7 @@ async function main() {
     [cutoff, context.release]);
   const highWater = highRows[0] || {};
   if (Number(highWater.workspaces || 0) <= 0) {
+    capacityPhase = "d1_absence_diagnostics";
     const diagnostics = await capacityAbsenceDiagnostics(
       accountId,
       databaseId,
@@ -406,6 +435,7 @@ async function main() {
     return;
   }
 
+  capacityPhase = "cloudflare_graphql";
   const graphql = await queryGraphql(accountId, scriptName, databaseId, token, start.toISOString(), end.toISOString());
   const workerCpuUs = maxGroups(
     graphql.workersInvocationsAdaptive,
@@ -422,6 +452,7 @@ async function main() {
     ]),
     ...maxGroups(graphql.d1AnalyticsAdaptiveGroups, ["queryBatchTimeMsP90"]),
   };
+  capacityPhase = "d1_alerts";
   const alertRows = await queryD1(accountId, databaseId, token,
     `SELECT count(*) AS total,
       sum(CASE WHEN status='sent' THEN 1 ELSE 0 END) AS sent,
@@ -430,12 +461,15 @@ async function main() {
   worker.alertVolume = alertRows[0] || { total: 0, sent: 0, dead: 0 };
 
   const targetWorkspaces = Number(process.env.POSTSTEWARD_CAPACITY_TARGET_WORKSPACES || highWater.workspaces);
+  capacityPhase = "evaluation";
   const evaluated = buildCapacityObservation({ highWater, workerAnalytics: worker, d1Analytics: d1,
     providerQuota: optionalJson(process.env.POSTSTEWARD_PROVIDER_QUOTA_EVIDENCE, "provider quota"),
     pricing: optionalJson(process.env.POSTSTEWARD_PRICING_EVIDENCE, "pricing"), windowDays,
     targetWorkspaces });
+  capacityPhase = "final_release_readback";
   demand(isDeepStrictEqual(context, await readCapacityRuntime(origin, expectedRelease)),
     "Capacity runtime changed while collecting evidence.");
+  capacityPhase = "receipt";
   const report = bindCapacityObservation(evaluated, context, highWater);
   const serialized = emit(report);
   demand(!serialized.includes(token), "Capacity observation attempted to emit protected material.");
@@ -444,6 +478,6 @@ async function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   main().catch((error) => {
-    console.error(`POSTSTEWARD_CAPACITY_OBSERVATION_FAILED ${capacityFailureCode(error)}`);
+    console.error(`POSTSTEWARD_CAPACITY_OBSERVATION_FAILED phase=${capacityPhase} code=${capacityFailureCode(error)}`);
     process.exitCode = 1;
   });

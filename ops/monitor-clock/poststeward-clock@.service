@@ -3,4 +3,4 @@ Description=Dispatch the PostSteward %i monitor to GitHub Actions
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 %h/.local/share/poststeward-monitor-clock/dispatch.py %i
-TimeoutStartSec=100
+TimeoutStartSec=150

@@ -134,30 +134,46 @@ class OnboardingTests(unittest.TestCase):
         self.assertEqual(len(json.loads(registry_path().read_text())["projects"]), 1)
 
     def test_bounded_source_lock_wait_recovers_from_transient_contention(self):
+        import fcntl
         from threading import Event
         from ocpf_post.runtime_sources import source_lock
 
         entered = Event()
+        contended = Event()
         release = Event()
+        kernel_flock = fcntl.flock
+
+        def observe_flock(fd, flags):
+            try:
+                return kernel_flock(fd, flags)
+            except BlockingIOError:
+                contended.set()
+                raise
 
         def holder():
             with source_lock(operation="test-holder"):
                 entered.set()
-                release.wait(timeout=2)
+                if not release.wait(timeout=7):
+                    raise AssertionError("Lock holder did not receive the test release signal")
 
         def waiter():
-            with source_lock(operation="test-waiter", timeout_seconds=1.0):
+            with source_lock(operation="test-waiter", timeout_seconds=3.0):
                 return True
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        # Observe a real failed non-blocking flock before freeing the holder.
+        # An elapsed sleep or a one-second thread startup budget cannot prove
+        # contention under a loaded self-hosted CI runner.
+        with patch.object(fcntl, "flock", side_effect=observe_flock), ThreadPoolExecutor(max_workers=2) as executor:
             held = executor.submit(holder)
-            self.assertTrue(entered.wait(timeout=1))
-            waiting = executor.submit(waiter)
-            time.sleep(0.05)
-            self.assertFalse(waiting.done())
-            release.set()
-            self.assertTrue(waiting.result(timeout=2))
-            held.result(timeout=2)
+            try:
+                self.assertTrue(entered.wait(timeout=6), "Holder never acquired the file lock")
+                waiting = executor.submit(waiter)
+                self.assertTrue(contended.wait(timeout=6), "Waiter never encountered the held file lock")
+                self.assertFalse(waiting.done())
+            finally:
+                release.set()
+            self.assertTrue(waiting.result(timeout=6))
+            held.result(timeout=6)
 
     def test_campaign_uses_runtime_registry_and_existing_schedule_receipts(self):
         self.register()

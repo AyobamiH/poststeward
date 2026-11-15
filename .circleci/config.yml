@@ -24,6 +24,12 @@ jobs:
             export PYTHONPATH="$PWD/runtime/src"
             python3 -m unittest discover -s runtime/tests -p test_refill_crash_process.py -v
       - run:
+          name: Exercise real isolated launchd bootstrap and disarm without provider effects
+          command: |
+            set -euo pipefail
+            export PYTHONPATH="$PWD/runtime/src"
+            python3 -m unittest discover -s runtime/tests -p test_native_launchd_cycle.py -v
+      - run:
           name: Install, update, rollback and preserve inactive state on real macOS
           no_output_timeout: 10m
           command: |
@@ -36,14 +42,14 @@ jobs:
             bash public/install.sh --version 9fd549bea3c094abe38a75b331a3c60967fdad7b --no-onboard
             bash public/install.sh --version "$CIRCLE_SHA1" --no-onboard
             "$ROOT/bin/poststeward" status --json > "$ROOT/status.json"
-            python3 - "$ROOT/status.json" "$CIRCLE_SHA1" \<<'PYMAC'
+            python3 - "$ROOT/status.json" "$CIRCLE_SHA1" <<'PYMAC'
             import json,sys
             d=json.load(open(sys.argv[1]));assert d['release_sha']==sys.argv[2]
             assert d['automation_authority']['status']=='inactive'
             assert all(not t['active'] and not t['enabled'] for t in d['services']['timers'])
             PYMAC
             "$ROOT/bin/poststeward" rollback --json > "$ROOT/rollback-preview.json"
-            python3 - "$ROOT/rollback-preview.json" "$ROOT/review.txt" \<<'PYMAC'
+            python3 - "$ROOT/rollback-preview.json" "$ROOT/review.txt" <<'PYMAC'
             import json,sys
             d=json.load(open(sys.argv[1]));assert d['status']=='preview' and d['retain_data']
             open(sys.argv[2],'w').write(d['review_sha256'])
@@ -51,7 +57,7 @@ jobs:
             "$ROOT/bin/poststeward" rollback --apply --expected-sha256 "$(cat "$ROOT/review.txt")" --json > "$ROOT/rollback.json"
             bash public/install.sh --version "$CIRCLE_SHA1" --no-onboard
             "$ROOT/bin/poststeward" status --json > "$ROOT/final-status.json"
-            python3 - "$ROOT/final-status.json" "$CIRCLE_SHA1" \<<'PYMAC'
+            python3 - "$ROOT/final-status.json" "$CIRCLE_SHA1" <<'PYMAC'
             import json,sys
             d=json.load(open(sys.argv[1]));assert d['release_sha']==sys.argv[2]
             assert d['automation_authority']['status']=='inactive'
@@ -63,7 +69,7 @@ jobs:
             export PYTHONPATH="$PWD/runtime/src"
             python3 -m py_compile runtime/src/ocpf_post/launchd_services.py runtime/src/ocpf_post/host_platform.py
             bash -n public/install.sh
-            python3 - \<<'PYMAC'
+            python3 - <<'PYMAC'
             import sys
             from ocpf_post.host_platform import host
             assert sys.platform == 'darwin'
@@ -76,4 +82,6 @@ workflows:
       - native-macos-local-lifecycle:
           filters:
             branches:
-              only: test/native-macos-and-refill-acceptance
+              only:
+                - test/native-macos-and-refill-acceptance
+                - agent/native-customer-lifecycle-20261112

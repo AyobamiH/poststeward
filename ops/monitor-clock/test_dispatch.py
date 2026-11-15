@@ -6,6 +6,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -114,6 +115,55 @@ class DispatchTests(unittest.TestCase):
                 clock.dispatch("alerts")
         self.submit.assert_not_called()
         self.lookup.assert_not_called()
+
+    def test_pre_http_tls_failure_retries_same_slot(self):
+        error = subprocess.CalledProcessError(1, "gh", stderr='Post "https://api.github.com/repos/AyobamiH/poststeward/dispatches": net/http: TLS handshake timeout\n')
+        self.submit.side_effect = [error, None]
+        with patch.object(clock.time, "sleep") as wait:
+            clock.dispatch("alerts")
+        self.assertEqual(self.submit.call_count, 2)
+        self.assertEqual(self.submit.call_args_list[0].kwargs["input"], self.submit.call_args_list[1].kwargs["input"])
+        wait.assert_called_once_with(1)
+        self.assertEqual(self.state()["status"], "accepted")
+
+    def test_tls_exhaustion_is_bounded_and_recoverable(self):
+        self.submit.side_effect = subprocess.CalledProcessError(1, "gh", stderr='Post "https://api.github.com/repos/AyobamiH/poststeward/dispatches": net/http: TLS handshake timeout')
+        with patch.object(clock.time, "sleep"), self.assertRaisesRegex(SystemExit, "retries exhausted"):
+            clock.dispatch("alerts")
+        self.assertEqual(self.submit.call_count, 3)
+        self.assertEqual(self.state()["status"], "retryable")
+        self.submit.side_effect = None
+        clock.dispatch("alerts")
+        self.lookup.assert_not_called()
+        self.assertEqual(self.state()["status"], "accepted")
+
+    def test_http_or_ambiguous_failures_are_never_replayed(self):
+        for error_text in ["HTTP 502", "EOF", "context deadline exceeded", "private secret"]:
+            with self.subTest(error=error_text):
+                if self.receipt.exists():
+                    self.receipt.unlink()
+                self.submit.reset_mock()
+                self.submit.side_effect = subprocess.CalledProcessError(1, "gh", stderr=error_text)
+                with self.assertRaisesRegex(SystemExit, "Uncertain submission"):
+                    clock.dispatch("alerts")
+                self.submit.assert_called_once()
+                self.assertEqual(self.state()["status"], "submitting")
+
+    def test_concurrent_invocations_submit_once(self):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(pool.map(clock.dispatch, ["alerts", "alerts"]))
+        self.submit.assert_called_once()
+        self.assertEqual(self.state()["status"], "accepted")
+
+    def test_next_slot_preserves_failed_receipt(self):
+        self.receipt.parent.mkdir(parents=True)
+        previous = {"slot": "2026-11-03T12:20Z", "status": "submitting"}
+        self.receipt.write_text(json.dumps(previous))
+        clock.dispatch("alerts")
+        saved = list((self.receipt.parent / "history").glob("*.json"))
+        self.assertEqual(len(saved), 1)
+        self.assertEqual(json.loads(saved[0].read_text()), previous)
+        self.assertEqual(self.state()["status"], "accepted")
 
 
 if __name__ == "__main__":

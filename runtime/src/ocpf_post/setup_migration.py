@@ -642,27 +642,60 @@ def validate_provider_readiness(
     expected_identities: list[dict[str, str]],
     readiness: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    expected = {(row["provider"], row["account_id"]) for row in expected_identities}
+    """Check receipt consistency, not merely the producer's claimed ready flag.
+
+    Legacy migration receipts may omit write_scope_state; if a producer supplies
+    that field, however, it must not contradict a claimed grant. This projection
+    is not itself proof of a fresh authenticated provider read.
+    """
+    blockers: list[str] = []
+    expected: set[tuple[str, str]] = set()
+    for row in expected_identities:
+        if not isinstance(row, dict):
+            _fail("migration.provider_readiness.invalid", "Expected provider identities must be objects")
+        provider, identity = row.get("provider"), row.get("account_id")
+        if type(provider) is not str or not provider or type(identity) is not str or not identity:
+            _fail("migration.provider_readiness.invalid", "Expected provider identity is invalid")
+        key = (provider, identity)
+        if key in expected:
+            blockers.append("provider.identity.expected_duplicate")
+        expected.add(key)
+    if not expected:
+        blockers.append("provider.identity.expected_missing")
+
     observed: dict[tuple[str, str], dict[str, Any]] = {}
     for row in readiness:
         if not isinstance(row, dict):
             _fail("migration.provider_readiness.invalid", "Provider readiness rows must be objects")
-        provider = str(row.get("provider") or "")
-        identity = str(row.get("expected_identity") or "")
-        if not provider or not identity:
+        provider, identity = row.get("provider"), row.get("expected_identity")
+        if type(provider) is not str or not provider or type(identity) is not str or not identity:
             _fail("migration.provider_readiness.invalid", "Provider readiness row lacks expected identity")
-        observed[(provider, identity)] = row
+        key = (provider, identity)
+        if key in observed:
+            # Never let a later optimistic projection shadow a conflicting receipt.
+            blockers.append("provider.identity.evidence_duplicate")
+        else:
+            observed[key] = row
 
-    missing = sorted(expected - set(observed))
-    blockers: list[str] = []
-    if missing:
+    if expected - set(observed):
         blockers.append("provider.identity.evidence_missing")
+    if set(observed) - expected:
+        blockers.append("provider.identity.evidence_unexpected")
     for key in sorted(expected & set(observed)):
         row = observed[key]
-        if row.get("identity_match") != "match":
+        if row.get("schema_version", 1) != 1 or type(row.get("schema_version", 1)) is not int:
+            blockers.append("provider.evidence.schema_invalid")
+        if row.get("identity_match") != "match" or type(row.get("observed_identity")) is not str or row["observed_identity"] != key[1]:
             blockers.append("provider.identity.mismatch")
+        if "write_scope_state" in row and row["write_scope_state"] != "granted":
+            blockers.append("provider.write_scope.unproven")
+        reasons = row.get("blocking_reasons")
+        if not isinstance(reasons, list) or any(type(code) is not str or not code for code in reasons):
+            blockers.append("provider.evidence.blockers_invalid")
+        elif reasons:
+            blockers.extend(reasons)
         if row.get("ready_for_write_configuration") is not True:
-            blockers.extend(str(code) for code in row.get("blocking_reasons", []) if code)
+            blockers.append("provider.readiness.unverified")
     return {
         "schema_version": 1,
         "status": "ready" if not blockers else "blocked",
@@ -671,8 +704,8 @@ def validate_provider_readiness(
         "blockers": sorted(set(blockers)),
         "credentials_stored": False,
         "boundary": (
-            "Consumes read-only provider-readiness projections only. Reauthorization and stale-host revocation "
-            "are not performed or inferred."
+            "Checks consistency of read-only provider-readiness projections only. Authenticated live identity, "
+            "reauthorization and stale-host revocation are not independently proved here."
         ),
     }
 
