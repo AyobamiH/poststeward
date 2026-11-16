@@ -35,7 +35,18 @@ export function resolveAdvancedRolloutRequest(request, env = process.env) {
       "Production Advanced requires the owner-reviewed main deployment request.");
     return { request: selected, ADVANCED_ENABLED: "true", ADVANCED_ROLLOUT_MODE: "global", ADVANCED_CANARY_BPS: "0", ADVANCED_CANARY_SEED: "" };
   }
-  demand(env.DEPLOY_ENV === "staging", "Advanced rollout changes are staging-only.");
+  // Restrict production stop to a manual, reviewed-main kill path.
+  // This is not production Advanced enablement or public signup authority.
+  const restrictedProductionStop =
+    selected === "stop" &&
+    env.DEPLOY_ENV === "production" &&
+    env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
+    env.SIGNUP_MODE === "restricted" &&
+    /^[a-f0-9]{40}$/.test(env.GITHUB_SHA || "");
+  demand(
+    env.DEPLOY_ENV === "staging" || restrictedProductionStop,
+    "Advanced rollout changes are staging-only except an owner-dispatched restricted production stop.",
+  );
   demand(
     env.GITHUB_REF === "refs/heads/main" &&
       env.GITHUB_REPOSITORY === "AyobamiH/poststeward" &&
