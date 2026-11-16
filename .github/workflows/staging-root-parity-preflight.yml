@@ -1,6 +1,15 @@
-name: Restricted staging root parity (read only)
+name: Protected restricted root metadata parity (read only)
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "Read-only target environment, no deployment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
 permissions:
   contents: read
 concurrency:
@@ -8,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   inspect:
-    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main' && github.actor == 'AyobamiH'
+    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main' && github.actor == 'AyobamiH' && inputs.target == 'staging'
     runs-on: poststeward-release
     timeout-minutes: 5
     environment: staging
@@ -27,3 +36,32 @@ jobs:
           STAGING_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           ENCRYPTION_KEY_NEXT: ${{ secrets.ENCRYPTION_KEY_NEXT }}
+
+  production-metadata:
+    # Protected production environment supplies ENCRYPTION_KEY only to this
+    # GET-only checker. It has no deploy, write, migration or provider permissions.
+    if: github.repository == 'AyobamiH/poststeward' && github.ref == 'refs/heads/main' && github.actor == 'AyobamiH' && inputs.target == 'production'
+    runs-on: poststeward-release
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - name: Inspect active production declared root ID and provenance (GET only)
+        run: node scripts/production-root-provenance-preflight.mjs
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PRODUCTION_ROOT_WRITE: ${{ vars.ENCRYPTION_ROOT_WRITE }}
+          PRODUCTION_CREDENTIAL_MODE: ${{ vars.PRODUCTION_CREDENTIAL_MODE }}
+          EXPECTED_PRODUCTION_RELEASE: "20aa2987a347a3251573fc55c788b8d7d23f0ae6"
+          EXPECTED_PRODUCTION_D1: "6b06deb6-c0f1-437a-9846-72509a4ace28"
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
