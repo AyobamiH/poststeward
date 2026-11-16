@@ -83,6 +83,55 @@ test("canary changes are staging-main-owner only and starts require a stable see
   );
 });
 
+
+test("restricted production stop is an owner-dispatched kill path, never a rollout start", () => {
+  const production = {
+    ...reviewed,
+    DEPLOY_ENV: "production",
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_SHA: "c".repeat(40),
+    SIGNUP_MODE: "restricted",
+    ADVANCED_ENABLED: "true",
+    ADVANCED_ROLLOUT_MODE: "global",
+    ADVANCED_CANARY_BPS: "0",
+  };
+  assert.deepEqual(resolveAdvancedRolloutRequest("stop", production), {
+    request: "stop",
+    ADVANCED_ENABLED: "false",
+    ADVANCED_ROLLOUT_MODE: "disabled",
+    ADVANCED_CANARY_BPS: "0",
+    ADVANCED_CANARY_SEED: reviewed.ADVANCED_CANARY_SEED,
+  });
+  for (const action of ["start_100bps", "start_500bps", "start_1000bps"])
+    assert.throws(() => resolveAdvancedRolloutRequest(action, production), /staging-only/);
+});
+
+test("production stop rejects unsafe actor, ref, repository, SHA, admission and event", () => {
+  const production = {
+    ...reviewed,
+    DEPLOY_ENV: "production",
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_SHA: "d".repeat(40),
+    SIGNUP_MODE: "restricted",
+  };
+  for (const override of [
+    { GITHUB_ACTOR: "another-owner" },
+    { GITHUB_REF: "refs/heads/feature" },
+    { GITHUB_REPOSITORY: "another/repository" },
+    { GITHUB_SHA: "" },
+    { GITHUB_SHA: "not-a-reviewable-sha" },
+    { GITHUB_EVENT_NAME: "push" },
+    { GITHUB_EVENT_NAME: "workflow_call" },
+    { SIGNUP_MODE: "public" },
+    { SIGNUP_MODE: "" },
+    { DEPLOY_ENV: "preview" },
+  ])
+    assert.throws(
+      () => resolveAdvancedRolloutRequest("stop", { ...production, ...override }),
+      /staging-only|reviewed main/,
+    );
+});
+
 test("workflow has no global option and routes start-stop through the reviewed deploy", () => {
   const workflow = readFileSync(
     ".github/workflows/staging-advanced-canary.yml",
