@@ -20,7 +20,7 @@ function healthy(overrides = {}) {
       workspaceCount: 2,
       advancedOperations: 50,
     },
-    invariants: { duplicateExternalEffects: 0 },
+    invariants: { duplicateExternalEffects: 0, evidenceMethod: "independent_provider_readback" },
     publication: { eligible: 100, verified: 100 },
     schedule: { due: 100, withinFiveMinutes: 100 },
     oauthRefresh: { attempts: 5, succeeded: 5 },
@@ -47,6 +47,22 @@ test("healthy hosted canary evidence is promotion-ready but never self-authorise
   assert.deepEqual(report.promotion.blockers, []);
   assert.match(report.promotion.note, /reviewed release-gate change/);
   assert.equal(report.invariant.severity, "none");
+});
+
+test("PK-unique ledger rows cannot prove external-provider exactly-once delivery", () => {
+  const report = evaluateSloObservation(healthy({
+    invariants: { duplicateExternalEffects: 0, evidenceMethod: "ledger_primary_key" },
+  }));
+  assert.equal(report.promotion.ready, false);
+  assert.equal(report.invariant.passed, false);
+  assert.ok(report.promotion.blockers.includes("duplicate_external_effect_evidence_unverified"));
+});
+
+test("legacy zero with no provider-readback provenance remains unverified", () => {
+  const report = evaluateSloObservation(healthy({ invariants: { duplicateExternalEffects: 0 } }));
+  assert.equal(report.promotion.ready, false);
+  assert.equal(report.invariant.evidenceVerified, false);
+  assert.ok(report.promotion.blockers.includes("duplicate_external_effect_evidence_unverified"));
 });
 
 test("one duplicate external effect is an immediate hard invariant failure", () => {
