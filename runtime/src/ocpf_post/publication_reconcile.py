@@ -112,10 +112,46 @@ def _linkedin_read_permission(account_id, *, purpose='posts', factory=get_provid
     return value if isinstance(value, dict) else None
 
 
+def _checked_readback_state(path):
+    """Refuse damaged durable evidence, including a JSON null or partial mapping.
+
+    A corrupt sidecar is an operator/recovery issue, not permission to replace
+    historical provider observations with a fresh empty database. This check is
+    repeated under the write lock to reject an intervening corrupt replacement.
+    """
+    try:
+        saved = local_store.read(path)
+    except (OSError, ValueError, TypeError) as exc:
+        raise ValueError("Invalid durable provider-readback state: unreadable evidence.") from exc
+    if not path.exists():
+        return {'schema_version': 1, 'observations': {}}
+    if saved is None:
+        raise ValueError("Invalid durable provider-readback state: JSON null.")
+    if not isinstance(saved, dict) or not isinstance(saved.get('observations'), dict):
+        raise ValueError("Invalid durable provider-readback state: observations must be a mapping.")
+    if any(not isinstance(key, str) or not isinstance(value, dict)
+           for key, value in saved['observations'].items()):
+        raise ValueError("Invalid durable provider-readback state: malformed observation entry.")
+    backoffs = saved.get('account_backoff', {})
+    if not isinstance(backoffs, dict):
+        raise ValueError("Invalid durable provider-readback state: account backoff must be a mapping.")
+    for scope, value in backoffs.items():
+        if (not isinstance(scope, str) or ':' not in scope or
+            any(not part for part in scope.split(':', 1)) or not isinstance(value, dict)):
+            raise ValueError("Invalid durable provider-readback state: malformed account scope.")
+        try:
+            retry_at = at(value.get('retry_at'))
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError("Invalid durable provider-readback state: invalid account retry time.") from exc
+        if retry_at is None or retry_at.tzinfo is None:
+            raise ValueError("Invalid durable provider-readback state: invalid account retry time.")
+    return saved
+
+
 def pending():
     _, schedules, _ = publication_inputs()
-    saved = local_store.read(state_dir() / 'publication-readbacks.json') or {'observations': {}}
-    observations = saved.get('observations', {}) if isinstance(saved.get('observations'), dict) else {}
+    saved = _checked_readback_state(state_dir() / 'publication-readbacks.json')
+    observations = saved['observations']
     for schedule in schedules:
         if schedule.get('status') not in {'published_unverified', 'ambiguous_effect', 'executing'}:
             continue
@@ -154,7 +190,7 @@ def reconcile(
     now = now or datetime.now(timezone.utc)
     _, schedules, _ = publication_inputs()
     path = state_dir() / 'publication-readbacks.json'
-    saved = local_store.read(path) or {'schema_version': 1, 'observations': {}}
+    saved = _checked_readback_state(path)
     observations = saved['observations']
     rows = []; targets = []; forensic_targets = []; clients = {}; reads = 0; forensic_searches = 0
     blocked_accounts = {tuple(scope.split(':', 1)): value
@@ -167,14 +203,14 @@ def reconcile(
         if not apply:
             return
         with local_store.locked(path):
-            data = local_store.read(path) or {'schema_version': 1, 'observations': {}}
+            data = _checked_readback_state(path)
             data['observations'][_key(row)] = row
             local_store.write(path, data)
 
     def backoff(scope, row):
         blocked_accounts[scope] = {k: row[k] for k in ('http_status', 'retry_at')}
         with local_store.locked(path):
-            data = local_store.read(path) or {'schema_version': 1, 'observations': {}}
+            data = _checked_readback_state(path)
             data.setdefault('account_backoff', {})[':'.join(scope)] = blocked_accounts[scope]
             local_store.write(path, data)
 
