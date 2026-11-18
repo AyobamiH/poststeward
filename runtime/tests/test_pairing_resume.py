@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import subprocess
 import sys
@@ -631,6 +632,188 @@ with patch.object(cloud, '_request', side_effect=request):
             with self.assertRaises(cloud.CloudError):
                 cloud.onboard(no_open=True, wait=True)
         self.assertEqual(cloud._read()["pending_pairing"]["started"]["pairingId"], replacement["pairingId"])
+        self.assertNotIn("runtime_token", cloud._read())
+
+    def test_origin_replacement_between_polls_stops_original_claim(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        original = cloud._read()
+        candidate = original["pending_pairing"]["claim_token"]
+        waits = []
+
+        def replace_origin(_seconds):
+            waits.append(True)
+            self.assertEqual(len(waits), 1, "Changed authority must not be retried")
+            with cloud._pairing_start_lock():
+                value = cloud._read()
+                value["origin"] = "https://replacement.example"
+                value["pending_pairing"]["origin"] = "https://replacement.example"
+                cloud._write(value)
+
+        # Clear the explicit test origin so this exercises client.json changes.
+        with patch.dict(os.environ, {"POSTSTEWARD_ORIGIN": ""}), patch.object(
+            cloud, "_request", side_effect=[
+                (202, {"status": "pending"}),
+                AssertionError("Old waiter issued another request after origin replacement"),
+            ]
+        ) as request, patch.object(cloud.time, "sleep", side_effect=replace_origin):
+            with self.assertRaises(cloud.CloudError) as caught:
+                cloud.onboard(no_open=True, wait=True)
+
+        self.assertEqual(caught.exception.code, "RUNTIME_PAIRING_CONTEXT_CHANGED")
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(
+            request.call_args.kwargs["request_origin"],
+            "https://poststeward.example",
+        )
+        saved = cloud._read()
+        self.assertEqual(saved["origin"], "https://replacement.example")
+        self.assertEqual(saved["pending_pairing"]["claim_token"], candidate)
+        self.assertNotIn("runtime_token", saved)
+
+    def test_poll_transport_pins_origin_after_context_preflight(self):
+        offered = self.started()
+        with patch.object(cloud, "_request", return_value=(201, offered)):
+            cloud.onboard(no_open=True, wait=False)
+        original = cloud._read()
+        candidate = original["pending_pairing"]["claim_token"]
+        approved = self.approved(original)
+        approved.pop("runtimeToken")
+        approved["candidateAccepted"] = True
+        real_request = cloud._request
+        observed = []
+
+        def intercepted_urlopen(request, timeout):
+            observed.append({
+                "url": request.full_url,
+                "poll_token": request.get_header("Authorization"),
+                "candidate": request.get_header("X-poststeward-runtime-candidate"),
+            })
+            response = io.BytesIO(json.dumps(approved).encode("utf-8"))
+            response.status = 200
+            return response
+
+        def change_origin_immediately_before_transport(method, path, **kwargs):
+            # Race after the preflight, before the real Request is constructed.
+            with cloud._pairing_start_lock():
+                value = cloud._read()
+                value["origin"] = "https://replacement.example"
+                cloud._write(value)
+            return real_request(method, path, **kwargs)
+
+        with patch.dict(os.environ, {"POSTSTEWARD_ORIGIN": ""}), patch.object(
+            cloud, "_request",
+            side_effect=change_origin_immediately_before_transport,
+        ), patch.object(
+            cloud.urllib.request, "urlopen", side_effect=intercepted_urlopen
+        ):
+            with self.assertRaises(cloud.CloudError) as caught:
+                cloud.onboard(no_open=True, wait=True)
+
+        self.assertEqual(caught.exception.code, "RUNTIME_PAIRING_CONTEXT_CHANGED")
+        self.assertEqual(len(observed), 1)
+        self.assertTrue(observed[0]["url"].startswith(
+            "https://poststeward.example/api/runtime/pairing/status?"
+        ), observed)
+        self.assertEqual(observed[0]["poll_token"], "Bearer " + offered["pollToken"])
+        self.assertEqual(observed[0]["candidate"], candidate)
+        saved = cloud._read()
+        self.assertEqual(saved["origin"], "https://replacement.example")
+        self.assertEqual(saved["pending_pairing"]["claim_token"], candidate)
+        self.assertNotIn("runtime_token", saved)
+
+    def test_logout_while_waiting_prevents_another_claim_request(self):
+        with patch.object(cloud, "_request", return_value=(201, self.started())):
+            cloud.onboard(no_open=True, wait=False)
+        waits = []
+
+        def logout_during_wait(_seconds):
+            waits.append(True)
+            self.assertEqual(len(waits), 1, "Revoked authority must not be retried")
+            cloud.logout()
+
+        with patch.object(cloud, "_request", side_effect=[
+            (202, {"status": "pending"}),
+            AssertionError("Logged-out waiter issued another claim request"),
+        ]) as request, patch.object(
+            cloud.time, "sleep", side_effect=logout_during_wait
+        ):
+            with self.assertRaises(cloud.CloudError) as caught:
+                cloud.onboard(no_open=True, wait=True)
+
+        self.assertEqual(caught.exception.code, "RUNTIME_PAIRING_CONTEXT_CHANGED")
+        self.assertEqual(request.call_count, 1)
+        self.assertNotIn("pending_pairing", cloud._read())
+        self.assertNotIn("runtime_token", cloud._read())
+
+    def test_replaced_candidate_prevents_network_retry(self):
+        with patch.object(cloud, "_request", return_value=(201, self.started())):
+            cloud.onboard(no_open=True, wait=False)
+        original_candidate = cloud._read()["pending_pairing"]["claim_token"]
+        replacement_candidate = "R" * 64
+        waits = []
+
+        def replace_candidate_during_wait(_seconds):
+            waits.append(True)
+            self.assertEqual(len(waits), 1, "Replaced candidate must not be retried")
+            with cloud._pairing_start_lock():
+                value = cloud._read()
+                value["pending_pairing"]["claim_token"] = replacement_candidate
+                cloud._write(value)
+
+        with patch.object(cloud, "_request", side_effect=[
+            cloud.CloudError("NETWORK_ERROR", "Synthetic acknowledgement loss"),
+            AssertionError("Old waiter retried with a replaced candidate"),
+        ]) as request, patch.object(
+            cloud.time, "sleep", side_effect=replace_candidate_during_wait
+        ):
+            with self.assertRaises(cloud.CloudError) as caught:
+                cloud.onboard(no_open=True, wait=True)
+
+        self.assertEqual(caught.exception.code, "RUNTIME_PAIRING_CONTEXT_CHANGED")
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(
+            request.call_args.kwargs["runtime_candidate"], original_candidate
+        )
+        self.assertEqual(
+            cloud._read()["pending_pairing"]["claim_token"], replacement_candidate
+        )
+        self.assertNotIn("runtime_token", cloud._read())
+
+    def test_candidate_replaced_during_response_cannot_install_old_token(self):
+        with patch.object(cloud, "_request", return_value=(201, self.started())):
+            cloud.onboard(no_open=True, wait=False)
+        original = cloud._read()
+        original_candidate = original["pending_pairing"]["claim_token"]
+        replacement_candidate = "R" * 64
+        approved = self.approved(original)
+        approved.pop("runtimeToken")
+        approved["candidateAccepted"] = True
+
+        def replace_candidate_before_ack(method, path, **kwargs):
+            self.assertEqual(method, "GET")
+            self.assertEqual(kwargs["runtime_candidate"], original_candidate)
+            with cloud._pairing_start_lock():
+                value = cloud._read()
+                value["pending_pairing"]["claim_token"] = replacement_candidate
+                cloud._write(value)
+            return 200, approved
+
+        with patch.object(
+            cloud, "_request", side_effect=replace_candidate_before_ack
+        ) as request, patch.object(
+            cloud, "bindings",
+            side_effect=AssertionError("Stale acknowledgement reached bindings"),
+        ):
+            with self.assertRaises(cloud.CloudError) as caught:
+                cloud.onboard(no_open=True, wait=True)
+
+        self.assertEqual(caught.exception.code, "RUNTIME_PAIRING_CONTEXT_CHANGED")
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(
+            cloud._read()["pending_pairing"]["claim_token"], replacement_candidate
+        )
         self.assertNotIn("runtime_token", cloud._read())
 
 

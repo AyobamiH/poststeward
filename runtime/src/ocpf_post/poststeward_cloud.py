@@ -522,6 +522,37 @@ def _retire_pending_pairing(pairing_id: str) -> None:
             _write(value)
 
 
+def _require_pairing_context(
+    *,
+    installation_id: str,
+    pairing_id: str,
+    poll_token: str,
+    claim_token: str,
+    pairing_origin: str,
+) -> dict[str, Any]:
+    """Validate the exact claim while the caller holds the pairing lock."""
+    current = _read()
+    pending = current.get("pending_pairing")
+    offered = pending.get("started") if isinstance(pending, dict) else None
+    if (
+        current.get("installation_id") != installation_id
+        or not isinstance(pending, dict)
+        or pending.get("installation_id") != installation_id
+        or pending.get("origin") != pairing_origin
+        or pending.get("claim_token") != claim_token
+        or not isinstance(offered, dict)
+        or offered.get("pairingId") != pairing_id
+        or offered.get("pollToken") != poll_token
+        or origin() != pairing_origin
+    ):
+        raise CloudError(
+            "RUNTIME_PAIRING_CONTEXT_CHANGED",
+            "Local pairing approval was replaced or revoked; stale claim discarded.",
+            3,
+        )
+    return current
+
+
 def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
     with _pairing_start_lock():
         current = installation_identity()
@@ -574,6 +605,14 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
             candidate = secrets.token_urlsafe(48)
             pending["claim_token"] = candidate
             _write(latest)
+        pairing_origin = pending["origin"]
+        pairing_context = {
+            "installation_id": current["installation_id"],
+            "pairing_id": started["pairingId"],
+            "poll_token": started["pollToken"],
+            "claim_token": candidate,
+            "pairing_origin": pairing_origin,
+        }
     pairing_id = str(started["pairingId"])
     poll_token = str(started["pollToken"])
     url = str(started["verificationUrl"])
@@ -606,12 +645,16 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
     claim_race_retries = 0
     while (first_probe and recovery_only) or int(time.time() * 1000) < expires_at:
         first_probe = False
+        # Replaced or revoked authority is terminal, not a transport retry.
+        with _pairing_start_lock():
+            _require_pairing_context(**pairing_context)
         try:
             status, value = _request(
                 "GET",
                 "/api/runtime/pairing/status?" + urllib.parse.urlencode({"pairing_id": pairing_id}),
                 token=poll_token,
                 runtime_candidate=candidate,
+                request_origin=pairing_origin,
             )
         except CloudError as exc:
             if exc.status == 409 and exc.code == "RUNTIME_PAIRING_RACE":
@@ -671,23 +714,13 @@ def onboard(*, no_open: bool = False, wait: bool = True) -> dict[str, Any]:
                 _retire_pending_pairing(pairing_id)
                 raise CloudError("RUNTIME_PAIRING_IDENTITY_MISMATCH", "Owner pairing approval did not match the active installation.", 3)
             with _pairing_start_lock():
-                updated = _read()
-                saved = updated.get("pending_pairing")
-                saved_offer = saved.get("started") if isinstance(saved, dict) else None
-                if (not isinstance(saved_offer, dict)
-                    or saved_offer.get("pairingId") != pairing_id
-                    or saved_offer.get("pollToken") != poll_token
-                    or saved.get("origin") != origin()
-                    or saved.get("installation_id") != current["installation_id"]):
-                    raise CloudError("RUNTIME_PAIRING_CONTEXT_CHANGED", "Local pairing approval was replaced or revoked; token not installed.", 3)
-                if updated.get("installation_id") not in (None, current["installation_id"]):
-                    raise CloudError("RUNTIME_PAIRING_IDENTITY_MISMATCH", "Local installation changed during owner approval.", 3)
+                updated = _require_pairing_context(**pairing_context)
                 executor = value.get("executor") if isinstance(value.get("executor"), dict) else {}
                 updated.pop("pending_pairing", None)
                 updated.update(
                     {
                         "schema_version": 1,
-                        "origin": origin(),
+                        "origin": pairing_origin,
                         "installation_id": value["installationId"],
                         "workspace": value["workspace"],
                         "runtime_token": approved_token,
