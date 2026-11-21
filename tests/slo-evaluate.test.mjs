@@ -20,7 +20,7 @@ function healthy(overrides = {}) {
       workspaceCount: 2,
       advancedOperations: 50,
     },
-    invariants: { duplicateExternalEffects: 0 },
+    invariants: { duplicateExternalEffects: 0, evidenceMethod: "independent_provider_readback" },
     publication: { eligible: 100, verified: 100 },
     schedule: { due: 100, withinFiveMinutes: 100 },
     oauthRefresh: { attempts: 5, succeeded: 5 },
@@ -36,7 +36,7 @@ function healthy(overrides = {}) {
         scheduledMetricsCaptures: 2,
       },
     },
-    recovery: { samples: 0 },
+    recovery: { samples: 1, p95RtoMs: 60_000, maxRpoMs: 60_000 },
     ...overrides,
   };
 }
@@ -47,6 +47,22 @@ test("healthy hosted canary evidence is promotion-ready but never self-authorise
   assert.deepEqual(report.promotion.blockers, []);
   assert.match(report.promotion.note, /reviewed release-gate change/);
   assert.equal(report.invariant.severity, "none");
+});
+
+test("PK-unique ledger rows cannot prove external-provider exactly-once delivery", () => {
+  const report = evaluateSloObservation(healthy({
+    invariants: { duplicateExternalEffects: 0, evidenceMethod: "ledger_primary_key" },
+  }));
+  assert.equal(report.promotion.ready, false);
+  assert.equal(report.invariant.passed, false);
+  assert.ok(report.promotion.blockers.includes("duplicate_external_effect_evidence_unverified"));
+});
+
+test("legacy zero with no provider-readback provenance remains unverified", () => {
+  const report = evaluateSloObservation(healthy({ invariants: { duplicateExternalEffects: 0 } }));
+  assert.equal(report.promotion.ready, false);
+  assert.equal(report.invariant.evidenceVerified, false);
+  assert.ok(report.promotion.blockers.includes("duplicate_external_effect_evidence_unverified"));
 });
 
 test("one duplicate external effect is an immediate hard invariant failure", () => {
@@ -87,10 +103,11 @@ test("promotion requires the complete Advanced product path", () => {
   assert.ok(report.promotion.blockers.includes("advanced_product_path_incomplete"));
 });
 
-test("recovery RTO and RPO are monitored without forcing another rehearsal for canary promotion", () => {
-  const unobserved = evaluateSloObservation(healthy());
+test("recovery must be observed and within RTO/RPO budgets before promotion", () => {
+  const unobserved = evaluateSloObservation(healthy({ recovery: { samples: 0 } }));
   assert.equal(unobserved.recovery.observed, false);
-  assert.equal(unobserved.promotion.ready, true);
+  assert.equal(unobserved.promotion.ready, false);
+  assert.ok(unobserved.promotion.blockers.includes("recovery_evidence_missing"));
 
   const observation = healthy();
   observation.recovery = {
@@ -101,7 +118,8 @@ test("recovery RTO and RPO are monitored without forcing another rehearsal for c
   const report = evaluateSloObservation(observation);
   assert.equal(report.recovery.observed, true);
   assert.equal(report.recovery.passed, false);
-  assert.equal(report.promotion.ready, true);
+  assert.equal(report.promotion.ready, false);
+  assert.ok(report.promotion.blockers.includes("recovery_rto_rpo_budget_exceeded"));
 });
 
 test("fixtures, short windows, broad cohorts and malformed counters fail closed", () => {

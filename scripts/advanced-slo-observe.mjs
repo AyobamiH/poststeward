@@ -66,6 +66,7 @@ export function buildAdvancedSloObservation({
   providerReconciliationDurations,
   webhookDurations,
   duplicateExternalEffects,
+  duplicateEvidenceMethod = "unverified",
 }) {
   demand(run && /^[a-f0-9]{40}$/.test(run.release || ""), "Canary run release is invalid.");
   const startedAt = Number(run.started_at);
@@ -93,7 +94,8 @@ export function buildAdvancedSloObservation({
       advancedOperations: count("advanced_operation"),
     },
     invariants: {
-      duplicateExternalEffects: integer(duplicateExternalEffects),
+      duplicateExternalEffects: duplicateExternalEffects == null ? null : integer(duplicateExternalEffects),
+      evidenceMethod: duplicateEvidenceMethod,
     },
     publication: { verified, eligible },
     schedule: { withinFiveMinutes: scheduleGood, due: scheduleDue },
@@ -116,7 +118,7 @@ export function buildAdvancedSloObservation({
         scheduledMetricsCaptures: count("scheduled_metrics_capture"),
       },
     },
-    recovery: { samples: 0, p95RtoMs: 0, maxRpoMs: 0 },
+    recovery: { samples: 0, p95RtoMs: 0, maxRpoMs: 0, evidenceMethod: "unverified_no_recovery_event_source" },
   };
   demand(
     observation.publication.verified <= observation.publication.eligible,
@@ -135,7 +137,7 @@ async function hostedReadiness(origin) {
   return response.json();
 }
 
-export async function observeAdvancedSlo(env = process.env, query = queryD1) {
+export async function observeAdvancedSlo(env = process.env, query = queryD1, fetchReadiness = hostedReadiness) {
   const accountId = env.CLOUDFLARE_ACCOUNT_ID || "";
   const databaseId = env.D1_ID || "";
   const token = env.CLOUDFLARE_API_TOKEN || "";
@@ -148,18 +150,23 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1) {
     databaseId,
     token,
     `SELECT id,release,canary_bps,seed_hash,started_at,stopped_at
-       FROM advanced_canary_runs ORDER BY started_at DESC LIMIT 1`,
+       FROM advanced_canary_runs
+      WHERE stopped_at IS NULL
+      ORDER BY started_at DESC LIMIT 2`,
   );
-  demand(runs.length === 1, "No hosted Advanced canary run boundary exists yet.");
+  demand(runs.length > 0, "No active Advanced canary run boundary exists yet.");
+  demand(runs.length === 1, "Multiple active Advanced canary run boundaries exist.");
   const run = runs[0];
+  demand(run.stopped_at == null, "No active Advanced canary run boundary exists yet.");
   demand(/^[a-f0-9]{40}$/.test(run.release || ""), "Latest canary run has no exact release.");
   demand(integer(run.canary_bps) >= 1 && integer(run.canary_bps) <= 1000, "Latest canary run has invalid basis points.");
   const startedAt = Number(run.started_at);
-  const observedAt = run.stopped_at == null ? Date.now() : Number(run.stopped_at);
-  demand(Number.isFinite(startedAt) && Number.isFinite(observedAt) && observedAt >= startedAt, "Latest canary run window is invalid.");
+  const observedAt = Date.now();
+  demand(Number.isFinite(startedAt) && Number.isFinite(observedAt) && observedAt >= startedAt, "Active canary run window is invalid.");
 
-  if (run.stopped_at == null && env.POSTSTEWARD_ORIGIN) {
-    const readiness = await hostedReadiness(env.POSTSTEWARD_ORIGIN);
+  demand(/^https:\/\//.test(env.POSTSTEWARD_ORIGIN || ""), "POSTSTEWARD_ORIGIN is required for release-aligned SLO evidence.");
+  {
+    const readiness = await fetchReadiness(env.POSTSTEWARD_ORIGIN);
     demand(readiness?.release === run.release, "Active canary release differs from hosted staging.");
     demand(
       readiness?.runtimeCapabilities?.policies?.advancedEnabled === true &&
@@ -226,19 +233,11 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1) {
     .map((row) => Number(row.completed_at) - Number(row.received_at))
     .filter((value) => Number.isFinite(value) && value >= 0);
 
-  const duplicateRows = await query(
-    accountId,
-    databaseId,
-    token,
-    `SELECT count(*) AS count FROM (
-       SELECT workspace,fingerprint,count(*) AS effects
-         FROM external_effects
-        WHERE workspace IN (${canaryWorkspaces})
-        GROUP BY workspace,fingerprint HAVING effects>1
-     )`,
-    [run.release, startedAt, observedAt],
-  );
-
+  // external_effects has PRIMARY KEY(workspace, fingerprint). Grouping by
+  // those columns can never count more than one row and cannot establish
+  // whether a provider published twice after an uncertain network effect.
+  // Until independent provider readback exists, expose unknown evidence,
+  // never a fabricated zero for the release invariant.
   return buildAdvancedSloObservation({
     run,
     observedAt,
@@ -247,7 +246,8 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1) {
     scheduleDurations: durations("schedule_observation"),
     providerReconciliationDurations: durations("provider_reconciliation"),
     webhookDurations,
-    duplicateExternalEffects: integer(duplicateRows[0]?.count),
+    duplicateExternalEffects: null,
+    duplicateEvidenceMethod: "workspace_fingerprint_primary_key",
   });
 }
 
@@ -263,11 +263,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const message = error instanceof Error ? error.message : "Unknown failure.";
       if (
         process.env.POSTSTEWARD_SLO_OPTIONAL === "true" &&
-        message === "No hosted Advanced canary run boundary exists yet."
+        message === "No active Advanced canary run boundary exists yet."
       ) {
         console.log(
           "POSTSTEWARD_ADVANCED_SLO_IDLE " +
-            JSON.stringify({ state: "no_canary_run" }),
+            JSON.stringify({ state: "no_active_canary", releaseAligned: false, promotionReady: false }),
         );
         return;
       }
