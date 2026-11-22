@@ -86,3 +86,34 @@ test("future or manual deliveries are not eligible", () => {
     false,
   );
 });
+
+import { parseCompleteSloRecords } from "../src/slo-producer-evidence.ts";
+
+test("incomplete or corrupt durable snapshots cannot create favourable denominators", () => {
+  assert.deepEqual(
+    parseCompleteSloRecords<{ automatic: boolean }>(
+      [{ key: "delivery:1", value: '{"automatic":true}' }],
+      2,
+    ),
+    [{ key: "delivery:1", value: { automatic: true } }],
+  );
+  assert.equal(
+    parseCompleteSloRecords(
+      [{ key: "delivery:1", value: '{"automatic":true}' }],
+      1,
+    ),
+    undefined,
+  );
+  assert.equal(
+    parseCompleteSloRecords([{ key: "delivery:1", value: "{bad json" }], 501),
+    undefined,
+  );
+  assert.equal(
+    parseCompleteSloRecords([{ key: "delivery:1", value: "null" }], 501),
+    undefined,
+  );
+  assert.equal(
+    parseCompleteSloRecords([{ key: "", value: '{"automatic":true}' }], 501),
+    undefined,
+  );
+});

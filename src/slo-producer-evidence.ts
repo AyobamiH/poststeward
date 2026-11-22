@@ -57,3 +57,33 @@ export function classifyAutomaticPublication(
     verifiedAt,
   };
 }
+
+/** Reject truncated, missing-key or corrupt snapshots before calculating SLO
+ * denominators. A permissive flatMap(JSON.parse) would silently discard bad
+ * rows, leaving a false-green sample.
+ */
+export function parseCompleteSloRecords<T>(
+  rows: Array<{ key: string; value: string }>,
+  limit: number,
+): Array<{ key: string; value: T }> | undefined {
+  if (!Number.isInteger(limit) || limit < 2 || rows.length >= limit)
+    return undefined;
+  const parsed: Array<{ key: string; value: T }> = [];
+  try {
+    for (const row of rows) {
+      if (
+        typeof row.key !== "string" ||
+        !row.key ||
+        typeof row.value !== "string"
+      )
+        return undefined;
+      const value: unknown = JSON.parse(row.value);
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        return undefined;
+      parsed.push({ key: row.key, value: value as T });
+    }
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}

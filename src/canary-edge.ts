@@ -9,7 +9,10 @@ import {
   workspaceCapacitySnapshot,
 } from "./capacity-observation.ts";
 import { byName } from "./operations/catalog.ts";
-import { classifyAutomaticPublication } from "./slo-producer-evidence.ts";
+import {
+  classifyAutomaticPublication,
+  parseCompleteSloRecords,
+} from "./slo-producer-evidence.ts";
 import {
   enqueueOperationalAlert,
   flushOperationalAlerts,
@@ -72,6 +75,25 @@ function storedRows<T>(ctx: DurableObjectState, prefix: string, limit = 500) {
   }
 }
 
+function completeSloRows<T>(
+  ctx: DurableObjectState,
+  prefix: string,
+  limit = 501,
+) {
+  try {
+    const raw = ctx.storage.sql
+      .exec<{ key: string; value: string }>(
+        "SELECT key,value FROM records WHERE key LIKE ? ORDER BY key LIMIT ?",
+        `${prefix}%`,
+        limit,
+      )
+      .toArray();
+    return parseCompleteSloRecords<T>(raw, limit);
+  } catch {
+    return undefined;
+  }
+}
+
 function oauthRows(ctx: DurableObjectState) {
   return storedRows<any>(ctx, "oauth:", 100);
 }
@@ -83,9 +105,38 @@ async function observeAdvancedProductState(
 ) {
   if (!advancedCanaryTelemetryContext(env, workspace)) return;
   const now = Date.now();
-  // These are retrospective state observations, never completed Advanced
-  // operations. Only a successful /operation invocation can create those.
-  for (const row of storedRows<Campaign>(ctx, "campaign:")) {
+  // Prove all source denominators are complete BEFORE writing any evidence.
+  // Never silently skip a corrupt record or the 501st row.
+  const campaigns = completeSloRows<Campaign>(ctx, "campaign:");
+  const allDeliveries = completeSloRows<Delivery>(ctx, "delivery:");
+  const profiles = completeSloRows<Profile>(ctx, "profile:");
+  if (!campaigns || !allDeliveries || !profiles) return;
+  const effects = await env.IDENTITY.prepare(
+    `SELECT delivery_id,status,post_id,published_at,updated_at
+       FROM external_effects WHERE workspace=? ORDER BY created_at LIMIT 1000`,
+  )
+    .bind(workspace)
+    .all<{
+      delivery_id: string;
+      status: string;
+      post_id: string | null;
+      published_at: number | null;
+      updated_at: number;
+    }>();
+  if (!Array.isArray(effects.results) || effects.results.length >= 1000) return;
+  const effectByDelivery = new Map(
+    effects.results.map((row) => [row.delivery_id, row] as const),
+  );
+  // Two fingerprints for the same delivery are ambiguous and must never
+  // produce a single favourable publication or provider-readback receipt.
+  if (
+    effectByDelivery.size !== effects.results.length ||
+    effects.results.some((row) => !row.delivery_id)
+  )
+    return;
+
+  // Retrospective state observations never count completed Advanced commands.
+  for (const row of campaigns) {
     const campaign = row.value;
     if (!campaign.source || !Number.isFinite(campaign.createdAt)) continue;
     const key = campaign.id || row.key;
@@ -102,30 +153,9 @@ async function observeAdvancedProductState(
         campaign.createdAt,
       );
   }
-
-  const allDeliveries = storedRows<Delivery>(ctx, "delivery:", 501);
-  // A truncated due-delivery ledger cannot prove a complete denominator.
-  if (allDeliveries.length >= 501) return;
   const automatic = allDeliveries
     .map((row) => row.value)
     .filter((delivery) => delivery.automatic);
-  const effects = await env.IDENTITY.prepare(
-    `SELECT delivery_id,status,post_id,published_at,updated_at
-       FROM external_effects WHERE workspace=? ORDER BY created_at LIMIT 1000`,
-  )
-    .bind(workspace)
-    .all<{
-      delivery_id: string;
-      status: string;
-      post_id: string | null;
-      published_at: number | null;
-      updated_at: number;
-    }>();
-  // An incomplete effects result must not produce favourable SLO samples.
-  if ((effects.results || []).length >= 1000) return;
-  const effectByDelivery = new Map(
-    (effects.results || []).map((row) => [row.delivery_id, row]),
-  );
   for (const delivery of automatic) {
     if (!Number.isFinite(delivery.createdAt)) continue;
     await recordAdvancedSloEvent(
@@ -198,7 +228,7 @@ async function observeAdvancedProductState(
     );
   }
 
-  for (const row of storedRows<Profile>(ctx, "profile:", 100)) {
+  for (const row of profiles) {
     const profile = row.value;
     if (!Number.isFinite(profile.lastMetricsSuccess)) continue;
     const at = Number(profile.lastMetricsSuccess);
