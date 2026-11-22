@@ -852,17 +852,24 @@ export class ProviderOAuthConnections {
       // Capture the attempt at effect-time, before invoking the provider.
       // Failure, identity drift and crashes never receive a success event.
       const refreshReceipt = `${meta.provider}:${meta.alias}:${now}`;
-      await recordAdvancedSloEvent(
-        this.env,
-        this.workspace(),
-        "oauth_refresh_attempt",
-        {
-          dedupeKey: refreshReceipt,
-          evidenceOrigin: "oauth_attempt",
-          evidenceOutcome: "attempted",
-        },
-        now,
-      );
+      let telemetryWorkspace: string | undefined;
+      try {
+        telemetryWorkspace = this.workspace();
+      } catch {
+        // Telemetry cannot affect a provider refresh.
+      }
+      if (telemetryWorkspace)
+        await recordAdvancedSloEvent(
+          this.env,
+          telemetryWorkspace,
+          "oauth_refresh_attempt",
+          {
+            dedupeKey: refreshReceipt,
+            evidenceOrigin: "oauth_attempt",
+            evidenceOutcome: "attempted",
+          },
+          now,
+        );
       try {
         const current = await this.accountCredential(account);
         const fresh = await refreshToken(
@@ -928,10 +935,10 @@ export class ProviderOAuthConnections {
           this.store.put("account:" + account.alias, account);
           this.store.put("oauth:" + meta.alias, updatedMeta);
         });
-        if (committed)
+        if (committed && telemetryWorkspace)
           await recordAdvancedSloEvent(
             this.env,
-            this.workspace(),
+            telemetryWorkspace,
             "oauth_refresh_success",
             {
               dedupeKey: refreshReceipt,
