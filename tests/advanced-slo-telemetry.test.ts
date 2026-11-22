@@ -55,7 +55,12 @@ test("telemetry records only eligible staging canary workspaces", async () => {
       env,
       workspace,
       "source_change",
-      { dedupeKey: "campaign-1", durationMs: 12 },
+      {
+        dedupeKey: "campaign-1",
+        durationMs: 12,
+        evidenceOrigin: "observed_campaign",
+        evidenceOutcome: "observed",
+      },
       123456,
     ),
     true,
@@ -68,16 +73,17 @@ test("telemetry records only eligible staging canary workspaces", async () => {
   assert.equal(rows[0].params[6], "a".repeat(40));
   assert.equal(rows[0].params[7], 1000);
   assert.equal(String(rows[0].params[0]).includes("campaign-1"), false);
+  assert.match(rows[0].sql, /FROM advanced_canary_runs r/);
+  assert.match(rows[0].sql, /r.stopped_at IS NULL/);
+  assert.match(rows[0].sql, /r.seed_hash=\\?/);
+  assert.equal(rows[0].params[11], "a".repeat(40));
+  assert.equal(rows[0].params[12], 1000);
 });
 
 test("telemetry is inert outside a bounded staging canary", async () => {
   const { env, rows } = fakeEnv({ enabled: false });
   assert.equal(
-    await recordAdvancedSloEvent(
-      env,
-      "workspace-1",
-      "advanced_operation",
-    ),
+    await recordAdvancedSloEvent(env, "workspace-1", "advanced_operation"),
     false,
   );
   assert.equal(rows.length, 0);
@@ -87,12 +93,11 @@ test("telemetry failure never fails the product path", async () => {
   const { env } = fakeEnv({ fail: true });
   const workspace = eligibleWorkspace(env.ADVANCED_CANARY_SEED, 1000);
   assert.equal(
-    await recordAdvancedSloEvent(
-      env,
-      workspace,
-      "advanced_operation",
-      { dedupeKey: "operation-1" },
-    ),
+    await recordAdvancedSloEvent(env, workspace, "advanced_operation", {
+      dedupeKey: "operation-1",
+      evidenceOrigin: "completed_operation",
+      evidenceOutcome: "succeeded",
+    }),
     false,
   );
 });

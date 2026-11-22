@@ -73,6 +73,8 @@ export async function recordAdvancedSloEvent(
     value?: number;
     durationMs?: number;
     dedupeKey?: string;
+    evidenceOrigin?: string;
+    evidenceOutcome?: string;
   } = {},
   now = Date.now(),
 ) {
@@ -80,26 +82,65 @@ export async function recordAdvancedSloEvent(
     if (!allowed.has(eventType)) return false;
     const context = advancedCanaryTelemetryContext(env, workspace);
     if (!context) return false;
-    const value = Number.isInteger(options.value) && Number(options.value) >= 0
-      ? Number(options.value)
-      : 1;
-    const durationMs = options.durationMs === undefined
-      ? null
-      : Number.isFinite(options.durationMs) && Number(options.durationMs) >= 0
-        ? Math.round(Number(options.durationMs))
-        : null;
-    const id = options.dedupeKey
-      ? await sha256(
-          `${workspace}\0${eventType}\0${context.release}\0${options.dedupeKey}`,
-        )
-      : crypto.randomUUID();
-    await env.IDENTITY.prepare(
+    // Fail closed on missing or mislabelled provenance for every metric.
+    // Retrospectively discovered product rows are observations, not a
+    // completed operation, provider readback or OAuth refresh.
+    const trusted: Record<AdvancedSloEventType, [string, string]> = {
+      advanced_operation: ["completed_operation", "succeeded"],
+      source_change: ["observed_campaign", "observed"],
+      inventory_snapshot: ["observed_campaign", "observed"],
+      spaced_allocation: ["observed_allocation", "observed"],
+      publication_eligible: ["due_delivery", "eligible"],
+      verified_readback: ["provider_verified", "verified"],
+      schedule_observation: ["provider_write_completed", "succeeded"],
+      provider_reconciliation: ["provider_verified", "verified"],
+      oauth_refresh_attempt: ["oauth_attempt", "attempted"],
+      oauth_refresh_success: ["oauth_success", "succeeded"],
+      scheduled_metrics_capture: ["observed_metrics", "observed"],
+      webhook_reconciliation: ["webhook_confirmed", "verified"],
+    };
+    const [requiredOrigin, requiredOutcome] = trusted[eventType];
+    if (
+      !options.dedupeKey ||
+      options.evidenceOrigin !== requiredOrigin ||
+      options.evidenceOutcome !== requiredOutcome
+    )
+      return false;
+    const seedHash = await sha256(String(env.ADVANCED_CANARY_SEED || ""));
+    const value =
+      Number.isInteger(options.value) && Number(options.value) >= 0
+        ? Number(options.value)
+        : 1;
+    const durationMs =
+      options.durationMs === undefined
+        ? null
+        : Number.isFinite(options.durationMs) && Number(options.durationMs) >= 0
+          ? Math.round(Number(options.durationMs))
+          : null;
+    const referenceHash = options.dedupeKey
+      ? await sha256(`${workspace}\0${eventType}\0${options.dedupeKey}`)
+      : null;
+    const origin = options.evidenceOrigin || "legacy_unverified";
+    const outcome = options.evidenceOutcome || "unverified";
+    // The matching active run ID, release, bps and reviewed seed are all
+    // required by the same atomic D1 INSERT. No run = no new SLO evidence.
+    // Unique(run,workspace,type,reference) keeps safe retry deduplication
+    // while allowing a later *distinct* run with the same release/seed.
+    const result = await env.IDENTITY.prepare(
       `INSERT INTO advanced_slo_events(
-        id,workspace,event_type,observed_at,value,duration_ms,release,canary_bps
-      ) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
+        id,workspace,event_type,observed_at,value,duration_ms,release,canary_bps,
+        canary_run_id,evidence_origin,evidence_outcome,reference_hash
+      )
+      SELECT ?,?,?,?,?,?,?,?,r.id,?,?,?
+      FROM advanced_canary_runs r
+      WHERE r.stopped_at IS NULL AND r.release=?
+        AND r.canary_bps=? AND r.seed_hash=? AND r.started_at<=?
+        AND (SELECT COUNT(*) FROM advanced_canary_runs WHERE stopped_at IS NULL)=1
+      ORDER BY r.started_at DESC LIMIT 1
+      ON CONFLICT DO NOTHING`,
     )
       .bind(
-        id,
+        crypto.randomUUID(),
         workspace,
         eventType,
         now,
@@ -107,9 +148,16 @@ export async function recordAdvancedSloEvent(
         durationMs,
         context.release,
         context.canaryBps,
+        origin,
+        outcome,
+        referenceHash,
+        context.release,
+        context.canaryBps,
+        seedHash,
+        now,
       )
       .run();
-    return true;
+    return result?.meta?.changes === 1;
   } catch (error) {
     console.error(
       JSON.stringify({

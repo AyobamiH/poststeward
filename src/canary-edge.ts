@@ -9,6 +9,7 @@ import {
   workspaceCapacitySnapshot,
 } from "./capacity-observation.ts";
 import { byName } from "./operations/catalog.ts";
+import { classifyAutomaticPublication } from "./slo-producer-evidence.ts";
 import {
   enqueueOperationalAlert,
   flushOperationalAlerts,
@@ -81,39 +82,35 @@ async function observeAdvancedProductState(
   workspace: string,
 ) {
   if (!advancedCanaryTelemetryContext(env, workspace)) return;
-
+  const now = Date.now();
+  // These are retrospective state observations, never completed Advanced
+  // operations. Only a successful /operation invocation can create those.
   for (const row of storedRows<Campaign>(ctx, "campaign:")) {
     const campaign = row.value;
     if (!campaign.source || !Number.isFinite(campaign.createdAt)) continue;
     const key = campaign.id || row.key;
-    await recordAdvancedSloEvent(
-      env,
-      workspace,
-      "source_change",
-      { dedupeKey: key },
-      campaign.createdAt,
-    );
-    await recordAdvancedSloEvent(
-      env,
-      workspace,
-      "inventory_snapshot",
-      { dedupeKey: key },
-      campaign.createdAt,
-    );
-    await recordAdvancedSloEvent(
-      env,
-      workspace,
-      "advanced_operation",
-      { dedupeKey: `source:${key}` },
-      campaign.createdAt,
-    );
+    for (const event of ["source_change", "inventory_snapshot"] as const)
+      await recordAdvancedSloEvent(
+        env,
+        workspace,
+        event,
+        {
+          dedupeKey: key,
+          evidenceOrigin: "observed_campaign",
+          evidenceOutcome: "observed",
+        },
+        campaign.createdAt,
+      );
   }
 
-  const automatic = storedRows<Delivery>(ctx, "delivery:")
+  const allDeliveries = storedRows<Delivery>(ctx, "delivery:", 501);
+  // A truncated due-delivery ledger cannot prove a complete denominator.
+  if (allDeliveries.length >= 501) return;
+  const automatic = allDeliveries
     .map((row) => row.value)
     .filter((delivery) => delivery.automatic);
   const effects = await env.IDENTITY.prepare(
-    `SELECT delivery_id,status,post_id,created_at,updated_at
+    `SELECT delivery_id,status,post_id,published_at,updated_at
        FROM external_effects WHERE workspace=? ORDER BY created_at LIMIT 1000`,
   )
     .bind(workspace)
@@ -121,71 +118,84 @@ async function observeAdvancedProductState(
       delivery_id: string;
       status: string;
       post_id: string | null;
-      created_at: number;
+      published_at: number | null;
       updated_at: number;
     }>();
+  // An incomplete effects result must not produce favourable SLO samples.
+  if ((effects.results || []).length >= 1000) return;
   const effectByDelivery = new Map(
     (effects.results || []).map((row) => [row.delivery_id, row]),
   );
-
   for (const delivery of automatic) {
     if (!Number.isFinite(delivery.createdAt)) continue;
     await recordAdvancedSloEvent(
       env,
       workspace,
       "spaced_allocation",
-      { dedupeKey: delivery.id },
-      delivery.createdAt,
-    );
-    await recordAdvancedSloEvent(
-      env,
-      workspace,
-      "advanced_operation",
-      { dedupeKey: `allocation:${delivery.id}` },
+      {
+        dedupeKey: delivery.id,
+        evidenceOrigin: "observed_allocation",
+        evidenceOutcome: "observed",
+      },
       delivery.createdAt,
     );
 
-    const effect = effectByDelivery.get(delivery.id);
-    if (!effect?.post_id) continue;
-    const publishAt = Number(effect.created_at);
-    const reconcileAt = Number(effect.updated_at);
+    const receipt = classifyAutomaticPublication(
+      delivery,
+      effectByDelivery.get(delivery.id),
+      now,
+    );
+    if (!receipt.eligible) continue;
+    // Denominator is defined by every due automatic delivery, even when
+    // no provider post ID exists or the write is uncertain.
     await recordAdvancedSloEvent(
       env,
       workspace,
       "publication_eligible",
-      { dedupeKey: delivery.id },
-      publishAt,
+      {
+        dedupeKey: delivery.id,
+        evidenceOrigin: "due_delivery",
+        evidenceOutcome: "eligible",
+      },
+      receipt.dueAt!,
     );
+    if (!receipt.published) continue;
     await recordAdvancedSloEvent(
       env,
       workspace,
       "schedule_observation",
       {
         dedupeKey: delivery.id,
-        durationMs: Math.max(0, publishAt - Number(delivery.dueAt || publishAt)),
+        durationMs: receipt.publishedAt! - receipt.dueAt!,
+        evidenceOrigin: "provider_write_completed",
+        evidenceOutcome: "succeeded",
       },
-      publishAt,
+      receipt.publishedAt!,
     );
-    if (["verified", "unverified"].includes(effect.status)) {
-      await recordAdvancedSloEvent(
-        env,
-        workspace,
-        "provider_reconciliation",
-        {
-          dedupeKey: delivery.id,
-          durationMs: Math.max(0, reconcileAt - publishAt),
-        },
-        reconcileAt,
-      );
-    }
-    if (effect.status === "verified")
-      await recordAdvancedSloEvent(
-        env,
-        workspace,
-        "verified_readback",
-        { dedupeKey: delivery.id },
-        reconcileAt,
-      );
+    if (!receipt.verified) continue;
+    await recordAdvancedSloEvent(
+      env,
+      workspace,
+      "provider_reconciliation",
+      {
+        dedupeKey: delivery.id,
+        durationMs: receipt.verifiedAt! - receipt.publishedAt!,
+        evidenceOrigin: "provider_verified",
+        evidenceOutcome: "verified",
+      },
+      receipt.verifiedAt!,
+    );
+    await recordAdvancedSloEvent(
+      env,
+      workspace,
+      "verified_readback",
+      {
+        dedupeKey: delivery.id,
+        evidenceOrigin: "provider_verified",
+        evidenceOutcome: "verified",
+      },
+      receipt.verifiedAt!,
+    );
   }
 
   for (const row of storedRows<Profile>(ctx, "profile:", 100)) {
@@ -196,14 +206,11 @@ async function observeAdvancedProductState(
       env,
       workspace,
       "scheduled_metrics_capture",
-      { dedupeKey: `${profile.id}:${at}` },
-      at,
-    );
-    await recordAdvancedSloEvent(
-      env,
-      workspace,
-      "advanced_operation",
-      { dedupeKey: `metrics:${profile.id}:${at}` },
+      {
+        dedupeKey: `${profile.id}:${at}`,
+        evidenceOrigin: "observed_metrics",
+        evidenceOutcome: "observed",
+      },
       at,
     );
   }
@@ -219,39 +226,16 @@ async function observeWorkspaceOperationalState(
 
   for (const row of oauthRows(ctx)) {
     const meta = row.value || {};
-    if (Number.isFinite(meta.lastRefreshAt)) {
-      const at = Number(meta.lastRefreshAt);
-      await recordAdvancedSloEvent(
-        env,
-        workspace,
-        "oauth_refresh_attempt",
-        { dedupeKey: `${row.key}:${at}` },
-        at,
-      );
-      await recordAdvancedSloEvent(
-        env,
-        workspace,
-        "oauth_refresh_success",
-        { dedupeKey: `${row.key}:${at}` },
-        at,
-      );
-    } else if (
-      meta.status === "refresh_failed" &&
-      Number.isFinite(meta.nextRefreshAt)
-    ) {
-      await recordAdvancedSloEvent(
-        env,
-        workspace,
-        "oauth_refresh_attempt",
-        { dedupeKey: `${row.key}:failed:${meta.nextRefreshAt}` },
-        now,
-      );
-    }
-
+    // OAuth outcome telemetry is recorded at actual refresh attempt/commit
+    // in provider-oauth.ts. Reconstructing it from mutable lastRefreshAt
+    // misses later failures and can fabricate a 100% success ratio.
     if (
-      !["refresh_failed", "reauthorization_required", "identity_drift", "expired"].includes(
-        meta.status,
-      )
+      ![
+        "refresh_failed",
+        "reauthorization_required",
+        "identity_drift",
+        "expired",
+      ].includes(meta.status)
     )
       continue;
     const code =
@@ -269,7 +253,8 @@ async function observeWorkspaceOperationalState(
       {
         class: "provider_or_oauth_failure",
         severity:
-          meta.status === "refresh_failed" || meta.status === "reauthorization_required"
+          meta.status === "refresh_failed" ||
+          meta.status === "reauthorization_required"
             ? "warning"
             : "critical",
         code,
@@ -368,13 +353,15 @@ export class Workspace extends BaseWorkspace {
     }
 
     let advancedOperation:
-      | { workspace: string; name: string; dedupeKey?: string }
-      | undefined;
+      { workspace: string; name: string; dedupeKey?: string } | undefined;
     if (path === "/operation") {
       try {
         const body = (await request.clone().json()) as any;
         const operation = byName.get(body?.name);
-        if (operation?.tier === "advanced" && typeof body?.workspace === "string")
+        if (
+          operation?.tier === "advanced" &&
+          typeof body?.workspace === "string"
+        )
           advancedOperation = {
             workspace: body.workspace,
             name: body.name,
@@ -391,14 +378,27 @@ export class Workspace extends BaseWorkspace {
 
     recordWorkspaceRequest(this.operationalCtx);
     const response = await super.fetch(request);
-    if (response.ok && advancedOperation)
+    // The accepted operation must belong to this Durable Object, not merely
+    // to a workspace string supplied by the HTTP request body.
+    if (
+      response.ok &&
+      advancedOperation &&
+      storedWorkspace(this.operationalCtx) === advancedOperation.workspace
+    )
       await recordAdvancedSloEvent(
         this.operationalEnv,
         advancedOperation.workspace,
         "advanced_operation",
         advancedOperation.dedupeKey
-          ? { dedupeKey: advancedOperation.dedupeKey }
-          : {},
+          ? {
+              dedupeKey: advancedOperation.dedupeKey,
+              evidenceOrigin: "completed_operation",
+              evidenceOutcome: "succeeded",
+            }
+          : {
+              evidenceOrigin: "unidentified_operation",
+              evidenceOutcome: "unverified",
+            },
       );
     return response;
   }
