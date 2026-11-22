@@ -189,14 +189,27 @@ export function evaluateSloObservation(observation) {
     const samples = integerNonNegative(observation.recovery.samples, "recovery.samples");
     const p95RtoMs = finiteNonNegative(observation.recovery.p95RtoMs, "recovery.p95RtoMs");
     const maxRpoMs = finiteNonNegative(observation.recovery.maxRpoMs, "recovery.maxRpoMs");
+    // Counts and good timing are not proof that a real interrupted customer
+    // operation was independently reconciled. Require explicit, release-bound
+    // receipt provenance; the current observer emits no such receipt.
+    const evidenceMethod = observation.recovery.evidenceMethod || "unverified";
+    const evidenceVerified =
+      evidenceMethod === "independent_monitored_recovery_receipt" &&
+      observation.recovery.release === observation.release &&
+      observation.recovery.verified === true &&
+      typeof observation.recovery.receiptId === "string" &&
+      observation.recovery.receiptId.length > 0;
     recovery = {
       observed: true,
+      evidenceMethod,
+      evidenceVerified,
       samples,
       p95RtoMs,
       maxRpoMs,
       maximumP95RtoMs: SLO_POLICY.monitoredRecovery.p95RtoMs,
       maximumRpoMs: SLO_POLICY.monitoredRecovery.maxRpoMs,
       passed:
+        evidenceVerified &&
         p95RtoMs <= SLO_POLICY.monitoredRecovery.p95RtoMs &&
         maxRpoMs <= SLO_POLICY.monitoredRecovery.maxRpoMs,
     };
@@ -214,6 +227,7 @@ export function evaluateSloObservation(observation) {
     else if (!check.passed) blockers.push(`${check.name}_latency_budget_exceeded`);
   if (!productPathPassed) blockers.push("advanced_product_path_incomplete");
   if (!recovery.observed) blockers.push("recovery_evidence_missing");
+  else if (!recovery.evidenceVerified) blockers.push("recovery_evidence_unverified");
   else if (!recovery.passed) blockers.push("recovery_rto_rpo_budget_exceeded");
 
   return {
