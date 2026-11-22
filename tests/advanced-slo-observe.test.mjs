@@ -255,6 +255,8 @@ test("all Advanced event-derived cohort queries must constrain matching basis po
 
 test("SLO workflow isolates every observation file to one run attempt", () => {
   const workflow = readFileSync(new URL("../.github/workflows/staging-advanced-slo-observe.yml", import.meta.url), "utf8");
+  assert.match(workflow, /POSTSTEWARD_ORIGIN: https:\/\/poststeward-staging\.woeinvests\.workers\.dev/);
+  assert.doesNotMatch(workflow, /POSTSTEWARD_ORIGIN:.*vars\.APP_ORIGIN/);
   assert.match(workflow, /POSTSTEWARD_SLO_OUTPUT:.*\/tmp\/poststeward-advanced-slo-.*run_id.*run_attempt/);
   assert.match(workflow, /\[\[ ! -f "\$POSTSTEWARD_SLO_OUTPUT" \]\]/);
   assert.doesNotMatch(workflow, /POSTSTEWARD_SLO_OUTPUT: \/tmp\/poststeward-advanced-slo\.json/);

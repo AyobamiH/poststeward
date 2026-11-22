@@ -23,7 +23,7 @@ jobs:
       DEPLOY_ENV: staging
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_ID: ${{ vars.D1_ID }}
-      POSTSTEWARD_ORIGIN: ${{ vars.APP_ORIGIN }}
+      POSTSTEWARD_ORIGIN: https://poststeward-staging.woeinvests.workers.dev
       POSTSTEWARD_SLO_OUTPUT: /tmp/poststeward-advanced-slo-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
