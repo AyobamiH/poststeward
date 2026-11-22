@@ -79,7 +79,8 @@ export function buildAdvancedSloObservation({
   const scheduleDue = scheduleDurations.length;
   const scheduleGood = scheduleDurations.filter((value) => Number(value) <= 5 * 60_000).length;
   const oauthAttempts = count("oauth_refresh_attempt");
-  const oauthSucceeded = Math.min(oauthAttempts, count("oauth_refresh_success"));
+  const oauthSucceeded = count("oauth_refresh_success");
+  demand(oauthSucceeded <= oauthAttempts, "OAuth success events exceed genuine refresh attempts.");
   const observation = {
     schemaVersion: 1,
     evidenceClass: "hosted_observation",
@@ -167,6 +168,7 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1, fet
   demand(/^https:\/\//.test(env.POSTSTEWARD_ORIGIN || ""), "POSTSTEWARD_ORIGIN is required for release-aligned SLO evidence.");
   {
     const readiness = await fetchReadiness(env.POSTSTEWARD_ORIGIN);
+    demand(readiness?.environment === "staging", "Active canary readiness is not the staging environment.");
     demand(readiness?.release === run.release, "Active canary release differs from hosted staging.");
     demand(
       readiness?.runtimeCapabilities?.policies?.advancedEnabled === true &&
@@ -182,9 +184,9 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1, fet
     token,
     `SELECT event_type,count(*) AS count
        FROM advanced_slo_events
-      WHERE release=? AND observed_at>=? AND observed_at<=?
+      WHERE release=? AND canary_bps=? AND observed_at>=? AND observed_at<=?
       GROUP BY event_type`,
-    [run.release, startedAt, observedAt],
+    [run.release, integer(run.canary_bps), startedAt, observedAt],
   );
   const eventCounts = Object.fromEntries(
     eventRows.map((row) => [row.event_type, integer(row.count)]),
@@ -195,8 +197,8 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1, fet
     token,
     `SELECT count(DISTINCT workspace) AS count
        FROM advanced_slo_events
-      WHERE release=? AND observed_at>=? AND observed_at<=?`,
-    [run.release, startedAt, observedAt],
+      WHERE release=? AND canary_bps=? AND observed_at>=? AND observed_at<=?`,
+    [run.release, integer(run.canary_bps), startedAt, observedAt],
   );
   const durationRows = await query(
     accountId,
@@ -204,9 +206,9 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1, fet
     token,
     `SELECT event_type,duration_ms
        FROM advanced_slo_events
-      WHERE release=? AND observed_at>=? AND observed_at<=? AND duration_ms IS NOT NULL
+      WHERE release=? AND canary_bps=? AND observed_at>=? AND observed_at<=? AND duration_ms IS NOT NULL
       ORDER BY observed_at LIMIT 5000`,
-    [run.release, startedAt, observedAt],
+    [run.release, integer(run.canary_bps), startedAt, observedAt],
   );
   demand(durationRows.length < 5000, "Advanced SLO duration evidence exceeded the bounded query window.");
   const durations = (type) =>
@@ -216,7 +218,7 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1, fet
       .filter((value) => Number.isFinite(value) && value >= 0);
 
   const canaryWorkspaces = `SELECT DISTINCT workspace FROM advanced_slo_events
-    WHERE release=? AND observed_at>=? AND observed_at<=?`;
+    WHERE release=? AND canary_bps=? AND observed_at>=? AND observed_at<=?`;
   const webhookRows = await query(
     accountId,
     databaseId,
@@ -226,7 +228,7 @@ export async function observeAdvancedSlo(env = process.env, query = queryD1, fet
         AND received_at>=? AND received_at<=?
         AND workspace IN (${canaryWorkspaces})
       ORDER BY received_at LIMIT 1000`,
-    [startedAt, observedAt, run.release, startedAt, observedAt],
+    [startedAt, observedAt, run.release, integer(run.canary_bps), startedAt, observedAt],
   );
   demand(webhookRows.length < 1000, "Webhook SLO evidence exceeded the bounded query window.");
   const webhookDurations = webhookRows

@@ -164,6 +164,7 @@ test("an active database cohort must match the actual staging release and policy
     started_at: Date.now() - 1000, stopped_at: null };
   await assert.rejects(
     observeAdvancedSlo(env, async () => [row], async () => ({
+      environment: "staging",
       release: "b".repeat(40),
       runtimeCapabilities: { policies: { advancedEnabled: true,
         advancedRolloutMode: "canary", advancedCanaryBps: 100 } },
@@ -172,12 +173,84 @@ test("an active database cohort must match the actual staging release and policy
   );
   await assert.rejects(
     observeAdvancedSlo(env, async () => [row], async () => ({
+      environment: "staging",
       release: "a".repeat(40),
       runtimeCapabilities: { policies: { advancedEnabled: false,
         advancedRolloutMode: "disabled", advancedCanaryBps: 0 } },
     })),
     /Active canary boundary differs from hosted rollout policy/,
   );
+});
+
+test("matching release and canary policy from production cannot be labelled staging evidence", async () => {
+  const env = {
+    CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    D1_ID: "11111111-1111-1111-1111-111111111111",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32),
+    POSTSTEWARD_ORIGIN: "https://staging.example.test",
+  };
+  const row = { release: "a".repeat(40), canary_bps: 100,
+    started_at: Date.now() - 1000, stopped_at: null };
+  await assert.rejects(
+    observeAdvancedSlo(env, async () => [row], async () => ({
+      environment: "production",
+      release: row.release,
+      runtimeCapabilities: { policies: { advancedEnabled: true,
+        advancedRolloutMode: "canary", advancedCanaryBps: 100 } },
+    })),
+    /Active canary readiness is not the staging environment/,
+  );
+  await assert.rejects(
+    observeAdvancedSlo(env, async () => [row], async () => ({
+      release: row.release,
+      runtimeCapabilities: { policies: { advancedEnabled: true,
+        advancedRolloutMode: "canary", advancedCanaryBps: 100 } },
+    })),
+    /Active canary readiness is not the staging environment/,
+  );
+});
+
+test("unexpected evaluator exit statuses cannot be reported as a healthy observation", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/staging-advanced-slo-observe.yml", import.meta.url), "utf8");
+  assert.match(workflow, /if \[\[ \$status -ne 0 \]\]; then\s+echo "Unexpected SLO evaluator exit status: \$status"/);
+  assert.match(workflow, /if \[\[ \$status -eq 2 \]\]; then\s+echo "Advanced canary evidence is valid but not promotion-ready yet."\s+exit 0/);
+  assert.match(workflow, /if \[\[ \$status -ne 0 \]\]; then[\s\S]*?exit 1/);
+});
+
+test("malformed OAuth success count is rejected before a 100% ratio can be published", () => {
+  const input = {
+    run: { release: "a".repeat(40), canary_bps: 100, started_at: 1000, stopped_at: null },
+    observedAt: 90_000_000,
+    eventCounts: { oauth_refresh_attempt: 1, oauth_refresh_success: 2 },
+    workspaceCount: 1,
+    scheduleDurations: [], providerReconciliationDurations: [], webhookDurations: [],
+    duplicateExternalEffects: null,
+  };
+  assert.throws(() => buildAdvancedSloObservation(input), /OAuth success events exceed genuine refresh attempts/);
+});
+
+test("all Advanced event-derived cohort queries must constrain matching basis points", async () => {
+  const env = {
+    CLOUDFLARE_ACCOUNT_ID: "a".repeat(32), D1_ID: "11111111-1111-1111-1111-111111111111",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32), POSTSTEWARD_ORIGIN: "https://staging.example.test",
+  };
+  const run = { id: "run1", release: "a".repeat(40), canary_bps: 100,
+    started_at: Date.now() - 1000, stopped_at: null };
+  const queries = [];
+  await observeAdvancedSlo(env, async (_a, _d, _t, sql, params = []) => {
+    queries.push({sql, params});
+    if (sql.includes("FROM advanced_canary_runs")) return [run];
+    if (sql.includes("FROM advanced_slo_events") || sql.includes("FROM stripe_events")) {
+      assert.match(sql, /canary_bps=\?/);
+      assert.ok(params.includes(100), "active 100-bps cohort must scope every event query");
+    }
+    if (sql.includes("FROM stripe_events")) return [];
+    return [];
+  }, async () => ({
+    environment: "staging", release: run.release,
+    runtimeCapabilities: { policies: { advancedEnabled: true, advancedRolloutMode: "canary", advancedCanaryBps: 100 } },
+  }));
+  assert.ok(queries.filter(x => x.sql.includes("FROM advanced_slo_events")).length >= 3);
 });
 
 test("SLO workflow isolates every observation file to one run attempt", () => {
