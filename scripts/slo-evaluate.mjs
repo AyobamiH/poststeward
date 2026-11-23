@@ -103,7 +103,11 @@ export function evaluateSloObservation(observation) {
   const windowMs = observedAt - startedAt;
   const workspaceCount = integerNonNegative(cohort.workspaceCount, "cohort.workspaceCount");
   const advancedOperations = integerNonNegative(cohort.advancedOperations, "cohort.advancedOperations");
+  const runProvenanceVerified =
+    typeof cohort.runId === "string" && cohort.runId.length >= 8 &&
+    /^[a-f0-9]{64}$/.test(cohort.seedHash || "");
   const cohortEvidence = {
+    runProvenanceVerified,
     windowMs,
     workspaceCount,
     advancedOperations,
@@ -112,7 +116,8 @@ export function evaluateSloObservation(observation) {
     passed:
       windowMs >= SLO_POLICY.minimumCanaryWindowMs &&
       workspaceCount >= 1 &&
-      advancedOperations >= SLO_POLICY.minimumAdvancedOperations,
+      advancedOperations >= SLO_POLICY.minimumAdvancedOperations &&
+      runProvenanceVerified,
   };
 
   // The (workspace, fingerprint) primary key makes duplicate ledger rows
@@ -217,6 +222,18 @@ export function evaluateSloObservation(observation) {
 
   const blockers = [];
   if (!cohortEvidence.passed) blockers.push("insufficient_canary_exposure");
+  if (!runProvenanceVerified) blockers.push("active_run_provenance_unverified");
+  // Every denominator must have independently traceable producer provenance;
+  // aggregate event counts alone are not evidence of completeness.
+  const requiredCoverage = [
+    "publication", "schedule", "oauth", "providerReconciliation",
+    "webhook", "cardinality", "recovery",
+  ];
+  const evidenceCoverage = Object.fromEntries(requiredCoverage.map((type) => [
+    type, observation.evidenceCoverage?.[type] === true,
+  ]));
+  for (const [type, verified] of Object.entries(evidenceCoverage))
+    if (!verified) blockers.push(`${type}_provenance_unverified`);
   if (duplicateExternalEffects > 0) blockers.push("duplicate_external_effect_invariant");
   else if (!invariant.passed) blockers.push("duplicate_external_effect_evidence_unverified");
   for (const check of ratios)
@@ -237,6 +254,7 @@ export function evaluateSloObservation(observation) {
     observedAt,
     cohort: { ...cohortEvidence, bps: canaryBps },
     invariant,
+    evidenceCoverage,
     ratios,
     latency,
     advancedProductPath: { ...productPath, passed: productPathPassed },

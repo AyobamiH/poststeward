@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAdvancedSloObservation,
   observeAdvancedSlo,
+  parseD1Rows,
   percentile95,
 } from "../scripts/advanced-slo-observe.mjs";
 import { evaluateSloObservation } from "../scripts/slo-evaluate.mjs";
@@ -69,7 +70,9 @@ test("DB primary-key uniqueness cannot become provider exactly-once evidence", (
   assert.equal(observation.invariants.duplicateExternalEffects, null);
   const report = evaluateSloObservation(observation);
   assert.equal(report.promotion.ready, false);
-  assert.deepEqual(report.promotion.blockers, ["duplicate_external_effect_evidence_unverified", "recovery_evidence_missing"]);
+  assert.ok(report.promotion.blockers.includes("duplicate_external_effect_evidence_unverified"));
+  assert.ok(report.promotion.blockers.includes("recovery_evidence_missing"));
+  assert.ok(report.promotion.blockers.includes("publication_provenance_unverified"));
 });
 
 test("observation remains evidence, not a fabricated pass, when required paths are absent", () => {
@@ -107,7 +110,9 @@ test("stopped historical cohorts cannot be selected for current SLO evidence", a
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_ID: "11111111-1111-1111-1111-111111111111",
     CLOUDFLARE_API_TOKEN: "t".repeat(32),
-    POSTSTEWARD_ORIGIN: "https://staging.example.test",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    DEPLOY_ENV: "staging",
   };
   await assert.rejects(
     observeAdvancedSlo(env, async (_account, _database, _token, sql) => {
@@ -124,7 +129,9 @@ test("a stopped canary row cannot masquerade as an active release", async () => 
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_ID: "11111111-1111-1111-1111-111111111111",
     CLOUDFLARE_API_TOKEN: "t".repeat(32),
-    POSTSTEWARD_ORIGIN: "https://staging.example.test",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    DEPLOY_ENV: "staging",
   };
   await assert.rejects(
     observeAdvancedSlo(env, async () => [{
@@ -141,10 +148,13 @@ test("multiple unfinished canary boundaries fail closed", async () => {
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_ID: "11111111-1111-1111-1111-111111111111",
     CLOUDFLARE_API_TOKEN: "t".repeat(32),
-    POSTSTEWARD_ORIGIN: "https://staging.example.test",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    DEPLOY_ENV: "staging",
   };
   const row = { release: "a".repeat(40), canary_bps: 100,
-    started_at: Date.now() - 1000, stopped_at: null };
+    started_at: Date.now() - 1000, stopped_at: null,
+    id: "run-proof-1", seed_hash: "b".repeat(64) };
   await assert.rejects(
     observeAdvancedSlo(env, async () => [row, row], async () => {
       throw new Error("must not fetch readiness for duplicate active runs");
@@ -158,10 +168,13 @@ test("an active database cohort must match the actual staging release and policy
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_ID: "11111111-1111-1111-1111-111111111111",
     CLOUDFLARE_API_TOKEN: "t".repeat(32),
-    POSTSTEWARD_ORIGIN: "https://staging.example.test",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    DEPLOY_ENV: "staging",
   };
   const row = { release: "a".repeat(40), canary_bps: 100,
-    started_at: Date.now() - 1000, stopped_at: null };
+    started_at: Date.now() - 1000, stopped_at: null,
+    id: "run-proof-1", seed_hash: "b".repeat(64) };
   await assert.rejects(
     observeAdvancedSlo(env, async () => [row], async () => ({
       environment: "staging",
@@ -187,10 +200,13 @@ test("matching release and canary policy from production cannot be labelled stag
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
     D1_ID: "11111111-1111-1111-1111-111111111111",
     CLOUDFLARE_API_TOKEN: "t".repeat(32),
-    POSTSTEWARD_ORIGIN: "https://staging.example.test",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    DEPLOY_ENV: "staging",
   };
   const row = { release: "a".repeat(40), canary_bps: 100,
-    started_at: Date.now() - 1000, stopped_at: null };
+    started_at: Date.now() - 1000, stopped_at: null,
+    id: "run-proof-1", seed_hash: "b".repeat(64) };
   await assert.rejects(
     observeAdvancedSlo(env, async () => [row], async () => ({
       environment: "production",
@@ -232,10 +248,13 @@ test("malformed OAuth success count is rejected before a 100% ratio can be publi
 test("all Advanced event-derived cohort queries must constrain matching basis points", async () => {
   const env = {
     CLOUDFLARE_ACCOUNT_ID: "a".repeat(32), D1_ID: "11111111-1111-1111-1111-111111111111",
-    CLOUDFLARE_API_TOKEN: "t".repeat(32), POSTSTEWARD_ORIGIN: "https://staging.example.test",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32), POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    DEPLOY_ENV: "staging",
   };
-  const run = { id: "run1", release: "a".repeat(40), canary_bps: 100,
-    started_at: Date.now() - 1000, stopped_at: null };
+  const run = { release: "a".repeat(40), canary_bps: 100,
+    started_at: Date.now() - 1000, stopped_at: null,
+    id: "run-proof-1", seed_hash: "b".repeat(64) };
   const queries = [];
   await observeAdvancedSlo(env, async (_a, _d, _t, sql, params = []) => {
     queries.push({sql, params});
@@ -244,20 +263,226 @@ test("all Advanced event-derived cohort queries must constrain matching basis po
       assert.match(sql, /canary_bps=\?/);
       assert.ok(params.includes(100), "active 100-bps cohort must scope every event query");
     }
+    if (sql.includes("count(DISTINCT workspace)")) return [{ count: 0 }];
     if (sql.includes("FROM stripe_events")) return [];
     return [];
   }, async () => ({
     environment: "staging", release: run.release,
     runtimeCapabilities: { policies: { advancedEnabled: true, advancedRolloutMode: "canary", advancedCanaryBps: 100 } },
   }));
-  assert.ok(queries.filter(x => x.sql.includes("FROM advanced_slo_events")).length >= 3);
+  assert.ok(queries.filter(x => x.sql.includes("FROM advanced_slo_events")).length >= 2);
+  assert.equal(queries.some(x => x.sql.includes("FROM stripe_events")), false,
+    "No eligible workspace must mean no borrowed webhook evidence.");
 });
 
 test("SLO workflow isolates every observation file to one run attempt", () => {
   const workflow = readFileSync(new URL("../.github/workflows/staging-advanced-slo-observe.yml", import.meta.url), "utf8");
+  assert.match(workflow, /APP_ORIGIN: https:\/\/poststeward-staging\.woeinvests\.workers\.dev/);
   assert.match(workflow, /POSTSTEWARD_ORIGIN: https:\/\/poststeward-staging\.woeinvests\.workers\.dev/);
   assert.doesNotMatch(workflow, /POSTSTEWARD_ORIGIN:.*vars\.APP_ORIGIN/);
   assert.match(workflow, /POSTSTEWARD_SLO_OUTPUT:.*\/tmp\/poststeward-advanced-slo-.*run_id.*run_attempt/);
   assert.match(workflow, /\[\[ ! -f "\$POSTSTEWARD_SLO_OUTPUT" \]\]/);
   assert.doesNotMatch(workflow, /POSTSTEWARD_SLO_OUTPUT: \/tmp\/poststeward-advanced-slo\.json/);
+});
+
+test("Cloudflare D1 result batches must explicitly succeed", () => {
+  assert.throws(() => parseD1Rows({ success: true, result: [{ success: false, results: [] }] }), /batch reported failure/);
+  assert.throws(() => parseD1Rows({ success: true, result: [{ results: [] }] }), /batch reported failure/);
+  assert.throws(() => parseD1Rows({ success: false, result: [{ success: true, results: [] }] }), /did not confirm success/);
+  assert.deepEqual(parseD1Rows({ success: true, result: [{ success: true, results: [] }] }), []);
+});
+
+test("a non-canonical APP_ORIGIN cannot manufacture staging evidence", async () => {
+  const env = { CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    D1_ID: "11111111-1111-1111-1111-111111111111",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32), DEPLOY_ENV: "staging",
+    APP_ORIGIN: "https://unreviewed.example.test",
+    POSTSTEWARD_ORIGIN: "https://unreviewed.example.test" };
+  const run = { id: "run-proof-1", seed_hash: "b".repeat(64),
+    release: "a".repeat(40), canary_bps: 100, started_at: Date.now() - 1000,
+    stopped_at: null };
+  await assert.rejects(observeAdvancedSlo(env, async () => [run],
+    async () => { throw Error("readiness must not fetch unreviewed origin"); }),
+    /APP_ORIGIN does not identify the canonical staging application/);
+});
+
+test("a cross-workspace collage never satisfies a real 20-operation journey", async () => {
+  const env = { CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    D1_ID: "11111111-1111-1111-1111-111111111111",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32), DEPLOY_ENV: "staging",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev" };
+  const run = { id: "run-proof-1", seed_hash: "b".repeat(64),
+    release: "a".repeat(40), canary_bps: 100,
+    started_at: Date.now() - 86_400_000, stopped_at: null };
+  const milestoneTypes = ["source_change", "inventory_snapshot", "spaced_allocation",
+    "publication_eligible", "verified_readback", "scheduled_metrics_capture"];
+  const grouped = [{ workspace: "ops-workspace", event_type: "advanced_operation", count: 20 },
+    ...milestoneTypes.map((type, i) => ({ workspace: "other-" + i, event_type: type, count: 1 }))];
+  const observed = await observeAdvancedSlo(env, async (_a, _d, _t, sql, params) => {
+    if (sql.includes("FROM advanced_canary_runs")) return [run];
+    if (sql.includes("GROUP BY workspace,event_type")) {
+      assert.ok(params.includes(run.id));
+      assert.match(sql, /canary_run_id=\\?/);
+      assert.match(sql, /evidence_origin/);
+      return grouped;
+    }
+    if (sql.includes("count(DISTINCT workspace)")) return [{ count: 7 }];
+    return [];
+  }, async () => ({ environment: "staging", release: run.release,
+    runtimeCapabilities: { policies: { advancedEnabled: true,
+      advancedRolloutMode: "canary", advancedCanaryBps: 100 } } }));
+  assert.equal(observed.cohort.workspaceCount, 0);
+  assert.equal(observed.cohort.advancedOperations, 0);
+  assert.equal(evaluateSloObservation(observed).promotion.ready, false);
+});
+
+test("incomplete trusted duration denominators are rejected", async () => {
+  const env = { CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    D1_ID: "11111111-1111-1111-1111-111111111111",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32), DEPLOY_ENV: "staging",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev" };
+  const run = { id: "run-proof-1", seed_hash: "b".repeat(64),
+    release: "a".repeat(40), canary_bps: 100,
+    started_at: Date.now() - 86_400_000, stopped_at: null };
+  const milestones = ["source_change", "inventory_snapshot", "spaced_allocation",
+    "publication_eligible", "verified_readback", "scheduled_metrics_capture"];
+  const grouped = [{ workspace: "the-workspace", event_type: "advanced_operation", count: 20 },
+    ...milestones.map(event_type => ({ workspace: "the-workspace", event_type, count: 1 })),
+    { workspace: "the-workspace", event_type: "provider_reconciliation", count: 1 }];
+  await assert.rejects(observeAdvancedSlo(env, async (_a, _d, _t, sql) => {
+    if (sql.includes("FROM advanced_canary_runs")) return [run];
+    if (sql.includes("GROUP BY workspace,event_type")) return grouped;
+    if (sql.includes("count(DISTINCT workspace)")) return [{ count: 1 }];
+    return [];
+  }, async () => ({ environment: "staging", release: run.release,
+    runtimeCapabilities: { policies: { advancedEnabled: true,
+      advancedRolloutMode: "canary", advancedCanaryBps: 100 } } })),
+    /Incomplete provider_reconciliation latency denominator/);
+});
+
+test("webhook observations are scoped to the same completed workspace", async () => {
+  const env = { CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+    D1_ID: "11111111-1111-1111-1111-111111111111",
+    CLOUDFLARE_API_TOKEN: "t".repeat(32), DEPLOY_ENV: "staging",
+    APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev" };
+  const run = { id: "run-proof-1", seed_hash: "b".repeat(64),
+    release: "a".repeat(40), canary_bps: 100,
+    started_at: Date.now() - 86_400_000, stopped_at: null };
+  const milestoneTypes = ["source_change", "inventory_snapshot", "spaced_allocation",
+    "publication_eligible", "verified_readback", "scheduled_metrics_capture"];
+  const grouped = [
+    { workspace: "eligible-workspace", event_type: "advanced_operation", count: 20 },
+    ...milestoneTypes.map(event_type => ({
+      workspace: "eligible-workspace", event_type, count: 1
+    })),
+    { workspace: "other-workspace", event_type: "webhook_reconciliation", count: 100 }
+  ];
+  let webhookQueried = false;
+  const observed = await observeAdvancedSlo(env, async (_a, _d, _t, sql, params) => {
+    if (sql.includes("FROM advanced_canary_runs")) return [run];
+    if (sql.includes("GROUP BY workspace,event_type")) return grouped;
+    if (sql.includes("count(DISTINCT workspace)")) return [{ count: 2 }];
+    if (sql.includes("FROM stripe_events")) {
+      webhookQueried = true;
+      assert.ok(sql.includes("workspace IN (?)"));
+      assert.deepEqual(params.slice(-1), ["eligible-workspace"]);
+      return [{received_at: 100, completed_at: 200}];
+    }
+    return [];
+  }, async () => ({ environment: "staging", release: run.release,
+    runtimeCapabilities: { policies: { advancedEnabled: true,
+      advancedRolloutMode: "canary", advancedCanaryBps: 100 } } }));
+  assert.equal(webhookQueried, true);
+  assert.equal(observed.cohort.workspaceCount, 1);
+  assert.equal(observed.cohort.advancedOperations, 20);
+  assert.equal(observed.webhookReconciliation.samples, 1);
+  assert.equal(observed.evidenceCoverage.webhook, false);
+  assert.equal(evaluateSloObservation(observed).promotion.ready, false);
+});
+
+test("real SQLite provenance joins exclude another run and untrusted receipts", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(`CREATE TABLE advanced_canary_runs (
+      id TEXT, release TEXT, canary_bps INTEGER, seed_hash TEXT,
+      started_at INTEGER, stopped_at INTEGER
+    );
+    CREATE TABLE advanced_slo_events (
+      workspace TEXT, event_type TEXT, observed_at INTEGER,
+      duration_ms INTEGER, release TEXT, canary_bps INTEGER,
+      canary_run_id TEXT, evidence_origin TEXT, evidence_outcome TEXT,
+      reference_hash TEXT
+    );
+    CREATE TABLE stripe_events (
+      workspace TEXT, received_at INTEGER, completed_at INTEGER
+    );`);
+    const now = Date.now();
+    const release = "a".repeat(40);
+    const seedHash = "b".repeat(64);
+    const runId = "run-proof-sql-1";
+    const startedAt = now - 86_400_000;
+    db.prepare("INSERT INTO advanced_canary_runs VALUES (?,?,?,?,?,NULL)")
+      .run(runId, release, 100, seedHash, startedAt);
+    const insert = db.prepare(`INSERT INTO advanced_slo_events VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    let sequence = 0;
+    const event = (workspace, type, ownerRun, origin, outcome, duration=null, reference=null) => {
+      sequence += 1;
+      insert.run(workspace, type, now - 2000, duration, release, 100,
+        ownerRun, origin, outcome,
+        reference === null ? sequence.toString(16).padStart(64, "0") : reference);
+    };
+    for (let i = 0; i < 20; i++) {
+      event("real-workspace", "advanced_operation", runId, "completed_operation", "succeeded");
+      event("real-workspace", "advanced_operation", "unrelated-previous-run",
+        "completed_operation", "succeeded");
+    }
+    event("real-workspace", "advanced_operation", runId, "legacy_unverified", "unverified");
+    event("real-workspace", "advanced_operation", runId, "completed_operation", "succeeded", null, "");
+    const milestones = [
+      ["source_change", "observed_campaign", "observed"],
+      ["inventory_snapshot", "observed_campaign", "observed"],
+      ["spaced_allocation", "observed_allocation", "observed"],
+      ["publication_eligible", "due_delivery", "eligible"],
+      ["verified_readback", "provider_verified", "verified"],
+      ["scheduled_metrics_capture", "observed_metrics", "observed"],
+      ["schedule_observation", "provider_write_completed", "succeeded"],
+      ["provider_reconciliation", "provider_verified", "verified"],
+    ];
+    for (const [type, origin, outcome] of milestones)
+      event("real-workspace", type, runId, origin, outcome,
+        ["schedule_observation", "provider_reconciliation"].includes(type) ? 100 : null);
+    db.prepare("INSERT INTO stripe_events VALUES (?,?,?)").run("real-workspace", now - 500, now - 400);
+    db.prepare("INSERT INTO stripe_events VALUES (?,?,?)").run("another-workspace", now - 500, now - 300);
+    const env = {
+      CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
+      D1_ID: "11111111-1111-1111-1111-111111111111",
+      CLOUDFLARE_API_TOKEN: "t".repeat(32),
+      DEPLOY_ENV: "staging",
+      APP_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+      POSTSTEWARD_ORIGIN: "https://poststeward-staging.woeinvests.workers.dev",
+    };
+    const query = async (_a, _d, _t, sql, params=[]) => db.prepare(sql).all(...params);
+    const observed = await observeAdvancedSlo(env, query, async () => ({
+      environment: "staging",
+      release,
+      runtimeCapabilities: { policies: {
+        advancedEnabled: true, advancedRolloutMode: "canary", advancedCanaryBps: 100,
+      } },
+    }));
+    assert.equal(observed.cohort.runId, runId);
+    assert.equal(observed.cohort.seedHash, seedHash);
+    assert.equal(observed.cohort.workspaceCount, 1);
+    assert.equal(observed.cohort.advancedOperations, 20);
+    assert.equal(observed.providerReconciliation.samples, 1);
+    assert.equal(observed.schedule.due, 1);
+    assert.equal(observed.webhookReconciliation.samples, 1);
+    assert.equal(observed.evidenceCoverage.publication, false);
+    assert.equal(evaluateSloObservation(observed).promotion.ready, false);
+  } finally {
+    db.close();
+  }
 });

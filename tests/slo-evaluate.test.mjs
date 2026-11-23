@@ -14,6 +14,8 @@ function healthy(overrides = {}) {
     release: "a".repeat(40),
     cohort: {
       mode: "canary",
+      runId: "reviewed-run-id-1",
+      seedHash: "b".repeat(64),
       bps: 500,
       startedAt,
       observedAt: startedAt + SLO_POLICY.minimumCanaryWindowMs,
@@ -21,6 +23,10 @@ function healthy(overrides = {}) {
       advancedOperations: 50,
     },
     invariants: { duplicateExternalEffects: 0, evidenceMethod: "independent_provider_readback" },
+    evidenceCoverage: {
+      publication: true, schedule: true, oauth: true, providerReconciliation: true,
+      webhook: true, cardinality: true, recovery: true,
+    },
     publication: { eligible: 100, verified: 100 },
     schedule: { due: 100, withinFiveMinutes: 100 },
     oauthRefresh: { attempts: 5, succeeded: 5 },
@@ -164,4 +170,18 @@ test("fixtures, short windows, broad cohorts and malformed counters fail closed"
   const invalid = healthy();
   invalid.publication = { eligible: 1, verified: 2 };
   assert.throws(() => evaluateSloObservation(invalid), /cannot exceed total/);
+});
+
+test("complete metrics without provenance cannot become promotion-ready", () => {
+  const observation = healthy();
+  delete observation.evidenceCoverage.publication;
+  observation.evidenceCoverage.oauth = false;
+  const report = evaluateSloObservation(observation);
+  assert.equal(report.promotion.ready, false);
+  assert.ok(report.promotion.blockers.includes("publication_provenance_unverified"));
+  assert.ok(report.promotion.blockers.includes("oauth_provenance_unverified"));
+  const missingRun = healthy();
+  delete missingRun.cohort.runId;
+  assert.equal(evaluateSloObservation(missingRun).promotion.ready, false);
+  assert.ok(evaluateSloObservation(missingRun).promotion.blockers.includes("active_run_provenance_unverified"));
 });
