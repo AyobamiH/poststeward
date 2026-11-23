@@ -40,7 +40,10 @@ test('runtime uses pinned Python setup and both supported Python versions', () =
 test('runtime installs into a fresh virtual environment, never modifying an externally managed toolcache', () => {
   const runtime = workflow.slice(workflow.indexOf('  runtime:\n'));
   assert.match(runtime, /python -m venv "\$RUNNER_TEMP\/poststeward-runtime-matrix"/);
-  assert.match(runtime, /poststeward-runtime-matrix\/bin\/python" -m pip install -e/);
+  assert.match(runtime, /POSTSTEWARD_CI_RUNTIME_EXTRA=dev node scripts\/ci-install-retry\.mjs runtime-matrix/);
+  const install = readFileSync(fileURLToPath(new URL('../scripts/ci-install-retry.mjs', import.meta.url)), 'utf8');
+  assert.match(install, /join\(env\.RUNNER_TEMP, folder, 'bin', 'python'\)/);
+  assert.match(install, /'-m', 'pip', 'install'/);
   assert.match(runtime, /poststeward-runtime-matrix\/bin" >> "\$GITHUB_PATH"/);
   assert.doesNotMatch(runtime, /--break-system-packages/);
 });
