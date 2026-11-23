@@ -19,6 +19,7 @@ export const SLO_POLICY = Object.freeze({
     webhookReconciliationP95Ms: { maximum: 2 * 60 * 1000, minimumSamples: 1 },
   },
   monitoredRecovery: {
+    minimumSamples: 1,
     p95RtoMs: 5 * 60 * 1000,
     maxRpoMs: 6 * 60 * 60 * 1000,
   },
@@ -102,7 +103,11 @@ export function evaluateSloObservation(observation) {
   const windowMs = observedAt - startedAt;
   const workspaceCount = integerNonNegative(cohort.workspaceCount, "cohort.workspaceCount");
   const advancedOperations = integerNonNegative(cohort.advancedOperations, "cohort.advancedOperations");
+  const runProvenanceVerified =
+    typeof cohort.runId === "string" && cohort.runId.length >= 8 &&
+    /^[a-f0-9]{64}$/.test(cohort.seedHash || "");
   const cohortEvidence = {
+    runProvenanceVerified,
     windowMs,
     workspaceCount,
     advancedOperations,
@@ -111,19 +116,26 @@ export function evaluateSloObservation(observation) {
     passed:
       windowMs >= SLO_POLICY.minimumCanaryWindowMs &&
       workspaceCount >= 1 &&
-      advancedOperations >= SLO_POLICY.minimumAdvancedOperations,
+      advancedOperations >= SLO_POLICY.minimumAdvancedOperations &&
+      runProvenanceVerified,
   };
 
-  const duplicateExternalEffects = integerNonNegative(
-    observation.invariants?.duplicateExternalEffects,
-    "invariants.duplicateExternalEffects",
-  );
+  // The (workspace, fingerprint) primary key makes duplicate ledger rows
+  // impossible; a zero from that query does not prove provider-side exactly once.
+  const evidenceMethod = observation.invariants?.evidenceMethod || "unspecified";
+  const observed = observation.invariants?.duplicateExternalEffects;
+  const duplicateExternalEffects = observed == null
+    ? null
+    : integerNonNegative(observed, "invariants.duplicateExternalEffects");
+  const evidenceVerified = evidenceMethod === "independent_provider_readback";
   const invariant = {
     name: "duplicate_external_effects",
     expected: SLO_POLICY.invariants.duplicateExternalEffects,
     observed: duplicateExternalEffects,
-    passed: duplicateExternalEffects === 0,
-    severity: duplicateExternalEffects === 0 ? "none" : "page",
+    evidenceMethod,
+    evidenceVerified,
+    passed: evidenceVerified && duplicateExternalEffects === 0,
+    severity: duplicateExternalEffects > 0 ? "page" : evidenceVerified ? "none" : "unverified",
   };
 
   const ratios = [
@@ -182,14 +194,27 @@ export function evaluateSloObservation(observation) {
     const samples = integerNonNegative(observation.recovery.samples, "recovery.samples");
     const p95RtoMs = finiteNonNegative(observation.recovery.p95RtoMs, "recovery.p95RtoMs");
     const maxRpoMs = finiteNonNegative(observation.recovery.maxRpoMs, "recovery.maxRpoMs");
+    // Counts and good timing are not proof that a real interrupted customer
+    // operation was independently reconciled. Require explicit, release-bound
+    // receipt provenance; the current observer emits no such receipt.
+    const evidenceMethod = observation.recovery.evidenceMethod || "unverified";
+    const evidenceVerified =
+      evidenceMethod === "independent_monitored_recovery_receipt" &&
+      observation.recovery.release === observation.release &&
+      observation.recovery.verified === true &&
+      typeof observation.recovery.receiptId === "string" &&
+      observation.recovery.receiptId.length > 0;
     recovery = {
       observed: true,
+      evidenceMethod,
+      evidenceVerified,
       samples,
       p95RtoMs,
       maxRpoMs,
       maximumP95RtoMs: SLO_POLICY.monitoredRecovery.p95RtoMs,
       maximumRpoMs: SLO_POLICY.monitoredRecovery.maxRpoMs,
       passed:
+        evidenceVerified &&
         p95RtoMs <= SLO_POLICY.monitoredRecovery.p95RtoMs &&
         maxRpoMs <= SLO_POLICY.monitoredRecovery.maxRpoMs,
     };
@@ -197,7 +222,20 @@ export function evaluateSloObservation(observation) {
 
   const blockers = [];
   if (!cohortEvidence.passed) blockers.push("insufficient_canary_exposure");
-  if (!invariant.passed) blockers.push("duplicate_external_effect_invariant");
+  if (!runProvenanceVerified) blockers.push("active_run_provenance_unverified");
+  // Every denominator must have independently traceable producer provenance;
+  // aggregate event counts alone are not evidence of completeness.
+  const requiredCoverage = [
+    "publication", "schedule", "oauth", "providerReconciliation",
+    "webhook", "cardinality", "recovery",
+  ];
+  const evidenceCoverage = Object.fromEntries(requiredCoverage.map((type) => [
+    type, observation.evidenceCoverage?.[type] === true,
+  ]));
+  for (const [type, verified] of Object.entries(evidenceCoverage))
+    if (!verified) blockers.push(`${type}_provenance_unverified`);
+  if (duplicateExternalEffects > 0) blockers.push("duplicate_external_effect_invariant");
+  else if (!invariant.passed) blockers.push("duplicate_external_effect_evidence_unverified");
   for (const check of ratios)
     if (!check.sufficient) blockers.push(`${check.name}_insufficient_samples`);
     else if (!check.passed) blockers.push(`${check.name}_error_budget_exhausted`);
@@ -205,6 +243,9 @@ export function evaluateSloObservation(observation) {
     if (!check.sufficient) blockers.push(`${check.name}_insufficient_samples`);
     else if (!check.passed) blockers.push(`${check.name}_latency_budget_exceeded`);
   if (!productPathPassed) blockers.push("advanced_product_path_incomplete");
+  if (!recovery.observed) blockers.push("recovery_evidence_missing");
+  else if (!recovery.evidenceVerified) blockers.push("recovery_evidence_unverified");
+  else if (!recovery.passed) blockers.push("recovery_rto_rpo_budget_exceeded");
 
   return {
     schemaVersion: SLO_POLICY.schemaVersion,
@@ -213,6 +254,7 @@ export function evaluateSloObservation(observation) {
     observedAt,
     cohort: { ...cohortEvidence, bps: canaryBps },
     invariant,
+    evidenceCoverage,
     ratios,
     latency,
     advancedProductPath: { ...productPath, passed: productPathPassed },

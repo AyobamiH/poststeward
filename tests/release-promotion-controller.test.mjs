@@ -147,10 +147,15 @@ test("SLO file collection uses the actual evaluator verdict and event-window tim
     // Synthetic unit-test input, never persisted as a live acceptance receipt.
     const raw = {
       schemaVersion: 1, evidenceClass: "hosted_observation", environment: "staging", release,
-      cohort: { mode: "canary", bps: 100, startedAt: now - 86400000, observedAt: now, workspaceCount: 1, advancedOperations: 20 },
-      invariants: { duplicateExternalEffects: 0 },
+      cohort: { mode: "canary", runId: "synthetic-test-run-1", seedHash: "b".repeat(64), bps: 100, startedAt: now - 86400000, observedAt: now, workspaceCount: 1, advancedOperations: 20 },
+      invariants: { duplicateExternalEffects: 0, evidenceMethod: "independent_provider_readback" },
+      evidenceCoverage: { publication: true, schedule: true, oauth: true, providerReconciliation: true,
+        webhook: true, cardinality: true, recovery: true },
       publication: { verified: 20, eligible: 20 }, schedule: { withinFiveMinutes: 20, due: 20 },
       oauthRefresh: { succeeded: 1, attempts: 1 },
+      recovery: { samples: 1, p95RtoMs: 100, maxRpoMs: 100,
+        evidenceMethod: "independent_monitored_recovery_receipt", release,
+        verified: true, receiptId: "synthetic-test-recovery-receipt" },
       providerReconciliation: { samples: 1, p95Ms: 100 }, webhookReconciliation: { samples: 1, p95Ms: 100 },
       advanced: { productPath: { sourceChanges: 1, inventorySnapshots: 1, spacedAllocations: 1,
         providerEffects: 20, verifiedReadbacks: 20, scheduledMetricsCaptures: 1 } },
