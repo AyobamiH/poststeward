@@ -1,4 +1,5 @@
 import { digest, Fault, json, requireValue, uid } from "./common.ts";
+import { recordAdvancedSloEvent } from "./slo-telemetry.ts";
 import { credentialRoots, seal, unseal } from "./crypto.ts";
 import {
   booleanCapabilities,
@@ -848,6 +849,27 @@ export class ProviderOAuthConnections {
       meta.nextRefreshAt = now + 60000;
       this.store.put("oauth:" + meta.alias, meta);
       const expected = this.snapshot(meta.alias);
+      // Capture the attempt at effect-time, before invoking the provider.
+      // Failure, identity drift and crashes never receive a success event.
+      const refreshReceipt = `${meta.provider}:${meta.alias}:${now}`;
+      let telemetryWorkspace: string | undefined;
+      try {
+        telemetryWorkspace = this.workspace();
+      } catch {
+        // Telemetry cannot affect a provider refresh.
+      }
+      if (telemetryWorkspace)
+        await recordAdvancedSloEvent(
+          this.env,
+          telemetryWorkspace,
+          "oauth_refresh_attempt",
+          {
+            dedupeKey: refreshReceipt,
+            evidenceOrigin: "oauth_attempt",
+            evidenceOutcome: "attempted",
+          },
+          now,
+        );
       try {
         const current = await this.accountCredential(account);
         const fresh = await refreshToken(
@@ -909,10 +931,22 @@ export class ProviderOAuthConnections {
         account.verifiedAt = now;
         account.capabilities = updatedCapabilities;
         if (capabilityChanged) account.version++;
-        this.commitCurrent(meta.alias, expected, () => {
+        const committed = this.commitCurrent(meta.alias, expected, () => {
           this.store.put("account:" + account.alias, account);
           this.store.put("oauth:" + meta.alias, updatedMeta);
         });
+        if (committed && telemetryWorkspace)
+          await recordAdvancedSloEvent(
+            this.env,
+            telemetryWorkspace,
+            "oauth_refresh_success",
+            {
+              dedupeKey: refreshReceipt,
+              evidenceOrigin: "oauth_success",
+              evidenceOutcome: "succeeded",
+            },
+            now,
+          );
       } catch (error) {
         if (this.snapshot(meta.alias) !== expected) continue;
         meta.status = "refresh_failed";

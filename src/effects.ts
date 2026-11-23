@@ -1,13 +1,14 @@
 import { Fault, requireValue } from "./common.ts";
-import type { Credential, ProviderAPI, PublicationContext, Published } from "./providers.ts";
+import type {
+  Credential,
+  ProviderAPI,
+  PublicationContext,
+  Published,
+} from "./providers.ts";
 import type { Delivery, Identity, Provider } from "./types.ts";
 
 export type EffectStatus =
-  | "intent"
-  | "uncertain"
-  | "created"
-  | "verified"
-  | "unverified";
+  "intent" | "uncertain" | "created" | "verified" | "unverified";
 type ContainerEffectStatus = "intent" | "uncertain" | "created";
 
 interface EffectRow {
@@ -80,7 +81,9 @@ export async function setWorkspaceQuarantine(
   now = Date.now(),
 ) {
   requireValue(
-    typeof reason === "string" && reason.trim().length >= 3 && reason.length <= 240,
+    typeof reason === "string" &&
+      reason.trim().length >= 3 &&
+      reason.length <= 240,
     "RECOVERY_REASON_REQUIRED",
     "Supply a concise recovery reason.",
     400,
@@ -97,10 +100,15 @@ export async function setWorkspaceQuarantine(
       now,
     )
     .run();
-  event(quarantined ? "workspace_recovery_quarantined" : "workspace_recovery_resumed", {
-    workspace,
-    at: now,
-  });
+  event(
+    quarantined
+      ? "workspace_recovery_quarantined"
+      : "workspace_recovery_resumed",
+    {
+      workspace,
+      at: now,
+    },
+  );
   return workspaceQuarantined(db, workspace);
 }
 
@@ -131,7 +139,8 @@ export async function effectSummary(db: D1Database, workspace: string) {
     uncertain: 0,
     created: 0,
   };
-  for (const row of rows.results || []) counts[row.status] = Number(row.count || 0);
+  for (const row of rows.results || [])
+    counts[row.status] = Number(row.count || 0);
   for (const row of containers.results || [])
     containerCounts[row.status] = Number(row.count || 0);
   return {
@@ -238,7 +247,11 @@ export class EffectLedgerProviders implements ProviderAPI {
       );
     }
     try {
-      const containerId = await this.inner.createContainer(delivery, credential, context);
+      const containerId = await this.inner.createContainer(
+        delivery,
+        credential,
+        context,
+      );
       await this.db
         .prepare(
           "UPDATE external_containers SET status='created',container_id=?,reason=NULL,updated_at=? WHERE workspace=? AND fingerprint=?",
@@ -281,7 +294,7 @@ export class EffectLedgerProviders implements ProviderAPI {
     const now = this.now();
     const inserted = await this.db
       .prepare(
-        "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,claim_id,created_at,updated_at) SELECT ?,?,?,?,?,'intent',?,?,? WHERE COALESCE((SELECT publishing_quarantined FROM workspace_controls WHERE workspace=?),0)=0 ON CONFLICT(workspace,fingerprint) DO NOTHING",
+        "INSERT INTO external_effects(workspace,fingerprint,delivery_id,provider,text_digest,status,claim_id,created_at,updated_at,published_at) SELECT ?,?,?,?,?,'intent',?,?,?,NULL WHERE COALESCE((SELECT publishing_quarantined FROM workspace_controls WHERE workspace=?),0)=0 ON CONFLICT(workspace,fingerprint) DO NOTHING",
       )
       .bind(
         this.workspace,
@@ -325,14 +338,18 @@ export class EffectLedgerProviders implements ProviderAPI {
     }
     try {
       const published = await this.inner.publish(delivery, credential, context);
+      // This timestamp is persisted only after a provider-accepted write,
+      // never at the earlier intent fence or after a later verification.
+      const publishedAt = this.now();
       await this.db
         .prepare(
-          "UPDATE external_effects SET status='created',post_id=?,url=?,reason=NULL,updated_at=? WHERE workspace=? AND fingerprint=?",
+          "UPDATE external_effects SET status='created',post_id=?,url=?,reason=NULL,published_at=?,updated_at=? WHERE workspace=? AND fingerprint=?",
         )
         .bind(
           published.id,
           published.url || null,
-          this.now(),
+          publishedAt,
+          publishedAt,
           this.workspace,
           delivery.fingerprint,
         )
