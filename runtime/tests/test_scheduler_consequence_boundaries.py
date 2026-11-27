@@ -642,5 +642,118 @@ class ConditionalLedgerIntegrityTests(unittest.TestCase):
             self.assertEqual(ledger.read_jsonl(path), [{"id": 0}, {"id": 1}, {"id": 2}])
 
 
+
+class DistinctReservationRaceTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.env = patch.dict(os.environ, {"OCPF_POST_STATE_DIR": self.tmp.name})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.created_at = datetime(2026, 9, 12, 8, tzinfo=UTC)
+        self.due_at = datetime(2026, 9, 12, 10, 1, tzinfo=UTC)
+
+    def _reserve(self):
+        return create_schedule(campaign="OCPF-002", provider="x",
+                               at="2026-09-12T10:00:00+00:00",
+                               provider_factory=lambda _: BoundaryProvider(), now=self.created_at)
+
+    def _join(self, workers):
+        for worker in workers:
+            worker.start()
+        try:
+            for worker in workers:
+                worker.join(15)
+                self.assertFalse(worker.is_alive(), "worker timed out")
+                self.assertEqual(worker.exitcode, 0)
+        finally:
+            for worker in workers:
+                if worker.is_alive():
+                    worker.terminate()
+                    worker.join(3)
+
+    def test_concurrent_creation_reserves_only_one_distinct_id(self):
+        import multiprocessing as mp
+        from pathlib import Path
+        from ocpf_post import scheduler
+        ctx = mp.get_context("fork")
+        gate = ctx.Barrier(2, timeout=8)
+        results = Path(self.tmp.name)/"creation-results"
+        original = scheduler._append_event
+        conditional = scheduler.append_jsonl_if
+        def append(event):
+            gate.wait()
+            return original(event)
+        def append_if(path, select):
+            gate.wait()
+            return conditional(path, select)
+        def reserve():
+            with patch.object(scheduler, "_append_event", side_effect=append), patch.object(scheduler, "append_jsonl_if", side_effect=append_if):
+                try:
+                    self._reserve()
+                    outcome = "reserved"
+                except scheduler.ScheduleError:
+                    outcome = "refused"
+                with results.open("a") as f:
+                    f.write(outcome + "\n")
+        self._join([ctx.Process(target=reserve) for _ in range(2)])
+        self.assertEqual(sorted(results.read_text().splitlines()), ["refused", "reserved"])
+        self.assertEqual(len(schedule_records()), 1)
+
+    def _legacy_duplicate(self):
+        from ocpf_post import scheduler
+        original = self._reserve()
+        duplicate = dict(original, schedule_id="sch_legacy_duplicate")
+        scheduler._append_event(duplicate)
+        return original["schedule_id"], duplicate["schedule_id"]
+
+    def test_legacy_duplicate_ids_competing_to_dispatch_only_one_publishes(self):
+        import multiprocessing as mp
+        from pathlib import Path
+        from ocpf_post import scheduler
+        first, second = self._legacy_duplicate()
+        ctx = mp.get_context("fork")
+        gate = ctx.Barrier(2, timeout=8)
+        calls = Path(self.tmp.name)/"mock-publish-count"
+        original = scheduler._transition_scheduled
+        class RacingProvider(BoundaryProvider):
+            def publish(self, text):
+                with calls.open("a") as f:
+                    f.write("mock\n")
+                return super().publish(text)
+        def transition(*args, **kwargs):
+            gate.wait()
+            return original(*args, **kwargs)
+        def work(schedule_id):
+            with patch.object(scheduler, "_transition_scheduled", side_effect=transition):
+                execute_schedule(schedule_id, provider_factory=lambda _: RacingProvider(), now=self.due_at)
+        self._join([ctx.Process(target=work,args=(key,)) for key in (first,second)])
+        self.assertEqual(calls.read_text().splitlines(), ["mock"])
+        self.assertEqual(sorted(row["status"] for row in schedule_records()), ["duplicate_blocked", "published_verified"])
+        self.assertEqual(run_due(now=self.due_at, provider_factory=lambda _: BoundaryProvider()), [])
+
+    def test_legacy_duplicate_cannot_replay_crashed_claim(self):
+        first, second = self._legacy_duplicate()
+        class CrashProvider(BoundaryProvider):
+            def publish(self, text):
+                os._exit(73)
+        pid = os.fork()
+        if pid == 0:
+            try:
+                execute_schedule(first, provider_factory=lambda _: CrashProvider(), now=self.due_at)
+            finally:
+                os._exit(74)
+        _, status = os.waitpid(pid,0)
+        self.assertEqual(os.waitstatus_to_exitcode(status), 73)
+        self.assertEqual(get_schedule(first)["status"], "executing")
+        provider = BoundaryProvider()
+        result = execute_schedule(second, provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(result["status"], "duplicate_blocked")
+        self.assertEqual(provider.publish_calls, 0)
+        self.assertEqual(run_due(now=self.due_at, provider_factory=lambda _: provider), [])
+        self.assertEqual(list(iter_receipts()), [])
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,7 @@ from ocpf_post.ledger import append_jsonl, append_jsonl_if, iter_jsonl
 from ocpf_post.providers import get_provider
 from ocpf_post.providers.base import AmbiguousProviderEffect, ProviderRejected, ProviderUnavailable
 from ocpf_post.publication_payload import build_publication, validate_frozen_publication
-from ocpf_post.schedule_semantics import ACTIVE_STATUSES as SEMANTIC_ACTIVE_STATUSES, classify_schedule, due_actionable
+from ocpf_post.schedule_semantics import ACTIVE_STATUSES as SEMANTIC_ACTIVE_STATUSES, TERMINAL_EFFECT_STATUSES, classify_schedule, due_actionable
 from ocpf_post.state import append_receipt, ensure_private_dir, receipts_file, state_dir, terminal_effect_receipt
 
 UTC = timezone.utc
@@ -268,6 +268,11 @@ def get_schedule(schedule_id: str) -> dict[str, Any] | None:
     return next((record for record in schedule_records() if record.get("schedule_id") == schedule_id), None)
 
 
+def _same_reservation_destination(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return all(left.get(field) == right.get(field)
+               for field in ("campaign", "provider", "account_id"))
+
+
 def _transition_scheduled(
     schedule_id: str,
     make_event: Callable[[dict[str, Any]], dict[str, Any]],
@@ -485,15 +490,6 @@ def create_schedule(*, campaign: str, provider: str, at: str, timezone_name: str
             f"{circuit.get('retry_at')} after {circuit.get('failure_class')}."
         )
 
-    prior = terminal_effect_receipt(campaign, provider_name, account.account_id)
-    if prior:
-        raise ScheduleError(f"A terminal publication receipt already exists: {prior.get('status')} {prior.get('url') or ''}".strip())
-
-    for record in schedule_records():
-        if (record.get("campaign") == campaign and record.get("provider") == provider_name
-                and record.get("account_id") == account.account_id and record.get("status") in ACTIVE_STATUSES):
-            raise ScheduleError(f"An active schedule already exists: {record.get('schedule_id')}")
-
     event = {
         **({"bridge_command_id": bridge_command_id} if bridge_command_id else {}),
         "event": "scheduled",
@@ -514,7 +510,21 @@ def create_schedule(*, campaign: str, provider: str, at: str, timezone_name: str
         "payload_source": "builtin_campaign",
         "recorded_at": _utc_iso(now_dt),
     }
-    _append_event(event)
+    def reserve():
+        # Check the destination-wide invariant under the same lock as the
+        # append and all scheduler claims. Preflight cannot reserve a slot.
+        prior = terminal_effect_receipt(campaign, provider_name, account.account_id)
+        if prior:
+            raise ScheduleError(f"A terminal publication receipt already exists: {prior.get('status')} {prior.get('url') or ''}".strip())
+        for record in schedule_records():
+            if _same_reservation_destination(record, event):
+                if record.get("status") in ACTIVE_STATUSES:
+                    raise ScheduleError(f"An active schedule already exists: {record.get('schedule_id')}")
+                if record.get("status") in TERMINAL_EFFECT_STATUSES:
+                    raise ScheduleError(f"A terminal schedule effect already exists: {record.get('schedule_id')}")
+        return event
+
+    append_jsonl_if(schedules_file(), reserve)
     return dict(event)
 
 
@@ -1088,13 +1098,32 @@ def execute_schedule(schedule_id: str, *, provider_factory: Callable[[str], Any]
         "detail": "Claimed immediately before provider consequence. A crashed executing item is never auto-retried.",
         **_retry_clear_fields(record),
     }
-    claimed, winner = _transition_scheduled(schedule_id, lambda current: {
-        "event": "claimed", "status": "executing", "schedule_id": schedule_id,
-        "recorded_at": _utc_iso(), **claim_extra,
-    }, expected=record)
-    if not claimed:
-        if winner is None:
-            raise ScheduleError(f"Unknown schedule: {schedule_id}")
+    def claim_or_block(current):
+        # A reservation created by an older concurrent writer may have a
+        # different schedule ID but the same consequence identity. A durable
+        # claim for that destination remains a fence even after a crash.
+        conflict = next((other for other in schedule_records()
+                         if other.get("schedule_id") != schedule_id
+                         and _same_reservation_destination(other, current)
+                         and (other.get("status") == "executing"
+                              or other.get("status") in TERMINAL_EFFECT_STATUSES)), None)
+        prior = terminal_effect_receipt(campaign, provider_name, account.account_id)
+        if conflict is not None or prior is not None:
+            return {
+                "event": "duplicate_blocked", "status": "duplicate_blocked",
+                "schedule_id": schedule_id, "recorded_at": _utc_iso(),
+                **_retry_clear_fields(current),
+                "detail": "A competing durable claim or terminal effect exists for this destination; publication refused.",
+            }
+        return {
+            "event": "claimed", "status": "executing", "schedule_id": schedule_id,
+            "recorded_at": _utc_iso(), **claim_extra,
+        }
+
+    changed, winner = _transition_scheduled(schedule_id, claim_or_block, expected=record)
+    if winner is None:
+        raise ScheduleError(f"Unknown schedule: {schedule_id}")
+    if not changed or winner.get("status") != "executing":
         return winner
     if record.get("publication_type") == "thread":
         return _execute_thread(
