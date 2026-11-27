@@ -581,6 +581,66 @@ class ConditionalLedgerIntegrityTests(unittest.TestCase):
                 ledger.append_jsonl(path, None)
             self.assertEqual(path.read_bytes(), original)
 
+    def test_rotation_during_receipt_snapshot_cannot_hide_terminal_effect(self):
+        import json
+        from pathlib import Path
+        from ocpf_post import ledger, state
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "publish-receipts.jsonl"
+            terminal = {"campaign": "C", "provider": "x", "account_id": "A",
+                        "status": "published_verified"}
+            rows = [terminal] + [{"campaign": "other", "provider": "x", "account_id": "A",
+                                  "status": "published_verified"} for _ in range(1001)]
+            path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+            review = ledger.segment_jsonl(path, keep_lines=1000)
+            original = ledger._segment_files
+            rotated = False
+            def rotate_after_listing(selected):
+                nonlocal rotated
+                result = original(selected)
+                if not rotated:
+                    rotated = True
+                    ledger.segment_jsonl(selected, keep_lines=1000, apply=True,
+                                         expected_sha256=review["review_sha256"])
+                return result
+            with patch.object(state, "receipts_file", return_value=path):
+                self.assertEqual(state.terminal_effect_receipt("C", "x", "A"), terminal)
+                with patch.object(ledger, "_segment_files", side_effect=rotate_after_listing):
+                    with self.assertRaises(ledger.LedgerIntegrityError):
+                        state.terminal_effect_receipt("C", "x", "A")
+                self.assertEqual(state.terminal_effect_receipt("C", "x", "A"), terminal)
+            self.assertEqual(ledger.read_jsonl(path), rows)
+
+    def test_pinned_reader_preserves_prefix_through_later_rotation_and_append(self):
+        from pathlib import Path
+        from ocpf_post import ledger
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            rows = [{"id": i} for i in range(1002)]
+            path.write_text("".join('{"id":%d}\n' % i for i in range(1002)))
+            review = ledger.segment_jsonl(path, keep_lines=1000)
+            reader = ledger.iter_jsonl(path)
+            first = next(reader)
+            ledger.segment_jsonl(path, keep_lines=1000, apply=True,
+                                 expected_sha256=review["review_sha256"])
+            ledger.append_jsonl(path, {"id": 1002})
+            self.assertEqual([first, *reader], rows)
+            self.assertEqual(ledger.read_jsonl(path), rows + [{"id": 1002}])
+
+    def test_pinned_active_snapshot_excludes_later_appends_and_remains_read_only(self):
+        from pathlib import Path
+        from ocpf_post import ledger
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            self.assertEqual(ledger.read_jsonl(path), [])
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+            path.write_text('{"id":0}\n{"id":1}\n')
+            reader = ledger.iter_jsonl(path)
+            first = next(reader)
+            ledger.append_jsonl(path, {"id": 2})
+            self.assertEqual([first, *reader], [{"id": 0}, {"id": 1}])
+            self.assertEqual(ledger.read_jsonl(path), [{"id": 0}, {"id": 1}, {"id": 2}])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -127,29 +127,38 @@ def append_jsonl(path: Path, value: dict[str, Any]) -> None:
     append_jsonl_if(path, lambda: value)
 
 
+def _iter_handle(handle, name: str, *, required: tuple[str, ...],
+                 size: int, max_bytes: int) -> Iterator[dict[str, Any]]:
+    if size > max_bytes:
+        raise LedgerIntegrityError(f"Ledger segment exceeds bounded size: {name}")
+    remaining = size
+    number = 0
+    while remaining:
+        raw = handle.readline(remaining)
+        number += 1
+        if not raw or not raw.endswith(b"\n"):
+            raise LedgerIntegrityError(f"Incomplete durable ledger {name} line {number}")
+        remaining -= len(raw)
+        if not raw.strip():
+            continue
+        try:
+            value = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise LedgerIntegrityError(f"Malformed durable ledger {name} line {number}") from exc
+        if not isinstance(value, dict):
+            raise LedgerIntegrityError(f"Non-object durable ledger {name} line {number}")
+        missing = [field for field in required if value.get(field) is None]
+        if missing:
+            raise LedgerIntegrityError(
+                f"Durable ledger {name} line {number} missing required fields: {','.join(missing)}"
+            )
+        yield value
+
+
 def _iter_one(path: Path, *, required: tuple[str, ...], max_bytes: int) -> Iterator[dict[str, Any]]:
-    if path.stat().st_size > max_bytes:
-        raise LedgerIntegrityError(f"Ledger segment exceeds bounded size: {path.name}")
-    with path.open("r", encoding="utf-8") as handle:
-        for number, raw in enumerate(handle, 1):
-            if not raw.endswith("\n"):
-                raise LedgerIntegrityError(f"Incomplete durable ledger {path.name} line {number}")
-            if not raw.strip():
-                continue
-            try:
-                value = json.loads(raw)
-            except json.JSONDecodeError as exc:
-                raise LedgerIntegrityError(
-                    f"Malformed durable ledger {path.name} line {number}"
-                ) from exc
-            if not isinstance(value, dict):
-                raise LedgerIntegrityError(f"Non-object durable ledger {path.name} line {number}")
-            missing = [field for field in required if value.get(field) is None]
-            if missing:
-                raise LedgerIntegrityError(
-                    f"Durable ledger {path.name} line {number} missing required fields: {','.join(missing)}"
-                )
-            yield value
+    with path.open("rb") as handle:
+        yield from _iter_handle(handle, path.name, required=required,
+                                size=os.fstat(handle.fileno()).st_size, max_bytes=max_bytes)
 
 
 def iter_jsonl(
@@ -158,15 +167,34 @@ def iter_jsonl(
     required: Iterable[str] = (),
     max_bytes: int = 200_000_000,
 ) -> Iterator[dict[str, Any]]:
-    """Stream immutable segments followed by the active tail."""
+    """Stream a coherent prefix without creating files or taking a writer lock.
+
+    Pin the active file before validating the immutable segment list. A rotation
+    after validation may replace its pathname, but the open handle still refers
+    to the complete pre-rotation tail. A rotation during capture fails closed
+    before yielding any rows. Bound the active read to its captured size.
+    """
     transaction = _transaction_file(path)
     if transaction.exists():
         raise LedgerIntegrityError(f"Ledger segmentation recovery required: {path.name}")
     required_tuple = tuple(required)
-    for segment in _segment_files(path):
-        yield from _iter_one(segment, required=required_tuple, max_bytes=max_bytes)
-    if path.exists():
-        yield from _iter_one(path, required=required_tuple, max_bytes=max_bytes)
+    segments = _segment_files(path)
+    try:
+        handle = path.open("rb")
+    except FileNotFoundError:
+        handle = None
+    try:
+        size = os.fstat(handle.fileno()).st_size if handle is not None else 0
+        if transaction.exists() or _segment_files(path) != segments or transaction.exists():
+            raise LedgerIntegrityError(f"Ledger segmentation changed during read: {path.name}")
+        for segment in segments:
+            yield from _iter_one(segment, required=required_tuple, max_bytes=max_bytes)
+        if handle is not None:
+            yield from _iter_handle(handle, path.name, required=required_tuple,
+                                    size=size, max_bytes=max_bytes)
+    finally:
+        if handle is not None:
+            handle.close()
 
 
 def read_jsonl(
