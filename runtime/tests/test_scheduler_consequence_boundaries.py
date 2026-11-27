@@ -334,6 +334,253 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
         self.assertEqual(provider.publish_calls, before)
         self.assertEqual(list(iter_receipts()), [])
 
+    def test_cancellation_during_circuit_check(self):
+        from ocpf_post.scheduler import cancel_schedule
+        provider = BoundaryProvider()
+        s = self._schedule(provider)
+        def circuit(*a, **kw):
+            cancel_schedule(s["schedule_id"])
+            return {"open": True, "retry_at": "2026-09-12T11:00:00Z", "failure_class": "provider_usage_limit"}
+        with patch("ocpf_post.scheduler.provider_write_circuit", side_effect=circuit):
+            r = execute_schedule(s["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(r["status"], "cancelled")
+        self.assertEqual(get_schedule(s["schedule_id"])["status"], "cancelled")
+        self.assertEqual(provider.publish_calls, 0)
+        self.assertEqual(run_due(now=datetime(2026,9,12,12,tzinfo=UTC), provider_factory=lambda _: provider), [])
+    def test_forced_process_exit_after_claim(self):
+        from ocpf_post.scheduler import cancel_schedule, ScheduleError
+        provider = BoundaryProvider()
+        s = self._schedule(provider)
+        class CrashProvider(BoundaryProvider):
+            def publish(self, text):
+                os._exit(73)
+        pid = os.fork()
+        if pid == 0:
+            try:
+                execute_schedule(s["schedule_id"], provider_factory=lambda _: CrashProvider(), now=self.due_at)
+            finally:
+                os._exit(74)
+        _, code = os.waitpid(pid,0)
+        self.assertEqual(os.waitstatus_to_exitcode(code),73)
+        self.assertEqual(get_schedule(s["schedule_id"])["status"],"executing")
+        with self.assertRaises(ScheduleError):
+            cancel_schedule(s["schedule_id"])
+        self.assertEqual(run_due(now=datetime(2026,9,12,12,tzinfo=UTC), provider_factory=lambda _: provider), [])
+        self.assertEqual(provider.publish_calls,0)
+        self.assertEqual(list(iter_receipts()),[])
+    def test_two_full_executors_only_one_publish(self):
+        import multiprocessing as mp
+        import pathlib
+        provider=BoundaryProvider()
+        s=self._schedule(provider)
+        ctx=mp.get_context("fork")
+        gate=ctx.Barrier(2,timeout=8)
+        calls=pathlib.Path(self.tmp.name)/"mock-publish-count"
+        class RacingProvider(BoundaryProvider):
+            def account(self):
+                gate.wait()
+                return super().account()
+            def publish(self,text):
+                with calls.open("a") as f:
+                    f.write("called\n")
+                return super().publish(text)
+        def work():
+            execute_schedule(s["schedule_id"],provider_factory=lambda _: RacingProvider(),now=self.due_at)
+        workers=[ctx.Process(target=work) for _ in range(2)]
+        for worker in workers: worker.start()
+        for worker in workers:
+            worker.join(12)
+            if worker.is_alive():
+                worker.terminate(); worker.join()
+                self.fail("worker timed out")
+            self.assertEqual(worker.exitcode,0)
+        self.assertEqual(calls.read_text().splitlines(),["called"])
+        self.assertEqual(get_schedule(s["schedule_id"])["status"],"published_verified")
+
+    def test_cancel_during_preflight_never_dispatches_or_retries(self):
+        from ocpf_post.scheduler import cancel_schedule
+        from ocpf_post.providers.base import ProviderUnavailable
+        for outcome in ("success", "unavailable", "rejected"):
+            with self.subTest(outcome=outcome):
+                provider = BoundaryProvider()
+                reservation = self._schedule(provider)
+                def account():
+                    cancel_schedule(reservation["schedule_id"])
+                    if outcome == "unavailable":
+                        raise ProviderUnavailable("preflight unavailable")
+                    if outcome == "rejected":
+                        raise ProviderRejected(401, "rejected")
+                    return provider.identity
+                provider.account = account
+                result = execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+                self.assertEqual(result["status"], "cancelled")
+                self.assertEqual(get_schedule(reservation["schedule_id"])["status"], "cancelled")
+                self.assertEqual(provider.publish_calls, 0)
+                self.assertEqual(run_due(now=datetime(2026,9,12,12,tzinfo=UTC), provider_factory=lambda _: provider), [])
+
+    def test_segmented_schedule_cancel_is_durable_and_never_dispatches(self):
+        from ocpf_post.scheduler import cancel_schedule, schedules_file
+        from ocpf_post.ledger import append_jsonl, segment_jsonl, read_jsonl
+        provider = BoundaryProvider()
+        reservation = self._schedule(provider)
+        path = schedules_file()
+        for index in range(1001):
+            append_jsonl(path, {"schedule_id": "history-"+str(index), "event": "cancelled", "status": "cancelled", "recorded_at": "2026-09-12T08:00:00Z"})
+        before = read_jsonl(path)
+        preview = segment_jsonl(path, keep_lines=1000)
+        segment_jsonl(path, keep_lines=1000, apply=True, expected_sha256=preview["review_sha256"])
+        self.assertEqual(read_jsonl(path), before)
+        cancelled = cancel_schedule(reservation["schedule_id"])
+        self.assertEqual(cancelled["status"], "cancelled")
+        self.assertEqual(execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)["status"], "cancelled")
+        self.assertEqual(provider.publish_calls, 0)
+        self.assertEqual(read_jsonl(path)[:-1], before)
+
+    def test_pending_segmentation_blocks_claim_and_cancel(self):
+        from ocpf_post.scheduler import cancel_schedule, schedules_file
+        from ocpf_post.ledger import LedgerIntegrityError
+        provider = BoundaryProvider()
+        reservation = self._schedule(provider)
+        path = schedules_file()
+        marker = path.with_name(path.name+".segments") / "SEGMENTATION.json"
+        marker.parent.mkdir()
+        marker.write_text("{}")
+        original = path.read_bytes()
+        with self.assertRaises(LedgerIntegrityError):
+            cancel_schedule(reservation["schedule_id"])
+        with self.assertRaises(LedgerIntegrityError):
+            execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(provider.publish_calls, 0)
+
+    def test_claim_short_write_completes_before_provider_effect(self):
+        from ocpf_post import ledger
+        from ocpf_post.scheduler import schedules_file
+        provider = BoundaryProvider()
+        reservation = self._schedule(provider)
+        original_write = os.write
+        def short_write(fd, data):
+            return original_write(fd, data[:max(1,len(data)//2)])
+        with patch.object(ledger.os, "write", side_effect=short_write):
+            result = execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(result["status"], "published_verified")
+        self.assertEqual(provider.publish_calls, 1)
+        self.assertEqual(get_schedule(reservation["schedule_id"])["status"], "published_verified")
+        self.assertTrue(schedules_file().read_bytes().endswith(b"\n"))
+
+    def test_partial_claim_write_refuses_provider_and_replay(self):
+        from ocpf_post import ledger
+        from ocpf_post.scheduler import schedules_file, cancel_schedule
+        from ocpf_post.ledger import LedgerIntegrityError
+        provider = BoundaryProvider()
+        reservation = self._schedule(provider)
+        original_write = os.write
+        count = 0
+        def partial_failure(fd, data):
+            nonlocal count
+            count += 1
+            if count == 1:
+                return original_write(fd, data[:max(1,len(data)//2)])
+            raise OSError("injected ledger write failure")
+        with patch.object(ledger.os, "write", side_effect=partial_failure):
+            with self.assertRaises(OSError):
+                execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(provider.publish_calls, 0)
+        damaged = schedules_file().read_bytes()
+        with self.assertRaises(LedgerIntegrityError):
+            execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+        with self.assertRaises(LedgerIntegrityError):
+            cancel_schedule(reservation["schedule_id"])
+        self.assertEqual(schedules_file().read_bytes(), damaged)
+        self.assertEqual(provider.publish_calls, 0)
+
+    def test_claim_fsync_failure_prevents_effect_and_never_replays(self):
+        from ocpf_post import ledger
+        provider = BoundaryProvider()
+        reservation = self._schedule(provider)
+        with patch.object(ledger.os, "fsync", side_effect=OSError("injected fsync failure")):
+            with self.assertRaises(OSError):
+                execute_schedule(reservation["schedule_id"], provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(provider.publish_calls, 0)
+        self.assertEqual(get_schedule(reservation["schedule_id"])["status"], "executing")
+        self.assertEqual(run_due(now=datetime(2026,9,12,12,tzinfo=UTC), provider_factory=lambda _: provider), [])
+        self.assertEqual(provider.publish_calls, 0)
+
+
+class ConditionalLedgerIntegrityTests(unittest.TestCase):
+    def test_conditional_append_does_not_write_on_refusal_or_bad_tail(self):
+        from pathlib import Path
+        from ocpf_post.ledger import append_jsonl, append_jsonl_if, read_jsonl, LedgerIntegrityError
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/"events.jsonl"
+            append_jsonl(path, {"id": 1})
+            original = path.read_bytes()
+            self.assertFalse(append_jsonl_if(path, lambda: None))
+            self.assertEqual(path.read_bytes(), original)
+            path.write_bytes(original+b'{"id":2}')
+            damaged = path.read_bytes()
+            with self.assertRaises(LedgerIntegrityError):
+                read_jsonl(path)
+            with self.assertRaises(LedgerIntegrityError):
+                append_jsonl_if(path, lambda: {"id": 3})
+            self.assertEqual(path.read_bytes(), damaged)
+
+    def test_stale_segmentation_review_refuses_after_conditional_append(self):
+        from pathlib import Path
+        from ocpf_post.ledger import append_jsonl, append_jsonl_if, segment_jsonl, read_jsonl
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/"events.jsonl"
+            path.write_text("".join('{"id":%d}\n'%i for i in range(1002)))
+            review = segment_jsonl(path, keep_lines=1000)
+            self.assertTrue(append_jsonl_if(path, lambda: {"id": 1002}))
+            with self.assertRaises(ValueError):
+                segment_jsonl(path, keep_lines=1000, apply=True, expected_sha256=review["review_sha256"])
+            self.assertEqual([r["id"] for r in read_jsonl(path)], list(range(1003)))
+
+    def test_recover_interrupted_segmentation_preserves_conditional_append(self):
+        from pathlib import Path
+        from ocpf_post import ledger
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            original = [{"id": i} for i in range(1002)]
+            path.write_text("".join('{"id":%d}\n' % i for i in range(1002)))
+            review = ledger.segment_jsonl(path, keep_lines=1000)
+            replace = os.replace
+            def interrupt(source, destination):
+                if str(source).endswith(".pending"):
+                    raise OSError("injected failure before segment finalisation")
+                return replace(source, destination)
+            with patch.object(ledger.os, "replace", side_effect=interrupt):
+                with self.assertRaises(OSError):
+                    ledger.segment_jsonl(path, keep_lines=1000, apply=True, expected_sha256=review["review_sha256"])
+            selector = __import__("unittest.mock", fromlist=["Mock"]).Mock(return_value={"id": 1002})
+            with self.assertRaises(ledger.LedgerIntegrityError):
+                ledger.append_jsonl_if(path, selector)
+            selector.assert_not_called()
+            with self.assertRaises(ledger.LedgerIntegrityError):
+                ledger.read_jsonl(path)
+            self.assertEqual(ledger.recover_segmentation(path)["status"], "recovery_preview")
+            self.assertEqual(ledger.recover_segmentation(path, apply=True)["status"], "recovered")
+            self.assertEqual(ledger.read_jsonl(path), original)
+            self.assertTrue(ledger.append_jsonl_if(path, selector))
+            selector.assert_called_once()
+            self.assertEqual(ledger.read_jsonl(path), original + [{"id": 1002}])
+
+    def test_selector_failure_and_invalid_unconditional_append_do_not_change_ledger(self):
+        from pathlib import Path
+        from ocpf_post import ledger
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "events.jsonl"
+            ledger.append_jsonl(path, {"id": 1})
+            original = path.read_bytes()
+            def fail():
+                raise RuntimeError("selection failed")
+            with self.assertRaises(RuntimeError):
+                ledger.append_jsonl_if(path, fail)
+            with self.assertRaises(TypeError):
+                ledger.append_jsonl(path, None)
+            self.assertEqual(path.read_bytes(), original)
+
 
 if __name__ == "__main__":
     unittest.main()

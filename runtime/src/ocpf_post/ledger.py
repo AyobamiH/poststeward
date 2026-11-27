@@ -12,7 +12,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
-from typing import Any, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 MAX_SEGMENTS = 1024
 
@@ -72,29 +72,59 @@ def ledger_lock(path: Path):
         os.close(fd)
 
 
+def _append_jsonl_locked(path: Path, value: dict[str, Any]) -> None:
+    if not isinstance(value, dict):
+        raise TypeError("Ledger row must be an object")
+    line = (json.dumps(value, separators=(",", ":"), ensure_ascii=False, allow_nan=False) + "\n").encode()
+    existed = path.exists()
+    fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        if os.fstat(fd).st_size:
+            os.lseek(fd, -1, os.SEEK_END)
+            if os.read(fd, 1) != b"\n":
+                raise LedgerIntegrityError(f"Incomplete durable ledger tail: {path.name}")
+        remaining = memoryview(line)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written <= 0:
+                raise OSError("Ledger append made no progress")
+            remaining = remaining[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    if not existed:
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+
+
+def append_jsonl_if(path: Path, select: Callable[[], dict[str, Any] | None]) -> bool:
+    """Read/decide/append under the same writer and segmenter lock.
+
+    The selector may read this ledger, but must not mutate it, recursively
+    acquire its lock, or perform external effects. None means no transition.
+    """
+    with ledger_lock(path):
+        if _transaction_file(path).exists():
+            raise LedgerIntegrityError(f"Ledger segmentation recovery required: {path.name}")
+        value = select()
+        if value is None:
+            return False
+        _append_jsonl_locked(path, value)
+        return True
+
+
 def append_jsonl(path: Path, value: dict[str, Any]) -> None:
     """Append one durable JSON object under the shared ledger lock."""
     if not isinstance(value, dict):
         raise TypeError("Ledger row must be an object")
-    line = (json.dumps(value, separators=(",", ":"), ensure_ascii=False, allow_nan=False) + "\n").encode()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        path.parent.chmod(0o700)
-    except OSError:
-        pass
-    with ledger_lock(path):
-        if _transaction_file(path).exists():
-            raise LedgerIntegrityError(f"Ledger segmentation recovery required: {path.name}")
-        fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
-        try:
-            os.write(fd, line)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        try:
-            path.chmod(0o600)
-        except OSError:
-            pass
+    append_jsonl_if(path, lambda: value)
 
 
 def _iter_one(path: Path, *, required: tuple[str, ...], max_bytes: int) -> Iterator[dict[str, Any]]:
@@ -102,6 +132,8 @@ def _iter_one(path: Path, *, required: tuple[str, ...], max_bytes: int) -> Itera
         raise LedgerIntegrityError(f"Ledger segment exceeds bounded size: {path.name}")
     with path.open("r", encoding="utf-8") as handle:
         for number, raw in enumerate(handle, 1):
+            if not raw.endswith("\n"):
+                raise LedgerIntegrityError(f"Incomplete durable ledger {path.name} line {number}")
             if not raw.strip():
                 continue
             try:

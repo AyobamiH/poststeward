@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ocpf_post.campaigns import builtin_text, destination_binding_error, normalize_campaign_id
 from ocpf_post.model import PublishReceipt
-from ocpf_post.ledger import append_jsonl, iter_jsonl
+from ocpf_post.ledger import append_jsonl, append_jsonl_if, iter_jsonl
 from ocpf_post.providers import get_provider
 from ocpf_post.providers.base import AmbiguousProviderEffect, ProviderRejected, ProviderUnavailable
 from ocpf_post.publication_payload import build_publication, validate_frozen_publication
@@ -224,9 +224,9 @@ def iter_schedule_events() -> Iterable[dict[str, Any]]:
     )
 
 
-def schedule_records() -> list[dict[str, Any]]:
+def _fold_schedule_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     records: dict[str, dict[str, Any]] = {}
-    for event in iter_schedule_events():
+    for event in events:
         schedule_id = str(event["schedule_id"])
         kind = event.get("event")
         if kind == "scheduled":
@@ -260,8 +260,42 @@ def schedule_records() -> list[dict[str, Any]]:
     return sorted(records.values(), key=lambda item: (str(item.get("run_at")), str(item.get("schedule_id"))))
 
 
+def schedule_records() -> list[dict[str, Any]]:
+    return _fold_schedule_events(iter_schedule_events())
+
+
 def get_schedule(schedule_id: str) -> dict[str, Any] | None:
     return next((record for record in schedule_records() if record.get("schedule_id") == schedule_id), None)
+
+
+def _transition_scheduled(
+    schedule_id: str,
+    make_event: Callable[[dict[str, Any]], dict[str, Any]],
+    *,
+    expected: dict[str, Any] | None = None,
+) -> tuple[bool, dict[str, Any] | None]:
+    winner = None
+    projected = None
+
+    def select():
+        nonlocal winner, projected
+        # Stream the full ledger for integrity, retaining only this schedule's
+        # projection. Do not materialise all historical events under the lock.
+        events = (event for event in iter_schedule_events()
+                  if str(event["schedule_id"]) == schedule_id)
+        winner = next(iter(_fold_schedule_events(events)), None)
+        if winner is None or winner.get("status") != "scheduled":
+            return None
+        if expected is not None and winner != expected:
+            return None
+        event = make_event(winner)
+        # The projected record retains the original scheduled event and all
+        # accumulated fields. Apply the new event to that exact locked snapshot.
+        projected = _fold_schedule_events((winner, event))[0]
+        return event
+
+    changed = append_jsonl_if(schedules_file(), select)
+    return changed, projected if changed else winner
 
 
 def provider_write_circuit(
@@ -496,20 +530,16 @@ def _retry_clear_fields(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def cancel_schedule(schedule_id: str, *, now: datetime | None = None) -> dict[str, Any]:
-    record = get_schedule(schedule_id)
-    if record is None:
-        raise ScheduleError(f"Unknown schedule: {schedule_id}")
-    if record.get("status") != "scheduled":
-        raise ScheduleError(f"Only a scheduled item can be cancelled; {schedule_id} is {record.get('status')}")
-    _append_event({
-        "event": "cancelled",
-        "status": "cancelled",
-        "schedule_id": schedule_id,
-        "recorded_at": _utc_iso(now),
-        **_retry_clear_fields(record),
+    changed, record = _transition_scheduled(schedule_id, lambda current: {
+        "event": "cancelled", "status": "cancelled", "schedule_id": schedule_id,
+        "recorded_at": _utc_iso(now), **_retry_clear_fields(current),
         "detail": "Cancelled explicitly before consequence.",
     })
-    return get_schedule(schedule_id) or record
+    if not changed:
+        if record is None:
+            raise ScheduleError(f"Unknown schedule: {schedule_id}")
+        raise ScheduleError(f"Only a scheduled item can be cancelled; {schedule_id} is {record.get('status')}")
+    return record
 
 
 def due_schedules(*, now: datetime | None = None, limit: int = 20) -> list[dict[str, Any]]:
@@ -600,18 +630,29 @@ def _block(schedule_id: str, status: str, detail: str, **extra: Any) -> dict[str
     return get_schedule(schedule_id) or {"schedule_id": schedule_id, "status": status, "detail": detail}
 
 
+def _block_scheduled(schedule_id, status, detail, *, expected, **extra):
+    _, winner = _transition_scheduled(schedule_id, lambda current: {
+        "event": status, "status": status, "schedule_id": schedule_id,
+        "recorded_at": _utc_iso(), **_retry_clear_fields(current), **extra, "detail": detail,
+    }, expected=expected)
+    if winner is None:
+        raise ScheduleError(f"Unknown schedule: {schedule_id}")
+    return winner
+
+
 def _preflight_retry_delay(attempt: int) -> int:
     exponent = max(0, min(attempt - 1, 4))
     return min(PREFLIGHT_RETRY_BASE_SECONDS * (2 ** exponent), PREFLIGHT_RETRY_MAX_SECONDS)
 
 
-def _defer_preflight(schedule_id: str, exc: Exception, *, now: datetime | None = None) -> dict[str, Any]:
-    record = get_schedule(schedule_id) or {}
-    attempt = int(record.get("preflight_attempts") or 0) + 1
+def _defer_preflight(
+    schedule_id: str, exc: Exception, *, expected: dict[str, Any], now: datetime | None = None,
+) -> dict[str, Any]:
+    attempt = int(expected.get("preflight_attempts") or 0) + 1
     delay = _preflight_retry_delay(attempt)
     now_dt = (now or _utc_now_dt()).astimezone(UTC)
     retry_at = now_dt + timedelta(seconds=delay)
-    _append_event({
+    _, winner = _transition_scheduled(schedule_id, lambda current: {
         "event": "preflight_deferred",
         "status": "scheduled",
         "schedule_id": schedule_id,
@@ -623,22 +664,19 @@ def _defer_preflight(schedule_id: str, exc: Exception, *, now: datetime | None =
             "Provider preflight was unavailable before consequence; no publish request was attempted. "
             f"Automatic retry is deferred until {_utc_iso(retry_at)}: {exc}"
         ),
-    })
-    return get_schedule(schedule_id) or {
-        "schedule_id": schedule_id,
-        "status": "scheduled",
-        "retry_at": _utc_iso(retry_at),
-        "preflight_attempts": attempt,
-        "failure_class": "provider_unavailable",
-    }
+    }, expected=expected)
+    if winner is None:
+        raise ScheduleError(f"Unknown schedule: {schedule_id}")
+    return winner
 
 
 def _defer_provider_circuit(
-    schedule_id: str, circuit: dict[str, Any], *, now: datetime | None = None,
+    schedule_id: str, circuit: dict[str, Any], *,
+    expected: dict[str, Any], now: datetime | None = None,
 ) -> dict[str, Any]:
     now_dt = (now or _utc_now_dt()).astimezone(UTC)
     retry_at = str(circuit.get("retry_at") or _utc_iso(now_dt + timedelta(minutes=15)))
-    _append_event({
+    _, winner = _transition_scheduled(schedule_id, lambda current: {
         "event": "provider_circuit_deferred",
         "status": "scheduled",
         "schedule_id": schedule_id,
@@ -653,17 +691,10 @@ def _defer_provider_circuit(
             "Provider/account write circuit is open from a prior definite rejection; "
             "no publish request was attempted for this schedule."
         ),
-    })
-    return get_schedule(schedule_id) or {
-        "schedule_id": schedule_id,
-        "status": "scheduled",
-        "retry_at": retry_at,
-        "failure_class": "provider_circuit_open",
-        "failure_stage": "pre_consequence",
-        "automatic_retry": True,
-        "circuit_failure_class": circuit.get("failure_class"),
-        "circuit_retry_at": retry_at,
-    }
+    }, expected=expected)
+    if winner is None:
+        raise ScheduleError(f"Unknown schedule: {schedule_id}")
+    return winner
 
 
 def _thread_receipt(
@@ -976,23 +1007,26 @@ def execute_schedule(schedule_id: str, *, provider_factory: Callable[[str], Any]
     if not meaning.actionable:
         return record
 
+    def block(schedule_id, status, detail, **extra):
+        return _block_scheduled(schedule_id, status, detail, expected=record, **extra)
+
     campaign = str(record["campaign"])
     provider_name = str(record["provider"])
 
     stored_text = str(record.get("text") or "")
     stored_digest = str(record.get("text_sha256") or "")
     if not stored_text or _digest(stored_text) != stored_digest:
-        return _block(schedule_id, "drift_blocked", "Persisted scheduled payload failed its integrity hash.")
+        return block(schedule_id, "drift_blocked", "Persisted scheduled payload failed its integrity hash.")
     if record.get("publication_sha256") and not validate_frozen_publication(provider_name, record):
-        return _block(schedule_id, "drift_blocked", "Frozen publication parts failed their integrity contract.")
+        return block(schedule_id, "drift_blocked", "Frozen publication parts failed their integrity contract.")
     if record.get("payload_source") == "builtin_campaign":
         current_text = builtin_text(campaign, provider_name)
         if not current_text or _digest(current_text) != stored_digest:
-            return _block(schedule_id, "drift_blocked", "Campaign payload changed after scheduling; stale or unreviewed payload refused.")
+            return block(schedule_id, "drift_blocked", "Campaign payload changed after scheduling; stale or unreviewed payload refused.")
 
     circuit = provider_write_circuit(provider_name, str(record["account_id"]), now=now_dt)
     if circuit.get("open") is True:
-        return _defer_provider_circuit(schedule_id, circuit, now=now_dt)
+        return _defer_provider_circuit(schedule_id, circuit, now=now_dt, expected=record)
 
     try:
         from ocpf_post.providers import for_account
@@ -1011,50 +1045,57 @@ def execute_schedule(schedule_id: str, *, provider_factory: Callable[[str], Any]
         )
         account = provider_impl.account()
     except ProviderUnavailable as exc:
-        return _defer_preflight(schedule_id, exc, now=now_dt)
+        return _defer_preflight(schedule_id, exc, now=now_dt, expected=record)
     except ProviderRejected as exc:
         # ProviderRejected is a definite rejection, not a retry signal. Temporary
         # pre-consequence transport failure must be typed ProviderUnavailable by
         # the provider adapter. Error prose/status zero cannot grant retryability.
-        return _block(
+        return block(
             schedule_id,
             "failed",
             f"Provider identity check failed before consequence: {exc}",
             **provider_failure_metadata(exc, stage="identity_preflight"),
         )
     except ValueError as exc:
-        return _block(schedule_id, "failed", f"Provider identity check failed before consequence: {exc}")
+        return block(schedule_id, "failed", f"Provider identity check failed before consequence: {exc}")
     if account.account_id != record.get("account_id"):
-        return _block(schedule_id, "drift_blocked", f"Authenticated account changed: expected {record.get('account_id')}, got {account.account_id}.")
+        return block(schedule_id, "drift_blocked", f"Authenticated account changed: expected {record.get('account_id')}, got {account.account_id}.")
     binding_error = destination_binding_error(campaign, provider_name, account)
     if binding_error:
-        return _block(schedule_id, "drift_blocked", binding_error)
+        return block(schedule_id, "drift_blocked", binding_error)
 
     prior = terminal_effect_receipt(campaign, provider_name, account.account_id)
     if prior:
-        return _block(schedule_id, "duplicate_blocked", f"A terminal receipt already exists: {prior.get('status')} {prior.get('url') or ''}".strip())
+        return block(schedule_id, "duplicate_blocked", f"A terminal receipt already exists: {prior.get('status')} {prior.get('url') or ''}".strip())
 
     from ocpf_post.campaigns import builtin_manifest
     manifest = builtin_manifest(campaign)
     from ocpf_post.vault_sync import guard
     vault_reason = guard(manifest, provider_name)
     if vault_reason:
-        return _block(schedule_id, "drift_blocked", vault_reason)
+        return block(schedule_id, "drift_blocked", vault_reason)
     from ocpf_post.source_guard import guard as source_guard
     source_reason = source_guard(manifest, now=now_dt)
     if source_reason:
-        return _block(schedule_id, "drift_blocked", source_reason)
+        return block(schedule_id, "drift_blocked", source_reason)
     from ocpf_post.generated_supply_guard import delivery_guard as generated_delivery_guard
     generated_reason = generated_delivery_guard(manifest, provider_name, str(account.account_id), stored_text)
     if generated_reason:
-        return _block(schedule_id, "drift_blocked", generated_reason)
+        return block(schedule_id, "drift_blocked", generated_reason)
 
     claim_extra = {
         "runner_pid": os.getpid(),
         "detail": "Claimed immediately before provider consequence. A crashed executing item is never auto-retried.",
         **_retry_clear_fields(record),
     }
-    _schedule_event(schedule_id, "claimed", "executing", **claim_extra)
+    claimed, winner = _transition_scheduled(schedule_id, lambda current: {
+        "event": "claimed", "status": "executing", "schedule_id": schedule_id,
+        "recorded_at": _utc_iso(), **claim_extra,
+    }, expected=record)
+    if not claimed:
+        if winner is None:
+            raise ScheduleError(f"Unknown schedule: {schedule_id}")
+        return winner
     if record.get("publication_type") == "thread":
         return _execute_thread(
             schedule_id=schedule_id,
