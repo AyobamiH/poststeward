@@ -224,12 +224,16 @@ def iter_schedule_events() -> Iterable[dict[str, Any]]:
     )
 
 
-def _fold_schedule_events(events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+def _fold_schedule_events(
+    events: Iterable[dict[str, Any]], *, order_by_last_event: bool = False,
+) -> list[dict[str, Any]]:
     records: dict[str, dict[str, Any]] = {}
     for event in events:
         schedule_id = str(event["schedule_id"])
         kind = event.get("event")
         if kind == "scheduled":
+            if order_by_last_event:
+                records.pop(schedule_id, None)
             records[schedule_id] = dict(event)
             records[schedule_id]["last_event"] = "scheduled"
             records[schedule_id]["updated_at"] = event.get("recorded_at")
@@ -237,6 +241,10 @@ def _fold_schedule_events(events: Iterable[dict[str, Any]]) -> list[dict[str, An
         record = records.get(schedule_id)
         if record is None:
             continue
+        if order_by_last_event:
+            # Preserve the durable append sequence of each projected outcome,
+            # rather than schedule due time or arbitrary reservation UUID.
+            records[schedule_id] = records.pop(schedule_id)
         if event.get("status"):
             record["status"] = event["status"]
         record["last_event"] = kind
@@ -257,11 +265,13 @@ def _fold_schedule_events(events: Iterable[dict[str, Any]]) -> list[dict[str, An
         ):
             if key in event:
                 record[key] = event[key]
+    if order_by_last_event:
+        return list(records.values())
     return sorted(records.values(), key=lambda item: (str(item.get("run_at")), str(item.get("schedule_id"))))
 
 
-def schedule_records() -> list[dict[str, Any]]:
-    return _fold_schedule_events(iter_schedule_events())
+def schedule_records(*, order_by_last_event: bool = False) -> list[dict[str, Any]]:
+    return _fold_schedule_events(iter_schedule_events(), order_by_last_event=order_by_last_event)
 
 
 def get_schedule(schedule_id: str) -> dict[str, Any] | None:
@@ -315,10 +325,13 @@ def provider_write_circuit(
     """
     now_dt = (now or _utc_now_dt()).astimezone(UTC)
     rows = [
-        row for row in schedule_records()
+        row for row in schedule_records(order_by_last_event=True)
         if str(row.get("provider") or "") == str(provider)
         and str(row.get("account_id") or "") == str(account_id)
     ]
+    # Timestamps have second precision. Python's stable sort retains durable
+    # outcome order for ties, so an earlier success cannot clear a later
+    # rejection merely because its reservation sorts later by due time/UUID.
     rows.sort(key=lambda row: str(row.get("updated_at") or row.get("recorded_at") or row.get("run_at") or ""))
 
     streak = 0

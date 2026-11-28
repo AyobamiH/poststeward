@@ -286,6 +286,52 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
                 worker.terminate()
                 worker.join(3)
 
+    def test_same_second_later_rejection_is_not_reset_by_earlier_success(self) -> None:
+        from types import SimpleNamespace
+
+        with patch("ocpf_post.scheduler.uuid.uuid4", return_value=SimpleNamespace(hex="0" * 31 + "1")):
+            rejected = self._schedule(BoundaryProvider(), campaign="OCPF-002")
+        with patch("ocpf_post.scheduler.uuid.uuid4", return_value=SimpleNamespace(hex="f" * 32)):
+            successful = self._schedule(BoundaryProvider(), campaign="OCPF-003")
+        provider = BoundaryProvider()
+        provider.publish_error = ProviderRejected(402, '{"title":"UsageCapExceeded"}')
+        with patch("ocpf_post.scheduler._utc_now_dt", return_value=self.due_at):
+            completed = execute_schedule(successful["schedule_id"],
+                                         provider_factory=lambda _: BoundaryProvider(), now=self.due_at)
+            failed = execute_schedule(rejected["schedule_id"],
+                                      provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(completed["status"], "published_verified")
+        self.assertEqual(failed["failure_class"], "provider_usage_limit")
+        self.assertEqual(completed["updated_at"], failed["updated_at"])
+        circuit = provider_write_circuit("x", provider.identity.account_id, now=self.due_at)
+        self.assertTrue(circuit["open"])
+        self.assertEqual(circuit["source_schedule_id"], rejected["schedule_id"])
+
+    def test_same_second_later_success_resets_earlier_rejection(self) -> None:
+        from types import SimpleNamespace
+        from ocpf_post.scheduler import _append_event
+
+        # These two different campaigns were already claimed before either
+        # completed. Use the durable ledger to record their actual outcome order.
+        with patch("ocpf_post.scheduler.uuid.uuid4", return_value=SimpleNamespace(hex="f" * 32)):
+            rejected = self._schedule(BoundaryProvider(), campaign="OCPF-002")
+        with patch("ocpf_post.scheduler.uuid.uuid4", return_value=SimpleNamespace(hex="0" * 31 + "1")):
+            successful = self._schedule(BoundaryProvider(), campaign="OCPF-003")
+        timestamp = "2026-09-12T10:01:00Z"
+        for reservation in (rejected, successful):
+            _append_event({"schedule_id": reservation["schedule_id"], "event": "claimed",
+                           "status": "executing", "recorded_at": timestamp})
+        _append_event({"schedule_id": rejected["schedule_id"], "event": "failed",
+                       "status": "failed", "recorded_at": timestamp,
+                       "failure_class": "provider_usage_limit",
+                       "failure_stage": "provider_consequence", "provider_http_status": 402})
+        self.assertTrue(provider_write_circuit("x", BoundaryProvider().identity.account_id,
+                                               now=self.due_at)["open"])
+        _append_event({"schedule_id": successful["schedule_id"], "event": "completed",
+                       "status": "published_verified", "recorded_at": timestamp})
+        self.assertFalse(provider_write_circuit("x", BoundaryProvider().identity.account_id,
+                                                now=self.due_at)["open"])
+
     def test_candidate_specific_duplicate_does_not_open_account_circuit(self) -> None:
         provider = BoundaryProvider()
         schedule = self._schedule(provider)
