@@ -332,6 +332,44 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
         self.assertFalse(provider_write_circuit("x", BoundaryProvider().identity.account_id,
                                                 now=self.due_at)["open"])
 
+    def _clock_rollback_outcomes(self, *, rejection_last: bool):
+        from ocpf_post.scheduler import _append_event
+
+        provider = BoundaryProvider()
+        successful = self._schedule(provider, campaign="OCPF-002")
+        rejected = self._schedule(provider, campaign="OCPF-003")
+        for reservation in (successful, rejected):
+            _append_event({"schedule_id": reservation["schedule_id"], "event": "claimed",
+                           "status": "executing", "recorded_at": "2026-09-12T10:00:00Z"})
+        success = {"schedule_id": successful["schedule_id"], "event": "completed",
+                   "status": "published_verified"}
+        failure = {"schedule_id": rejected["schedule_id"], "event": "failed",
+                   "status": "failed", "failure_class": "provider_usage_limit",
+                   "failure_stage": "provider_consequence", "provider_http_status": 402}
+        first, second = (success, failure) if rejection_last else (failure, success)
+        _append_event({**first, "recorded_at": "2026-09-12T10:05:00Z"})
+        _append_event({**second, "recorded_at": "2026-09-12T10:01:00Z"})
+        return provider.identity.account_id, rejected["schedule_id"]
+
+    def test_clock_rollback_later_rejection_opens_circuit_until_cooldown(self) -> None:
+        account_id, rejected_id = self._clock_rollback_outcomes(rejection_last=True)
+        now = datetime(2026, 9, 12, 10, 2, tzinfo=UTC)
+        circuit = provider_write_circuit("x", account_id, now=now)
+        self.assertTrue(circuit["open"])
+        self.assertEqual(circuit["source_schedule_id"], rejected_id)
+        self.assertEqual(circuit["retry_at"], "2026-09-12T10:16:00Z")
+        self.assertFalse(circuit["automatic_retry_authority"])
+        expiry = datetime(2026, 9, 12, 10, 16, tzinfo=UTC)
+        self.assertFalse(provider_write_circuit("x", account_id, now=expiry)["open"])
+
+    def test_clock_rollback_later_success_clears_circuit(self) -> None:
+        account_id, _ = self._clock_rollback_outcomes(rejection_last=False)
+        now = datetime(2026, 9, 12, 10, 2, tzinfo=UTC)
+        circuit = provider_write_circuit("x", account_id, now=now)
+        self.assertFalse(circuit["open"])
+        self.assertNotIn("source_schedule_id", circuit)
+        self.assertFalse(circuit["automatic_retry_authority"])
+
     def test_circuit_reads_durable_outcomes_without_changing_public_projection_contract(self) -> None:
         from ocpf_post import account_profiles
 

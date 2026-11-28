@@ -334,10 +334,8 @@ def provider_write_circuit(
         if str(row.get("provider") or "") == str(provider)
         and str(row.get("account_id") or "") == str(account_id)
     ]
-    # Timestamps have second precision. Python's stable sort retains durable
-    # outcome order for ties, so an earlier success cannot clear a later
-    # rejection merely because its reservation sorts later by due time/UUID.
-    rows.sort(key=lambda row: str(row.get("updated_at") or row.get("recorded_at") or row.get("run_at") or ""))
+    # The ledger append sequence is authoritative even across a wall-clock
+    # adjustment. Timestamps are used only for the resulting cooldown.
 
     streak = 0
     generic_forbidden_streak = 0
