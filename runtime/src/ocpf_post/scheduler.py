@@ -680,17 +680,15 @@ def _defer_preflight(
     return winner
 
 
-def _defer_provider_circuit(
-    schedule_id: str, circuit: dict[str, Any], *,
-    expected: dict[str, Any], now: datetime | None = None,
+def _provider_circuit_event(
+    schedule_id: str, circuit: dict[str, Any], *, now: datetime,
 ) -> dict[str, Any]:
-    now_dt = (now or _utc_now_dt()).astimezone(UTC)
-    retry_at = str(circuit.get("retry_at") or _utc_iso(now_dt + timedelta(minutes=15)))
-    _, winner = _transition_scheduled(schedule_id, lambda current: {
+    retry_at = str(circuit.get("retry_at") or _utc_iso(now + timedelta(minutes=15)))
+    return {
         "event": "provider_circuit_deferred",
         "status": "scheduled",
         "schedule_id": schedule_id,
-        "recorded_at": _utc_iso(now_dt),
+        "recorded_at": _utc_iso(now),
         "retry_at": retry_at,
         "failure_class": "provider_circuit_open",
         "failure_stage": "pre_consequence",
@@ -701,7 +699,18 @@ def _defer_provider_circuit(
             "Provider/account write circuit is open from a prior definite rejection; "
             "no publish request was attempted for this schedule."
         ),
-    }, expected=expected)
+    }
+
+
+def _defer_provider_circuit(
+    schedule_id: str, circuit: dict[str, Any], *,
+    expected: dict[str, Any], now: datetime | None = None,
+) -> dict[str, Any]:
+    now_dt = (now or _utc_now_dt()).astimezone(UTC)
+    _, winner = _transition_scheduled(
+        schedule_id, lambda current: _provider_circuit_event(schedule_id, circuit, now=now_dt),
+        expected=expected,
+    )
     if winner is None:
         raise ScheduleError(f"Unknown schedule: {schedule_id}")
     return winner
@@ -1115,6 +1124,13 @@ def execute_schedule(schedule_id: str, *, provider_factory: Callable[[str], Any]
                 **_retry_clear_fields(current),
                 "detail": "A competing durable claim or terminal effect exists for this destination; publication refused.",
             }
+        # Preflight can overlap a different campaign's definite account-wide
+        # rejection. Recheck the durable circuit inside the claim lock, so a
+        # rejection recorded before this claim cannot be bypassed by stale preflight.
+        claim_now = (now or _utc_now_dt()).astimezone(UTC)
+        latest_circuit = provider_write_circuit(provider_name, str(account.account_id), now=claim_now)
+        if latest_circuit.get("open") is True:
+            return _provider_circuit_event(schedule_id, latest_circuit, now=claim_now)
         return {
             "event": "claimed", "status": "executing", "schedule_id": schedule_id,
             "recorded_at": _utc_iso(), **claim_extra,

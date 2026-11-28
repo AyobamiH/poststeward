@@ -230,6 +230,62 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
         self.assertTrue(deferred["automatic_retry"])
         self.assertEqual(provider.publish_calls, 1)
 
+    def test_circuit_opened_during_preflight_defers_before_durable_claim(self) -> None:
+        import multiprocessing as mp
+        from pathlib import Path
+        ctx = mp.get_context("fork")
+        first = self._schedule(BoundaryProvider(), campaign="OCPF-002")
+        second = self._schedule(BoundaryProvider(), campaign="OCPF-003")
+        entered, release = ctx.Event(), ctx.Event()
+        results = ctx.Queue()
+        calls = Path(self.tmp.name) / "late-circuit-mock-publications"
+
+        class PausedProvider(BoundaryProvider):
+            def account(self):
+                entered.set()
+                if not release.wait(10):
+                    raise AssertionError("preflight release timed out")
+                return super().account()
+
+            def publish(self, text):
+                calls.write_text("unexpected mock publication")
+                return super().publish(text)
+
+        def execute_second():
+            result = execute_schedule(second["schedule_id"],
+                                      provider_factory=lambda _: PausedProvider(), now=self.due_at)
+            results.put(result)
+
+        worker = ctx.Process(target=execute_second)
+        worker.start()
+        try:
+            self.assertTrue(entered.wait(8), "second executor did not reach preflight")
+            rejecting = BoundaryProvider()
+            rejecting.publish_error = ProviderRejected(
+                402, '{"type":"https://api.x.com/2/problems/usage-capped","title":"UsageCapExceeded"}',
+            )
+            failed = execute_schedule(first["schedule_id"],
+                                      provider_factory=lambda _: rejecting, now=self.due_at)
+            self.assertEqual(failed["failure_class"], "provider_usage_limit")
+            circuit = provider_write_circuit("x", rejecting.identity.account_id, now=self.due_at)
+            self.assertTrue(circuit["open"])
+            release.set()
+            worker.join(10)
+            self.assertEqual(worker.exitcode, 0)
+            result = results.get(timeout=2)
+            self.assertEqual(result["status"], "scheduled")
+            self.assertEqual(result["failure_class"], "provider_circuit_open")
+            self.assertEqual(result["circuit_failure_class"], "provider_usage_limit")
+            self.assertEqual(result["retry_at"], circuit["retry_at"])
+            self.assertTrue(result["automatic_retry"])
+            self.assertFalse(calls.exists())
+            self.assertEqual(list(iter_receipts()), [])
+        finally:
+            release.set()
+            if worker.is_alive():
+                worker.terminate()
+                worker.join(3)
+
     def test_candidate_specific_duplicate_does_not_open_account_circuit(self) -> None:
         provider = BoundaryProvider()
         schedule = self._schedule(provider)
