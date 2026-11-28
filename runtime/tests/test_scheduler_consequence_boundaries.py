@@ -332,6 +332,23 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
         self.assertFalse(provider_write_circuit("x", BoundaryProvider().identity.account_id,
                                                 now=self.due_at)["open"])
 
+    def test_circuit_reads_durable_outcomes_without_changing_public_projection_contract(self) -> None:
+        from ocpf_post import account_profiles
+
+        provider = BoundaryProvider()
+        schedule = self._schedule(provider)
+        provider.publish_error = ProviderRejected(402, '{"title":"UsageCapExceeded"}')
+        with patch("ocpf_post.scheduler._utc_now_dt", return_value=self.due_at):
+            failed = execute_schedule(schedule["schedule_id"],
+                                      provider_factory=lambda _: provider, now=self.due_at)
+        self.assertEqual(failed["failure_class"], "provider_usage_limit")
+        # Inventory consumers use a no-argument due-order projection. A circuit
+        # must read its own durable outcome projection, not that consumer view.
+        with patch("ocpf_post.scheduler.schedule_records", side_effect=lambda: []) as public:
+            reason = account_profiles.unavailable("x", provider.identity.account_id, now=self.due_at)
+            public.assert_not_called()
+        self.assertIn("Provider/account write circuit open", reason)
+
     def test_candidate_specific_duplicate_does_not_open_account_circuit(self) -> None:
         provider = BoundaryProvider()
         schedule = self._schedule(provider)
@@ -368,7 +385,7 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
                 ),
             }
 
-        with patch("ocpf_post.scheduler.schedule_records", return_value=[row(1), row(2)]):
+        with patch("ocpf_post.scheduler._schedule_records_in_outcome_order", return_value=[row(1), row(2)]):
             closed = provider_write_circuit(
                 "x",
                 "1480506376447315969",
@@ -376,7 +393,7 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
             )
         self.assertFalse(closed["open"])
 
-        with patch("ocpf_post.scheduler.schedule_records", return_value=[row(1), row(2), row(3)]):
+        with patch("ocpf_post.scheduler._schedule_records_in_outcome_order", return_value=[row(1), row(2), row(3)]):
             opened = provider_write_circuit(
                 "x",
                 "1480506376447315969",
@@ -419,7 +436,7 @@ class SchedulerConsequenceBoundaryTests(unittest.TestCase):
             failed(5),
             failed(6),
         ]
-        with patch("ocpf_post.scheduler.schedule_records", return_value=rows):
+        with patch("ocpf_post.scheduler._schedule_records_in_outcome_order", return_value=rows):
             circuit = provider_write_circuit(
                 "x",
                 "1480506376447315969",

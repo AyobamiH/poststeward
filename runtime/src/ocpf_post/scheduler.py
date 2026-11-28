@@ -270,8 +270,13 @@ def _fold_schedule_events(
     return sorted(records.values(), key=lambda item: (str(item.get("run_at")), str(item.get("schedule_id"))))
 
 
-def schedule_records(*, order_by_last_event: bool = False) -> list[dict[str, Any]]:
-    return _fold_schedule_events(iter_schedule_events(), order_by_last_event=order_by_last_event)
+def schedule_records() -> list[dict[str, Any]]:
+    return _fold_schedule_events(iter_schedule_events())
+
+
+def _schedule_records_in_outcome_order() -> list[dict[str, Any]]:
+    """Internal consequence projection; preserve the public due-order API."""
+    return _fold_schedule_events(iter_schedule_events(), order_by_last_event=True)
 
 
 def get_schedule(schedule_id: str) -> dict[str, Any] | None:
@@ -325,7 +330,7 @@ def provider_write_circuit(
     """
     now_dt = (now or _utc_now_dt()).astimezone(UTC)
     rows = [
-        row for row in schedule_records(order_by_last_event=True)
+        row for row in _schedule_records_in_outcome_order()
         if str(row.get("provider") or "") == str(provider)
         and str(row.get("account_id") or "") == str(account_id)
     ]
